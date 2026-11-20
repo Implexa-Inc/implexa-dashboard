@@ -3297,7 +3297,8 @@ test('direct application carries compatible lessons before asking to apply the r
    return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
   }) as typeof fetch});
  try{
-  await r.click(r.getByText('Continue to Apply & Test'));
+  const open=r.getByText('Open Apply & Test');assert.equal(open.closest('[hidden]'),null,'a current empty candidate with pending carry has a visible entry point');
+  await r.click(open);
   await r.click(r.getByText('Apply training without a sample run'));
   assert.deepEqual(events,['carry'],'carry never silently activates a different candidate');
   assert.match(r.text(),/Earlier lessons carried forward. Review them/);

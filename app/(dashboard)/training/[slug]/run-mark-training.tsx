@@ -132,7 +132,7 @@ export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug
     }throw caught;
    }await checked(expected);if(!reviewMarkApplied(result))throw Error('The saved teaching could not be confirmed. Retry this exact proposal.');
    const applied={...next,phase:'applied' as const,receipt:{recordId:result.recordId,recordDigest:result.recordDigest}};writeJournal(entry.key,applied);update({...entry,journal:applied});completed++;
-  }setNote(`${completed} lesson${completed===1?'':'s'} saved. Test this update before making it live.`);}
+  }setNote(`${completed} lesson${completed===1?'':'s'} saved. Apply them now or run a sample first.`);}
   catch(caught){if(active.current===expected&&generation.current===epoch){setError(caught instanceof Error?caught.message:'Teaching could not be confirmed.');setNote(`${completed} of ${selected.length} selected lessons confirmed saved. Remaining proposals are preserved.`);}}
   finally{if(completed&&active.current===expected)try{await onApplied();}catch{setError('Training was saved, but its refreshed status could not be loaded.');}flight.current=false;if(active.current===expected&&generation.current===epoch)setBusy(false);}
  }
