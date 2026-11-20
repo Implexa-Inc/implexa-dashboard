@@ -417,10 +417,14 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(!changes||!currentVersion||snapshotDigest!==changes.binding.snapshotDigest)return;
     if(testRequestId===null?!changes.activation?.canApplyWithoutTest:!changes.activation?.canActivate||testRequestId!==changes.activation.testRequestId)return;
     const direct=testRequestId===null,identity=changesIdentity.current;
+    // Applying the displayed current candidate is independent of optional
+    // history discovery. Carry only when a compatible set is known pending or
+    // this candidate is empty; activation still rechecks exact material in SQL.
+    const needsCarry=direct&&(continuity.state==='available'||directCarryPending===identity||!changes.records.some(record=>record.included));
     if(direct&&(directApplyInFlight.current||changesInFlight.current||preparingTest.current))return;
-    if(direct){directApplyInFlight.current=true;setDirectCarryPending(identity);setChangesBusy(true);setChangesError('');}
+    if(direct){directApplyInFlight.current=true;setDirectCarryPending(needsCarry?identity:'');setChangesBusy(true);setChangesError('');}
     try{
-      if(direct){
+      if(needsCarry){
         const continuity=await preserveCompatibleTraining();
         if(changesIdentity.current!==identity)return;
         setDirectCarryPending('');
@@ -862,6 +866,15 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     }
     if(isolated){
       setHomeError(false);
+      // Current-session editing/applying must not await optional historical
+      // evidence discovery. This read has no carry or admission side effects.
+      void call('scope',{slug}).then(result=>{
+        if(!currentHome()||!result.scope)return;
+        const scope=result.scope;rememberScope(scope);
+        if(scope.session&&!scope.session.terminal&&scope.session.baseVersionId===scope.agent.currentVersionId){
+          setSession(scope.session.sessionId);setSessionVersion(scope.session.baseVersionId);setVersionChanged(false);
+        }
+      }).catch(()=>{});
       void checkTrainingHome().catch(()=>{if(currentHome())setHomeError(true);});
     }else void work('Checking agent training',checkTrainingHome);
     return () => { live = false; };

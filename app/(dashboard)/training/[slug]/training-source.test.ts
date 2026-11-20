@@ -3237,7 +3237,7 @@ test('target carry from a newer adoption path does not claim the selected older 
 });
 
 
-test('direct application uses the existing owner activation endpoint and refreshes active training without a sample',async()=>{
+test('direct application applies the displayed current candidate without repeating history discovery or a sample',async()=>{
  const h=harness({successorAdoption:noEarlierTraining}),posts:any[]=[];let applied=false;
  const changes=()=>{
   const value=textApplyProducerProjection();
@@ -3261,7 +3261,10 @@ test('direct application uses the existing owner activation endpoint and refresh
  try{
   await r.click(r.getByText('Open Apply & Test'));
   assert.equal(posts.length,0);
+  const homeReads=h.calls.filter(call=>call.operation==='home').length;
+  const prior=h.bridge.trainingLocal;h.bridge.trainingLocal=async(operation,args)=>operation==='home'?{ok:false,reason:'training_unavailable'}:prior(operation,args);
   await r.click(r.getByText('Apply training without a sample run'));
+  assert.equal(h.calls.filter(call=>call.operation==='home').length,homeReads,'current candidate activation does not repeat optional history discovery');
   assert.equal(posts.length,1);assert.ok(posts[0].url.includes('operation=activate'));
   assert.deepEqual(posts[0].body,{expectedActiveVersionId:VERSION_A,expectedSnapshotDigest:changes().binding.snapshotDigest,
    testRequestId:null,applicationMode:'without_sample'});
@@ -3309,6 +3312,34 @@ test('direct application carries compatible lessons before asking to apply the r
   await r.click(r.getByText('Continue to Apply & Test'));
   await r.click(r.getByText('Apply training without a sample run'));
   assert.deepEqual(events,['carry','carry','activate']);assert.match(r.text(),/Your training is active on future runs/);
+  assert.equal(r.calls.backend.some(call=>call.path==='/api/v2/me/run-requests'),false);
+ }finally{r.cleanup();}
+});
+
+
+test('current training candidate opens and applies while optional home history is still pending',async()=>{
+ const h=harness(),prior=h.bridge.trainingLocal;let applied=false,homeReads=0;
+ Object.assign(h.bridge,{trainingIntakeScopeContractVersion:'1'});
+ h.bridge.trainingLocal=async(operation,args)=>{
+  if(operation==='home'){homeReads++;return new Promise(()=>{});}
+  if(operation==='scope')return {ok:true,scope:{agent:{name:'Video craft',currentVersionId:VERSION_A},session:{sessionId:SESSION,baseVersionId:VERSION_A,parentSessionId:null,terminal:false}}};
+  return prior(operation,args);
+ };
+ const candidate=()=>{const value=textApplyProducerProjection();Object.assign(value.records[0],{state:'candidate',included:true,admissionOrigin:'owner_candidate'});
+  value.activation={canActivate:false,canApplyWithoutTest:true,reason:null,servedSnapshotDigest:applied?DIGEST:null,withdrawnSinceTest:0,testRequestId:null,
+   serving:{mode:applied?'activated_snapshot':'legacy_accepted',candidateDiffers:!applied,activeRecordIds:applied?[value.records[0].recordId]:[]}};return value;};
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
+  if(String(url).includes('/changes?')){
+   if(init.method==='POST'){applied=true;return {ok:true,json:async()=>({ok:true,contractVersion:'training-snapshot-activation.v1',activationId:SOURCE_ID,activationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:DIGEST,testRequestId:null})};}
+   return {ok:true,json:async()=>candidate()};
+  }
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+ }) as typeof fetch});
+ try{
+  await r.click(r.getByText('Open Apply & Test'));
+  await r.click(r.getByText('Apply training without a sample run'));
+  assert.equal(applied,true);assert.equal(homeReads,1,'pending optional discovery is not repeated');
+  assert.match(r.text(),/Your training is active on future runs/);
   assert.equal(r.calls.backend.some(call=>call.path==='/api/v2/me/run-requests'),false);
  }finally{r.cleanup();}
 });
