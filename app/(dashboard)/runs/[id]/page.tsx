@@ -259,14 +259,24 @@ export default async function RunDetailPage({
     status: 'unavailable', reason: 'continuation_history_unavailable',
   };
   let stagePreview: StagePreviewRead = { state: 'unavailable' };
+  let supportsAudioRevision = false;
+  let requiresCreativeReview = false;
+  let revisionCreditChoices: number[] = [];
   try {
-    const response = await callBackend(`/api/v2/runs/${encodeURIComponent(r.id)}`, { jwt: session.access_token });
+    const response = await callBackend(`/api/v2/runs/${encodeURIComponent(r.id)}?continuationMedia=1`, { jwt: session.access_token });
     // Owner continuation clears the approval hold, not its retained Preview.
     // Reuse this existing owner-scoped read; readiness still comes from its summary.
     stagePreview = parseStagePreviewRead(response, r.id);
     const history = response?.run?.checkpointedContinuations;
     if (history?.status === 'available' && Array.isArray(history.items)) checkpointedContinuations = history;
     else if (history?.status === 'unavailable' && typeof history.reason === 'string') checkpointedContinuations = history;
+    if (response?.run?.id === r.id) {
+      const media = response.run.continuationMedia;
+      supportsAudioRevision = media?.audioEdits === true;
+      requiresCreativeReview = media?.requiresCreativeReview === true;
+      const choices = media?.higgsfieldCreditChoices;
+      if (Array.isArray(choices)) revisionCreditChoices = [0, 25, 50, 100, 250].filter(value => choices.includes(value));
+    }
   } catch { /* unavailable is rendered honestly below, never normalized to an empty history */ }
 
   // 0139 is additive. Read the explicit hold contract separately so a dashboard
@@ -732,32 +742,16 @@ export default async function RunDetailPage({
   }
 
   let creativeGradeNotice: string | null = null;
-  let supportsAudioRevision = false;
-  let revisionCreditChoices: number[] = [];
-  if (runWorkflowVersionId && (!judgment?.creative_grade || (!held && r.output_markdown))) {
+  if (requiresCreativeReview && !judgment?.creative_grade) {
     try {
-      const {data: version} = await supabase.from('workflow_versions').select('steps,input_contract').eq('id', runWorkflowVersionId).maybeSingle();
-      const steps = Array.isArray(version?.steps) ? version.steps : [];
-      const declaredReviews = steps.flatMap(step => Array.isArray(step.outputs) ? step.outputs : [])
-        .map(output => output.review).filter(review => review?.required === true);
-      supportsAudioRevision = declaredReviews.some(review => review.kind === 'graded_creative' && review.refinement?.sourceVideoInput);
-      if (steps.some(step => step.executionAccess === 'local_tool' && typeof step.executionTool === 'string'
-          && step.executionTool.toLowerCase() === 'higgsfield') && Array.isArray(version?.input_contract?.fields)) {
-        const fields = version.input_contract.fields as import('@/lib/workflow-input-contract').WorkflowInputField[];
-        const field = fields.find(field => field.key === 'higgsfield_credit_limit' && field.kind === 'choice');
-        const options = field?.options;
-        revisionCreditChoices = Array.isArray(options) ? [0, 25, 50, 100, 250].filter(credits => options.includes(String(credits))) : [];
-      }
-      if (declaredReviews.length && !judgment?.creative_grade) {
-        const {data: policy, error: policyError} = await supabase.from('user_agent_judge_policies').select('mode')
-          .eq('skill_slug', r.skill_slug).maybeSingle();
-        creativeGradeNotice = policyError
-          ? 'Creative grade unavailable: the agent’s Judge policy could not be read.'
-          : (!policy || policy.mode === 'off')
-          ? 'Creative grade required, but this agent’s Judge is off. The delivered output remains available.'
-          : judgmentPending ? 'Creative grade pending. Delivery and grading are separate.'
-            : 'Creative grade required but not available yet. This output has no assessed creative grade.';
-      }
+      const {data: policy, error: policyError} = await supabase.from('user_agent_judge_policies').select('mode')
+        .eq('skill_slug', r.skill_slug).maybeSingle();
+      creativeGradeNotice = policyError
+        ? 'Creative grade unavailable: the agent’s Judge policy could not be read.'
+        : (!policy || policy.mode === 'off')
+        ? 'Creative grade required, but this agent’s Judge is off. The delivered output remains available.'
+        : judgmentPending ? 'Creative grade pending. Delivery and grading are separate.'
+          : 'Creative grade required but not available yet. This output has no assessed creative grade.';
     } catch { /* Existing delivery is still readable when review metadata is unavailable. */ }
   }
 
