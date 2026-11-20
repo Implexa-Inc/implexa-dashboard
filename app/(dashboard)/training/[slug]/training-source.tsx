@@ -305,6 +305,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [testProgress,setTestProgress]=useState('');
   const changesBusy=changesMutationBusy||!!testProgress;
   const [publicationReviewOpen,setPublicationReviewOpen]=useState(false);
+  const directApplyInFlight=useRef(false);
   const changesInFlight=useRef(false),changeIntent=useRef<{fingerprint:string;key:string}|null>(null);
   const unconfirmedTextApply=useRef<{identity:string;records:Array<{recordId:string;recordDigest:string}>;error:string}|null>(null);
   const changesIdentity=useRef('');changesIdentity.current=`${session}:${currentVersion}`;
@@ -414,13 +415,33 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   async function activateCandidate(snapshotDigest:string,testRequestId:string|null){
     if(!changes||!currentVersion||snapshotDigest!==changes.binding.snapshotDigest)return;
     if(testRequestId===null?!changes.activation?.canApplyWithoutTest:!changes.activation?.canActivate||testRequestId!==changes.activation.testRequestId)return;
-    const activated=await mutateChanges('activate',{expectedActiveVersionId:currentVersion,expectedSnapshotDigest:snapshotDigest,testRequestId,
-      ...(testRequestId===null?{applicationMode:'without_sample'}:{})});
-    if(activated&&(activated.contractVersion!=='training-snapshot-activation.v1'||typeof activated.activationId!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(activated.activationId)
-      ||typeof activated.activationDigest!=='string'||!/^[a-f0-9]{64}$/.test(activated.activationDigest)||activated.sessionId!==session||activated.workflowVersionId!==currentVersion
-      ||activated.snapshotDigest!==snapshotDigest||activated.testRequestId!==testRequestId)){
-      await loadChanges();setChangesError('This update may have applied, but the receipt could not be confirmed. Refresh to check the served training before trying again.');
-    }else if(activated)setApplyNote('');
+    const direct=testRequestId===null,identity=changesIdentity.current;
+    if(direct&&(directApplyInFlight.current||changesInFlight.current||preparingTest.current))return;
+    if(direct){directApplyInFlight.current=true;setChangesBusy(true);setChangesError('');}
+    try{
+      if(direct){
+        const continuity=await preserveCompatibleTraining();
+        if(changesIdentity.current!==identity)return;
+        if(continuity.carried){
+          const fresh=await loadChanges(AbortSignal.timeout(60000));
+          if(changesIdentity.current!==identity)return;
+          if(!fresh){setChangesError('Earlier lessons were carried forward. Refresh saved training before applying.');return;}
+          // Carry may change the selected set. Review the new exact candidate
+          // before activating it, rather than applying an undisplayed digest.
+          if(fresh.binding.snapshotDigest!==snapshotDigest){
+            selectTrainingStep(2);setApplyNote('Earlier lessons carried forward. Review them, then apply your training.');return;
+          }
+        }
+      }
+      const activated=await mutateChanges('activate',{expectedActiveVersionId:currentVersion,expectedSnapshotDigest:snapshotDigest,testRequestId,
+        ...(direct?{applicationMode:'without_sample'}:{})});
+      if(activated&&(activated.contractVersion!=='training-snapshot-activation.v1'||typeof activated.activationId!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(activated.activationId)
+        ||typeof activated.activationDigest!=='string'||!/^[a-f0-9]{64}$/.test(activated.activationDigest)||activated.sessionId!==session||activated.workflowVersionId!==currentVersion
+        ||activated.snapshotDigest!==snapshotDigest||activated.testRequestId!==testRequestId)){
+        await loadChanges();setChangesError('This update may have applied, but the receipt could not be confirmed. Refresh to check the served training before trying again.');
+      }else if(activated)setApplyNote('');
+    }catch(error){if(changesIdentity.current===identity)setChangesError(error instanceof Error?error.message:'Training carry-forward could not be confirmed.');}
+    finally{if(direct){directApplyInFlight.current=false;setChangesBusy(false);}}
   }
   async function preparePublication(recordIds:string[]):Promise<TrainingPublicationPreview|null>{
     if(!changes||!currentVersion)return null;
@@ -1952,7 +1973,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&busy&&!analysisInProgress&&<p role="status" className="text-sm text-ink-400">{busy}…</p>}{!installationId&&error&&<p role="alert" className="text-sm text-amber-300">{reasonLabel(error)}</p>}
     {!installationId&&trainingStep!==1&&evidenceLoading&&<p role="status" className="text-xs text-ink-400">Loading saved examples…</p>}
     {!installationId&&!separateIntake&&evidenceError&&!analysisInProgress&&<p role="status" className="text-xs text-amber-300">Saved examples couldn’t load. <button type="button" className="underline" disabled={!!busy||evidenceLoading} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry saved examples</button></p>}
-    {!installationId&&trainingStep===3&&applyNote&&<p role="status" className="text-sm text-ink-300">{applyNote}</p>}
+    {!installationId&&trainingStep!==1&&applyNote&&<p role="status" className="text-sm text-ink-300">{applyNote}</p>}
+    {!installationId&&directApplyInFlight.current&&<p role="status" className="text-sm text-ink-300">Checking saved lessons before application…</p>}
     {!installationId&&changesError&&trainingStep!==2&&!analysisInProgress&&(!separateIntake||trainingStep===3)&&<p role="alert" className="text-sm text-amber-300">{changesError==='training_local_unavailable'?'Saved lessons couldn’t load.':changesError.replaceAll('_',' ')} {!changes&&<button type="button" className="underline" disabled={changesBusy} onClick={()=>void loadChanges()}>Refresh training</button>}</p>}
     {!installationId&&extractionNote&&<div role="status" className="flex flex-wrap items-center gap-3 text-sm text-ink-300"><p>{extractionNote}</p>{busy==='Finding the lessons in your feedback'?<button type="button" className="text-xs underline" onClick={()=>{extractionCancel.current=true;}}>Pause after this step</button>:lastFeedbackBatch&&<button type="button" className="text-xs underline" onClick={()=>void extractRecordingFeedback(lastFeedbackBatch)}>Resume extraction</button>}</div>}
     {!installationId&&session&&sessionVersion===currentVersion&&currentVersion&&<TrainingOperatingChanges key={`${ownerId}:${session}:${currentVersion}`} sessionId={session} versionId={currentVersion} slug={slug} refreshKey={operatingRefresh} onResume={analysis=>void resumeOperatingAnalysis(analysis).catch(()=>setExtractionNote('Your saved feedback could not be reopened. The original note is preserved.'))} disabled={!!busy||changesBusy||versionChanged||runContext?.revisePending===true||!runContext||runContext.statusUnavailable===true}/>}
@@ -2122,7 +2144,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </div>
     <section hidden={!installationId&&trainingStep!==3} aria-label="Apply and test training" className="space-y-6">
     <div className="flex items-center justify-between gap-3"><h2 className="text-2xl font-medium tracking-tight">Apply &amp; Test</h2><button type="button" className="text-sm text-brand-400 underline underline-offset-4" onClick={()=>selectTrainingStep(2)}>Review selection</button></div><div ref={setApplyContainer} aria-label="Selected training to apply" className="space-y-4"/>
-    {!installationId&&<TrainingRunPanel value={changes} progress={testProgress} busy={!!busy||changesBusy||versionChanged} onTest={digest=>prepareCandidateTest(digest)} onPublish={()=>setPublicationReviewOpen(true)} onActivate={activateCandidate} onApplyWithoutTest={digest=>activateCandidate(digest,null)}
+    {!installationId&&<TrainingRunPanel value={changes} compatibleTrainingPending={continuity.state==='available'} progress={testProgress} busy={!!busy||changesBusy||versionChanged} onTest={digest=>prepareCandidateTest(digest)} onPublish={()=>setPublicationReviewOpen(true)} onActivate={activateCandidate} onApplyWithoutTest={digest=>activateCandidate(digest,null)}
       actions={runContext?<AgentActions {...runContext} workflowVersionId={runContext.workflowVersionId} inputContract={runContext.inputContract} inputContractDigest={runContext.inputContractDigest} slug={slug} name={agentName} align="start" presentation="training" statusUnavailable={runContext.statusUnavailable||runContext.workflowVersionId!==currentVersion} runRequest={runRequest} onQueued={()=>void loadChanges()}
         trainingChoices={{pendingUnknown:!!changesError,pending:false,canTest:!versionChanged&&!!changes?.test.canTest,delivered:!versionChanged&&changes?.test.status==='delivered'&&changes.test.snapshotDigest===changes.binding.snapshotDigest,savedAvailable:changes?.activation?.serving?.mode!=='snapshot_other_version',busy:!!busy||changesBusy,
          onPending:()=>{if(changes)void prepareCandidateTest(changes.binding.snapshotDigest);},onSaved:()=>setRunRequest({nonce:crypto.randomUUID(),binding:null})}}/>:<p className="mt-3 text-sm text-ink-500">Run setup is unavailable. Refresh this page to try again.</p>}/>}

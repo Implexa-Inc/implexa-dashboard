@@ -96,13 +96,13 @@ export function teachingCaption(summary:string|null){
 }
 
 /** Keep the live run controller mounted independently of learning-history tabs. */
-export function TrainingRunPanel({value,actions,busy=false,progress,onTest,onPublish,onActivate,onApplyWithoutTest}:{onApplyWithoutTest?:(digest:string)=>void;value:GuidedTrainingChanges|null;actions?:ReactNode;busy?:boolean;progress?:string;onTest:(digest:string)=>void;onPublish:(digest:string)=>void;onActivate?:(digest:string,testRequestId:string)=>void}){
+export function TrainingRunPanel({value,actions,busy=false,progress,onTest,onPublish,onActivate,onApplyWithoutTest,compatibleTrainingPending=false}:{compatibleTrainingPending?:boolean;onApplyWithoutTest?:(digest:string)=>void;value:GuidedTrainingChanges|null;actions?:ReactNode;busy?:boolean;progress?:string;onTest:(digest:string)=>void;onPublish:(digest:string)=>void;onActivate?:(digest:string,testRequestId:string)=>void}){
  const button='text-xs text-ink-400 underline underline-offset-4 disabled:opacity-40';
- return (<section className="border-t border-ink-800 pt-6 text-sm" aria-label="Test this update">{value?.activation?.serving?.candidateDiffers&&onApplyWithoutTest&&<div className="mb-6 rounded-xl border border-ink-800 p-4">
+ return (<section className="border-t border-ink-800 pt-6 text-sm" aria-label="Test this update">{value&&(value.activation?.serving?.candidateDiffers||compatibleTrainingPending)&&onApplyWithoutTest&&<div className="mb-6 rounded-xl border border-ink-800 p-4">
    <h3 className="font-medium">Apply your training</h3>
    <p className="mt-2 text-ink-400">Choose when these lessons become active on future runs.</p>
    <div className="mt-4 flex flex-wrap gap-3">
-    <button type="button" className="btn-primary" disabled={busy||value.activation.canApplyWithoutTest!==true} onClick={()=>onApplyWithoutTest(value.binding.snapshotDigest)}>Apply training without a sample run</button>
+    <button type="button" className="btn-primary" disabled={busy||value.activation?.canApplyWithoutTest!==true} onClick={()=>onApplyWithoutTest(value.binding.snapshotDigest)}>Apply training without a sample run</button>
     <button type="button" className="btn-secondary" disabled={busy||!value.test.canTest||['queued','running'].includes(value.test.status)} onClick={()=>onTest(value.binding.snapshotDigest)}>Run a sample, then apply</button>
    </div>
   </div>}
