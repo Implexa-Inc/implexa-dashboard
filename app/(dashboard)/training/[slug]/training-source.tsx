@@ -321,7 +321,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       if(pending?.identity===captured){
         const confirmed=pending.records.filter(record=>value.records.some((item:TrainingChangeRecord)=>item.recordId===record.recordId&&item.recordDigest===record.recordDigest&&item.included)).length;
         if(confirmed===pending.records.length){
-          setApplyNote(`${confirmed} lesson${confirmed===1?'':'s'} saved. Test this update before making it live.`);
+          setApplyNote(`${confirmed} lesson${confirmed===1?'':'s'} saved. Apply them now or run a sample first.`);
           setError(previous=>previous===pending.error?'':previous);unconfirmedTextApply.current=null;
         }else setApplyNote(`${confirmed} of ${pending.records.length} selected lessons confirmed saved. Refresh to check the remaining lessons before retrying.`);
       }
@@ -411,14 +411,16 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     preparedRuns.current.set(preparationKey,binding);setPublicationReviewOpen(false);setRunRequest({nonce:crypto.randomUUID(),binding});
     }finally{preparingTest.current=false;setTestProgress('');}
   }
-  async function activateCandidate(snapshotDigest:string,testRequestId:string){
-    if(!changes||!currentVersion||snapshotDigest!==changes.binding.snapshotDigest||!changes.activation?.canActivate||testRequestId!==changes.activation.testRequestId)return;
-    const activated=await mutateChanges('activate',{expectedActiveVersionId:currentVersion,expectedSnapshotDigest:snapshotDigest,testRequestId});
+  async function activateCandidate(snapshotDigest:string,testRequestId:string|null){
+    if(!changes||!currentVersion||snapshotDigest!==changes.binding.snapshotDigest)return;
+    if(testRequestId===null?!changes.activation?.canApplyWithoutTest:!changes.activation?.canActivate||testRequestId!==changes.activation.testRequestId)return;
+    const activated=await mutateChanges('activate',{expectedActiveVersionId:currentVersion,expectedSnapshotDigest:snapshotDigest,testRequestId,
+      ...(testRequestId===null?{applicationMode:'without_sample'}:{})});
     if(activated&&(activated.contractVersion!=='training-snapshot-activation.v1'||typeof activated.activationId!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(activated.activationId)
       ||typeof activated.activationDigest!=='string'||!/^[a-f0-9]{64}$/.test(activated.activationDigest)||activated.sessionId!==session||activated.workflowVersionId!==currentVersion
       ||activated.snapshotDigest!==snapshotDigest||activated.testRequestId!==testRequestId)){
       await loadChanges();setChangesError('This update may have applied, but the receipt could not be confirmed. Refresh to check the served training before trying again.');
-    }
+    }else if(activated)setApplyNote('');
   }
   async function preparePublication(recordIds:string[]):Promise<TrainingPublicationPreview|null>{
     if(!changes||!currentVersion)return null;
@@ -1710,7 +1712,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         const saved=await loadChanges();if(changesIdentity.current!==identity)return;
         if(!saved?.records.some((item:TrainingChangeRecord)=>item.recordId===record.recordId&&item.recordDigest===record.recordDigest&&item.included))throw Error('A teaching could not be confirmed saved. Refresh to check before retrying.');
         completed++;
-      }setApplyNote(`${completed} lesson${completed===1?'':'s'} saved. Test this update before making it live.`);
+      }setApplyNote(`${completed} lesson${completed===1?'':'s'} saved. Apply them now or run a sample first.`);
       }catch(caught){if(changesIdentity.current!==identity)return;
         unconfirmedTextApply.current={identity,records:records.map(({recordId,recordDigest})=>({recordId,recordDigest})),error:caught instanceof Error?caught.message:'Training is unavailable.'};
         setApplyNote(`${completed} of ${records.length} selected lessons confirmed saved. Refresh to check the remaining lessons before retrying.`);throw caught;}
@@ -1737,7 +1739,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         if(confirmed?.state!=='accepted')throw Error('The saved teaching could not be confirmed. Refresh before retrying.');
         completed++;await loadChanges();
       }
-      setApplyNote(`${completed} lesson${completed===1?'':'s'} saved. Test this update before making it live.`);
+      setApplyNote(`${completed} lesson${completed===1?'':'s'} saved. Apply them now or run a sample first.`);
       }catch(caught){setApplyNote(`${completed} of ${items.length} selected lessons confirmed saved. Remaining drafts are preserved; nothing was made live.`);throw caught;}
     });
   }
@@ -2120,9 +2122,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </div>
     <section hidden={!installationId&&trainingStep!==3} aria-label="Apply and test training" className="space-y-6">
     <div className="flex items-center justify-between gap-3"><h2 className="text-2xl font-medium tracking-tight">Apply &amp; Test</h2><button type="button" className="text-sm text-brand-400 underline underline-offset-4" onClick={()=>selectTrainingStep(2)}>Review selection</button></div><div ref={setApplyContainer} aria-label="Selected training to apply" className="space-y-4"/>
-    {!installationId&&<TrainingRunPanel value={changes} progress={testProgress} busy={!!busy||changesBusy||versionChanged} onTest={digest=>prepareCandidateTest(digest)} onPublish={()=>setPublicationReviewOpen(true)} onActivate={activateCandidate}
+    {!installationId&&<TrainingRunPanel value={changes} progress={testProgress} busy={!!busy||changesBusy||versionChanged} onTest={digest=>prepareCandidateTest(digest)} onPublish={()=>setPublicationReviewOpen(true)} onActivate={activateCandidate} onApplyWithoutTest={digest=>activateCandidate(digest,null)}
       actions={runContext?<AgentActions {...runContext} workflowVersionId={runContext.workflowVersionId} inputContract={runContext.inputContract} inputContractDigest={runContext.inputContractDigest} slug={slug} name={agentName} align="start" presentation="training" statusUnavailable={runContext.statusUnavailable||runContext.workflowVersionId!==currentVersion} runRequest={runRequest} onQueued={()=>void loadChanges()}
-        trainingChoices={{pendingUnknown:!!changesError,pending:versionChanged?null:changes?.activation?.serving?.candidateDiffers??null,canTest:!versionChanged&&!!changes?.test.canTest,delivered:!versionChanged&&changes?.test.status==='delivered'&&changes.test.snapshotDigest===changes.binding.snapshotDigest,savedAvailable:changes?.activation?.serving?.mode!=='snapshot_other_version',busy:!!busy||changesBusy,
+        trainingChoices={{pendingUnknown:!!changesError,pending:false,canTest:!versionChanged&&!!changes?.test.canTest,delivered:!versionChanged&&changes?.test.status==='delivered'&&changes.test.snapshotDigest===changes.binding.snapshotDigest,savedAvailable:changes?.activation?.serving?.mode!=='snapshot_other_version',busy:!!busy||changesBusy,
          onPending:()=>{if(changes)void prepareCandidateTest(changes.binding.snapshotDigest);},onSaved:()=>setRunRequest({nonce:crypto.randomUUID(),binding:null})}}/>:<p className="mt-3 text-sm text-ink-500">Run setup is unavailable. Refresh this page to try again.</p>}/>}
     </section>
     <Modal open={uploadNoteBlocked} onClose={()=>setUploadNoteBlocked(false)} title={runFeedbackRequest?"Finish your proposed training":"Finish your current note"}><p className="text-sm leading-6 text-ink-300">{runFeedbackRequest?"Close your current proposals before uploading another example. Your saved feedback and proposals remain available.":"Save or cancel your note before uploading another example. Your feedback stays where you left it."}</p><div className="mt-5 flex gap-4"><button type="button" className="text-sm text-ink-400" onClick={()=>setUploadNoteBlocked(false)}>Keep editing</button><button type="button" className="btn-primary" onClick={returnToCurrentNote}>{runFeedbackRequest?"Return to proposals":"Return to note"}</button></div></Modal>

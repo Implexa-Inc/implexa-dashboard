@@ -129,7 +129,7 @@ test('Training follows deferred file preparation into the same request and repor
    else assert.match(r.text(),outcome==='cancelled'?/File preparation was cancelled/:/File preparation needs attention/);
    assert.equal(refreshed,2,'one queue notification and one terminal refresh');
    const births=r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests');assert.equal(births.length,1);assert.deepEqual(JSON.parse(JSON.stringify((births[0].init as any).body.trainingTest)),binding);
-   assert.equal((r.getByText('Run with latest saved learnings') as HTMLButtonElement).disabled,false);assert.equal(r.calls.push.length,0);
+   assert.equal((r.getByText('Run with active training') as HTMLButtonElement).disabled,false);assert.equal(r.calls.push.length,0);
   }finally{r.cleanup();}
  }
 });
@@ -205,7 +205,7 @@ test('Training opens the same Run dialog in place and cannot switch a prepared b
  const props={slug:'video-agent',isActive:true,workflowVersionId:VERSION,inputContractDigest:'c'.repeat(64),inputContract:{version:1,fields:[{key:'brief',label:'Brief',kind:'text',cardinality:'one',required:true,order:1}]},presentation:'training',onQueued:()=>queued++,trainingChoices:{pending:true,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
  const r=await renderAnother('running',false,false,null,props);
  try{
-  assert.ok(r.getByText('Run with new training (pending)'));assert.ok(r.getByText('Run with latest saved learnings'));
+  assert.ok(r.getByText('Run with new training (pending)'));assert.ok(r.getByText('Run with active training'));
   assert.equal(r.calls.backend.some(c=>c.path.includes('/agent-training/agents/')),false,'rendering starts nothing');
   await r.rerender({...props,runRequest:{nonce:'pending',binding}});
   assert.ok(r.getByText('Save & run'));assert.equal(r.calls.push.length,0);
@@ -229,7 +229,7 @@ test('Training run choices reflect only the supplied serving state and saved mod
  const props={slug:'video-agent',isActive:true,workflowVersionId:VERSION,inputContractDigest:'c'.repeat(64),inputContract:{version:1,fields:[{key:'brief',label:'Brief',kind:'text',cardinality:'one',required:true,order:1}]},presentation:'training',trainingChoices:{pending:false,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
  const r=await renderAnother('running',false,false,null,props);
  try{
-  assert.equal(r.queryByText('Run with new training (pending)'),null);assert.ok(r.getByText('Run with latest saved learnings'));
+  assert.equal(r.queryByText('Run with new training (pending)'),null);assert.ok(r.getByText('Run with active training'));
   await r.rerender({...props,runRequest:{nonce:'candidate',binding}});await r.click(r.document.querySelector('[role=dialog] [aria-label=Close]')!);
   await r.rerender({...props,runRequest:{nonce:'saved',binding:null}});await r.click(r.getByText('Save & run'));
   const posts=r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests');assert.equal(posts.length,1);assert.equal((posts[0].init as any).body.trainingTest,undefined);
@@ -248,7 +248,7 @@ test('Training refreshes terminal or long-running test status and frees its loca
    await r.rerender({...props,runRequest:{nonce:outcome,binding:null}});await r.click(r.getByText('Save & run'));await r.click(r.getByText('Back to Training'));
    const before=refreshed;if(outcome==='poll_cap'){const now=r.window.Date.now();r.window.Date.now=()=>now+301000;}
    await r.act(()=>tick());assert.equal(refreshed,before+1);
-   assert.equal((r.getByText('Run with latest saved learnings') as HTMLButtonElement).disabled,false);
+   assert.equal((r.getByText('Run with active training') as HTMLButtonElement).disabled,false);
    assert.equal(r.calls.push.length,0);assert.equal(r.queryByText('Done — view result'),null);
    if(outcome==='poll_cap')assert.match(r.text(),/Completion is not yet confirmed/);
   }finally{r.cleanup();}

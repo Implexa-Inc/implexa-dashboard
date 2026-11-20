@@ -98,7 +98,7 @@ test('pre-test guidance shows executor and real budget limits without claiming a
  const v=value();v.selectionCoverage={maxStandingReferences:2,eligibleTextByStage:[{stage:'build',count:5}]};
  v.activation={canActivate:false,reason:'training_delivered_test_required',servedSnapshotDigest:H,withdrawnSinceTest:0,stoppedSinceTest:1,testRequestId:null};
  assert.equal(guidedTrainingChanges(v,expected),true);const {r}=await setup(t,v);
- assert.match(r.text(),/requires the Codex executor/);assert.match(r.text(),/At most 2 stage-start references, across text and images/);
+ assert.match(r.text(),/A sample run uses these saved lessons/);assert.match(r.text(),/At most 2 stage-start references, across text and images/);
  assert.match(r.text(),/build: 5 eligible text teachings/);assert.match(r.text(),/Earlier-running tasks keep their frozen taste/);
  assert.doesNotMatch(r.text(),/5 (?:text )?teachings (?:were )?delivered/);
  (v.selectionCoverage as any).maxStandingReferences=3;assert.equal(guidedTrainingChanges(v,expected),false);
@@ -133,8 +133,8 @@ test('taste suggestions are preselected but never written until Apply; method pr
  const r=await render('../training/[slug]/training-changes.tsx',props);t.after(()=>r.cleanup());
  const boxes=[...r.document.querySelectorAll('input[aria-label^="Select teaching:"]')] as HTMLInputElement[];
  assert.equal(boxes.length,2);assert.equal(boxes[0].checked,true);assert.equal(boxes[1].checked,false);assert.equal(applied.length,0);
- await r.click(r.getByText('Apply selected'));assert.deepEqual(applied[0].map((x:any)=>x.recordId),[id(5)]);assert.match(r.text(),/proposed, not applied yet/);
- await r.click(boxes[1]);await r.click(r.getByText('Apply selected'));assert.deepEqual(applied[1].map((x:any)=>x.recordId),[id(5),id(6)]);
+ await r.click(r.getByText('Save selected lessons'));assert.deepEqual(applied[0].map((x:any)=>x.recordId),[id(5)]);assert.match(r.text(),/proposed, not saved yet/);
+ await r.click(boxes[1]);await r.click(r.getByText('Save selected lessons'));assert.deepEqual(applied[1].map((x:any)=>x.recordId),[id(5),id(6)]);
  await r.click([...r.document.querySelectorAll('button')].find(button=>button.textContent==='✨ Explain')!);assert.equal(explained[0].recordId,id(5));assert.equal(applied.length,2,'Explain does not write or apply');
 });
 
@@ -145,9 +145,9 @@ test('bundle selection survives refresh and partial apply without claiming the r
  const r=await render('../training/[slug]/training-changes.tsx',props);t.after(()=>r.cleanup());
  const boxes=()=>[...r.document.querySelectorAll('input[aria-label^="Select teaching:"]')] as HTMLInputElement[];
  await r.click(boxes()[1]);await r.rerender({...props,value:{...v}});assert.equal(boxes()[1].checked,false,'snapshot refresh preserves an explicit skip');
- await r.click(r.getByText('Apply selected'));assert.deepEqual(applied[0].map((x:any)=>x.recordId),[id(5)]);
+ await r.click(r.getByText('Save selected lessons'));assert.deepEqual(applied[0].map((x:any)=>x.recordId),[id(5)]);
  const partial={...v,records:[{...v.records[0],state:'candidate',included:true,admissionOrigin:'owner_candidate'},v.records[1]]};
- await r.rerender({...props,value:partial});assert.equal(boxes().length,1);assert.equal(boxes()[0].checked,false);assert.equal((r.getByText('Apply selected') as HTMLButtonElement).disabled,true);
+ await r.rerender({...props,value:partial});assert.equal(boxes().length,1);assert.equal(boxes()[0].checked,false);assert.equal((r.getByText('Save selected lessons') as HTMLButtonElement).disabled,true);
  assert.match(r.text(),/Suggested/);assert.doesNotMatch(r.text(),/All applied|Training applied successfully/);
  const nextVersion={...v,binding:{...v.binding,workflowVersionId:id(30)}};
  await r.rerender({...props,value:nextVersion});assert.equal(boxes()[1].checked,true,'another version does not reuse stale skips');
@@ -182,8 +182,8 @@ test('pending training stays visible while the saved library is collapsed with i
  const calls:any[]=[],props={value:v,hiddenRecordIds:[id(35),id(36)],versionPicker:'Current · Earlier',onPolicy:()=>{},onForce:()=>{},onEdit:(record:any)=>calls.push(['edit',record.recordId]),onRecord:(record:any,action:any)=>calls.push([action,record.recordId]),onTest:()=>{},onPublish:()=>{},onExplain:(record:any)=>calls.push(['explain',record.recordId]),onApplySelected:(records:any[])=>calls.push(['apply',records.map(record=>record.recordId)])};
  const r=await render('../training/[slug]/training-changes.tsx',props);t.after(()=>r.cleanup());
  const savedSummary=r.getByText('Saved training (2)'),library=savedSummary.closest('details')!;assert.equal(library.open,false);assert.match(r.text(),/Current · Earlier/);assert.doesNotMatch(r.text(),/duplicate native draft|hidden accepted lesson/i);
- const cards=[...r.document.querySelectorAll('[aria-label="Saved teaching"]')];assert.equal(cards.length,4);assert.equal(cards[0].closest('details'),null);assert.equal(cards[1].closest('details'),null);assert.ok(library.contains(cards[2]));assert.ok(library.contains(cards[3]));assert.ok(!library.contains(r.getByText('Apply selected')));
- await r.click(r.getByText('Apply selected'));assert.deepEqual(calls,[['apply',[id(31)]]],'hidden native drafts never sneak into the batch');
+ const cards=[...r.document.querySelectorAll('[aria-label="Saved teaching"]')];assert.equal(cards.length,4);assert.equal(cards[0].closest('details'),null);assert.equal(cards[1].closest('details'),null);assert.ok(library.contains(cards[2]));assert.ok(library.contains(cards[3]));assert.ok(!library.contains(r.getByText('Save selected lessons')));
+ await r.click(r.getByText('Save selected lessons'));assert.deepEqual(calls,[['apply',[id(31)]]],'hidden native drafts never sneak into the batch');
  await r.click(savedSummary);assert.equal(library.open,true);await r.click([...cards[2].querySelectorAll('button')].find(button=>button.textContent==='✨ Explain')!);await r.click(cards[3].querySelector('summary')!);await r.click([...cards[3].querySelectorAll('button')].find(button=>button.textContent==='Undo removal')!);assert.deepEqual(calls.slice(1),[['explain',id(33)],['undo',id(34)]]);
  assert.ok(library.compareDocumentPosition(r.getByText('Run your agent'))&r.window.Node.DOCUMENT_POSITION_FOLLOWING,'the Run panel remains after the compact saved library');
 });
@@ -207,12 +207,60 @@ test('direction-scoped teachings show their scope before Apply and unresolved sc
  const r=await render('../training/[slug]/training-changes.tsx',props);t.after(()=>r.cleanup());
  await r.rerender({...props,value:{...v,records:[{...v.records[0],creativeDirections:[]}]}});assert.ok(r.getByText('All directions'));await r.rerender(props);
  assert.ok(r.getByText('Only for Cinematic B-roll-heavy'));
- await r.click(r.getByText('Apply selected'));assert.deepEqual(applied[0][0].creativeDirections,['Cinematic B-roll-heavy']);
+ await r.click(r.getByText('Save selected lessons'));assert.deepEqual(applied[0][0].creativeDirections,['Cinematic B-roll-heavy']);
  const unresolved={...v,records:[{...v.records[0],creativeDirections:null}]};await r.rerender({...props,value:unresolved});
  assert.ok(r.getByText('Creative direction needs review'));
  assert.equal(r.document.querySelectorAll('input[aria-label^="Select teaching:"]').length,0);
  assert.equal((r.getByText('Include in private update') as HTMLButtonElement).disabled,true);
  for(const scope of [['Other'],['Balanced','No B-rolls'],'Balanced',undefined]){
   const invalid={...v,records:[{...v.records[0],creativeDirections:scope}]};assert.equal(guidedTrainingChanges(invalid,expected),false);
+ }
+});
+
+test('owner can apply without a sample or choose the existing sample path',async t=>{
+ const v=value();
+ v.activation={canActivate:false,canApplyWithoutTest:true,reason:'training_delivered_test_required',servedSnapshotDigest:null,
+  withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true,activeRecordIds:[]}};
+ assert.equal(guidedTrainingChanges(v,expected),true);
+ const calls:any[]=[],props={value:v,onTest:(digest:string)=>calls.push(['sample',digest]),onPublish:()=>{},
+  onApplyWithoutTest:(digest:string)=>calls.push(['direct',digest])};
+ const r=await render('../training/[slug]/training-changes.tsx',props,{exportName:'TrainingRunPanel'});
+ t.after(()=>r.cleanup());
+ assert.deepEqual(calls,[]);
+ await r.click(r.getByText('Apply training without a sample run'));
+ assert.deepEqual(calls,[['direct',H]],'direct choice never requests a test');
+ await r.click(r.getByText('Run a sample, then apply'));
+ assert.deepEqual(calls,[['direct',H],['sample',H]]);
+ v.activation.canApplyWithoutTest=false;
+ await r.rerender({...props,value:structuredClone(v)});
+ assert.equal((r.getByText('Apply training without a sample run') as HTMLButtonElement).disabled,true);
+ v.activation.serving={mode:'activated_snapshot',candidateDiffers:false,activeRecordIds:[id(5)]};
+ v.activation.servedSnapshotDigest=H;
+ await r.rerender({...props,value:structuredClone(v)});
+ assert.match(r.text(),/Your training is active on future runs/);
+ assert.ok(!r.text().includes('Apply training without a sample run'),'direct/sample choices disappear after application');
+});
+
+test('saved lessons and active lessons have distinct visible statuses',async t=>{
+ const v=value();
+ v.activation={canActivate:false,canApplyWithoutTest:true,reason:null,servedSnapshotDigest:H,withdrawnSinceTest:0,testRequestId:null,
+  serving:{mode:'activated_snapshot',candidateDiffers:true,activeRecordIds:[]}};
+ const {r}=await setup(t,v);
+ assert.match(r.text(),/Saved for application/);
+ v.activation.serving.activeRecordIds=[id(5)];
+ await r.rerender({value:structuredClone(v),onPolicy:()=>{},onForce:()=>{},onEdit:()=>{},onRecord:()=>{},onTest:()=>{},onPublish:()=>{}});
+ assert.match(r.text(),/Active on runs/);
+});
+
+
+test('direct-application fields reject malformed authority while old server replies remain valid',()=>{
+ const v=value();assert.equal(guidedTrainingChanges(v,expected),true);
+ v.activation={canActivate:false,canApplyWithoutTest:true,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,
+  serving:{mode:'legacy_accepted',candidateDiffers:true,activeRecordIds:[]}};
+ for(const invalid of ['yes',null,1]){
+  assert.equal(guidedTrainingChanges({...v,activation:{...v.activation,canApplyWithoutTest:invalid}},expected),false);
+ }
+ for(const invalid of [null,'all',[id(5),id(5)],['not-an-id']]){
+  assert.equal(guidedTrainingChanges({...v,activation:{...v.activation,serving:{...v.activation.serving,activeRecordIds:invalid}}},expected),false);
  }
 });
