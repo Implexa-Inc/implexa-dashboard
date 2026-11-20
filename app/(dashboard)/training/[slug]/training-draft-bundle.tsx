@@ -49,6 +49,6 @@ export default function TrainingDraftBundle({drafts,busy,onApply,onEdit,onExplai
       {!reviewCurrent&&<p role="alert" className="mt-4 text-sm text-amber-300">A selected lesson changed. Review the current lessons before applying.</p>}
       <div className="mt-5 flex flex-wrap items-center gap-4"><button type="button" className="btn-primary" disabled={busy||!reviewCurrent} onClick={applyReviewed}>Apply these lessons as shown</button>{!reviewCurrent&&<button type="button" className="text-sm text-ink-300 underline underline-offset-4" disabled={busy||!selected.length} onClick={openReview}>Review current lessons</button>}<button type="button" className="text-sm text-ink-400" disabled={busy} onClick={()=>setReview(null)}>Keep reviewing</button></div>
     </Modal>
-    <p className="text-xs text-ink-500">Then test the update before making it live.</p>
+    <p className="text-xs text-ink-500">You can apply saved lessons directly or try them in a sample first.</p>
   </section>;
 }
