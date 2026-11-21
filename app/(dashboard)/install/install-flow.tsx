@@ -138,14 +138,14 @@ export default function InstallFlow({
               <p className="text-ink-200 leading-relaxed mb-2">
                 Full Windows install support is coming soon. In the meantime, here&apos;s what works on Windows today:
               </p>
-              <ul className="text-ink-200 space-y-1 list-disc pl-5 marker:text-amber-400/70">
+              <ul className="text-ink-200 space-y-1 list-disc pl-5 marker:text-state-needs">
                 <li><strong>✅ Claude Desktop chat</strong> (Custom Connector URL) — works fully, 30-second setup.</li>
                 <li><strong>✅ Cowork (web)</strong> — plugin install works; MCP tool capture works. Hook-based conversation-turn capture not available (same limitation as Mac).</li>
                 <li><strong>⚠️ Claude Code (CLI)</strong> — plugin install works, but the hooks installer is currently bash-only (Mac/Linux). You can still use Implexa via MCP tools — just no automatic hook capture.</li>
               </ul>
               <p className="text-ink-300 text-xs mt-3 leading-relaxed">
                 Want to be notified when the Windows installer ships?{' '}
-                <a href="mailto:hello@implexa.ai?subject=Windows%20installer%20waitlist" className="text-brand-500 hover:underline">Email us</a>{' '}
+                <a href="mailto:hello@implexa.ai?subject=Windows%20installer%20waitlist" className="text-action-accent hover:underline">Email us</a>{' '}
                 and we&apos;ll ping you.
               </p>
             </div>
@@ -195,7 +195,7 @@ export default function InstallFlow({
                     <span className="text-[10px] text-success-700 dark:text-success-400 font-medium">★ Recommended</span>
                   )}
                   {isDegradedOnWindows && (
-                    <span className="text-[9px] uppercase tracking-wider rounded px-1 py-0.5 bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold">Beta</span>
+                    <span className="text-[9px] uppercase tracking-wider rounded px-1 py-0.5 bg-amber-500/20 text-state-needs font-bold">Beta</span>
                   )}
                 </button>
               );
@@ -445,7 +445,7 @@ function SurfaceContent({ surface, hasKey, keyPrefix, coworkHooksLive, installCu
 source ~/.zshrc
 curl -fsSL https://raw.githubusercontent.com/Implexa-Inc/implexa-claude-plugin/main/scripts/install-user-hooks.sh | bash`}
                 />
-                <p className="text-ink-500">Generate keys at <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Settings → API keys</Link>.</p>
+                <p className="text-ink-500">Generate keys at <Link href="/settings/api-keys" className="text-action-accent hover:underline">Settings → API keys</Link>.</p>
               </div>
             </details>
           </>
@@ -487,7 +487,7 @@ source ~/.zshrc`}
             <CodeBlock code={PLUGIN_MARKETPLACE_CMD} oneLine />
             <p className="text-ink-300"><strong>2.</strong> Install the plugin (only after step 1 confirms):</p>
             <CodeBlock code={PLUGIN_INSTALL_CMD} oneLine />
-            <p className="text-amber-700 dark:text-amber-400">
+            <p className="text-state-needs">
               ⚠ Run them one at a time — pasting both at once concatenates them into a malformed URL.
             </p>
           </div>
@@ -531,10 +531,10 @@ source ~/.zshrc`}
           {hasKey ? (
             <span className="text-ink-400">
               ✓ You have an active key (<code className="font-mono text-[11px] bg-ink-800 px-1 rounded">imp_live_{keyPrefix}…</code>) — find the full value at{' '}
-              <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Connected installs →</Link>
+              <Link href="/settings/api-keys" className="text-action-accent hover:underline">Connected installs →</Link>
             </span>
           ) : (
-            <strong className="text-amber-700 dark:text-amber-400">
+            <strong className="text-state-needs">
               ⚠ <Link href="/settings/api-keys?next=/install" className="hover:underline">Get your API key here first →</Link>
             </strong>
           )}
@@ -677,12 +677,12 @@ function Section({ number, title, subtitle, children, done, required }: { number
   const circle = done
     ? 'border-success-400 text-success-700 dark:text-success-400'
     : required
-      ? 'border-red-500 text-red-600 dark:text-red-400'
-      : 'border-brand-500 text-brand-500';
+      ? 'border-red-500 text-state-fail'
+      : 'border-brand-500 text-action-accent';
   const subtitleColor = done
     ? 'text-ink-300'
     : required
-      ? 'text-red-600 dark:text-red-400 font-medium'
+      ? 'text-state-fail font-medium'
       : 'text-ink-300';
 
   return (
@@ -695,7 +695,7 @@ function Section({ number, title, subtitle, children, done, required }: { number
           <h2 className="text-base font-medium text-ink-50 mb-1 flex items-center gap-2">
             {title}
             {done && <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">Done</span>}
-            {!done && required && <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-red-500/15 text-red-600 dark:text-red-400">Required</span>}
+            {!done && required && <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-red-500/15 text-state-fail">Required</span>}
           </h2>
           {subtitle && <p className={`text-xs mb-3 leading-relaxed ${subtitleColor}`}>{subtitle}</p>}
           {children}

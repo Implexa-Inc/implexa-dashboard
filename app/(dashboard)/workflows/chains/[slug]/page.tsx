@@ -25,7 +25,7 @@ export default async function ChainOfferingPage({ params }: { params: { slug: st
       <main className="min-h-screen px-4 py-10">
         <div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4">
           <h1 className="text-lg font-semibold text-ink-50">Chain unavailable</h1>
-          <p role="alert" className="mt-2 text-sm text-amber-200">
+          <p role="alert" className="mt-2 text-sm text-state-needs">
             {result.reason} Nothing about this chain could be verified, so acquiring and running are disabled.
           </p>
         </div>

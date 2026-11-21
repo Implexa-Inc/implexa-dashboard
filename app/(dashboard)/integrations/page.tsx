@@ -211,7 +211,7 @@ export default async function IntegrationsPage() {
           </div>
           <p className="text-xs text-ink-400 mt-4 leading-relaxed">
             Have an MCP not listed here? It still works — Implexa captures any tool call. Tell us at{' '}
-            <a href="mailto:support@implexa.ai" className="text-brand-500 hover:underline">support@implexa.ai</a>{' '}and we&apos;ll add it to the list.
+            <a href="mailto:support@implexa.ai" className="text-action-accent hover:underline">support@implexa.ai</a>{' '}and we&apos;ll add it to the list.
           </p>
         </section>
 
@@ -247,7 +247,7 @@ export default async function IntegrationsPage() {
         <footer className="mt-12 text-center text-xs text-ink-400">
           <p>
             Don&apos;t see what you need?{' '}
-            <a href="mailto:support@implexa.ai?subject=Integration%20request" className="text-brand-500 hover:underline font-medium">
+            <a href="mailto:support@implexa.ai?subject=Integration%20request" className="text-action-accent hover:underline font-medium">
               Tell us what to build next →
             </a>
           </p>

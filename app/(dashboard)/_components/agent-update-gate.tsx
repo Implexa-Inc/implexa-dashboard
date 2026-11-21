@@ -260,10 +260,10 @@ export default function AgentUpdateGate({ workflowId, update }: {
   return (
     <>
       <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-left max-w-[320px]">
-        <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+        <p className="text-xs font-medium text-state-needs">
           {trainingOnly?'Tested training update needs review':<>Agent update v{update.version} needs review</>}
         </p>
-        {update.manager_text_guidance_required&&<p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1">This training requires Codex and Implexa Desktop 0.4.160 or newer. Claude execution is not supported for its text guidance yet.</p>}
+        {update.manager_text_guidance_required&&<p className="text-[11px] text-state-needs mt-1">This training requires Codex and Implexa Desktop 0.4.160 or newer. Claude execution is not supported for its text guidance yet.</p>}
         <p className="text-[11px] text-ink-400 mt-1">
           {snapshotUnavailable?'The published training identity is unavailable. Reload before updating.':trainingOnly?'The agent’s steps are unchanged. Future runs keep using your installed training until you explicitly activate this tested teaching set.':incompatible
             ? 'This update cannot be applied to your installed version. It needs a migration, not an activation.'
@@ -285,7 +285,7 @@ export default function AgentUpdateGate({ workflowId, update }: {
 
         {/* §3.2 — the exact authority delta, when there is one. */}
         {authority.hasChanges && <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 mb-3">
-          <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+          <p className="text-xs font-medium text-state-needs">
             This version changes what the agent is allowed to do
           </p>
           {authority.added.length > 0 && <div className="mt-2">
@@ -313,7 +313,7 @@ export default function AgentUpdateGate({ workflowId, update }: {
             {fields.map((field) => (
               <li key={field.key} className="text-xs text-ink-300">
                 <span className="text-ink-100">{field.label}</span>
-                <span className={field.required ? 'ml-2 text-[11px] text-amber-300' : 'ml-2 text-[11px] text-ink-500'}>
+                <span className={field.required ? 'ml-2 text-[11px] text-state-needs' : 'ml-2 text-[11px] text-ink-500'}>
                   {field.required ? 'required each run' : 'optional'}
                 </span>
                 {field.description && <span className="block text-ink-400 mt-0.5">{field.description}</span>}
@@ -330,7 +330,7 @@ export default function AgentUpdateGate({ workflowId, update }: {
             onChange={(event) => setPermissionsConfirmed(event.target.checked)} />
           I reviewed and approve this version’s changed permissions.
         </label>}
-        {message && <p className="mt-3 text-xs text-rose-400">{message}</p>}
+        {message && <p className="mt-3 text-xs text-state-fail">{message}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className="btn-outline text-sm px-4 py-2" disabled={saving}
             onClick={() => setOpen(false)}>Cancel</button>

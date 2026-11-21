@@ -36,7 +36,7 @@ export default function ProWaitlistButton({ jwt, alreadyOnWaitlist }: { jwt: str
             ? '✓ On the waitlist — we\'ll email you'
             : 'Join the Pro waitlist'}
       </button>
-      {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+      {error && <p className="text-xs text-state-fail mt-1.5">{error}</p>}
       {!onWaitlist && (
         <p className="text-[10px] text-ink-400 mt-1.5 text-center">
           No charge today. We&apos;ll only email when Pro launches.

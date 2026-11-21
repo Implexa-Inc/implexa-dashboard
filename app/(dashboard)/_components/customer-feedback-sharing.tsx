@@ -29,13 +29,13 @@ export default function CustomerFeedbackSharing({issue,ownerId}:{issue:ReviewIss
   if(!isContribution(value.contribution)||value.contribution.shareDigest!==preview.shareDigest||!value.contribution.storedAt||value.contribution.withdrawnAt)throw Error('Sharing is unconfirmed. Retry the same note.');
   if(live.current===expected){setPending(false);setShared(value.contribution);}
  });}
- return <><button type="button" className="mt-2 text-xs text-brand-400 underline" onClick={()=>setOpen(true)}>Suggest an improvement to the trainer</button>
+ return <><button type="button" className="mt-2 text-xs text-action-accent underline" onClick={()=>setOpen(true)}>Suggest an improvement to the trainer</button>
  <TrainingDialog open={open} onClose={()=>{if(!busy)setOpen(false);}} title={shared?'Suggestion shared':'Help improve this agent'} maxWidth="max-w-xl">
   {shared?<div className="space-y-3"><p className="text-sm">{shared.withdrawnAt?'This shared example has been withdrawn.':'Your note and frame are with the trainer for review. They decide what should become training.'}</p>{!shared.withdrawnAt&&<button type="button" disabled={busy} className="text-sm underline" onClick={()=>void work(async()=>{const value=await contributionRequest({action:'withdraw',id:shared.id,shareDigest:shared.shareDigest});if(!isContribution(value.contribution)||!value.contribution.withdrawnAt)throw Error('Withdrawal is unconfirmed. Retry.');if(live.current!==identity)return;setShared(null);setPreview(null);setOpen(false);})}>Withdraw this shared example</button>}</div>:<div className="space-y-4">
    <p className="text-sm text-ink-300">Share only the part that could help other customers. Keep your brand and personal preferences private.</p>
    <textarea aria-label="Feedback to share" value={excerpt} maxLength={2000} disabled={busy||pending} onChange={e=>{setExcerpt(e.target.value);setPreview(null);}} className="min-h-24 w-full rounded-lg border border-ink-700 bg-ink-950 p-3 text-sm"/>
    {preview?<><img src={preview.image} alt="Exact saved frame to share with the trainer" className="max-h-64 rounded-lg object-contain"/><p className="text-sm">Share this note and frame with {preview.trainerName} to improve {preview.agentName}. The trainer may send this note and frame to Anthropic’s AI to draft guidance, then review it for future customers. It won’t become video footage or a public sample.</p><button type="button" disabled={busy} className="btn-primary" onClick={()=>void share()}>Share with the trainer</button></>:<button type="button" disabled={busy||!excerpt.trim()} className="btn-primary" onClick={()=>void review()}>Review what will be shared</button>}
   </div>}
-  {busy&&<p role="status" className="mt-3 text-xs text-ink-400">Working…</p>}{error&&<p role="alert" className="mt-3 text-sm text-amber-300">{error}</p>}
+  {busy&&<p role="status" className="mt-3 text-xs text-ink-400">Working…</p>}{error&&<p role="alert" className="mt-3 text-sm text-state-needs">{error}</p>}
  </TrainingDialog></>;
 }

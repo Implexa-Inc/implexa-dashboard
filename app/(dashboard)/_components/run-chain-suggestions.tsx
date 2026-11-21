@@ -89,8 +89,8 @@ export default function RunChainSuggestions({ slug }: { slug: string }) {
           const existing = created[key] || s.existingSlug;
           // Frame it from the run's perspective: is this agent the source or the sink?
           const lead = s.fromSlug === slug
-            ? <><span className="font-medium">This agent</span><span className="text-brand-500 mx-1" aria-hidden>→</span><span className="font-medium">{s.toName}</span></>
-            : <><span className="font-medium">{s.fromName}</span><span className="text-brand-500 mx-1" aria-hidden>→</span><span className="font-medium">This agent</span></>;
+            ? <><span className="font-medium">This agent</span><span className="text-action-accent mx-1" aria-hidden>→</span><span className="font-medium">{s.toName}</span></>
+            : <><span className="font-medium">{s.fromName}</span><span className="text-action-accent mx-1" aria-hidden>→</span><span className="font-medium">This agent</span></>;
           return (
             <div key={key} className="card p-4 flex flex-col">
               <div className="text-sm text-ink-100 flex items-center flex-wrap">{lead}</div>
@@ -98,8 +98,8 @@ export default function RunChainSuggestions({ slug }: { slug: string }) {
               <div className="mt-3">
                 {existing ? (
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400">✓ Saved</span>
-                    <a href={`/workflows/${existing}`} className="text-xs font-medium text-brand-500 hover:underline">
+                    <span className="text-xs text-state-ok">✓ Saved</span>
+                    <a href={`/workflows/${existing}`} className="text-xs font-medium text-action-accent hover:underline">
                       Open it — run or schedule →
                     </a>
                   </div>
@@ -118,7 +118,7 @@ export default function RunChainSuggestions({ slug }: { slug: string }) {
           );
         })}
       </div>
-      {err && <p className="text-xs text-rose-400 mt-2">{err}</p>}
+      {err && <p className="text-xs text-state-fail mt-2">{err}</p>}
     </section>
   );
 }

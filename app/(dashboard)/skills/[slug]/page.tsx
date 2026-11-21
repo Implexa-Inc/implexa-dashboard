@@ -235,7 +235,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
             {actualSkill.created_by?.userId === session.user.id && !isSystem && (
               <Link
                 href={`/skills/${actualSkill.slug}/raw-capture`}
-                className="inline-flex items-center gap-1.5 mt-3 text-xs text-brand-600 hover:underline font-medium"
+                className="inline-flex items-center gap-1.5 mt-3 text-xs text-action-accent hover:underline font-medium"
               >
                 🔍 View raw capture (only you can see this)
               </Link>
@@ -298,7 +298,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
               <ul className="space-y-2 text-sm">
                 {inputs.map((i: any, idx: number) => (
                   <li key={idx} className="border-l-2 border-brand-500 pl-3">
-                    <code className="font-mono text-xs text-brand-600">{i.name}</code>
+                    <code className="font-mono text-xs text-action-accent">{i.name}</code>
                     <span className="text-xs text-ink-500 ml-2">{i.type}{i.required ? ' · required' : ''}</span>
                     <div className="text-xs text-ink-200 mt-0.5">{i.description}</div>
                   </li>
@@ -333,7 +333,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
               <ul className="space-y-3 text-sm">
                 {decisionPoints.map((d: any, idx: number) => (
                   <li key={idx} className="border-l-2 border-brand-400 pl-3">
-                    <div className="text-xs font-medium text-brand-600">{d.atStep}</div>
+                    <div className="text-xs font-medium text-action-accent">{d.atStep}</div>
                     <div className="text-xs text-ink-200">{d.description}</div>
                   </li>
                 ))}
@@ -346,7 +346,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
             {outcomeSignal.metric ? (
               <div className="text-sm space-y-2">
                 <div>
-                  <code className="font-mono text-xs text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded">{outcomeSignal.metric}</code>
+                  <code className="font-mono text-xs text-action-accent bg-brand-50 px-1.5 py-0.5 rounded">{outcomeSignal.metric}</code>
                   {outcomeSignal.target && <span className="text-xs text-ink-500 ml-2">target {outcomeSignal.target}</span>}
                 </div>
                 <div className="text-xs text-ink-500">Source: {outcomeSignal.source || 'manual'}</div>

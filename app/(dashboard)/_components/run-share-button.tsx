@@ -47,7 +47,7 @@ export default function RunShareButton({ runId }: { runId: string }) {
         <span className="text-ink-500">Public Run Card:</span>
         <code className="bg-ink-900 border border-ink-700 rounded px-2 py-1 text-ink-200 truncate max-w-[260px]">{url}</code>
         <button type="button" onClick={copy} className="btn-outline px-2.5 py-1">{copied ? 'Copied' : 'Copy'}</button>
-        <a href={url} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">Open ↗</a>
+        <a href={url} target="_blank" rel="noreferrer" className="text-action-accent hover:underline">Open ↗</a>
       </div>
     );
   }
@@ -64,7 +64,7 @@ export default function RunShareButton({ runId }: { runId: string }) {
         <ShareIcon />
         {busy ? 'Creating…' : 'Share this run'}
       </button>
-      {err && <span className="text-xs text-rose-500">{err}</span>}
+      {err && <span className="text-xs text-state-fail">{err}</span>}
     </div>
   );
 }

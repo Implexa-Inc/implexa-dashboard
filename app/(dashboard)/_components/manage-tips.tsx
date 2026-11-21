@@ -55,7 +55,7 @@ const TIPS: Tip[] = [
       <>
         Connect Telegram and you can trigger an agent from anywhere — it runs on your Mac and the result comes
         right back to the chat.{' '}
-        <Link href="/settings/run-environment" className="text-brand-500 hover:underline">Set up phone &amp; Telegram →</Link>
+        <Link href="/settings/run-environment" className="text-action-accent hover:underline">Set up phone &amp; Telegram →</Link>
       </>
     ),
   },
@@ -65,7 +65,7 @@ const TIPS: Tip[] = [
     title: 'Everything lands in Work',
     body: (
       <>
-        Every run drops its result in <Link href="/work" className="text-brand-500 hover:underline">Work</Link> as
+        Every run drops its result in <Link href="/work" className="text-action-accent hover:underline">Work</Link> as
         one simple to-do — review it, give feedback, or approve a follow-up in a tap. You never have to go hunting
         for output.
       </>
@@ -158,7 +158,7 @@ export default function ManageTips() {
           <div className="flex items-start gap-3">
             <span className="text-lg leading-none mt-0.5" aria-hidden>⚠️</span>
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-300">Claude isn’t running — your agents can’t fire</h3>
+              <h3 className="text-sm font-semibold text-state-needs">Claude isn’t running — your agents can’t fire</h3>
               <p className="text-xs text-ink-300 leading-relaxed mt-1">
                 Agents run inside your own Claude on your Mac. Open the Claude desktop app (the menu-bar is enough — no
                 window needed) and your scheduled + queued runs go through. Implexa keeps your Mac awake once it’s open.

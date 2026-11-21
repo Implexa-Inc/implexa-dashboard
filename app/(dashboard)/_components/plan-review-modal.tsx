@@ -121,7 +121,7 @@ export default function PlanReviewModal({
         </p>
 
         {error && (
-          <div className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">
+          <div className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-state-fail">
             {error}
           </div>
         )}
@@ -148,13 +148,13 @@ export default function PlanReviewModal({
                           <span className="text-sm text-ink-100">{cap.label}</span>
                           <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${
                             cap.requiredness === 'required_to_deliver'
-                              ? 'border-amber-500/50 text-amber-700 dark:text-amber-300'
+                              ? 'border-amber-500/50 text-state-needs'
                               : 'border-ink-700 text-ink-400'
                           }`}>{REQUIREDNESS_LABEL[cap.requiredness]}</span>
                         </div>
                         <p className="text-xs text-ink-500 mt-0.5 leading-snug">{cap.purpose}</p>
                         {cap.unresolved ? (
-                          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 leading-snug">
+                          <p className="text-xs text-state-needs mt-1 leading-snug">
                             No tool available: {cap.unresolved.reason}
                           </p>
                         ) : cap.recommendedTool ? (
@@ -166,7 +166,7 @@ export default function PlanReviewModal({
                         {(() => {
                           const also = alsoHandledLabels(plan.capabilities, cap);
                           return also.length ? (
-                            <p className="text-[11px] text-sky-600 dark:text-sky-400 mt-1 leading-snug">
+                            <p className="text-[11px] text-state-running mt-1 leading-snug">
                               {cap.recommendedTool?.label ?? 'This tool'} also handles {also.join(' and ')}.
                             </p>
                           ) : null;
@@ -189,7 +189,7 @@ export default function PlanReviewModal({
                             ))}
                           </select>
                         ) : (
-                          <span className="text-[11px] text-amber-600 dark:text-amber-400">no tool</span>
+                          <span className="text-[11px] text-state-needs">no tool</span>
                         )}
                       </div>
                     </div>
@@ -199,12 +199,12 @@ export default function PlanReviewModal({
             </ul>
 
             {hasGap && (
-              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 leading-snug">
+              <p className="mt-2 text-xs text-state-needs leading-snug">
                 A required capability has no available tool. You can still create the agent — it will flag the gap instead of substituting a different tool.
               </p>
             )}
             {plan.unresolvedOverrides.length > 0 && (
-              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 leading-snug">
+              <p className="mt-2 text-xs text-state-needs leading-snug">
                 Couldn’t recognize: {plan.unresolvedOverrides.join(', ')}. Using the recommended tools for those.
               </p>
             )}

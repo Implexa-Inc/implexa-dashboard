@@ -135,7 +135,7 @@ export function ShareButtons({ url, title, description, variant = 'compact' }: P
         className={btnBase}
         aria-label="Submit to Hacker News"
       >
-        <span className="font-bold text-[10px] leading-none bg-brand-500/15 text-brand-500 px-1 rounded">Y</span>
+        <span className="font-bold text-[10px] leading-none bg-brand-500/15 text-action-accent px-1 rounded">Y</span>
         <span>HN</span>
       </a>
 

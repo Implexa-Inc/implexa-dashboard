@@ -64,22 +64,22 @@ export default function JudgeFeedbackControls({
         {showButtons ? (
           <>
             <button type="button" disabled={busy !== null} onClick={() => rate('accurate')}
-              className={`text-xs px-2 py-1 rounded border ${saved === 'accurate' ? 'border-emerald-500/60 text-emerald-300' : 'border-ink-700 text-ink-300 hover:border-emerald-500/50'} disabled:opacity-50`}>
+              className={`text-xs px-2 py-1 rounded border ${saved === 'accurate' ? 'border-emerald-500/60 text-state-ok' : 'border-ink-700 text-ink-300 hover:border-emerald-500/50'} disabled:opacity-50`}>
               {busy === 'accurate' ? 'Saving…' : 'Accurate'}
             </button>
             <button type="button" disabled={busy !== null} onClick={() => rate('not_accurate')}
-              className={`text-xs px-2 py-1 rounded border ${saved === 'not_accurate' ? 'border-amber-500/60 text-amber-300' : 'border-ink-700 text-ink-300 hover:border-amber-500/50'} disabled:opacity-50`}>
+              className={`text-xs px-2 py-1 rounded border ${saved === 'not_accurate' ? 'border-amber-500/60 text-state-needs' : 'border-ink-700 text-ink-300 hover:border-amber-500/50'} disabled:opacity-50`}>
               {busy === 'not_accurate' ? 'Saving…' : 'Not accurate'}
             </button>
           </>
         ) : (
           <span className="text-xs text-ink-300">
-            You rated this <span className={saved === 'accurate' ? 'text-emerald-400' : 'text-amber-400'}>{saved === 'accurate' ? 'accurate' : 'not accurate'}</span>.
+            You rated this <span className={saved === 'accurate' ? 'text-state-ok' : 'text-state-needs'}>{saved === 'accurate' ? 'accurate' : 'not accurate'}</span>.
             <button type="button" onClick={() => setEditing(true)} className="ml-2 text-ink-500 hover:text-ink-300 underline">Change</button>
           </span>
         )}
       </div>
-      {error && <p className="mt-1 text-[11px] text-red-400">{error}</p>}
+      {error && <p className="mt-1 text-[11px] text-state-fail">{error}</p>}
       <p className="mt-1 text-[11px] text-ink-600">Your feedback tunes the Judge. It doesn’t change this run.</p>
     </div>
   );

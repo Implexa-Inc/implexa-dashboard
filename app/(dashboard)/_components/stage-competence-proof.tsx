@@ -15,7 +15,7 @@ export default function StageCompetenceProof({ proof }: { proof: StageCompetence
         Frozen bindings and executor handling receipts are separate facts. This proof is independent of learned rules.
       </p>
       {empty ? (
-        <p className={`mt-2 text-xs ${proof.contextStatus === 'unavailable' ? 'text-amber-300' : 'text-ink-500'}`}>{empty}</p>
+        <p className={`mt-2 text-xs ${proof.contextStatus === 'unavailable' ? 'text-state-needs' : 'text-ink-500'}`}>{empty}</p>
       ) : (
         <ul className="mt-3 space-y-2">
           {proof.bindings.map((skill) => {
@@ -25,7 +25,7 @@ export default function StageCompetenceProof({ proof }: { proof: StageCompetence
               <li key={stageSkillBindingKey(skill)} className="rounded-md border border-ink-800 px-3 py-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-medium text-ink-100">{skill.source}/{skill.slug}</p>
-                  <span className={`text-[11px] ${status.tone === 'positive' ? 'text-emerald-300' : status.tone === 'warning' ? 'text-amber-300' : 'text-ink-400'}`}>
+                  <span className={`text-[11px] ${status.tone === 'positive' ? 'text-state-ok' : status.tone === 'warning' ? 'text-state-needs' : 'text-ink-400'}`}>
                     {status.label}
                   </span>
                 </div>

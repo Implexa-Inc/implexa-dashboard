@@ -61,7 +61,7 @@ export default async function FoundingCreatorBanner({ userId }: { userId: string
               Founding Creator badge on every skill you share, and your <strong>first seat on Pro free forever</strong> when we launch the Pro tier.
             </p>
             <div className="flex flex-wrap gap-3 items-baseline">
-              <Link href="/pricing" className="text-xs text-brand-600 hover:underline font-medium">
+              <Link href="/pricing" className="text-xs text-action-accent hover:underline font-medium">
                 See the Pro plan →
               </Link>
               <span className="text-xs text-ink-400">
@@ -101,7 +101,7 @@ export default async function FoundingCreatorBanner({ userId }: { userId: string
             <Step done={hasShared}   label="Share it (any mode)" hint="/implexa:share-this — team or public" />
           </div>
 
-          <Link href="/install" className="text-xs text-brand-600 hover:underline font-medium">
+          <Link href="/install" className="text-xs text-action-accent hover:underline font-medium">
             Don&apos;t have Implexa installed yet? Set it up in 30 seconds →
           </Link>
         </div>

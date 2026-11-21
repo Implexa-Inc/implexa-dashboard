@@ -38,20 +38,20 @@ function Card({ w }: { w: WorkflowCard }) {
       className="card !p-4 flex flex-col gap-2 hover:border-brand-500/50 transition-colors group"
     >
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-semibold text-ink-50 leading-snug group-hover:text-brand-400 transition-colors">{w.name}</h3>
+        <h3 className="text-sm font-semibold text-ink-50 leading-snug group-hover:text-action-accent transition-colors">{w.name}</h3>
         {w.curated && (
-          <span className="flex-none text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-brand-500/40 text-brand-400">curated</span>
+          <span className="flex-none text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-brand-500/40 text-action-accent">curated</span>
         )}
       </div>
       <p className="text-xs text-ink-400 leading-relaxed line-clamp-2">{w.description}</p>
       <div className="mt-auto flex items-center gap-2 flex-wrap pt-1">
         {w.cadence && (
-          <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-ink-700 text-amber-600 dark:text-amber-300">{w.cadence}</span>
+          <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-ink-700 text-state-needs">{w.cadence}</span>
         )}
         {proof
-          ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">✓ {proof}</span>
+          ? <span className="text-[11px] text-state-ok">✓ {proof}</span>
           : <span className="text-[11px] text-ink-500">new</span>}
-        <span className="ml-auto text-[11px] text-brand-500 group-hover:underline">Use this →</span>
+        <span className="ml-auto text-[11px] text-action-accent group-hover:underline">Use this →</span>
       </div>
     </Link>
   );
@@ -100,7 +100,7 @@ export default function CommunityAgents({
           <p className="text-sm text-ink-400 mt-0.5">{blurb}</p>
         </div>
         {preview
-          ? <Link href={seeAllHref} className="text-sm text-brand-500 hover:underline flex-none">See all →</Link>
+          ? <Link href={seeAllHref} className="text-sm text-action-accent hover:underline flex-none">See all →</Link>
           : (
             <input
               type="search"
@@ -119,7 +119,7 @@ export default function CommunityAgents({
             <button
               key={c.key}
               onClick={() => setCat(c.key)}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${cat === c.key ? 'border-brand-500/60 bg-brand-500/10 text-brand-400' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${cat === c.key ? 'border-brand-500/60 bg-brand-500/10 text-action-accent' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
             >
               <span aria-hidden className="mr-1">{c.emoji}</span>{c.label}
             </button>

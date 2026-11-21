@@ -376,28 +376,28 @@ export const RUN_STATE_PRESENTATION: Record<RunState, RunPresentation> = {
   // states (pulse:true) render a clean spinner via spinCls; terminal ones a dot.
   running: {
     label: 'Running',
-    classes: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+    classes: 'bg-sky-500/15 text-state-running',
     dot: 'bg-sky-500 dark:bg-sky-400',
     pulse: true,
     spinCls: 'border-sky-500/30 border-t-sky-500',
   },
   stalled: {
     label: 'Stalled',
-    classes: 'bg-amber-500/20 text-amber-700 dark:text-amber-300',
+    classes: 'bg-amber-500/20 text-state-needs',
     dot: 'bg-amber-500 dark:bg-amber-400',
     pulse: true,
     spinCls: 'border-amber-500/30 border-t-amber-500',
   },
   completed: {
     label: 'Done',
-    classes: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+    classes: 'bg-emerald-500/15 text-state-ok',
     dot: 'bg-emerald-500 dark:bg-emerald-400',
     pulse: false,
     spinCls: '',
   },
   failed: {
     label: 'Failed',
-    classes: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
+    classes: 'bg-rose-500/15 text-state-fail',
     dot: 'bg-rose-500 dark:bg-rose-400',
     pulse: false,
     spinCls: '',
@@ -415,7 +415,7 @@ export const RUN_STATE_PRESENTATION: Record<RunState, RunPresentation> = {
 // approval'; give it its own amber, spinner treatment (it's active, needs you).
 const AWAITING_PRESENTATION: RunPresentation = {
   label: 'Waiting for approval',
-  classes: 'bg-amber-500/20 text-amber-700 dark:text-amber-300',
+  classes: 'bg-amber-500/20 text-state-needs',
   dot: 'bg-amber-500 dark:bg-amber-400',
   pulse: true,
   spinCls: 'border-amber-500/30 border-t-amber-500',
@@ -428,7 +428,7 @@ const AWAITING_PRESENTATION: RunPresentation = {
 // RunState. (Silence/degradation must never read as success.)
 const PARTIAL_PRESENTATION: RunPresentation = {
   label: 'Partial',
-  classes: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  classes: 'bg-amber-500/15 text-state-needs',
   dot: 'bg-amber-500 dark:bg-amber-400',
   pulse: false,
   spinCls: '',

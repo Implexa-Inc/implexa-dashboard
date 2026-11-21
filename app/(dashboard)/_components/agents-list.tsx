@@ -104,7 +104,7 @@ function RowMenu({ onArchive, onDeactivate, canDeactivate, busy }: { onArchive: 
             role="menuitem"
             disabled={busy}
             onClick={() => { setOpen(false); onArchive(); }}
-            className="w-full text-left px-3 py-1.5 text-sm text-ink-300 hover:bg-ink-800 hover:text-rose-500 dark:hover:text-rose-300 disabled:opacity-50"
+            className="w-full text-left px-3 py-1.5 text-sm text-ink-300 hover:bg-ink-800 hover:text-state-fail hover:text-state-fail disabled:opacity-50"
           >
             <span className="block">{busy ? 'Archiving…' : 'Archive'}</span>
             <span className="block text-[11px] text-ink-500">
@@ -178,11 +178,11 @@ function nextRunLabel(iso: string): string {
 function stateBadge(a: ListAgent): { label: string; cls: string } | null {
   const rs = a.lastRun?.runState;
   const st = a.lastRun?.status;
-  if (rs === 'stalled') return { label: 'Progress interrupted', cls: 'border-amber-500/50 text-amber-700 dark:text-amber-300' };
-  if (st === 'failed' || rs === 'failed') return { label: 'Last run failed', cls: 'border-rose-500/50 text-rose-700 dark:text-rose-300' };
-  if (st === 'partial') return { label: 'Partly delivered', cls: 'border-amber-500/50 text-amber-700 dark:text-amber-300' };
-  if (st === 'completed' || rs === 'completed') return { label: 'Delivered', cls: 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300' };
-  if (rs === 'running') return { label: 'Running', cls: 'border-sky-500/40 text-sky-700 dark:text-sky-300' };
+  if (rs === 'stalled') return { label: 'Progress interrupted', cls: 'border-amber-500/50 text-state-needs' };
+  if (st === 'failed' || rs === 'failed') return { label: 'Last run failed', cls: 'border-rose-500/50 text-state-fail' };
+  if (st === 'partial') return { label: 'Partly delivered', cls: 'border-amber-500/50 text-state-needs' };
+  if (st === 'completed' || rs === 'completed') return { label: 'Delivered', cls: 'border-emerald-500/40 text-state-ok' };
+  if (rs === 'running') return { label: 'Running', cls: 'border-sky-500/40 text-state-running' };
   return null;
 }
 
@@ -225,7 +225,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
               aria-label={a.favorite ? `Unfavorite ${a.name}` : `Add ${a.name} to favorites`}
               aria-pressed={!!a.favorite}
               title={a.favorite ? 'Favorited — click to remove' : 'Add as favorite'}
-              className={`text-base leading-none transition-colors ${a.favorite ? 'text-amber-400 hover:text-amber-300' : 'text-ink-600 hover:text-amber-400'}`}
+              className={`text-base leading-none transition-colors ${a.favorite ? 'text-state-needs hover:text-state-needs' : 'text-ink-600 hover:text-state-needs'}`}
             >
               {a.favorite ? '★' : '☆'}
             </button>
@@ -258,13 +258,13 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
             )}
 
             {a.section === 'scheduled' && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-700 dark:text-emerald-300" title="Runs automatically on a schedule">⏰ Scheduled</span>
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/40 text-state-ok" title="Runs automatically on a schedule">⏰ Scheduled</span>
             )}
             {(a.isChain ?? looksLikeChain(a.name)) && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-violet-600 dark:text-violet-300" title="This agent runs several agents in sequence">⛓ Chain</span>
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-state-review" title="This agent runs several agents in sequence">⛓ Chain</span>
             )}
             {a.section === 'not_activated' && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/40 text-sky-700 dark:text-sky-300">Draft</span>
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/40 text-state-running">Draft</span>
             )}
             {badge && <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>}
             <GradeBadge grade={a.grade} />
@@ -277,10 +277,10 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
           {/* status line */}
           <p className="text-xs text-ink-500 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
             {a.needsIntervention && (
-              <span className="text-amber-600 dark:text-amber-400">Needs you · {a.interventionReason || 'one quick step'}</span>
+              <span className="text-state-needs">Needs you · {a.interventionReason || 'one quick step'}</span>
             )}
             {(a.pendingQuestions ?? 0) > 0 && (
-              <span className="text-amber-600 dark:text-amber-400">{a.pendingQuestions} question{a.pendingQuestions === 1 ? '' : 's'} to answer</span>
+              <span className="text-state-needs">{a.pendingQuestions} question{a.pendingQuestions === 1 ? '' : 's'} to answer</span>
             )}
             {a.section === 'scheduled' && a.nextRunAt && !a.needsIntervention && (
               <span>Next run: {nextRunLabel(a.nextRunAt)}</span>
@@ -296,7 +296,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
               Review
             </Link>
           ) : a.needsIntervention ? (
-            <Link href={detail} className="text-xs px-3 py-1.5 rounded-md border border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 transition-colors whitespace-nowrap font-medium">
+            <Link href={detail} className="text-xs px-3 py-1.5 rounded-md border border-amber-500/50 text-state-needs hover:bg-amber-500/10 transition-colors whitespace-nowrap font-medium">
               Fix
             </Link>
           ) : a.lastRun?.id ? (
@@ -551,7 +551,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
 
   return (
     <>
-      {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">{error}</p>}
+      {error && <p className="text-xs text-state-fail mb-3">{error}</p>}
 
       {/* One outcome-first query spans owned/hired and eligible available agents. */}
       <div className="relative mb-4">
@@ -591,7 +591,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
             </select>
           </label>
           {(readinessFilter || engineFilter) && (
-            <button type="button" onClick={() => { setReadinessFilter(''); setEngineFilter(''); }} className="text-xs text-brand-500 hover:underline">
+            <button type="button" onClick={() => { setReadinessFilter(''); setEngineFilter(''); }} className="text-xs text-action-accent hover:underline">
               Clear filters
             </button>
           )}
@@ -599,7 +599,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
       )}
 
       {discoveryUnavailable && (
-        <div role="status" className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+        <div role="status" className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-state-needs">
           Available agents could not be checked. Your hired and owned agents are still shown below.
         </div>
       )}
@@ -623,7 +623,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
                   <div className="flex flex-wrap items-center gap-2">
                     <Link href={`/workflows/${encodeURIComponent(agent.slug)}`} className="text-base font-medium text-ink-50 hover:underline">{agent.name}</Link>
                     <span className="text-[10px] uppercase tracking-wider rounded border border-ink-700 px-1.5 py-0.5 text-ink-300">{agent.ownership}</span>
-                    <span className="text-[10px] uppercase tracking-wider rounded border border-sky-500/40 px-1.5 py-0.5 text-sky-300">{agent.readiness.state}</span>
+                    <span className="text-[10px] uppercase tracking-wider rounded border border-sky-500/40 px-1.5 py-0.5 text-state-running">{agent.readiness.state}</span>
                   </div>
                   <p className="mt-1 text-sm text-ink-300">{agent.job}</p>
                   <p className="mt-1 text-xs text-ink-500">Built by {agent.builder.name} · v{agent.version.number}</p>
@@ -643,7 +643,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
           <button
             type="button"
             onClick={() => setCat('')}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${!activeCat ? 'border-brand-500/50 bg-brand-500/10 text-brand-600 dark:text-brand-300' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${!activeCat ? 'border-brand-500/50 bg-brand-500/10 text-action-accent' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
           >
             All
           </button>
@@ -652,7 +652,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
               key={c.key}
               type="button"
               onClick={() => setCat(activeCat === c.key ? '' : c.key)}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${activeCat === c.key ? 'border-brand-500/50 bg-brand-500/10 text-brand-600 dark:text-brand-300' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${activeCat === c.key ? 'border-brand-500/50 bg-brand-500/10 text-action-accent' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
             >
               <span aria-hidden className="mr-1">{c.emoji}</span>{c.label} <span className="text-ink-600">{c.n}</span>
             </button>
@@ -665,7 +665,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
           scheduled + on-demand, scheduler-tagged — rows open the agent page). The
           two overlap on purpose: same agents, two doors. Then Need activation, then
           Paused. Scheduling is surfaced as a per-row ⏰ tag, not a list split. */}
-      <div className="mb-5 text-sm"><Link href="/workflows?tab=rent" className="text-brand-500 hover:underline">Find a trained agent →</Link></div>
+      <div className="mb-5 text-sm"><Link href="/workflows?tab=rent" className="text-action-accent hover:underline">Find a trained agent →</Link></div>
       <Section title="Favorites" subtitle="your starred agents" agents={favorites} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
       <Section title="Running & recently ran" subtitle="live activity · opens the run" agents={recentlyActive} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} spotlight />
       <Section title="Active agents" agents={activated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
@@ -678,10 +678,10 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
           </p>
           <p className="text-xs text-ink-500 mt-1">
             {q
-              ? <button type="button" onClick={() => setQuery('')} className="text-brand-500 hover:underline">Clear search</button>
+              ? <button type="button" onClick={() => setQuery('')} className="text-action-accent hover:underline">Clear search</button>
               : activeCat
-                ? <button type="button" onClick={() => setCat('')} className="text-brand-500 hover:underline">Clear filter</button>
-                : <>Describe one in <Link href="/create" className="text-brand-500 hover:underline">Create</Link> and Implexa builds it.</>}
+                ? <button type="button" onClick={() => setCat('')} className="text-action-accent hover:underline">Clear filter</button>
+                : <>Describe one in <Link href="/create" className="text-action-accent hover:underline">Create</Link> and Implexa builds it.</>}
           </p>
         </div>
       )}
@@ -739,7 +739,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
             <span className={`inline-block transition-transform ${showArchived ? 'rotate-90' : ''}`}>▸</span>
             Archived ({arch.length})
             {liveArchived > 0 && (
-              <span className="normal-case tracking-normal text-amber-600 dark:text-amber-400">
+              <span className="normal-case tracking-normal text-state-needs">
                 · {liveArchived} still running
               </span>
             )}
@@ -754,7 +754,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
                       <span className="text-sm text-ink-300 truncate">{a.name}</span>
                       {a.isLive && (
                         <span
-                          className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-700 dark:text-amber-300 whitespace-nowrap"
+                          className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/50 text-state-needs whitespace-nowrap"
                           title="Hidden from your list, but still running on its schedule."
                         >
                           ⏰ Still live
@@ -767,7 +767,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
                           type="button"
                           onClick={() => deactivateArchived(a.slug)}
                           disabled={busySlug === a.slug}
-                          className="text-xs px-3 py-1 rounded-md border border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 transition-colors disabled:opacity-50 whitespace-nowrap"
+                          className="text-xs px-3 py-1 rounded-md border border-amber-500/50 text-state-needs hover:bg-amber-500/10 transition-colors disabled:opacity-50 whitespace-nowrap"
                         >
                           {busySlug === a.slug ? 'Stopping…' : 'Stop it'}
                         </button>

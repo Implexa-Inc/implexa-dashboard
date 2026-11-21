@@ -109,7 +109,7 @@ export default function IntegrationCard({
           </button>
         )}
 
-        {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+        {error && <p className="text-xs text-state-fail mt-1.5">{error}</p>}
       </div>
 
       {/* Auth type micro-label */}

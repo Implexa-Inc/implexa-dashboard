@@ -132,24 +132,24 @@ function visibleFailure(reason: string | null | undefined): string | null {
 // disappeared (founder: "that's gone now"). The badge makes the state
 // unmissable at a glance regardless of whether step detail is present.
 const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: string; label: string; chip: string; chipCls: string }> = {
-  queued:           { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Waiting to be picked up by your AI engine', chip: 'Queued',          chipCls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30' },
-  installing_media_support: { spin: true, spinCls: 'border-amber-500/25 border-t-amber-500', dotCls: 'bg-amber-500', label: 'Installing one-time media support before checking the file', chip: 'Setting up media', chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
-  preparing_inputs: { spin: true,  spinCls: 'border-amber-500/25 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Hashing and verifying the selected file',   chip: 'Preparing file',  chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
-  selecting:        { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Selecting executor',                         chip: 'Selecting',       chipCls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30' },
-  picked_up:        { spin: true,  spinCls: 'border-cyan-500/25 border-t-cyan-500',       dotCls: 'bg-cyan-500',                label: 'A worker picked this up and is starting',    chip: 'Picked up',       chipCls: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30' },
-  starting:         { spin: true,  spinCls: 'border-cyan-500/25 border-t-cyan-500',       dotCls: 'bg-cyan-500',                label: 'Starting the selected executor',             chip: 'Starting',         chipCls: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30' },
-  switching:        { spin: true,  spinCls: 'border-violet-500/25 border-t-violet-500',   dotCls: 'bg-violet-500',              label: 'Switching executor after a fenced failure',  chip: 'Switching',       chipCls: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30' },
-  resuming:         { spin: true,  spinCls: 'border-violet-500/25 border-t-violet-500',   dotCls: 'bg-violet-500',              label: 'Resuming from the last safe step',           chip: 'Resuming',        chipCls: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30' },
-  fallback_blocked: { spin: false, spinCls: '',                                           dotCls: 'bg-amber-500',               label: 'Fallback blocked: consequential state uncertain', chip: 'Needs attention', chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
-  start_failed:     { spin: false, spinCls: '',                                           dotCls: 'bg-rose-500',                label: 'The executor could not start',                chip: 'Start failed',     chipCls: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30' },
-  claim_expired:    { spin: false, spinCls: '',                                           dotCls: 'bg-amber-500',               label: 'The worker did not confirm startup in time',  chip: 'Claim expired',    chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
-  running:          { spin: true,  spinCls: 'border-emerald-500/25 border-t-emerald-500', dotCls: 'bg-emerald-500',             label: 'Running',                                    chip: 'Running',         chipCls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' },
-  verifying:        { spin: true,  spinCls: 'border-violet-500/25 border-t-violet-500',   dotCls: 'bg-violet-500',              label: 'Verifying the saved agent revision',         chip: 'Verifying',       chipCls: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30' },
-  built:            { spin: false, spinCls: '',                                           dotCls: 'bg-emerald-500',             label: 'Your updated agent is ready',                 chip: 'Built',           chipCls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' },
-  waiting_approval: { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Waiting for approval',                       chip: 'Approval needed', chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
-  action_available: { spin: false, spinCls: '',                                           dotCls: 'bg-brand-500',               label: 'Action available',                           chip: 'Action ready',    chipCls: 'bg-brand-500/10 text-brand-600 dark:text-brand-300 border-brand-500/30' },
-  needs_attention:  { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Needs attention',                            chip: 'Needs attention', chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
-  failed:           { spin: false, spinCls: '',                                           dotCls: 'bg-rose-500',                label: 'Failed',                                     chip: 'Failed',          chipCls: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30' },
+  queued:           { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Waiting to be picked up by your AI engine', chip: 'Queued',          chipCls: 'bg-sky-500/10 text-state-running border-sky-500/30' },
+  installing_media_support: { spin: true, spinCls: 'border-amber-500/25 border-t-amber-500', dotCls: 'bg-amber-500', label: 'Installing one-time media support before checking the file', chip: 'Setting up media', chipCls: 'bg-amber-500/10 text-state-needs border-amber-500/30' },
+  preparing_inputs: { spin: true,  spinCls: 'border-amber-500/25 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Hashing and verifying the selected file',   chip: 'Preparing file',  chipCls: 'bg-amber-500/10 text-state-needs border-amber-500/30' },
+  selecting:        { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Selecting executor',                         chip: 'Selecting',       chipCls: 'bg-sky-500/10 text-state-running border-sky-500/30' },
+  picked_up:        { spin: true,  spinCls: 'border-cyan-500/25 border-t-cyan-500',       dotCls: 'bg-cyan-500',                label: 'A worker picked this up and is starting',    chip: 'Picked up',       chipCls: 'bg-cyan-500/10 text-state-running border-cyan-500/30' },
+  starting:         { spin: true,  spinCls: 'border-cyan-500/25 border-t-cyan-500',       dotCls: 'bg-cyan-500',                label: 'Starting the selected executor',             chip: 'Starting',         chipCls: 'bg-cyan-500/10 text-state-running border-cyan-500/30' },
+  switching:        { spin: true,  spinCls: 'border-violet-500/25 border-t-violet-500',   dotCls: 'bg-violet-500',              label: 'Switching executor after a fenced failure',  chip: 'Switching',       chipCls: 'bg-violet-500/10 text-state-review border-violet-500/30' },
+  resuming:         { spin: true,  spinCls: 'border-violet-500/25 border-t-violet-500',   dotCls: 'bg-violet-500',              label: 'Resuming from the last safe step',           chip: 'Resuming',        chipCls: 'bg-violet-500/10 text-state-review border-violet-500/30' },
+  fallback_blocked: { spin: false, spinCls: '',                                           dotCls: 'bg-amber-500',               label: 'Fallback blocked: consequential state uncertain', chip: 'Needs attention', chipCls: 'bg-amber-500/10 text-state-needs border-amber-500/30' },
+  start_failed:     { spin: false, spinCls: '',                                           dotCls: 'bg-rose-500',                label: 'The executor could not start',                chip: 'Start failed',     chipCls: 'bg-rose-500/10 text-state-fail border-rose-500/30' },
+  claim_expired:    { spin: false, spinCls: '',                                           dotCls: 'bg-amber-500',               label: 'The worker did not confirm startup in time',  chip: 'Claim expired',    chipCls: 'bg-amber-500/10 text-state-needs border-amber-500/30' },
+  running:          { spin: true,  spinCls: 'border-emerald-500/25 border-t-emerald-500', dotCls: 'bg-emerald-500',             label: 'Running',                                    chip: 'Running',         chipCls: 'bg-emerald-500/10 text-state-ok border-emerald-500/30' },
+  verifying:        { spin: true,  spinCls: 'border-violet-500/25 border-t-violet-500',   dotCls: 'bg-violet-500',              label: 'Verifying the saved agent revision',         chip: 'Verifying',       chipCls: 'bg-violet-500/10 text-state-review border-violet-500/30' },
+  built:            { spin: false, spinCls: '',                                           dotCls: 'bg-emerald-500',             label: 'Your updated agent is ready',                 chip: 'Built',           chipCls: 'bg-emerald-500/10 text-state-ok border-emerald-500/30' },
+  waiting_approval: { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Waiting for approval',                       chip: 'Approval needed', chipCls: 'bg-amber-500/10 text-state-needs border-amber-500/30' },
+  action_available: { spin: false, spinCls: '',                                           dotCls: 'bg-brand-500',               label: 'Action available',                           chip: 'Action ready',    chipCls: 'bg-brand-500/10 text-action-accent border-brand-500/30' },
+  needs_attention:  { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Needs attention',                            chip: 'Needs attention', chipCls: 'bg-amber-500/10 text-state-needs border-amber-500/30' },
+  failed:           { spin: false, spinCls: '',                                           dotCls: 'bg-rose-500',                label: 'Failed',                                     chip: 'Failed',          chipCls: 'bg-rose-500/10 text-state-fail border-rose-500/30' },
   finished:         { spin: false, spinCls: '',                                           dotCls: 'bg-ink-500 dark:bg-ink-400', label: 'Finished',                                   chip: 'Finished',        chipCls: 'bg-ink-500/10 text-ink-400 border-ink-500/30' },
 };
 
@@ -581,15 +581,15 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   {c.freshness !== 'fresh'
                     ? <span className="text-ink-400">{freshnessNotice(c.freshness)}</span>
                     : c.runId && stoppingRunIds.has(c.runId)
-                    ? <span className="text-rose-500">Stopping… your Claude wraps up at its next step</span>
+                    ? <span className="text-state-fail">Stopping… your Claude wraps up at its next step</span>
                     : c.status === 'action_available' && c.actionLabel
-                    ? <span className="text-brand-500">{c.actionLabel}{c.actionCount && c.actionCount > 1 ? ` (+${c.actionCount - 1} more)` : ''}</span>
+                    ? <span className="text-action-accent">{c.actionLabel}{c.actionCount && c.actionCount > 1 ? ` (+${c.actionCount - 1} more)` : ''}</span>
                     : s.label}
                   {/* Finished/failed → "Nm ago" from completion; live cards from start. */}
                   {(() => { const t = (c.status === 'finished' || c.status === 'built' || c.status === 'failed') && c.finishedAt ? c.finishedAt : c.since; return t ? ` · ${rel(t)}` : ''; })()}
                   {c.status === 'running' && c.typicalMs ? (
                     elapsedMs(c.since) > c.typicalMs * 1.5 ? (
-                      <span className="text-amber-600 dark:text-amber-400"> · longer than usual (~{fmtDur(c.typicalMs)})</span>
+                      <span className="text-state-needs"> · longer than usual (~{fmtDur(c.typicalMs)})</span>
                     ) : (
                       <span> · ~{fmtDur(c.typicalMs)} typical</span>
                     )
@@ -599,23 +599,23 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     flight RIGHT NOW. Only for a running chain that reports it —
                     a plain run (no step state) shows just "Running" as before. */}
                 {c.status === 'running' && c.totalSteps ? (
-                  <div className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300 truncate mt-0.5">
+                  <div className="text-[11px] font-medium text-state-ok truncate mt-0.5">
                     Step {Math.min(c.currentStepIndex || 1, c.totalSteps)}/{c.totalSteps}
                     {c.currentStepLabel ? ` · ${c.currentStepLabel}` : ''}
                   </div>
                 ) : null}
                 {c.status === 'preparing_inputs' && c.totalBytes && c.totalBytes > 0 ? (
-                  <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300 mt-0.5">
+                  <div className="text-[11px] font-medium text-state-needs mt-0.5">
                     {Math.min(100, Math.floor((Number(c.bytesRead || 0) / c.totalBytes) * 100))}% verified
                   </div>
                 ) : null}
                 {(['failed', 'start_failed', 'claim_expired'] as LiveStatus[]).includes(c.status) && c.failureReason ? (
-                  <div className="mt-1 text-[11px] text-rose-500 leading-snug line-clamp-2">
+                  <div className="mt-1 text-[11px] text-state-fail leading-snug line-clamp-2">
                     {visibleFailure(c.failureReason)}
                   </div>
                 ) : null}
                 {(['switching', 'resuming', 'fallback_blocked'] as LiveStatus[]).includes(c.status) && c.fallbackReason ? (
-                  <div className="mt-1 text-[11px] text-amber-600 dark:text-amber-400 leading-snug line-clamp-2">
+                  <div className="mt-1 text-[11px] text-state-needs leading-snug line-clamp-2">
                     {c.fallbackReason}{c.status === 'resuming' && c.resumeStep != null ? ` · Resuming from step ${c.resumeStep}` : ''}
                   </div>
                 ) : null}
@@ -653,7 +653,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancelKey(c.continuityKey); }}
                   title="Cancel this request"
                   aria-label="Cancel this request"
-                  className="shrink-0 text-[11px] font-medium text-rose-500 hover:text-rose-400 px-2 py-1 rounded border border-rose-500/30"
+                  className="shrink-0 text-[11px] font-medium text-state-fail hover:text-state-fail px-2 py-1 rounded border border-rose-500/30"
                 >
                   Cancel request
                 </button>
@@ -666,7 +666,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancelKey(c.continuityKey); }}
                   title="Stop this run"
                   aria-label="Stop this run"
-                  className="shrink-0 text-[11px] font-medium text-rose-500 hover:text-rose-400 px-2 py-1 rounded border border-rose-500/30"
+                  className="shrink-0 text-[11px] font-medium text-state-fail hover:text-state-fail px-2 py-1 rounded border border-rose-500/30"
                 >
                   Stop run
                 </button>
@@ -730,7 +730,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                 <div className="mt-1.5 ml-7">
                   <Link
                     href={`/workflows/${encodeURIComponent(c.skillSlug!)}?tab=runs&retryRequest=${encodeURIComponent(c.requestId || '')}`}
-                    className="inline-block text-[11px] font-medium text-sky-500 hover:text-sky-400 px-2 py-1 rounded border border-sky-500/30"
+                    className="inline-block text-[11px] font-medium text-state-running hover:text-state-running px-2 py-1 rounded border border-sky-500/30"
                   >
                     Retry from agent
                   </Link>
@@ -739,7 +739,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               {showPreparationRetry && (
                 <div className="mt-1.5 ml-7">
                   <Link href={`/workflows/${encodeURIComponent(c.skillSlug)}`}
-                    className="inline-block text-[11px] font-medium text-sky-500 hover:text-sky-400 px-2 py-1 rounded border border-sky-500/30">
+                    className="inline-block text-[11px] font-medium text-state-running hover:text-state-running px-2 py-1 rounded border border-sky-500/30">
                     Select file and try again
                   </Link>
                 </div>
@@ -769,11 +769,11 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                           rather than reverting to a guess. */}
                       {c.attention?.summary ? (
                         <>
-                          <p className="text-[11px] font-medium text-amber-800 dark:text-amber-200 leading-snug">
+                          <p className="text-[11px] font-medium text-state-needs leading-snug">
                             {c.attention.summary}
                           </p>
                           {c.attention.blockerMessage && (
-                            <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300 leading-snug">
+                            <p className="mt-1 text-[11px] text-state-needs leading-snug">
                               Needs you: {c.attention.blockerMessage}
                             </p>
                           )}
@@ -782,7 +782,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                           )}
                         </>
                       ) : (
-                        <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-snug">
+                        <p className="text-[11px] text-state-needs leading-snug">
                           This run stopped and needs you. Open it to see what Implexa found and what it needs —
                           the reason is on the run itself.
                         </p>
@@ -790,7 +790,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                       {c.runId && (
                         <Link
                           href={`/runs/${c.runId}`}
-                          className="mt-2 inline-block rounded-md border border-amber-500/40 px-3 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
+                          className="mt-2 inline-block rounded-md border border-amber-500/40 px-3 py-1.5 text-[11px] font-medium text-state-needs hover:bg-amber-500/10 text-state-needs"
                         >
                           {c.attention?.summary ? 'Open the run' : 'See what it needs'}
                         </Link>
@@ -798,7 +798,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     </>
                   ) : (
                     <>
-                      <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-snug">
+                      <p className="text-[11px] text-state-needs leading-snug">
                         On the same step a while — if it’s waiting on a permission to continue, you can approve it now.
                       </p>
                       <StuckRunButton
@@ -816,12 +816,12 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               )}
               {queuedWait && (
                 <div className="mt-1.5 ml-7 rounded-md border border-sky-500/25 bg-sky-500/[0.06] px-3 py-2.5">
-                  <p className="text-[11px] font-medium text-sky-700 dark:text-sky-300 leading-snug">
+                  <p className="text-[11px] font-medium text-state-running leading-snug">
                     {queuedWait.headline}
                   </p>
                   {/* Only ever the backend's own declared block — never a guessed cause. */}
                   {queuedWait.block && (
-                    <p className="mt-1 text-[11px] text-sky-700 dark:text-sky-300 leading-snug">
+                    <p className="mt-1 text-[11px] text-state-running leading-snug">
                       Blocked: {queuedWait.block}
                     </p>
                   )}

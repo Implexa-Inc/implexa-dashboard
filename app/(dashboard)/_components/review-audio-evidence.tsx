@@ -50,7 +50,7 @@ export function ReviewAudioEvidence({ reviewedFile, anchorMs, onInsert }: {
       } catch (e) { setError((e as Error).message); }
     }}>Add reference</button>
     {refs.length > 0 && <button type="button" className="ml-2 underline" onClick={() => { setRefs([]); setError(''); }}>Clear references</button>}
-    {error && <p role="alert" className="text-amber-200">{error}</p>}
+    {error && <p role="alert" className="text-state-needs">{error}</p>}
     <pre aria-label="Audio evidence preview" className="my-2 whitespace-pre-wrap rounded bg-ink-900 p-2 font-sans">{preview}</pre>
     <button type="button" className="rounded border border-ink-700 px-2 py-1" onClick={() => {
       onInsert(preview, inserted); setInserted(preview);

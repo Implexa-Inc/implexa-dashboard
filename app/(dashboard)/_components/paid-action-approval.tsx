@@ -23,7 +23,7 @@ export default function PaidActionApproval({ runId, view }: { runId: string; vie
     return (
       <section className="rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-5" aria-labelledby="paid-approval-update-title">
         <h2 id="paid-approval-update-title" className="text-sm font-semibold text-ink-100">Agent update required</h2>
-        <p className="mt-2 text-sm leading-relaxed text-amber-200">
+        <p className="mt-2 text-sm leading-relaxed text-state-needs">
           This run used an older paid-action manifest that does not contain the trusted inputs, placement and per-request details required for approval. Nothing can be approved from this screen.
         </p>
       </section>
@@ -33,7 +33,7 @@ export default function PaidActionApproval({ runId, view }: { runId: string; vie
     return (
       <section className="rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-5" aria-labelledby="paid-approval-unavailable-title">
         <h2 id="paid-approval-unavailable-title" className="text-sm font-semibold text-ink-100">Approval details unavailable</h2>
-        <p className="mt-2 text-sm leading-relaxed text-amber-200">
+        <p className="mt-2 text-sm leading-relaxed text-state-needs">
           Implexa could not verify the complete paid-action batch. Reload this page after the run is repaired; no provider work can be approved here.
         </p>
       </section>
@@ -78,7 +78,7 @@ export default function PaidActionApproval({ runId, view }: { runId: string; vie
     <section className="rounded-lg border border-amber-400/40 bg-amber-400/[0.06] p-5" aria-labelledby="paid-approval-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-300">Paid provider approval</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-state-needs">Paid provider approval</p>
           <h2 id="paid-approval-title" className="mt-1 text-lg font-semibold text-ink-50">
             Review {summary.requestCount} {batchLabel} generation{summary.requestCount === 1 ? '' : 's'}
           </h2>
@@ -89,7 +89,7 @@ export default function PaidActionApproval({ runId, view }: { runId: string; vie
         </div>
         <div className="rounded-md border border-amber-400/30 bg-black/20 px-3 py-2 text-right">
           <p className="text-[10px] uppercase tracking-wider text-ink-500">Estimated total</p>
-          <p className="text-base font-semibold text-amber-200">{total}</p>
+          <p className="text-base font-semibold text-state-needs">{total}</p>
         </div>
       </div>
 
@@ -117,7 +117,7 @@ export default function PaidActionApproval({ runId, view }: { runId: string; vie
                   <p className="text-sm font-semibold text-ink-100">{index + 1}. {request.sceneId}</p>
                   <p className="mt-0.5 font-mono text-[10px] text-ink-500">Request {request.requestId}</p>
                 </div>
-                <p className="text-sm font-medium text-amber-200">{formatPaidActionCost(request.estimatedCost, summary.currency)}</p>
+                <p className="text-sm font-medium text-state-needs">{formatPaidActionCost(request.estimatedCost, summary.currency)}</p>
               </div>
               <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink-200">{request.prompt}</p>
               <dl className="mt-3 grid gap-x-4 gap-y-2 text-xs sm:grid-cols-2 lg:grid-cols-5">
@@ -144,7 +144,7 @@ export default function PaidActionApproval({ runId, view }: { runId: string; vie
         <p className="mt-0.5 break-all font-mono text-[10px] text-ink-400">SHA-256 {summary.projectCheckpointDigest}</p>
       </div>
 
-      {error && <p role="alert" className="mt-4 text-sm text-rose-300">{error}</p>}
+      {error && <p role="alert" className="mt-4 text-sm text-state-fail">{error}</p>}
       <div aria-live="polite" className="mt-4">
         <button type="button" onClick={() => void approve()} disabled={busy} className="btn-primary px-5 py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-60">
           {busy ? 'Approving exact batch…' : `Approve ${summary.requestCount} ${batchLabel} generation${summary.requestCount === 1 ? '' : 's'} — estimated ${total}`}

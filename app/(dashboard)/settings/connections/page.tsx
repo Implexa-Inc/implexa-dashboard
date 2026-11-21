@@ -103,7 +103,7 @@ function AccountRow({ conn }: { conn: ConnectionAccount }) {
           <Link
             href={RECONNECT_HREF}
             title="Connect this account in the Implexa desktop app — you sign in once in the Implexa browser, no API keys."
-            className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-rose-700 dark:text-rose-200 hover:bg-rose-500/30 transition-colors whitespace-nowrap"
+            className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap"
           >
             Set up
           </Link>
@@ -122,9 +122,9 @@ function AgentNeedsCard({ agent }: { agent: AgentConnections }) {
           {agent.name}
         </Link>
         {anyBroken ? (
-          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-rose-500/40 text-rose-700 dark:text-rose-300">needs a sign-in</span>
+          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-rose-500/40 text-state-fail">needs a sign-in</span>
         ) : (
-          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/30 text-emerald-700 dark:text-emerald-300">ready</span>
+          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/30 text-state-ok">ready</span>
         )}
       </div>
       {agent.needs.length === 0 ? (
@@ -140,8 +140,8 @@ function AgentNeedsCard({ agent }: { agent: AgentConnections }) {
                   <span className="text-sm text-ink-200 truncate">{n.label}</span>
                 </span>
                 <span className={`text-[11px] font-medium flex-none ${
-                  n.status === 'reachable' ? 'text-emerald-600 dark:text-emerald-400'
-                  : n.status === 'unreachable' ? 'text-rose-600 dark:text-rose-400'
+                  n.status === 'reachable' ? 'text-state-ok'
+                  : n.status === 'unreachable' ? 'text-state-fail'
                   : 'text-ink-500'
                 }`}>{spec.label}</span>
               </li>
@@ -195,7 +195,7 @@ export default async function AllConnectionsPage() {
             </p>
             <Link
               href={AGENTS_MANAGE_HREF}
-              className="inline-flex items-center mt-4 text-sm font-medium rounded-md px-3.5 py-2 bg-brand-500/15 text-brand-600 dark:text-brand-400 hover:bg-brand-500/25 transition-colors"
+              className="inline-flex items-center mt-4 text-sm font-medium rounded-md px-3.5 py-2 bg-brand-500/15 text-action-accent hover:bg-brand-500/25 transition-colors"
             >
               See your agents
             </Link>
@@ -203,8 +203,8 @@ export default async function AllConnectionsPage() {
         ) : (
           <>
             <div className="flex items-center gap-x-6 gap-y-2 flex-wrap text-sm mb-8">
-              <span className="text-ink-300"><span className="text-emerald-600 dark:text-emerald-400 font-semibold tabular-nums">{reachable}</span> reachable</span>
-              {broken > 0 && <span className="text-ink-300"><span className="text-rose-600 dark:text-rose-400 font-semibold tabular-nums">{broken}</span> need a sign-in</span>}
+              <span className="text-ink-300"><span className="text-state-ok font-semibold tabular-nums">{reachable}</span> reachable</span>
+              {broken > 0 && <span className="text-ink-300"><span className="text-state-fail font-semibold tabular-nums">{broken}</span> need a sign-in</span>}
               <span className="text-ink-500">{status!.connections.length} account{status!.connections.length === 1 ? '' : 's'} total</span>
             </div>
 

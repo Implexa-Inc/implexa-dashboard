@@ -135,10 +135,10 @@ export default function ScheduleManager({
         <span className="text-ink-200 text-sm">{routine!.schedule_nl}</span>
         <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
           routine!.status === 'active'
-            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+            ? 'bg-emerald-500/15 text-state-ok'
             : routine!.status === 'paused'
-              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-              : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+              ? 'bg-amber-500/15 text-state-needs'
+              : 'bg-rose-500/15 text-state-fail'
         }`}>{routine!.status}</span>
       </div>
 
@@ -168,13 +168,13 @@ export default function ScheduleManager({
           Cancel
         </button>
       )}
-      {err && <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">{err}</p>}
+      {err && <p className="text-xs text-state-fail mt-2">{err}</p>}
 
       {/* Undocumented Claude route (verified 2026-06-12) — keep beside the inline controls. */}
       {routine!.claude_task_id && (
         <a
           href={`claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(routine!.claude_task_id)}`}
-          className="text-xs text-brand-500 hover:underline mt-2 inline-block"
+          className="text-xs text-action-accent hover:underline mt-2 inline-block"
           title="Opens this routine in the Claude desktop app (toggle, history, Run now)."
         >
           Open in Claude ↗

@@ -39,6 +39,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        state: {
+          needs: 'var(--state-needs-fg)', running: 'var(--state-running-fg)',
+          review: 'var(--state-review-fg)', ok: 'var(--state-ok-fg)',
+          fail: 'var(--state-fail-fg)', idle: 'var(--state-idle-fg)',
+        },
+        action: { accent: 'var(--text-accent)' },
         ink: {
           50:  'rgb(var(--ink-50) / <alpha-value>)',
           100: 'rgb(var(--ink-100) / <alpha-value>)',

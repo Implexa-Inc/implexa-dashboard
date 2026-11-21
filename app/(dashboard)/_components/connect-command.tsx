@@ -67,7 +67,7 @@ export default function ConnectCommand() {
               onClick={() => { setSurface(s); setCopied(false); }}
               className={
                 'px-3 py-1 rounded-full text-xs font-medium transition-colors ' +
-                (active ? 'bg-brand-500/15 text-brand-500' : 'text-ink-400 hover:text-ink-100')
+                (active ? 'bg-brand-500/15 text-action-accent' : 'text-ink-400 hover:text-ink-100')
               }
             >
               {COMMANDS[s].label}

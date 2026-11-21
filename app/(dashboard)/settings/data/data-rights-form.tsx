@@ -130,7 +130,7 @@ export default function DataRightsForm({ initial }: { initial: Snapshot }) {
             {saving ? 'Saving…' : 'Save preferences'}
           </button>
           {savedAt && !dirty && <span className="text-xs text-success-700 dark:text-success-400">✓ Saved at {savedAt}</span>}
-          {saveErr && <span className="text-xs text-red-600">{saveErr}</span>}
+          {saveErr && <span className="text-xs text-state-fail">{saveErr}</span>}
         </div>
 
         {initial.consent.optin_recorded_at && (
@@ -181,14 +181,14 @@ export default function DataRightsForm({ initial }: { initial: Snapshot }) {
           </div>
         )}
         {deleteErr && (
-          <div className="text-xs text-red-600 mb-3">{deleteErr}</div>
+          <div className="text-xs text-state-fail mb-3">{deleteErr}</div>
         )}
 
         {!confirmingDelete ? (
           <button
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            className="text-xs text-red-600 hover:underline"
+            className="text-xs text-state-fail hover:underline"
           >
             Delete all my signatures →
           </button>
@@ -233,7 +233,7 @@ function Toggle({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-1 h-4 w-4 rounded border-ink-600 text-brand-500 focus:ring-brand-500"
+        className="mt-1 h-4 w-4 rounded border-ink-600 text-action-accent focus:ring-brand-500"
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -241,7 +241,7 @@ function Toggle({
           {badge && (
             <span className={`text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5
               ${badgeWarn
-                ? 'bg-amber-400/20 text-amber-700 dark:text-amber-400'
+                ? 'bg-amber-400/20 text-state-needs'
                 : 'bg-ink-700 text-ink-300'}`}>
               {badge}
             </span>

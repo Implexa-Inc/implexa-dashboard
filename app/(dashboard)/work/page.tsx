@@ -73,7 +73,7 @@ export default async function WorkPage({
   if (pilot && view === 'agents') redirect(AGENTS_MANAGE_HREF);
   if (pilot && view === 'activity') {
     return <div className="app-page"><div className="app-content">
-      <header className="flex items-center justify-between gap-4 mb-7"><h1 className="text-3xl font-semibold text-ink-50">Work</h1><Link href="/work?view=needs" prefetch={false} className="text-sm text-ink-300 hover:text-brand-400">Needs you →</Link></header>
+      <header className="flex items-center justify-between gap-4 mb-7"><h1 className="text-3xl font-semibold text-ink-50">Work</h1><Link href="/work?view=needs" prefetch={false} className="text-sm text-ink-300 hover:text-action-accent">Needs you →</Link></header>
       <WorkFilterTabs current={view} reviewCount={null} activity />
       <>
         <Suspense fallback={<p role="status" className="text-xs text-ink-500 mb-3">Checking decisions…</p>}><CompactRunAttention/></Suspense>
@@ -176,7 +176,7 @@ async function DeliveredView() {
         <p className="text-ink-100 font-medium">No results yet.</p>
         <p className="text-ink-400 text-sm mt-1">
           When your agents run, the work they produce shows up here.{' '}
-          <Link href="/workflows" className="text-brand-500 hover:underline">Build an agent</Link>.
+          <Link href="/workflows" className="text-action-accent hover:underline">Build an agent</Link>.
         </p>
       </section>
     );

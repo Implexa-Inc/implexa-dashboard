@@ -183,7 +183,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
         <li>{RUN_AGAIN_DISTINCTION}</li>
       </ul>}
       {presentation.state === 'disabled' && (
-        <p className="mt-2 text-xs text-amber-300">
+        <p className="mt-2 text-xs text-state-needs">
           {presentation.workMayHaveOccurred ? 'Retry safely is unavailable because work or an external action may have occurred: ' : 'Retry safely is unavailable: '}
           {presentation.explanation}
         </p>
@@ -207,7 +207,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
           </button>
         </div>
       )}
-      {error && <p role="alert" className="mt-2 text-xs text-rose-300">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-state-fail">{error}</p>}
     </div>
   );
 }

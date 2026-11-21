@@ -80,12 +80,12 @@ export default function MakeRecurring({ slug, agentName }: { slug: string; agent
     return (
       <section className="mt-6 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-4">
         <div className="text-sm text-ink-100">
-          <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ {agentName} is now recurring</span>
+          <span className="text-state-ok font-medium">✓ {agentName} is now recurring</span>
           {' — '}runs {savedNl}. You don&apos;t need to start it; results land on your home as they come in.
         </div>
         <Link
           href={`/workflows/${encodeURIComponent(slug)}/activate`}
-          className="text-xs text-brand-500 hover:underline mt-1.5 inline-block"
+          className="text-xs text-action-accent hover:underline mt-1.5 inline-block"
         >
           Change the schedule →
         </Link>
@@ -133,7 +133,7 @@ export default function MakeRecurring({ slug, agentName }: { slug: string; agent
           <button type="button" onClick={save} disabled={saving} className={saving ? 'btn-outline text-xs px-3 py-1.5 opacity-50' : 'btn-success text-xs px-3 py-1.5'}>
             {saving ? 'Saving…' : `Run ${buildNl()}`}
           </button>
-          {err && <span className="text-xs text-rose-600 dark:text-rose-400">{err}</span>}
+          {err && <span className="text-xs text-state-fail">{err}</span>}
         </div>
       )}
     </section>

@@ -57,7 +57,7 @@ export default function ProfessionalCostSummary({ cost, source }: Props) {
         </div>
         <div>
           <dt className="text-xs text-ink-400">Hard maximum</dt>
-          <dd className="mt-0.5 text-lg font-semibold text-amber-200">{cost.maximumCredits} credits</dd>
+          <dd className="mt-0.5 text-lg font-semibold text-state-needs">{cost.maximumCredits} credits</dd>
           <p className="mt-0.5 text-[11px] text-ink-500">Expected + reserve. This is the ceiling an approval authorizes.</p>
         </div>
       </dl>

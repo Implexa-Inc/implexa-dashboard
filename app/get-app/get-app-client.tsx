@@ -122,7 +122,7 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
     <main className="min-h-screen bg-ink-950 text-ink-100 px-6 py-12 sm:py-16">
       <div className="mx-auto max-w-xl">
         <div className="mb-8">
-          <span className="text-sm font-semibold tracking-tight text-brand-500">Implexa</span>
+          <span className="text-sm font-semibold tracking-tight text-action-accent">Implexa</span>
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-semibold text-ink-50 leading-tight">
@@ -135,7 +135,7 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
 
         {intent && (
           <div className="mt-5 rounded-lg border border-brand-500/30 bg-brand-500/5 px-4 py-3">
-            <p className="text-xs uppercase tracking-wide text-brand-400 font-semibold">Waiting to build</p>
+            <p className="text-xs uppercase tracking-wide text-action-accent font-semibold">Waiting to build</p>
             <p className="mt-1 text-sm text-ink-200">&ldquo;{intent.length > 160 ? intent.slice(0, 160) + '…' : intent}&rdquo;</p>
             <p className="mt-1 text-xs text-ink-500">It&apos;s saved to your account — the app picks it up the moment you open it.</p>
           </div>
@@ -191,7 +191,7 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
             </button>
             <p className="mt-3 text-xs text-ink-500">
               Want the Mac app the day it ships for your platform?{' '}
-              <a href="mailto:hello@implexa.ai?subject=Desktop%20app%20waitlist" className="text-brand-500 hover:underline">Join the waitlist</a>.
+              <a href="mailto:hello@implexa.ai?subject=Desktop%20app%20waitlist" className="text-action-accent hover:underline">Join the waitlist</a>.
             </p>
           </div>
         )}
@@ -210,7 +210,7 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
             >
               {copied ? '✓ Copied' : CONNECT_CURL}
             </button>
-            <p className="mt-2 text-xs text-ink-500">Full options on the <a href="/install" className="text-brand-500 hover:underline">install page</a>.</p>
+            <p className="mt-2 text-xs text-ink-500">Full options on the <a href="/install" className="text-action-accent hover:underline">install page</a>.</p>
           </div>
         </details>
       </div>

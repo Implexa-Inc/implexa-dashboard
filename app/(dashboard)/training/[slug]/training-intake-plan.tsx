@@ -73,7 +73,7 @@ export default function TrainingIntakePlan({plan,disabled,onQueue,onClose}:{
           </div>}
         </div>;
       })}
-      {error&&<p role="alert" className="text-sm text-amber-300">{error}</p>}
+      {error&&<p role="alert" className="text-sm text-state-needs">{error}</p>}
       <button type="button" className="btn-primary" disabled={disabled||pending||!selected.length} onClick={()=>void queue()}>
         {pending?'Requesting update…':'Request selected changes'}
       </button>

@@ -89,7 +89,7 @@ export default function RunEnvForm({
         <button type="submit" disabled={saving || !dirty} className="btn-primary whitespace-nowrap">
           {saving ? 'Saving…' : done ? '✓ Saved' : 'Save run environment'}
         </button>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-xs text-state-fail">{error}</p>}
       </div>
     </form>
   );

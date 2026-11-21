@@ -219,7 +219,7 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
       ) : null}
 
       {unavailable && preview && (
-        <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+        <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-state-needs">
           <p className="font-medium">Professional generation is not available on your account yet.</p>
           <p className="mt-1 text-xs">
             Implexa compiled this plan so you can see exactly what it would run, but it cannot be
@@ -230,7 +230,7 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
       )}
 
       {error && (
-        <p role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">{error}</p>
+        <p role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">{error}</p>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -251,7 +251,7 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
           </button>
         )}
         {preview !== null && !previewIsCurrent && (
-          <p className="text-xs text-amber-300">
+          <p className="text-xs text-state-needs">
             The timeline changed since it was compiled. Compile it again before saving —
             the previous plan and its ceiling no longer describe what is on screen.
           </p>

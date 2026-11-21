@@ -61,7 +61,7 @@ export async function RecommendationsRail({
             href={`/skills/${r.slug}`}
             className="card hover:border-brand-500 transition-colors group"
           >
-            <div className="text-sm font-medium text-ink-50 group-hover:text-brand-400 line-clamp-2">
+            <div className="text-sm font-medium text-ink-50 group-hover:text-action-accent line-clamp-2">
               {r.name}
             </div>
             <code className="text-xs text-ink-500 font-mono block mt-1 truncate">{r.slug}</code>

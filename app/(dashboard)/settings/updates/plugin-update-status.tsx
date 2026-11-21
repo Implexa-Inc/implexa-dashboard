@@ -73,9 +73,9 @@ export default function PluginUpdateStatus({ latest, surfaces, updateCommand, no
           </div>
         </div>
         {checked && known.length > 0 && behind.length === 0 ? (
-          <span className="text-[11px] font-semibold uppercase tracking-wider rounded px-2 py-1 bg-emerald-400/15 text-emerald-600 dark:text-emerald-300 border border-emerald-400/30">✓ Installed surfaces current</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider rounded px-2 py-1 bg-emerald-400/15 text-state-ok border border-emerald-400/30">✓ Installed surfaces current</span>
         ) : checked && behind.length ? (
-          <span className="text-[11px] font-semibold uppercase tracking-wider rounded px-2 py-1 bg-amber-400/15 text-amber-600 dark:text-amber-300 border border-amber-400/30">Update available</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider rounded px-2 py-1 bg-amber-400/15 text-state-needs border border-amber-400/30">Update available</span>
         ) : null}
       </div>
 
@@ -101,7 +101,7 @@ export default function PluginUpdateStatus({ latest, surfaces, updateCommand, no
         </div>
       </div>
       <div className="mt-3 flex items-center gap-4 text-xs">
-        <Link href="/settings/engines" className="text-brand-500 hover:underline">Manage AI engines →</Link>
+        <Link href="/settings/engines" className="text-action-accent hover:underline">Manage AI engines →</Link>
         {changelogUrl ? <a href={changelogUrl} target="_blank" rel="noreferrer" className="text-ink-400 hover:underline">What changed →</a> : null}
       </div>
     </section>

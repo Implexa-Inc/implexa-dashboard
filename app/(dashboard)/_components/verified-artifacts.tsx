@@ -171,7 +171,7 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
               onClick={() => setExpanded((value) => !value)}
               aria-expanded={expanded}
               aria-controls="run-artifact-list"
-              className="rounded border border-emerald-500/40 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
+              className="rounded border border-emerald-500/40 px-2.5 py-1 text-xs text-state-ok hover:bg-emerald-500/10 text-state-ok"
             >
               {expanded ? 'Hide files' : `View files (${artifacts.length})`}
             </button>
@@ -187,7 +187,7 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
             type="button"
             onClick={() => void reconnectSource()}
             disabled={reconnecting}
-            className="rounded border border-amber-500/45 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-500/10 disabled:opacity-60 dark:text-amber-300"
+            className="rounded border border-amber-500/45 px-3 py-1.5 text-xs font-medium text-state-needs hover:bg-amber-500/10 disabled:opacity-60 text-state-needs"
           >
             {reconnecting ? 'Verifying source…' : 'Reconnect original source'}
           </button>
@@ -205,7 +205,7 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
                 <div className="mt-0.5 truncate font-mono text-[10px] text-ink-600" title={artifact.relativePath}>{artifact.relativePath}</div>
               </div>
               <div className="flex items-center gap-2 text-xs">
-                <button type="button" onClick={() => void open(artifact)} className="rounded border border-emerald-500/40 px-2.5 py-1 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300">Open</button>
+                <button type="button" onClick={() => void open(artifact)} className="rounded border border-emerald-500/40 px-2.5 py-1 text-state-ok hover:bg-emerald-500/10 text-state-ok">Open</button>
                 <button type="button" onClick={() => void reveal(artifact)} className="rounded border border-ink-700 px-2.5 py-1 text-ink-300 hover:bg-ink-800">Finder</button>
               </div>
             </li>

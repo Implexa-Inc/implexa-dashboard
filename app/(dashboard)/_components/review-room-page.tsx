@@ -54,7 +54,7 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
         {packet.readFailure && <p className="mt-2 text-xs text-ink-500">
           Read failure: {packet.readFailure}{packet.httpStatus ? ` (${packet.httpStatus})` : ''}.
         </p>}
-        <Link href={backHref} className="mt-6 inline-block text-sm text-sky-400 hover:underline">
+        <Link href={backHref} className="mt-6 inline-block text-sm text-state-running hover:underline">
           Back to {trainingSlug?'Training':'Review'}
         </Link>
       </div>
@@ -105,21 +105,21 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-400">
             {currentLabel && <span className="rounded bg-ink-800 px-1.5 py-0.5">{currentLabel}</span>}
             {packet.sources.judgment === 'unavailable' ? (
-              <span className="text-amber-300">Judge state unavailable</span>
+              <span className="text-state-needs">Judge state unavailable</span>
             ) : packet.judgment ? (
               <span>Judge: {packet.judgment.verdict}</span>
             ) : (
               <span className="text-ink-500">No Judge verdict</span>
             )}
             {packet.session?.state === 'accepted' && (
-              <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-300">Accepted</span>
+              <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-state-ok">Accepted</span>
             )}
           </p>
         </div>
       </header>
 
       {broken.length > 0 && (
-        <div role="status" className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+        <div role="status" className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-state-needs">
           Some of this review couldn&apos;t be loaded ({broken.join(', ')}). What you see may be incomplete.
         </div>
       )}
@@ -134,7 +134,7 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
         <h2 className="text-sm font-semibold text-ink-100">Learnings used</h2>
         <p className="mt-1 text-xs text-ink-500">Owner-approved rules frozen for this attempt. This is separate from stage skills above.</p>
         {!reviewLearningAvailable ? (
-          <p className="mt-2 text-xs text-amber-300">Attempt-bound learning proof is unavailable. No handling state is inferred.</p>
+          <p className="mt-2 text-xs text-state-needs">Attempt-bound learning proof is unavailable. No handling state is inferred.</p>
         ) : !reviewLearningProof ? (
           <p className="mt-2 text-xs text-ink-500">No learning context was frozen for this run.</p>
         ) : (
@@ -182,7 +182,7 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
           <h2 className="text-sm font-medium text-ink-200">Judge</h2>
           <p className="mt-1 text-xs text-ink-500">A machine&apos;s opinion. Not proof, and not your decision.</p>
           {packet.sources.judgment === 'unavailable' ? (
-            <p className="mt-2 text-xs text-amber-300">Unavailable — we couldn&apos;t read it.</p>
+            <p className="mt-2 text-xs text-state-needs">Unavailable — we couldn&apos;t read it.</p>
           ) : packet.judgment ? (
             <>
               <p className="mt-2 text-sm text-ink-200">{packet.judgment.verdict}</p>
@@ -197,7 +197,7 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
           <h2 className="text-sm font-medium text-ink-200">Verified files</h2>
           <p className="mt-1 text-xs text-ink-500">Deterministic checks. Independent of Judge and of your review.</p>
           {packet.sources.verification === 'unavailable' ? (
-            <p className="mt-2 text-xs text-amber-300">Unavailable — we couldn&apos;t read it.</p>
+            <p className="mt-2 text-xs text-state-needs">Unavailable — we couldn&apos;t read it.</p>
           ) : packet.verification.receipts.length ? (
             <ul className="mt-2 space-y-1 text-xs text-ink-300">
               {packet.verification.receipts.map((r) => (
@@ -212,7 +212,7 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
         <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
           <h2 className="text-sm font-medium text-ink-200">Versions</h2>
           {packet.sources.lineage === 'unavailable' ? (
-            <p className="mt-2 text-xs text-amber-300">
+            <p className="mt-2 text-xs text-state-needs">
               Version history unavailable — we can&apos;t say how this relates to earlier runs.
             </p>
           ) : versions.length ? (
@@ -222,7 +222,7 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
                   {v.runId === packet.run!.id ? (
                     <span className="text-ink-100">{v.label} (viewing)</span>
                   ) : (
-                    <Link href={trainingSlug?trainingReviewHref(trainingSlug,v.runId):`/review/${v.runId}`} className="text-sky-400 hover:underline">{v.label}</Link>
+                    <Link href={trainingSlug?trainingReviewHref(trainingSlug,v.runId):`/review/${v.runId}`} className="text-state-running hover:underline">{v.label}</Link>
                   )}
                 </li>
               ))}

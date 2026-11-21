@@ -26,9 +26,9 @@ export default function AgentDiscoveryCatalog({
 
   if (unavailable) {
     return (
-      <div role="status" className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-4 text-sm text-amber-200">
+      <div role="status" className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-4 text-sm text-state-needs">
         <p className="font-medium">Proven agents are unavailable right now</p>
-        <p className="mt-1 text-amber-200/80">{unavailable} No agent can be hired until its exact version and readiness are verified.</p>
+        <p className="mt-1 text-state-needs">{unavailable} No agent can be hired until its exact version and readiness are verified.</p>
       </div>
     );
   }
@@ -54,12 +54,12 @@ export default function AgentDiscoveryCatalog({
           <li key={`${agent.id}:${agent.version.id}`} className="card flex flex-col gap-3 !p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <h3 className="font-semibold text-ink-50">{agent.name}</h3>
-              <span className="rounded border border-sky-500/40 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-300">{agent.readiness.state}</span>
+              <span className="rounded border border-sky-500/40 px-2 py-0.5 text-[10px] uppercase tracking-wide text-state-running">{agent.readiness.state}</span>
             </div>
             <p className="text-sm text-ink-300">{agent.job}</p>
             <p className="text-xs text-ink-500">Built by {agent.builder.name} · exact version {agent.version.number}</p>
             {agent.audition && agent.audition.allowance > 0 && (
-              <p className="text-xs text-emerald-400">Free audition offered · buyer-owned provider usage</p>
+              <p className="text-xs text-state-ok">Free audition offered · buyer-owned provider usage</p>
             )}
             <Link href={`/workflows/${encodeURIComponent(agent.slug)}`} className="btn-primary mt-auto self-start px-4 py-2 text-sm">
               View &amp; use this agent

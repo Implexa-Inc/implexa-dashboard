@@ -117,7 +117,7 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
                     type="button" disabled={disabled || moments.length <= 1}
                     onClick={() => onChange(removeMoment(moments, moment.id))}
                     aria-label={`Remove moment ${index + 1}`}
-                    className="rounded border border-ink-800 px-2 py-1 text-xs text-ink-400 hover:text-red-300 disabled:opacity-30"
+                    className="rounded border border-ink-800 px-2 py-1 text-xs text-ink-400 hover:text-state-fail disabled:opacity-30"
                   >
                     Remove
                   </button>
@@ -231,7 +231,7 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
               {rowIssues.length > 0 && (
                 <ul className="mt-3 space-y-1" role="alert">
                   {rowIssues.map((issue) => (
-                    <li key={`${issue.code}-${issue.message}`} className="text-[11px] text-amber-300">{issue.message}</li>
+                    <li key={`${issue.code}-${issue.message}`} className="text-[11px] text-state-needs">{issue.message}</li>
                   ))}
                 </ul>
               )}
@@ -253,7 +253,7 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
           <button
             type="button" disabled={disabled}
             onClick={() => onChange(sortMomentsByStart(moments))}
-            className="rounded-md border border-amber-500/40 px-3 py-1.5 text-xs text-amber-200 disabled:opacity-40"
+            className="rounded-md border border-amber-500/40 px-3 py-1.5 text-xs text-state-needs disabled:opacity-40"
           >
             Sort by start time
           </button>
@@ -263,7 +263,7 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
       {timelineIssues.length > 0 && (
         <ul className="mt-3 space-y-1" role="alert">
           {timelineIssues.map((issue) => (
-            <li key={issue.code} className="text-xs text-amber-300">{issue.message}</li>
+            <li key={issue.code} className="text-xs text-state-needs">{issue.message}</li>
           ))}
         </ul>
       )}

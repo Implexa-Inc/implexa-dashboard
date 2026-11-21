@@ -302,7 +302,7 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
               <p className="text-xs text-ink-300 leading-relaxed mb-2">
                 Haiku turned all of the above into a structured, reusable skill. PII was scrubbed before saving.
               </p>
-              <Link href={`/skills/${params.slug}`} className="text-xs text-brand-600 hover:underline font-medium">
+              <Link href={`/skills/${params.slug}`} className="text-xs text-action-accent hover:underline font-medium">
                 View the synthesized skill →
               </Link>
             </div>

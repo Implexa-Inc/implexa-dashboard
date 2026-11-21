@@ -240,7 +240,7 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
         )}
 
         {error && (
-          <p role="alert" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">{error}</p>
+          <p role="alert" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">{error}</p>
         )}
 
         <div className="mt-5 flex flex-wrap gap-3">

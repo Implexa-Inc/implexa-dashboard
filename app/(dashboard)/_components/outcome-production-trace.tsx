@@ -83,7 +83,7 @@ export default function OutcomeProductionTrace({
                 className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
                   entry.ordinal === null
                     ? 'bg-ink-800 text-ink-400'
-                    : 'bg-brand-500/15 text-brand-600 dark:text-brand-300'
+                    : 'bg-brand-500/15 text-action-accent'
                 }`}
               >
                 {entry.ordinal === null ? 'Production' : `Agent ${entry.ordinal + 1}`}

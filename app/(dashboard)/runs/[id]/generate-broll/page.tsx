@@ -145,7 +145,7 @@ export default async function GenerateBrollPage({ params, searchParams }: {
             <h1 className="text-lg font-medium text-ink-100">{copy.title}</h1>
             <p className="mt-2 text-sm text-ink-400">{copy.body}</p>
             {copy.action && (
-              <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">{copy.action}</p>
+              <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">{copy.action}</p>
             )}
             {alternates.length > 0 && (
               <div className="mt-4">
@@ -188,7 +188,7 @@ export default async function GenerateBrollPage({ params, searchParams }: {
             <h1 className="text-lg font-medium text-ink-100">{copy.title}</h1>
             <p className="mt-2 text-sm text-ink-400">{copy.body}</p>
             {copy.action && (
-              <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">
                 {copy.action}
               </p>
             )}
@@ -228,7 +228,7 @@ export default async function GenerateBrollPage({ params, searchParams }: {
       <div className="mx-auto max-w-3xl">
         <Link href={`/runs/${encodeURIComponent(params.id)}`} className="text-xs text-ink-500 hover:text-ink-200">← Back to run</Link>
         {editRequestedButUnavailable && (
-          <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+          <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">
             {/* Say what happened. Silently opening a blank builder would look like
                 the edit worked and leave the user rebuilding without knowing it. */}
             Implexa couldn&apos;t load the plan you asked to edit, so this builder is starting
@@ -236,7 +236,7 @@ export default async function GenerateBrollPage({ params, searchParams }: {
           </p>
         )}
         {editResolution && editResolution.kind === 'source_changed' && (
-          <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+          <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">
             {/* A stated change, never a silent one: the moments came from a plan
                 compiled against a different video, and the new source's length is
                 what these windows will now be checked against. */}

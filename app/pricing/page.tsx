@@ -117,7 +117,7 @@ export default async function PricingPage() {
                 you share. The earliest builders get permanent perks.
               </p>
               {isAuthed && (
-                <a href="/workflows" className="text-xs text-brand-500 hover:underline font-medium mt-3 inline-block">
+                <a href="/workflows" className="text-xs text-action-accent hover:underline font-medium mt-3 inline-block">
                   See your agents and start →
                 </a>
               )}

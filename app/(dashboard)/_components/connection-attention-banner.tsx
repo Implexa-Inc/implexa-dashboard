@@ -105,7 +105,7 @@ function ConnectionWarningRow({ w }: { w: ConnectionWarning }) {
               type="button"
               onClick={signIn}
               disabled={busy !== null}
-              className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-rose-700 dark:text-rose-200 hover:bg-rose-500/30 transition-colors whitespace-nowrap disabled:opacity-60"
+              className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap disabled:opacity-60"
             >
               {busy === 'signin' ? 'Opening…' : 'Sign in'}
             </button>
@@ -123,7 +123,7 @@ function ConnectionWarningRow({ w }: { w: ConnectionWarning }) {
           // works via the Implexa desktop's dedicated Chrome, so point at the app.
           <Link
             href={RECONNECT_HREF}
-            className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-rose-700 dark:text-rose-200 hover:bg-rose-500/30 transition-colors whitespace-nowrap"
+            className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap"
           >
             Open the app
           </Link>

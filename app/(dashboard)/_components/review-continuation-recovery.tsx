@@ -401,7 +401,7 @@ export default function ReviewContinuationRecovery({
           the newest thing we know, so the panel never silently replaces a
           specific answer with a general one. */}
       {(error || (refusal && resolved !== 'queued' && resolved !== 'completed' && !error)) && (
-        <p className="mt-3 text-xs text-rose-600 dark:text-rose-400">{error || refusal?.message}</p>
+        <p className="mt-3 text-xs text-state-fail">{error || refusal?.message}</p>
       )}
     </div>
   );

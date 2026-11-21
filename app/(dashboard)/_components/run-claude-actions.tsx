@@ -133,7 +133,7 @@ export default function RunClaudeActions({
         type="button"
         onClick={openInClaude}
         disabled={busy}
-        className="text-xs text-brand-500 hover:underline whitespace-nowrap disabled:opacity-60"
+        className="text-xs text-action-accent hover:underline whitespace-nowrap disabled:opacity-60"
       >
         continue in Claude ↗
       </button>
@@ -141,12 +141,12 @@ export default function RunClaudeActions({
         <a
           href={routineHref}
           title="Opens Claude's Routines list (Claude doesn't support deep-linking to a specific routine)"
-          className="text-xs text-brand-500 hover:underline whitespace-nowrap"
+          className="text-xs text-action-accent hover:underline whitespace-nowrap"
         >
           Open Claude Routines ↗
         </a>
       )}
-      {err ? <span className="text-xs text-rose-600 dark:text-rose-400" role="alert">{err}</span> : null}
+      {err ? <span className="text-xs text-state-fail" role="alert">{err}</span> : null}
     </div>
   );
 }

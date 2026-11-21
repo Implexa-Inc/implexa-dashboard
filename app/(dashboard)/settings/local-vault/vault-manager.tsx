@@ -170,7 +170,7 @@ export default function VaultManager({ jwt }: { jwt: string }) {
       <div className="card">
         <div className="flex items-baseline justify-between mb-2">
           <h2 className="font-medium text-ink-50">Vault status</h2>
-          <button type="button" onClick={refreshLocal} className="text-xs text-brand-500 hover:underline">Check again</button>
+          <button type="button" onClick={refreshLocal} className="text-xs text-action-accent hover:underline">Check again</button>
         </div>
         <ul className="text-sm text-ink-200 space-y-1.5">
           <li className="flex items-center gap-2">
@@ -195,7 +195,7 @@ export default function VaultManager({ jwt }: { jwt: string }) {
         </p>
       </div>
 
-      {note && <p className="text-sm text-amber-700 dark:text-amber-300">{note}</p>}
+      {note && <p className="text-sm text-state-needs">{note}</p>}
       {ctxFailed && (
         <p className="text-xs text-ink-400">
           Couldn&apos;t load which agents may need keys — the saved-key list below is still live from this Mac.
@@ -275,7 +275,7 @@ function ProviderCard({ card, ctx, onAdd, onAllow, onRevoke, onDelete, canReques
               {/* Replace = the ADD window; typing a new value rotates in place. */}
               <button type="button" onClick={onAdd} className="btn-outline text-xs px-2.5 py-1" title="Opens the Implexa key window. Saving a new value replaces the stored key.">Replace key</button>
               {canRequestDelete
-                ? <button type="button" onClick={onDelete} className="text-xs text-red-600 dark:text-red-400 hover:underline px-1" title="Removes the key and every agent's access to it from this Mac. You'll confirm in an Implexa dialog.">Delete key</button>
+                ? <button type="button" onClick={onDelete} className="text-xs text-state-fail hover:underline px-1" title="Removes the key and every agent's access to it from this Mac. You'll confirm in an Implexa dialog.">Delete key</button>
                 : <span className="text-[11px] text-ink-500">update app to delete</span>}
             </>
           )}
@@ -316,7 +316,7 @@ function ProviderCard({ card, ctx, onAdd, onAllow, onRevoke, onDelete, canReques
                       <button
                         type="button"
                         onClick={() => onRevoke(g.agentSlug)}
-                        className="flex-none text-xs text-red-600 dark:text-red-400 hover:underline"
+                        className="flex-none text-xs text-state-fail hover:underline"
                         title={canRequestRevoke ? "You'll confirm in an Implexa dialog." : 'Update the Implexa app to revoke from this page.'}
                       >
                         Revoke

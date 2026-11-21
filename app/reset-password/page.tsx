@@ -133,7 +133,7 @@ function ResetPasswordInner() {
               onChange={(e) => setConfirm(e.target.value)}
               className="input"
             />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-state-fail">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? 'Updating…' : 'Update password'}
             </button>

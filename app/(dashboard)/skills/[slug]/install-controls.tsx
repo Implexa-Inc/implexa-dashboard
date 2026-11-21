@@ -78,7 +78,7 @@ export function InstallStatusBadge({
   if (optimisticStatus === 'active') {
     return (
       <div className="inline-flex items-center gap-2">
-        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-brand-500/15 text-brand-500 font-medium">
+        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-brand-500/15 text-action-accent font-medium">
           <span aria-hidden="true">✓</span> Installed
         </span>
         <button
@@ -89,7 +89,7 @@ export function InstallStatusBadge({
         >
           {busy ? 'Removing…' : 'Remove from library'}
         </button>
-        {error && <span className="text-xs text-red-500">{error}</span>}
+        {error && <span className="text-xs text-state-fail">{error}</span>}
       </div>
     );
   }
@@ -105,11 +105,11 @@ export function InstallStatusBadge({
         type="button"
         onClick={() => flipStatus('active')}
         disabled={busy}
-        className="text-xs text-brand-500 hover:underline disabled:opacity-50"
+        className="text-xs text-action-accent hover:underline disabled:opacity-50"
       >
         {busy ? 'Restoring…' : 'Restore'}
       </button>
-      {error && <span className="text-xs text-red-500">{error}</span>}
+      {error && <span className="text-xs text-state-fail">{error}</span>}
     </div>
   );
 }
@@ -149,7 +149,7 @@ export function ForkToCustomizeButton({
       <button
         type="button"
         onClick={() => setConfirmOpen(true)}
-        className="text-xs px-2.5 py-1 rounded-md border border-brand-500/40 text-brand-500 hover:bg-brand-500/10 transition-colors"
+        className="text-xs px-2.5 py-1 rounded-md border border-brand-500/40 text-action-accent hover:bg-brand-500/10 transition-colors"
       >
         Fork to customize
       </button>
@@ -176,7 +176,7 @@ export function ForkToCustomizeButton({
               You&rsquo;ll still be able to run the original from your library
               even after forking. Forks count toward your private skill quota.
             </p>
-            {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+            {error && <p className="text-xs text-state-fail mb-3">{error}</p>}
             <div className="flex justify-end gap-2">
               <button
                 type="button"

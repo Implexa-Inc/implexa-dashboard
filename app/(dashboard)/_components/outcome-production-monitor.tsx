@@ -46,10 +46,10 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 function stateBadgeClass(state: string): string {
-  if (state === 'running') return 'bg-brand-500/15 text-brand-300 border-brand-500/30';
-  if (state === 'planning' || state === 'ready') return 'bg-brand-500/15 text-brand-300 border-brand-500/30';
-  if (state === 'succeeded') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
-  if (state === 'failed' || state === 'partial') return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+  if (state === 'running') return 'bg-brand-500/15 text-action-accent border-brand-500/30';
+  if (state === 'planning' || state === 'ready') return 'bg-brand-500/15 text-action-accent border-brand-500/30';
+  if (state === 'succeeded') return 'bg-emerald-500/15 text-state-ok border-emerald-500/30';
+  if (state === 'failed' || state === 'partial') return 'bg-amber-500/15 text-state-needs border-amber-500/30';
   return 'bg-ink-800 text-ink-300 border-ink-700';
 }
 
@@ -144,7 +144,7 @@ export default function OutcomeProductionMonitor({
             type="button"
             aria-label="Stop this production"
             onClick={() => setConfirmStop(true)}
-            className="flex-none rounded-lg border border-red-500/40 text-red-300 px-4 py-2 text-sm hover:bg-red-500/10 transition-colors"
+            className="flex-none rounded-lg border border-red-500/40 text-state-fail px-4 py-2 text-sm hover:bg-red-500/10 transition-colors"
           >
             Stop
           </button>
@@ -179,7 +179,7 @@ export default function OutcomeProductionMonitor({
           path copied out of prose. */}
       {finalDeliverable && finalDeliverable.relativePath && finalDeliverable.validatedPath && (
         <div aria-label="Final deliverable" className="mt-5 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.06] p-4">
-          <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300 font-medium">Final deliverable</p>
+          <p className="text-xs uppercase tracking-wide text-state-ok font-medium">Final deliverable</p>
           <p className="text-sm text-ink-100 mt-1">
             {finalDeliverable.name}
             <span className="block text-xs text-ink-500 mt-0.5">
@@ -204,7 +204,7 @@ export default function OutcomeProductionMonitor({
           {finalDeliverable.runId && (
             <Link
               href={`/review/${finalDeliverable.runId}${finalDeliverable.id ? `?artifact=${encodeURIComponent(finalDeliverable.id)}` : ''}`}
-              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-state-ok hover:underline"
             >
               Review this deliverable <span aria-hidden="true">→</span>
             </Link>
@@ -218,7 +218,7 @@ export default function OutcomeProductionMonitor({
           aria-label={production.settled ? 'Production error' : 'Blockers'}
           className="mt-5 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4"
         >
-          <p className="text-sm font-medium text-amber-300">{blockerHeading}</p>
+          <p className="text-sm font-medium text-state-needs">{blockerHeading}</p>
           <ul className="mt-1.5 space-y-1">
             {production.blockers.map((blocker, index) => (
               <li key={`${blocker.reasonCode}:${index}`} className="text-sm text-ink-300">{blocker.detail}</li>
@@ -243,7 +243,7 @@ export default function OutcomeProductionMonitor({
                 {child.spentCredits.toLocaleString()} of {child.budgetAllocationCredits.toLocaleString()} credits allocated
               </p>
               {child.blocker && (
-                <p className="text-xs text-amber-300 mt-1.5">{child.blocker.detail}</p>
+                <p className="text-xs text-state-needs mt-1.5">{child.blocker.detail}</p>
               )}
             </li>
           ))}
@@ -251,7 +251,7 @@ export default function OutcomeProductionMonitor({
       </details>
       )}
 
-      {stopError && <p role="status" className="mt-4 text-sm text-red-400">{stopError}</p>}
+      {stopError && <p role="status" className="mt-4 text-sm text-state-fail">{stopError}</p>}
 
       <Modal
         open={confirmStop}

@@ -142,7 +142,7 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
           <button type="button" className={buttonClass} disabled={!canFullscreen} aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} onClick={() => void toggleFullscreen()}>{fullscreen ? 'Exit fullscreen' : 'Fullscreen'}</button>
           {state.seeking && <span role="status" className="text-xs text-ink-400">Seeking…</span>}
         </div>
-        {error && <p role="alert" className="text-xs text-rose-300">{error}</p>}
+        {error && <p role="alert" className="text-xs text-state-fail">{error}</p>}
       </div>
     </div>
   );

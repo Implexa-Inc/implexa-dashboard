@@ -325,7 +325,7 @@ export default function OutcomeEntry() {
               <span className="truncate max-w-xs">{artifact.displayName}</span>
               <span className="rounded bg-ink-900 border border-ink-700 px-2 py-1 text-xs">{artifact.inputType.replaceAll('_', ' ')}</span>
               {artifact.storageMode === 'local_range_capability' && (
-                <span className="basis-full text-[11px] text-amber-300">Kept on its current drive — keep the drive connected and the file unchanged.</span>
+                <span className="basis-full text-[11px] text-state-needs">Kept on its current drive — keep the drive connected and the file unchanged.</span>
               )}
               {artifact.storageMode === 'managed_copy' && (
                 <span className="basis-full text-[11px] text-ink-500">Copied into Implexa-managed storage for this run.</span>
@@ -342,8 +342,8 @@ export default function OutcomeEntry() {
           {verificationSurface === 'inputs' && verificationProgress && (
             <RunInputVerificationProgress progress={verificationProgress} canceling={cancelingVerification} onCancel={cancelVerification} />
           )}
-          {!inDesktop && <p role="status" className="mt-2 text-xs text-amber-300">Open Implexa Desktop to add verified artifacts. Browser filenames cannot be used.</p>}
-          {pickerError && <p role="status" className="mt-2 text-xs text-red-400">{pickerError}</p>}
+          {!inDesktop && <p role="status" className="mt-2 text-xs text-state-needs">Open Implexa Desktop to add verified artifacts. Browser filenames cannot be used.</p>}
+          {pickerError && <p role="status" className="mt-2 text-xs text-state-fail">{pickerError}</p>}
         </div>
 
         <fieldset>
@@ -365,8 +365,8 @@ export default function OutcomeEntry() {
         <p className="text-xs text-ink-500">Planning starts nothing. Credits are the planning unit; no client-side dollar conversion is performed.</p>
       </div>
 
-      {plan.phase === 'invalid' && <p role="status" className="mt-4 text-sm text-red-400">{plan.message}</p>}
-      {plan.phase === 'unavailable' && <div role="status" aria-label="Planning unavailable" className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4"><p className="text-sm text-amber-300">{plan.message}</p></div>}
+      {plan.phase === 'invalid' && <p role="status" className="mt-4 text-sm text-state-fail">{plan.message}</p>}
+      {plan.phase === 'unavailable' && <div role="status" aria-label="Planning unavailable" className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4"><p className="text-sm text-state-needs">{plan.message}</p></div>}
       {plan.phase === 'plan' && plan.outcome.kind === 'clarification_required' && (
         <section aria-label="Outcome clarification" className="mt-5 card p-5">
           <h3 className="text-sm font-semibold text-ink-50">One question</h3>

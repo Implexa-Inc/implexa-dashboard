@@ -190,7 +190,7 @@ export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: 
           ) : (
             <span className={`text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 font-medium ${
               user.plan === 'pro' || user.plan === 'enterprise'
-                ? 'bg-brand-500/20 text-brand-600 dark:text-brand-500'
+                ? 'bg-brand-500/20 text-action-accent'
                 : 'bg-ink-800 text-ink-300'
             }`}>
               {user.plan === 'pro' ? 'Pro' : user.plan === 'enterprise' ? 'Enterprise' : 'Free plan'}

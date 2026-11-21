@@ -147,7 +147,7 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
 
                 <div className="flex flex-wrap gap-3 items-center">
                   <Link href="/install" className="btn-primary">Connect Claude →</Link>
-                  <Link href="/settings/api-keys" className="text-sm text-brand-600 hover:underline">Or generate an API key first →</Link>
+                  <Link href="/settings/api-keys" className="text-sm text-action-accent hover:underline">Or generate an API key first →</Link>
                 </div>
 
                 <div className="mt-4 text-xs text-ink-500">

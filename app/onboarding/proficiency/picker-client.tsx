@@ -64,7 +64,7 @@ export default function ProficiencyPicker({ jwt, next }: { jwt: string; next: st
                 <span className="font-medium text-ink-50">{lvl.label}</span>
               </div>
               <div className="text-xs text-ink-400 leading-relaxed">{lvl.tagline}</div>
-              {isSaving && <div className="mt-2 text-[11px] text-brand-500 font-medium">Saving…</div>}
+              {isSaving && <div className="mt-2 text-[11px] text-action-accent font-medium">Saving…</div>}
             </button>
           );
         })}

@@ -49,7 +49,7 @@ export default function TrainingOperatingChanges({sessionId,versionId,slug,refre
     {!queued&&a.result&&<button className="text-xs text-ink-400" disabled={busy||disabled} onClick={()=>void dismiss(a)}>Dismiss suggestion</button>}
    </div>
   </article>;})}
-  {error&&<p role="status" className="text-sm text-amber-400">{error}</p>}
+  {error&&<p role="status" className="text-sm text-state-needs">{error}</p>}
   <button disabled={busy||disabled} onClick={()=>void load(false,undefined,review?.analysisRequest.requestEventId)} className="text-xs text-ink-400">Refresh suggestions</button>
   {page?.nextCursor&&<button disabled={busy||disabled} onClick={()=>void load(true)} className="text-xs text-ink-400 ml-3">More suggestions</button>}
   <TrainingDialog open={!!r&&!!target} title="Review agent update" onClose={()=>{setReview(null);setReviewUnknown(false);}}>

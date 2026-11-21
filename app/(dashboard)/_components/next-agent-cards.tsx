@@ -190,14 +190,14 @@ export default function NextAgentCards({
                   disabled={st === 'queuing' || st === 'built'}
                   className={`text-xs font-medium rounded-md px-3 py-1.5 transition-colors ${
                     st === 'built'
-                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                      ? 'bg-emerald-500/15 text-state-ok'
                       : 'btn-success'
                   } disabled:opacity-70`}
                 >
                   {st === 'queuing' ? 'Queuing…' : st === 'built' ? '✓ Building in Claude Code' : 'Build it'}
                 </button>
                 {st === 'error' && (
-                  <span className="ml-2 text-xs text-rose-600 dark:text-rose-400">Couldn’t queue — try again</span>
+                  <span className="ml-2 text-xs text-state-fail">Couldn’t queue — try again</span>
                 )}
               </div>
             </div>

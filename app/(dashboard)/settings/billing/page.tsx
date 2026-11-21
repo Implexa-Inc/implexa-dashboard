@@ -94,7 +94,7 @@ export default async function BillingPage() {
             <div>
               <div className="text-xs text-ink-500 uppercase tracking-wide">Members</div>
               <div className="text-xl font-semibold mt-1 tabular-nums text-ink-50">{seatCount}</div>
-              <Link href="/settings/team" className="text-[10px] text-brand-600 hover:underline mt-0.5 inline-block">
+              <Link href="/settings/team" className="text-[10px] text-action-accent hover:underline mt-0.5 inline-block">
                 Manage team →
               </Link>
             </div>

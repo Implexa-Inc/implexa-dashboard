@@ -48,7 +48,7 @@ export default function RunInClaudeButton({
         state === 'copied'
           ? 'border-success-400/40 bg-success-400/10 text-success-700 dark:text-success-400'
           : state === 'error'
-            ? 'border-red-500/40 bg-red-500/10 text-red-500'
+            ? 'border-red-500/40 bg-red-500/10 text-state-fail'
             : 'border-ink-700 text-ink-300 hover:bg-ink-800 hover:text-ink-100 hover:border-ink-500'
       }`}
       title={`Copies: "${trigger}". Paste in any Claude surface with Implexa installed.`}

@@ -83,7 +83,7 @@ export default function ChainOfferingResume({ offering }: { offering: ChainOffer
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-3xl font-semibold text-ink-50">{offering.name}</h1>
               <span className="rounded border border-ink-700 px-2 py-0.5 text-xs text-ink-300">Agent chain</span>
-              {offering.privatePreview && <span className="rounded border border-violet-500/40 px-2 py-0.5 text-xs text-violet-300">Private preview</span>}
+              {offering.privatePreview && <span className="rounded border border-violet-500/40 px-2 py-0.5 text-xs text-state-review">Private preview</span>}
             </div>
             <p className="mt-3 max-w-2xl text-ink-200">{offering.outcome}. You choose the outcome; the chain runs its two agents in order and hands off one typed {offering.handoffKind} between them.</p>
             <p className="mt-2 text-xs text-ink-500">Built by {offering.builder.name} · offering v{offering.version.number} · composition {offering.version.digest.slice(0, 12)}…</p>
@@ -91,17 +91,17 @@ export default function ChainOfferingResume({ offering }: { offering: ChainOffer
           {acquired
             ? <Link href="/work" className="btn-primary px-4 py-2 text-sm">Start a production</Link>
             : upgradeRequired
-              ? <span className="rounded border border-amber-500/40 px-4 py-2 text-sm text-amber-300">Upgrade required</span>
+              ? <span className="rounded border border-amber-500/40 px-4 py-2 text-sm text-state-needs">Upgrade required</span>
               : <button disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/chains/${encodeURIComponent(offering.slug)}/acquire`, { offeringVersionId: offering.version.id, offeringDigest: offering.version.digest })} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Acquiring chain…' : 'Use this chain'}</button>}
         </div>
-        {error && <p role="alert" className="mt-3 text-sm text-rose-400">{error}</p>}
-        {upgradeRequired && <p role="status" className="mt-3 text-sm text-amber-300">Your installed chain is an older immutable version. It cannot run this newer composition until an explicit upgrade is available.</p>}
+        {error && <p role="alert" className="mt-3 text-sm text-state-fail">{error}</p>}
+        {upgradeRequired && <p role="status" className="mt-3 text-sm text-state-needs">Your installed chain is an older immutable version. It cannot run this newer composition until an explicit upgrade is available.</p>}
         {installed && (
           <div className="mt-5 border-t border-ink-800 pt-4">
             <p className="text-xs text-ink-500">{offering.historyLanguage}</p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 text-xs text-ink-400"><input aria-label="Confirm removing this chain without deleting history" type="checkbox" checked={confirmUninstall} onChange={(event) => setConfirmUninstall(event.target.checked)} />I understand this removes access, not history</label>
-              <button className="rounded border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 disabled:opacity-50" disabled={busy || !confirmUninstall} onClick={() => mutate(`/api/v2/agents/discovery/chains/${encodeURIComponent(offering.slug)}/uninstall`)}>Remove chain</button>
+              <button className="rounded border border-rose-500/40 px-3 py-1.5 text-xs text-state-fail disabled:opacity-50" disabled={busy || !confirmUninstall} onClick={() => mutate(`/api/v2/agents/discovery/chains/${encodeURIComponent(offering.slug)}/uninstall`)}>Remove chain</button>
             </div>
           </div>
         )}
@@ -131,15 +131,15 @@ export default function ChainOfferingResume({ offering }: { offering: ChainOffer
         <section>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Required before starting</h2>
           <p className="mt-3 text-sm text-ink-300">{offering.requiredInput.label} · required</p>
-          <p className="mt-1 text-xs text-amber-300">{offering.requiredInput.disclosure}</p>
+          <p className="mt-1 text-xs text-state-needs">{offering.requiredInput.disclosure}</p>
           <p className="mt-3 text-xs text-ink-500">Quality modes: {offering.qualityModes.join(', ')}.</p>
         </section>
         <section>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Budget and provider use</h2>
           <p className="mt-3 text-sm text-ink-300">Up to {offering.creditPolicy.maxTotalCredits} credits per production; Step 1 is allocated {offering.creditPolicy.generatorBudgetSharePercent}% of the ceiling. Unused reservations are released when the production closes.</p>
           {offering.consequentialCeiling.zeroDefault
-            ? <p className="mt-2 text-xs text-emerald-300">Zero provider calls and zero provider spend by default. This chain uses your supplied footage and local Remotion assets only.</p>
-            : <p className="mt-2 text-xs text-amber-300">Provider ceilings: {offering.consequentialCeiling.maxProviderCalls} calls, {offering.consequentialCeiling.maxSpendMinor} {offering.consequentialCeiling.currency} minor units. Runs use your own connected provider accounts.</p>}
+            ? <p className="mt-2 text-xs text-state-ok">Zero provider calls and zero provider spend by default. This chain uses your supplied footage and local Remotion assets only.</p>
+            : <p className="mt-2 text-xs text-state-needs">Provider ceilings: {offering.consequentialCeiling.maxProviderCalls} calls, {offering.consequentialCeiling.maxSpendMinor} {offering.consequentialCeiling.currency} minor units. Runs use your own connected provider accounts.</p>}
           <p className="mt-2 text-xs text-ink-500">Everything runs with your organization&apos;s own connections and credentials. Nothing of the builder&apos;s crosses the boundary.</p>
         </section>
       </div>

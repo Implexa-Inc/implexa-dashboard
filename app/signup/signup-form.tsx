@@ -164,7 +164,7 @@ export default function SignupForm({
                    onChange={(e) => setEmail(e.target.value)} className="input" />
             <PasswordInput required minLength={8} placeholder="password (8+ chars)" value={password}
                    onChange={(e) => setPassword(e.target.value)} className="input" />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-state-fail">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? 'Creating account…' : 'Create account'}
             </button>
@@ -175,7 +175,7 @@ export default function SignupForm({
              * the signup → login pivot. Mirrors the login → signup link. */}
             Already have an account? <Link
               href={initialNext ? `/login?next=${encodeURIComponent(initialNext)}` : '/login'}
-              className="text-brand-600 hover:underline"
+              className="text-action-accent hover:underline"
             >Sign in</Link>
           </p>
         </div>

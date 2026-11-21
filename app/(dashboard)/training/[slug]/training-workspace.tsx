@@ -11,7 +11,7 @@ import type {TrainingDirectionScope} from '@/lib/training-local-ingress';
 
 export function TrainingDirectionLabel({scope}:{scope:TrainingDirectionScope|undefined}) {
  if (scope === undefined) return null;
- return <p className={`mt-2 text-xs ${scope === null ? 'text-amber-300' : 'text-brand-400'}`}>
+ return <p className={`mt-2 text-xs ${scope === null ? 'text-state-needs' : 'text-action-accent'}`}>
   {scope === null ? 'Creative direction needs review' : scope.length === 0 ? 'All directions' : `Only for ${scope[0]}`}
  </p>;
 }
@@ -34,7 +34,7 @@ export function TrainingAttention({cards}:{cards:TrainingAction[]}){
  return <section aria-label="Your input needed" className="space-y-3">
       <h2 className="text-sm font-medium text-ink-300">Your input needed</h2>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.filter(card=>!laterActions.includes(card.key)).map(card=><article key={card.key} className="flex flex-col rounded-xl border border-ink-700 bg-ink-900/30 p-5">
-        <h3 className="font-medium">{card.title}</h3><p className="mt-2 flex-1 text-sm leading-6 text-ink-400">{card.description}</p><div className="mt-4 flex items-center justify-between gap-3"><button type="button" onClick={card.action} className="text-sm font-medium text-brand-400 hover:underline">{card.label} →</button>{card.optional&&<button type="button" aria-label={`Later: ${card.title}`} onClick={()=>setLaterActions(items=>[...items,card.key])} className="text-xs text-ink-500 hover:text-ink-200">Later</button>}</div>
+        <h3 className="font-medium">{card.title}</h3><p className="mt-2 flex-1 text-sm leading-6 text-ink-400">{card.description}</p><div className="mt-4 flex items-center justify-between gap-3"><button type="button" onClick={card.action} className="text-sm font-medium text-action-accent hover:underline">{card.label} →</button>{card.optional&&<button type="button" aria-label={`Later: ${card.title}`} onClick={()=>setLaterActions(items=>[...items,card.key])} className="text-xs text-ink-500 hover:text-ink-200">Later</button>}</div>
       </article>)}</div>
     </section>;
 }

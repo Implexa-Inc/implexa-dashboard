@@ -403,7 +403,7 @@ export default function RunActions({
             <span className="inline-flex items-center gap-2 text-ink-400">
               {resumesWork ? "Dismiss without finishing?" : 'Dismiss this?'}
               <button type="button" onClick={dismiss} disabled={!!busy}
-                className="font-medium text-rose-600 dark:text-rose-300 hover:underline disabled:opacity-50">
+                className="font-medium text-state-fail hover:underline disabled:opacity-50">
                 {busy === 'dismiss' ? 'Dismissing…' : 'Yes'}
               </button>
               <button type="button" onClick={() => setConfirmDismiss(false)} className="text-ink-500 hover:text-ink-300">No</button>
@@ -476,12 +476,12 @@ export default function RunActions({
       {/* MORE (power-user escape hatches) */}
       {showMore && (
         <div className="mt-3 pt-3 border-t border-ink-800 flex flex-col gap-2 text-xs">
-          <button type="button" onClick={continueInClaude} className="text-brand-500 hover:underline text-left w-fit">
+          <button type="button" onClick={continueInClaude} className="text-action-accent hover:underline text-left w-fit">
             Continue live in Claude ↗
           </button>
           {claudeTaskId && (
             <a href={`claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(claudeTaskId)}`}
-              className="text-brand-500 hover:underline w-fit">Open the routine in Claude ↗</a>
+              className="text-action-accent hover:underline w-fit">Open the routine in Claude ↗</a>
           )}
           {resumesWork && (
             <button type="button" onClick={markDone} disabled={!!busy} className="text-ink-400 hover:text-ink-200 text-left w-fit">
@@ -491,7 +491,7 @@ export default function RunActions({
         </div>
       )}
 
-      {err && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{err}</p>}
+      {err && <p className="mt-2 text-xs text-state-fail">{err}</p>}
       {refusal?.recoverable && refusal.requestId && (
         <ReviewContinuationRecovery
           requestId={refusal.requestId}

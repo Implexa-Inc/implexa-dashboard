@@ -206,15 +206,15 @@ export default function UpdateBanner() {
           return (
             <div key={s.surface}>
               <div className="flex items-center gap-3 text-sm">
-                <span className="flex-1 min-w-0 truncate text-amber-700 dark:text-amber-200">
+                <span className="flex-1 min-w-0 truncate text-state-needs">
                   <span aria-hidden="true" className="mr-1.5">⬆️</span>
                   Your <strong>{s.label}</strong> plugin is out of date
-                  <span className="font-mono text-xs text-amber-600/80 dark:text-amber-300/70"> (v{s.installed} → v{s.latest})</span>
+                  <span className="font-mono text-xs text-state-needs"> (v{s.installed} → v{s.latest})</span>
                 </span>
 
                 <span className="flex flex-none items-center gap-3">
                   {done ? (
-                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-300 whitespace-nowrap">
+                    <span className="text-xs font-medium text-state-ok whitespace-nowrap">
                       ✓ Updated · restart {s.label}
                     </span>
                   ) : (
@@ -232,7 +232,7 @@ export default function UpdateBanner() {
                       <button
                         type="button"
                         onClick={() => setOpen((o) => (o === s.surface ? null : s.surface))}
-                        className="text-xs text-amber-700/90 dark:text-amber-200/80 underline underline-offset-2 hover:no-underline whitespace-nowrap"
+                        className="text-xs text-state-needs underline underline-offset-2 hover:no-underline whitespace-nowrap"
                       >
                         {open === s.surface ? 'Hide' : canRun ? 'copy command' : 'Update here'}
                       </button>
@@ -242,7 +242,7 @@ export default function UpdateBanner() {
               </div>
 
               {failed && (
-                <div className="mt-0.5 text-xs text-rose-600 dark:text-rose-300">Update failed — try the command instead.</div>
+                <div className="mt-0.5 text-xs text-state-fail">Update failed — try the command instead.</div>
               )}
 
               {open === s.surface && (
@@ -253,7 +253,7 @@ export default function UpdateBanner() {
                   <button
                     type="button"
                     onClick={() => copy(s.command, s.surface)}
-                    className="flex-none text-[11px] font-medium px-2 py-1 rounded border border-amber-400/40 text-amber-800 dark:text-amber-100 hover:bg-amber-400/15 whitespace-nowrap"
+                    className="flex-none text-[11px] font-medium px-2 py-1 rounded border border-amber-400/40 text-state-needs hover:bg-amber-400/15 whitespace-nowrap"
                   >
                     {copied === s.surface ? '✓ copied' : 'copy'}
                   </button>
@@ -267,7 +267,7 @@ export default function UpdateBanner() {
         type="button"
         onClick={dismiss}
         aria-label="Dismiss"
-        className="absolute right-3 top-2 text-amber-700/70 dark:text-amber-300/60 hover:text-amber-800 dark:hover:text-amber-100 text-sm"
+        className="absolute right-3 top-2 text-state-needs hover:text-state-needs hover:text-state-needs text-sm"
       >
         ✕
       </button>

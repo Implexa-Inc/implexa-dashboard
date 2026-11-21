@@ -83,7 +83,7 @@ export function DownloadSkillButton({
       >
         {busy ? 'Packaging…' : 'Download'}
       </button>
-      {error && <span className="text-xs text-red-500">{error}</span>}
+      {error && <span className="text-xs text-state-fail">{error}</span>}
     </span>
   );
 }

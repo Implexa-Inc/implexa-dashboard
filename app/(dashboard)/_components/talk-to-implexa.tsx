@@ -311,7 +311,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
                   type="button"
                   onClick={() => removeImage(i)}
                   aria-label={`Remove ${im.name}`}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-ink-950 border border-ink-600 text-ink-300 text-xs flex items-center justify-center hover:text-rose-400 hover:border-rose-400"
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-ink-950 border border-ink-600 text-ink-300 text-xs flex items-center justify-center hover:text-state-fail hover:border-rose-400"
                 >
                   ×
                 </button>
@@ -368,7 +368,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
         )}
 
         {msg && (
-          <p className={`text-xs mt-3 ${state === 'error' ? 'text-rose-400' : 'text-ink-300'}`}>{msg}</p>
+          <p className={`text-xs mt-3 ${state === 'error' ? 'text-state-fail' : 'text-ink-300'}`}>{msg}</p>
         )}
 
         {/* Secondary opt-in for power users: shape the queued build interactively

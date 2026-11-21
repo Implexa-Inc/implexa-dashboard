@@ -215,7 +215,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
                   Idempotent — safe to re-run anytime. After it finishes, opening a fresh Terminal and running the install command gives you a true fresh-install experience (browser auth runs, no env vars leak through).
                 </p>
                 <p className="text-xs text-ink-400">
-                  <strong className="text-ink-200">What&apos;s NOT removed:</strong> your API keys in the cloud (revoke at <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Connected installs</Link> if you want a fully clean slate), your Implexa account, and your agents and library.
+                  <strong className="text-ink-200">What&apos;s NOT removed:</strong> your API keys in the cloud (revoke at <Link href="/settings/api-keys" className="text-action-accent hover:underline">Connected installs</Link> if you want a fully clean slate), your Implexa account, and your agents and library.
                 </p>
               </div>
             </details>
@@ -299,7 +299,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
               </summary>
               <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed border-t border-ink-700/60">
                 <p>
-                  <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Settings → API keys</Link>. You can list, copy, rotate, or revoke from there.
+                  <Link href="/settings/api-keys" className="text-action-accent hover:underline">Settings → API keys</Link>. You can list, copy, rotate, or revoke from there.
                 </p>
               </div>
             </details>

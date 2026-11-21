@@ -145,7 +145,7 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
                 {!ready && !fallback && item.setupTitle ? <div className="text-[11px] text-ink-500">{item.setupTitle}</div> : null}
                 {fallback && item.fallback ? <div className="text-[11px] text-ink-500">Will use: {item.fallback} (reduced output)</div> : null}
               </div>
-              <div className={`flex-none text-xs ${ready ? 'text-success-600 dark:text-success-400' : fallback ? 'text-ink-400' : 'text-rose-600 dark:text-rose-400'}`}>
+              <div className={`flex-none text-xs ${ready ? 'text-success-600 dark:text-success-400' : fallback ? 'text-ink-400' : 'text-state-fail'}`}>
                 {item.label} — {item.stateLabel}
               </div>
             </li>
@@ -163,7 +163,7 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
         <button type="button" disabled={checking} className="text-xs text-ink-500 hover:underline disabled:opacity-60" onClick={onCancel}>Cancel</button>
       </div>
       <p className="mt-3 text-[11px] text-ink-500">Nothing was queued. Installation and sign-in happen only when you choose them in Implexa; Implexa never installs software or captures credentials on its own.</p>
-      {note ? <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{note}</p> : null}
+      {note ? <p className="mt-2 text-xs text-state-fail">{note}</p> : null}
     </div>
   );
 }

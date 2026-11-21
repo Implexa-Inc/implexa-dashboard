@@ -80,7 +80,7 @@ export default function ConnectionHeartbeat() {
   if (state === 'relaunch') {
     return (
       <div className="mt-3 rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-2.5">
-        <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Didn&apos;t connect yet?</p>
+        <p className="text-xs font-medium text-state-needs">Didn&apos;t connect yet?</p>
         <p className="text-xs text-ink-400 mt-0.5 leading-relaxed">
           After running the command, you must <span className="text-ink-100 font-medium">fully quit Claude (Cmd+Q)</span> and reopen it , a normal close leaves the old session running without the plugin. This flips green the moment it connects.
         </p>

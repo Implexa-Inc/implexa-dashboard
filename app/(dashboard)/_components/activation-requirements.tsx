@@ -68,7 +68,7 @@ function BrowserSessionAccess({ session, target, managed = false, onVerified }: 
 
   if (session.status === 'reachable') {
     return (
-      <span className="text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+      <span className="text-xs text-state-ok whitespace-nowrap">
         ✓ signed in{session.identity ? ` as ${session.identity}` : ''}
       </span>
     );
@@ -205,7 +205,7 @@ export function ActivationRequirements({ req, slug, target, onChanged }: {
       <div className="text-xs font-semibold uppercase tracking-wide text-ink-500 mb-3">Tools</div>
 
       {requiredOutstanding.length === 0 && (
-        <p className="text-sm text-emerald-600 dark:text-emerald-400 mb-3">{outstanding.length ? 'Required service connections are ready. Unconnected optional tools will be skipped.' : 'Everything’s set up for this agent.'}</p>
+        <p className="text-sm text-state-ok mb-3">{outstanding.length ? 'Required service connections are ready. Unconnected optional tools will be skipped.' : 'Everything’s set up for this agent.'}</p>
       )}
       <ul className="space-y-3">
           {services.map((s) => {
@@ -229,7 +229,7 @@ export function ActivationRequirements({ req, slug, target, onChanged }: {
                     <span className="text-[11px] text-ink-500">{s.required === false ? 'Optional' : 'Required'}</span>
                     {/* Cost is only news if they still have to go get it. */}
                     {!isReady && !needsGrantOnly && !browserOnly && !unknownAccess && s.keysReadable !== false && (
-                      <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 uppercase tracking-wide">
+                      <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/10 text-state-needs uppercase tracking-wide">
                         {s.cost}
                       </span>
                     )}
@@ -260,7 +260,7 @@ export function ActivationRequirements({ req, slug, target, onChanged }: {
                 <div className="flex-none flex items-center gap-1.5">
                   {s.browserSession && <BrowserSessionAccess session={s.browserSession} target={target} managed={structured && s.required === false} onVerified={refreshTools} />}
                   {s.provider && !browserOnly && !unknownAccess && !keyReady && <InlineAddKeyButton provider={s.provider} slug={slug} />}
-                  {keyReady && <span className="text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">✓ key allowed</span>}
+                  {keyReady && <span className="text-xs text-state-ok whitespace-nowrap">✓ key allowed</span>}
                   {/* Suppress "Get it" once a key exists — that was the original
                       complaint: being invited to buy something you already own. */}
                   {!keyReady && !needsGrantOnly && !browserOnly && !unknownAccess && s.keysReadable !== false && s.url && (
@@ -273,7 +273,7 @@ export function ActivationRequirements({ req, slug, target, onChanged }: {
         </ul>
 
       {ready.length > 0 && outstanding.length > 0 && (
-        <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-3">Ready: {ready.map((s) => s.name).join(', ')}</p>
+        <p className="text-xs text-state-ok mt-3">Ready: {ready.map((s) => s.name).join(', ')}</p>
       )}
       {tools.length > 0 && (
         <p className="text-xs text-ink-500 mt-2">

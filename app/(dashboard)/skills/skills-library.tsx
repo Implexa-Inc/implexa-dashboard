@@ -415,7 +415,7 @@ export default function SkillsLibrary({
           className="w-full flex items-center justify-between px-3 py-2 rounded-md border border-ink-700 bg-ink-900 text-sm text-ink-200"
         >
           <span>
-            Filters {activeTag && <span className="text-brand-500">· {labelFor(activeTag)}</span>}
+            Filters {activeTag && <span className="text-action-accent">· {labelFor(activeTag)}</span>}
           </span>
           <span aria-hidden="true" className="text-ink-400">{mobileFiltersOpen ? '↑' : '↓'}</span>
         </button>
@@ -438,7 +438,7 @@ export default function SkillsLibrary({
                     onClick={() => { setActiveTag(null); setMobileFiltersOpen(false); }}
                     className={`w-full text-left text-sm px-2.5 py-1.5 rounded transition-colors flex items-center justify-between ${
                       !activeTag
-                        ? 'bg-brand-500/15 text-brand-500 font-medium'
+                        ? 'bg-brand-500/15 text-action-accent font-medium'
                         : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'
                     }`}
                   >
@@ -453,7 +453,7 @@ export default function SkillsLibrary({
                       onClick={() => { setActiveTag(activeTag === tag ? null : tag); setMobileFiltersOpen(false); }}
                       className={`w-full text-left text-sm px-2.5 py-1.5 rounded transition-colors flex items-center justify-between ${
                         activeTag === tag
-                          ? 'bg-brand-500/15 text-brand-500 font-medium'
+                          ? 'bg-brand-500/15 text-action-accent font-medium'
                           : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'
                       }`}
                     >
@@ -466,7 +466,7 @@ export default function SkillsLibrary({
               {hasActiveFilter && (
                 <button
                   onClick={() => { setQuery(''); setActiveTag(null); }}
-                  className="mt-3 text-xs text-brand-500 hover:underline px-2.5"
+                  className="mt-3 text-xs text-action-accent hover:underline px-2.5"
                 >
                   Clear filters
                 </button>
@@ -504,7 +504,7 @@ export default function SkillsLibrary({
                     {tab.label}{' '}
                     <span className={`ml-1 inline-flex items-center justify-center min-w-[1.5rem] h-5 rounded text-xs px-1.5 ${
                       isActive
-                        ? 'bg-brand-500/20 text-brand-500 font-semibold'
+                        ? 'bg-brand-500/20 text-action-accent font-semibold'
                         : 'bg-ink-800 text-ink-400'
                     }`}>
                       {countText}
@@ -593,7 +593,7 @@ function EmptyState({
       return (
         <div className="card text-sm text-ink-400">
           No matches for {activeTagLabel ? <strong className="text-ink-200">{activeTagLabel}</strong> : 'your filter'} in any tab.{' '}
-          <button onClick={onClearFilters} className="text-brand-500 hover:underline">Clear filters</button> to see everything.
+          <button onClick={onClearFilters} className="text-action-accent hover:underline">Clear filters</button> to see everything.
         </div>
       );
     }
@@ -612,17 +612,17 @@ function EmptyState({
               <button
                 type="button"
                 onClick={() => onSwitchTab(tab.id)}
-                className="inline-flex items-center gap-2 text-brand-500 hover:underline font-medium"
+                className="inline-flex items-center gap-2 text-action-accent hover:underline font-medium"
               >
                 <span aria-hidden="true">→</span>
                 {tab.label}
-                <span className="text-xs px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-500">{count}</span>
+                <span className="text-xs px-1.5 py-0.5 rounded bg-brand-500/15 text-action-accent">{count}</span>
               </button>
             </li>
           ))}
         </ul>
         <div className="text-xs text-ink-500 pt-1 border-t border-ink-700">
-          Or <button onClick={onClearFilters} className="text-brand-500 hover:underline">clear filters</button> to see all skills.
+          Or <button onClick={onClearFilters} className="text-action-accent hover:underline">clear filters</button> to see all skills.
         </div>
       </div>
     );
@@ -683,7 +683,7 @@ function SkillRow({
   const rankBadgeClass =
     rank === 1 ? 'bg-accent-400/20 text-accent-700 dark:text-accent-400 border border-accent-400/40'
     : rank === 2 ? 'bg-ink-700 text-ink-100 border border-ink-600'
-    : rank === 3 ? 'bg-brand-500/15 text-brand-500 border border-brand-500/30'
+    : rank === 3 ? 'bg-brand-500/15 text-action-accent border border-brand-500/30'
     : 'bg-ink-800 text-ink-400';
 
   return (
@@ -702,7 +702,7 @@ function SkillRow({
             <div className="font-medium text-ink-50">{skill.name}</div>
             {skill.status === 'draft' && <span className="text-xs px-1.5 py-0.5 rounded bg-accent-400/20 text-accent-700 dark:text-accent-400">draft</span>}
             {skill._source === 'installed' && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-500 uppercase tracking-wide font-medium">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/15 text-action-accent uppercase tracking-wide font-medium">
                 Installed
               </span>
             )}

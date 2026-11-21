@@ -72,7 +72,7 @@ function BuildButton({ intent }: { intent: string }) {
         disabled={state === 'queuing' || state === 'queued'}
         className={`text-xs font-medium rounded-md px-3 py-1.5 transition-colors ${
           state === 'queued'
-            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+            ? 'bg-emerald-500/15 text-state-ok'
             : 'btn-success'
         } disabled:opacity-70`}
       >

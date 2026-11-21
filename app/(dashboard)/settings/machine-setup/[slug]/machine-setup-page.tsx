@@ -22,7 +22,7 @@ export default async function MachineSetupPage({ slug, machineId = null, workflo
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
-        <Link href={`/workflows/${encodeURIComponent(slug)}`} className="text-xs text-brand-500 hover:underline">← Back to the agent</Link>
+        <Link href={`/workflows/${encodeURIComponent(slug)}`} className="text-xs text-action-accent hover:underline">← Back to the agent</Link>
         <header className="mt-2 mb-6">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Set up this computer</h1>
           <p className="text-sm text-ink-300 mt-1 max-w-2xl leading-relaxed">

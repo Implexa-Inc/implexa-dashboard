@@ -11,9 +11,9 @@ import { getMyAgents, activeRunStatus, type MyAgent } from '@/lib/agents-home';
 import GradeBadge from './grade-badge';
 
 const TONE: Record<string, string> = {
-  good: 'text-emerald-600 dark:text-emerald-400',
-  warn: 'text-amber-600 dark:text-amber-400',
-  bad: 'text-rose-600 dark:text-rose-400',
+  good: 'text-state-ok',
+  warn: 'text-state-needs',
+  bad: 'text-state-fail',
   idle: 'text-ink-500',
 };
 const DOT: Record<string, string> = {
@@ -52,7 +52,7 @@ function ActiveRow({ a }: { a: MyAgent }) {
           <div className="min-w-0">
             <span className="text-sm font-medium text-ink-100 truncate">{a.name}</span>
             <p className="text-xs mt-0.5">
-              <span className="text-amber-600 dark:text-amber-400">Needs you</span>
+              <span className="text-state-needs">Needs you</span>
               <span className="text-ink-500"> · {a.interventionReason || 'one quick step'}</span>
             </p>
           </div>
@@ -71,7 +71,7 @@ function ActiveRow({ a }: { a: MyAgent }) {
           <span className="text-sm font-medium text-ink-100 truncate">{a.name}</span>
           <p className="text-xs text-ink-500 mt-0.5 flex items-center gap-2 flex-wrap">
             <span>{a.mode === 'on_demand' ? 'On-demand' : (a.scheduleNl || 'scheduled')} · <span className={TONE[s.tone]}>{s.label}</span></span>
-            {engine && <span className="text-sky-700 dark:text-sky-300" title={`Last run used ${engine}`}>{engine}</span>}
+            {engine && <span className="text-state-running" title={`Last run used ${engine}`}>{engine}</span>}
             <GradeBadge grade={a.grade} />
           </p>
         </div>

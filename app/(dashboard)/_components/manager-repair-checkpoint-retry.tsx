@@ -66,7 +66,7 @@ export function ManagerRepairCheckpointRetry({ requestId }: { requestId: string 
         className="mt-2 rounded-md bg-violet-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-60">
         {busy ? 'Queuing retry…' : 'Retry from original checkpoint'}
       </button>
-      {error && <p role="alert" className="mt-2 text-xs text-rose-300">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-state-fail">{error}</p>}
     </div>
   );
 }

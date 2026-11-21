@@ -76,7 +76,7 @@ export default function AgentNameEditor({
           {saving ? 'Saving…' : 'Save'}
         </button>
         <button type="button" onClick={() => { setDraft(name); setEditing(false); }} className="text-xs text-ink-400 hover:text-ink-200">Cancel</button>
-        {error && <span className="text-xs text-rose-600 dark:text-rose-400 w-full">{error}</span>}
+        {error && <span className="text-xs text-state-fail w-full">{error}</span>}
       </div>
     );
   }

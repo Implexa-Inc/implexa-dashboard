@@ -85,7 +85,7 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
         >
           {firing ? 'Starting…' : 'Fix now in Claude ↗'}
         </button>
-        {err ? <span className="text-xs text-rose-600 dark:text-rose-400">{err}</span> : null}
+        {err ? <span className="text-xs text-state-fail">{err}</span> : null}
         {setupGate.modal}
       </>
     );
@@ -119,7 +119,7 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
       >
         {firing ? 'Starting…' : neverArmed ? 'Start it' : 'Fix now'}
       </button>
-      {err ? <span className="text-xs text-rose-600 dark:text-rose-400">{err}</span> : null}
+      {err ? <span className="text-xs text-state-fail">{err}</span> : null}
       {setupGate.modal}
     </>
   );

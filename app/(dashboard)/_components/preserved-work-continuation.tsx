@@ -74,7 +74,7 @@ export default function PreservedWorkContinuation({ runId, slug = null, workflow
       <p className="mt-2 text-xs text-ink-400 leading-relaxed">
         Starts a managed continuation with the same frozen inputs. It verifies and reuses completed work, then resumes at the first unfinished step.
       </p>
-      {error && <p role="alert" className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-state-fail">{error}</p>}
       {setupGate.modal}
     </div>
   );

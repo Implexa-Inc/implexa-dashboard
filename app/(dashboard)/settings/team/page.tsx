@@ -74,7 +74,7 @@ export default async function TeamSettingsPage() {
               {plan === 'free' && (
                 <div className="mt-2 text-xs text-ink-400 leading-relaxed">
                   A shared agent library across a workspace is a Team-plan feature.{' '}
-                  <Link href="/pricing" className="text-brand-500 hover:underline font-medium">See plans →</Link>
+                  <Link href="/pricing" className="text-action-accent hover:underline font-medium">See plans →</Link>
                 </div>
               )}
             </div>

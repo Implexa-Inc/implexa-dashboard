@@ -85,7 +85,7 @@ export default function AccountForm({
         <button type="button" className="btn-outline" disabled={desktopSetupOpening} onClick={openDesktopSetup}>
           {desktopSetupOpening ? 'Opening…' : 'Open Desktop setup'}
         </button>
-        {desktopSetupError && <p role="alert" className="text-xs text-red-600 mt-2">Couldn’t open Desktop setup. Try again.</p>}
+        {desktopSetupError && <p role="alert" className="text-xs text-state-fail mt-2">Couldn’t open Desktop setup. Try again.</p>}
       </section>}
       {/* Display name */}
       <section className="card">
@@ -111,7 +111,7 @@ export default function AccountForm({
             {nameSaving ? 'Saving…' : nameDone ? '✓ Saved' : 'Save name'}
           </button>
         </form>
-        {nameError && <p className="text-xs text-red-600 mt-2">{nameError}</p>}
+        {nameError && <p className="text-xs text-state-fail mt-2">{nameError}</p>}
       </section>
 
       {/* Email */}
@@ -148,7 +148,7 @@ export default function AccountForm({
             </button>
           </form>
         )}
-        {emailError && <p className="text-xs text-red-600 mt-2">{emailError}</p>}
+        {emailError && <p className="text-xs text-state-fail mt-2">{emailError}</p>}
       </section>
 
       {/* Account deletion — punt to support */}
@@ -159,7 +159,7 @@ export default function AccountForm({
           You can also export your captured skills first via your dashboard.
         </p>
         <a href={`mailto:support@implexa.ai?subject=${encodeURIComponent('Delete my Implexa account')}&body=${encodeURIComponent(`Please delete my account: ${currentEmail}`)}`}
-           className="text-xs text-red-600 hover:underline">
+           className="text-xs text-state-fail hover:underline">
           Email support to delete →
         </a>
       </section>

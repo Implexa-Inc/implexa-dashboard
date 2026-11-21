@@ -85,7 +85,7 @@ export default function FinishRunButton({
           {state === 'busy' ? 'Queuing…' : mode === 'approval-recovery' ? 'Approve & continue' : 'Finish this run'}
         </button>
       </div>
-      {state === 'error' && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">Could not queue it. Try again.</p>}
+      {state === 'error' && <p className="mt-2 text-xs text-state-fail">Could not queue it. Try again.</p>}
       {setupGate.modal}
     </div>
   );

@@ -10,8 +10,8 @@
 type Grade = { hasGrade: boolean; rate: number; label: 'reliable' | 'mixed' | 'unproven'; runs: number; confidence: number } | null | undefined;
 
 const TONE: Record<string, string> = {
-  reliable: 'text-emerald-700 dark:text-emerald-300 border-emerald-500/30 bg-emerald-500/[0.07]',
-  mixed: 'text-amber-700 dark:text-amber-300 border-amber-500/30 bg-amber-500/[0.07]',
+  reliable: 'text-state-ok border-emerald-500/30 bg-emerald-500/[0.07]',
+  mixed: 'text-state-needs border-amber-500/30 bg-amber-500/[0.07]',
   unproven: 'text-ink-400 border-ink-700 bg-ink-900/40',
 };
 

@@ -88,7 +88,7 @@ export default function ExtendChain({ slug, candidates }: { slug: string; candid
       >
         Cancel
       </button>
-      {err && <span className="text-xs text-rose-600 dark:text-rose-400 w-full">{err}</span>}
+      {err && <span className="text-xs text-state-fail w-full">{err}</span>}
     </div>
   );
 }

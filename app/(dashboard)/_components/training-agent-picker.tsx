@@ -17,7 +17,7 @@ export default function TrainingAgentPicker({ owned,recordingId }: { owned: MyWo
         <p className="text-ink-100 font-medium">You don&apos;t own an agent yet.</p>
         <p className="text-ink-400 text-sm mt-1">
           Training is where an agent you own accumulates evidence from the work you review.{' '}
-          <Link href="/create?from=training" className="text-brand-500 hover:underline">Build your first agent</Link>.
+          <Link href="/create?from=training" className="text-action-accent hover:underline">Build your first agent</Link>.
         </p>
       </section>
     );
@@ -41,7 +41,7 @@ export default function TrainingAgentPicker({ owned,recordingId }: { owned: MyWo
         ))}
       </ul>
 
-      <p className="mt-7 flex items-center gap-3 text-sm text-ink-500">Starting with something new?<Link href="/create?from=training" className="text-ink-200 underline underline-offset-4 hover:text-brand-400">Build a new agent →</Link></p>
+      <p className="mt-7 flex items-center gap-3 text-sm text-ink-500">Starting with something new?<Link href="/create?from=training" className="text-ink-200 underline underline-offset-4 hover:text-action-accent">Build a new agent →</Link></p>
     </>
   );
 }

@@ -106,7 +106,7 @@ export default function InstallCta({ token, isAuthed, gate }: Props) {
     return (
       <div className="flex flex-col items-end gap-3 max-w-md">
         <div className="text-right">
-          <div className="text-sm font-medium text-brand-600">✓ Installed</div>
+          <div className="text-sm font-medium text-action-accent">✓ Installed</div>
           {/* Jump straight to the forked skill's detail page (NOT the
             * library index). Lands the user on the actual skill they just
             * installed — they don't need to scroll-find it under "Your skills".
@@ -133,7 +133,7 @@ export default function InstallCta({ token, isAuthed, gate }: Props) {
       <button onClick={handleInstall} disabled={loading} className="btn-primary whitespace-nowrap">
         {loading ? 'Installing…' : 'Install in 1 click'}
       </button>
-      {error && <p className="text-xs text-red-600 mt-2 max-w-xs">{error}</p>}
+      {error && <p className="text-xs text-state-fail mt-2 max-w-xs">{error}</p>}
     </div>
   );
 }

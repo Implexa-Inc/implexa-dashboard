@@ -83,7 +83,7 @@
   --ink-200: 68 80 106;    /* #44506A emphasized body */
   --ink-300: 91 100 121;   /* #5B6479 muted text */
   --ink-400: 91 100 121;   /* #5B6479 captions (kept ≥4.5:1, so same as 300) */
-  --ink-500: 138 144 160;  /* #8A90A0 subtle labels / control borders */
+  --ink-500: 91 100 121;   /* readable secondary labels; controls use --border-control */
   --ink-600: 201 197 184;  /* #C9C5B8 prominent borders */
   --ink-700: 216 213 202;  /* #D8D5CA hairlines */
   --ink-800: 231 228 218;  /* #E7E4DA hover surfaces */
@@ -134,7 +134,7 @@
   --ink-200: 188 193 204;  /* #BCC1CC */
   --ink-300: 163 169 183;  /* #A3A9B7 */
   --ink-400: 149 156 172;  /* #959CAC */
-  --ink-500: 102 112 138;  /* #66708A */
+  --ink-500: 149 156 172;  /* readable secondary labels */
   --ink-600: 74 83 103;    /* #4A5367 */
   --ink-700: 39 46 61;     /* #272E3D */
   --ink-800: 31 37 51;     /* #1F2533 */

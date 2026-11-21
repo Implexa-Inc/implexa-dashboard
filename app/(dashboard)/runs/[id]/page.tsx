@@ -213,7 +213,7 @@ export default async function RunDetailPage({
                 Your agents and their runs belong to whichever account is connected to your Claude or Codex, so open the dashboard signed in with that account to see it.
               </p>
               <form action="/auth/signout" method="POST" className="mt-3">
-                <button className="text-sm font-medium rounded-md px-3.5 py-2 bg-brand-500/15 text-brand-600 dark:text-brand-400 hover:bg-brand-500/25 transition-colors">
+                <button className="text-sm font-medium rounded-md px-3.5 py-2 bg-brand-500/15 text-action-accent hover:bg-brand-500/25 transition-colors">
                   Sign out to switch account
                 </button>
               </form>
@@ -222,7 +222,7 @@ export default async function RunDetailPage({
             <div className="card mt-4 text-sm text-ink-300">
               <p className="font-medium text-ink-100 mb-1">Run not found.</p>
               <p>This run doesn&apos;t exist (it may have been deleted). See your{' '}
-                <Link href="/work" className="text-brand-500 hover:underline">Work</Link>.</p>
+                <Link href="/work" className="text-action-accent hover:underline">Work</Link>.</p>
             </div>
           )}
         </div>
@@ -988,7 +988,7 @@ export default async function RunDetailPage({
             <span className="text-xs text-ink-600 font-mono">{r.skill_slug}</span>
             {desktopAppLive() && (
               <NotInApp>
-                <a href={appRunUrl(r.id)} className="text-xs text-brand-500 hover:underline">
+                <a href={appRunUrl(r.id)} className="text-xs text-action-accent hover:underline">
                   open in the Implexa app ↗
                 </a>
               </NotInApp>
@@ -1012,7 +1012,7 @@ export default async function RunDetailPage({
           <h2 className="text-sm font-semibold text-ink-100">Learnings used</h2>
           <p className="mt-1 text-xs text-ink-500">Owner-approved rules frozen for this attempt. This is separate from stage skills above.</p>
           {learningProofUnavailable && !learningProof ? (
-            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">The attempt-bound learning proof is unavailable. No handling state is inferred.</p>
+            <p className="mt-2 text-xs text-state-needs">The attempt-bound learning proof is unavailable. No handling state is inferred.</p>
           ) : learningProof ? (
             <div className="mt-2">
               <p className="text-[11px] text-ink-500">Frozen for attempt {learningProof.launch_attempt_id.slice(0, 12)} at fence {learningProof.fencing_epoch} · context {learningProof.context_digest.slice(0, 12)}</p>
@@ -1034,7 +1034,7 @@ export default async function RunDetailPage({
               </ul>
             </div>
           ) : !learningSourceAvailable ? (
-            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">The frozen learning source is unavailable. This is not shown as an empty result.</p>
+            <p className="mt-2 text-xs text-state-needs">The frozen learning source is unavailable. This is not shown as an empty result.</p>
           ) : (engineRouting?.learning_context?.rules || []).length === 0 ? (
             <p className="mt-2 text-xs text-ink-500">No learning context was frozen for this run.</p>
           ) : (
@@ -1051,11 +1051,11 @@ export default async function RunDetailPage({
           )}
         </section>
 
-        {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-amber-300">{creativeGradeNotice}</p>}
+        {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-state-needs">{creativeGradeNotice}</p>}
         <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id}
           finalOutputSha256={finalReviewArtifactSha256} reviewPending={judgmentPending} />
         {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
-        {judgmentReadUnavailable && <p className="text-sm text-amber-300">Final review status is unavailable. Refresh to check it again.</p>}
+        {judgmentReadUnavailable && <p className="text-sm text-state-needs">Final review status is unavailable. Refresh to check it again.</p>}
         {failedJudgeRetry && (
           <section className="card border-amber-500/30" aria-label="Final review recovery">
             <h2 className="font-medium text-ink-100">Final review is incomplete</h2>
@@ -1171,7 +1171,7 @@ export default async function RunDetailPage({
         {(heldApprovalSurface === 'unavailable' || heldApprovalSurface === 'generic' && effectiveHoldKind === 'approval_before_action' && stagePreview.state === 'unavailable') && (
           <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-5" role="alert">
             <p className="text-sm font-semibold text-ink-100">Approval details unavailable</p>
-            <p className="mt-2 text-sm leading-relaxed text-amber-200">
+            <p className="mt-2 text-sm leading-relaxed text-state-needs">
               Implexa could not verify what this pending approval authorizes. No continuation is available until the exact hold details can be loaded.
             </p>
             <a href={`/runs/${encodeURIComponent(r.id)}`} className="btn-outline mt-3 inline-flex px-4 py-2 text-sm">Reload approval details</a>
@@ -1206,7 +1206,7 @@ export default async function RunDetailPage({
                 often IS connected (the run says so), and asserting otherwise
                 misled the founder. The real gap is usually Computer Use, or the
                 run happening unattended in the background. Offer BOTH fixes. */}
-            <p className="text-xs mt-1 text-amber-700 dark:text-amber-300">
+            <p className="text-xs mt-1 text-state-needs">
               A step here drives a browser or your screen, and that wasn&apos;t fully available in this run — usually
               because Computer Use (Screen Recording + Accessibility) isn&apos;t granted yet, or it ran unattended in the
               background. Grant it once and re-run, or run it from the app while you&apos;re at your desk. Implexa never
@@ -1215,7 +1215,7 @@ export default async function RunDetailPage({
             <div className="mt-3">
               <GrantPermissionsButton />
             </div>
-            <p className="mt-2 text-xs text-amber-700/80 dark:text-amber-300/70">
+            <p className="mt-2 text-xs text-state-needs">
               Click → Implexa opens Claude with a pre-filled prompt → press Enter → Claude asks for permissions →
               choose &quot;Always Allow&quot; (preferred). Or just re-run it attended from the agent page.
             </p>
@@ -1305,7 +1305,7 @@ export default async function RunDetailPage({
             </div>
             <p className="text-sm text-ink-300 leading-relaxed">{closeReasonExplanation ?? info.reason}</p>
             {info.permissionBlocked && (
-              <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 leading-relaxed">
+              <p className="text-xs text-state-needs mt-2 leading-relaxed">
                 It was blocked on a permission it could not auto-approve (often a file write or a tool outside the
                 pre-approved set). Open the agent, grant it on the setup card, then run it again.
               </p>
@@ -1327,7 +1327,7 @@ export default async function RunDetailPage({
                 </span>
                 <Link
                   href={`/runs/${relatedRun.id}`}
-                  className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
+                  className="font-medium text-state-ok hover:underline inline-flex items-center gap-1"
                 >
                   View the run to see the reason{relatedRun.review_status === 'needs_input' || relatedRun.review_status === 'pending' ? ' (needs you)' : ''} →
                 </Link>
@@ -1482,7 +1482,7 @@ export default async function RunDetailPage({
             Only when there's a deliverable to rate (matches the overlay). */}
         {r.output_markdown && (
           <div className="mt-5 rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-            {preferenceInstallationId&&<p className="mb-3 text-sm"><Link className="text-brand-400 hover:underline"
+            {preferenceInstallationId&&<p className="mb-3 text-sm"><Link className="text-action-accent hover:underline"
               href={`/training/${encodeURIComponent(r.skill_slug)}?installationId=${preferenceInstallationId}`}>Remember preferences just for me</Link>
               <span className="block text-xs text-ink-400">Review and save private examples for your future runs. The trainer’s agent stays unchanged.</span></p>}
             <RunFeedback

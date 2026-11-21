@@ -170,7 +170,7 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
               {busy ? 'Creating…' : 'Generate'}
             </button>
           </div>
-          {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+          {error && <p className="text-sm text-state-fail mt-3">{error}</p>}
         </div>
       </details>
     </div>
@@ -199,7 +199,7 @@ function InstallRow({ k, onRevoke }: { k: KeyRow; onRevoke: (id: string) => void
       {k.status === 'active' ? (
         <button
           onClick={() => onRevoke(k.id)}
-          className="text-xs text-red-600 dark:text-red-400 hover:underline whitespace-nowrap"
+          className="text-xs text-state-fail hover:underline whitespace-nowrap"
         >
           Revoke
         </button>

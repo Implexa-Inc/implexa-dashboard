@@ -27,10 +27,10 @@ export function StepIcon({ status }: { status: StepListStatus }) {
     return <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-sky-500/25 border-t-sky-500 animate-spin" aria-hidden="true" />;
   }
   if (status === 'done') {
-    return <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center text-[9px] font-bold" aria-hidden="true">✓</span>;
+    return <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-emerald-500/15 text-state-ok grid place-items-center text-[9px] font-bold" aria-hidden="true">✓</span>;
   }
   if (status === 'failed') {
-    return <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 grid place-items-center text-[9px] font-bold" aria-hidden="true">✕</span>;
+    return <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-rose-500/15 text-state-fail grid place-items-center text-[9px] font-bold" aria-hidden="true">✕</span>;
   }
   return <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-ink-700" aria-hidden="true" />;
 }
@@ -61,7 +61,7 @@ export default function RunStepsList({
         <div className="flex items-center gap-2 mb-3">
           <span className="text-xs font-semibold text-ink-300">{heading}</span>
           {live && (
-            <span className="text-[10px] uppercase tracking-wide font-semibold text-sky-700 dark:text-sky-300 bg-sky-500/15 rounded px-1.5 py-0.5">live</span>
+            <span className="text-[10px] uppercase tracking-wide font-semibold text-state-running bg-sky-500/15 rounded px-1.5 py-0.5">live</span>
           )}
           <span className="text-[11px] text-ink-500 ml-auto">{done}/{total} done</span>
           {action}

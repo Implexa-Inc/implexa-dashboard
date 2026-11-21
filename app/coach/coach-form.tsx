@@ -83,7 +83,7 @@ export default function CoachForm({
   return (
     <form onSubmit={submit} className="card space-y-4">
       {readFailed && (
-        <p role="alert" className="text-sm text-amber-300">
+        <p role="alert" className="text-sm text-state-needs">
           We could not load answers you may have sent before. Sending this form replaces them.
         </p>
       )}
@@ -146,7 +146,7 @@ export default function CoachForm({
         <span className="text-sm text-ink-300">Anything else we should know? (optional)</span>
         <textarea maxLength={1000} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className="input" />
       </label>
-      {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
+      {error && <p role="alert" className="text-sm text-state-fail">{error}</p>}
       <button type="submit" disabled={state === 'saving'} className="btn-primary w-full">
         {state === 'saving' ? 'Sending…' : saved ? 'Update my answers' : 'Sign up to train agents'}
       </button>

@@ -254,7 +254,7 @@ export default function RunContinueBox({
             : sourcePhase === 'reconnecting' ? 'Reconnect the original source…'
             : busy ? 'Queuing…' : 'Continue & re-run'}
         </button>
-        {msg && <span className="text-xs text-rose-600 dark:text-rose-400">{msg}</span>}
+        {msg && <span className="text-xs text-state-fail">{msg}</span>}
       </div>
       {/* The typed recovery surface. It renders only for a refusal that HAS a
           recovery path, and it never shows Queued unless the backend said so. */}

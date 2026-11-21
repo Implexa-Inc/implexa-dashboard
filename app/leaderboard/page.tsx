@@ -84,7 +84,7 @@ export default async function LeaderboardPage({
             Dashboard →
           </Link>
         ) : (
-          <Link href="/signup" className="text-sm text-brand-500 hover:underline">
+          <Link href="/signup" className="text-sm text-action-accent hover:underline">
             Sign in / Sign up
           </Link>
         )}
@@ -194,7 +194,7 @@ function LeaderRow({ rank, leader }: { rank: number; leader: Leader }) {
         <div className="text-sm font-medium text-ink-50 truncate">{name}</div>
       </div>
       <div className="shrink-0 text-right">
-        <div className="text-lg font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+        <div className="text-lg font-semibold tabular-nums text-state-needs">
           <span aria-hidden="true">✨ </span>{leader.karma.toLocaleString()}
         </div>
         <div className="text-[10px] uppercase tracking-wide text-ink-500">karma</div>

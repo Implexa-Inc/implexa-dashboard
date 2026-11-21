@@ -60,10 +60,10 @@ export default async function InstalledAgents({jwt,pilot,insideRun=false}:{jwt:s
         {feed.status !== 'ready' && (
           <div
             role="status"
-            className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+            className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-state-needs"
           >
             <p className="font-medium">Couldn&apos;t load agent status</p>
-            <p className="mt-1 text-amber-200/80">
+            <p className="mt-1 text-state-needs">
               {feed.reason === 'timeout'
                 ? 'The status check took too long to respond.'
                 : feed.reason === 'no_session'

@@ -384,18 +384,18 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   // ── render ────────────────────────────────────────────────────────────────
 
   const back = (
-    <Link href={trainingSlug?`/training/${encodeURIComponent(trainingSlug)}`:'/review/new'} className="text-sm text-sky-400 hover:underline">{trainingSlug?'← Back to Training':'← New review'}</Link>
+    <Link href={trainingSlug?`/training/${encodeURIComponent(trainingSlug)}`:'/review/new'} className="text-sm text-state-running hover:underline">{trainingSlug?'← Back to Training':'← New review'}</Link>
   );
 
   if (availability && availability.state !== 'ready') {
     return (
       <Shell embedded={embedded} back={back} title="Recording">
-        <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">{availability.message}</p>
+        <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-state-needs">{availability.message}</p>
       </Shell>
     );
   }
   if (loadError) {
-    return <Shell embedded={embedded} back={back} title="Recording"><p role="status" className="text-sm text-amber-300">{loadError}</p></Shell>;
+    return <Shell embedded={embedded} back={back} title="Recording"><p role="status" className="text-sm text-state-needs">{loadError}</p></Shell>;
   }
   if (!detail) {
     return <Shell embedded={embedded} back={back} title="Recording"><div className="h-64 animate-pulse rounded bg-ink-800/50" aria-label="Loading recording" /></Shell>;
@@ -403,7 +403,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   if (detail.state !== 'ready' || durationMs === null) {
     return (
       <Shell embedded={embedded} back={back} title={detail.title || 'Recording'}>
-        {error && <p role="alert" className="mb-3 text-sm text-rose-300">{error}</p>}
+        {error && <p role="alert" className="mb-3 text-sm text-state-fail">{error}</p>}
         <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-6 text-center text-sm text-ink-200">
           {detail.state === 'recording' && <p>This recording is still in progress. Stop it from the floating control bar.</p>}
           {detail.state === 'finalizing' && <p>Saving this recording… It opens here when it is ready.</p>}
@@ -411,7 +411,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
           {detail.state === 'interrupted' && <p>This recording stopped unexpectedly. Recover keeps what was saved before it stopped.</p>}
           {recoverAction(detail) && (
             <button type="button" disabled={busy !== null} onClick={() => void recover()}
-              className="mt-3 rounded-md border border-amber-500/40 px-3 py-1.5 text-sm text-amber-200 disabled:opacity-40">
+              className="mt-3 rounded-md border border-amber-500/40 px-3 py-1.5 text-sm text-state-needs disabled:opacity-40">
               {busy === 'recover' ? 'Working…' : recoverAction(detail)!.label}
             </button>
           )}
@@ -429,7 +429,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
 
   return (
     <Shell embedded={embedded} back={back} title={detail.title || 'Recording'}>
-      {error && <p role="alert" className="mb-3 rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p>}
+      {error && <p role="alert" className="mb-3 rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-state-fail">{error}</p>}
 
       {embedded&&onClose&&<button type="button" className="text-xs text-ink-400 underline" onClick={onClose}>Close recording</button>}
       {embedded&&trainingReview}
@@ -476,7 +476,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
               />
             )}
           </div>
-          {regionError && <p role="alert" className="p-3 text-xs text-amber-300">{regionError}</p>}
+          {regionError && <p role="alert" className="p-3 text-xs text-state-needs">{regionError}</p>}
           </>
           </ReviewPlaybackControls>
         )}
@@ -491,8 +491,8 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
               Pointer trail
             </label>
           )}
-          {drawing && <span className="text-sky-300">Drag a box on the picture (or click for a box around a point).</span>}
-          {drawing && <button type="button" onClick={() => setDrawing(false)} className="text-sky-300 hover:underline">Cancel drawing</button>}
+          {drawing && <span className="text-state-running">Drag a box on the picture (or click for a box around a point).</span>}
+          {drawing && <button type="button" onClick={() => setDrawing(false)} className="text-state-running hover:underline">Cancel drawing</button>}
         </div>
       </div>
 
@@ -544,7 +544,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
           ? `Marking from ${formatMs(markStartMs)}. Press M again to end (at most ${MAX_MOMENT_MS / 1000} s), or Esc to cancel.`
           : `Drag on the bar to mark a moment, or press M to start and M again to end. Dashed marks are suggestions: click one to add it.`}
       </p>
-      {barDraft && <p className="text-xs text-sky-300">{formatMs(barDraft.startMs)}–{formatMs(barDraft.endMs)} ({seconds(barDraft.endMs - barDraft.startMs)})</p>}
+      {barDraft && <p className="text-xs text-state-running">{formatMs(barDraft.startMs)}–{formatMs(barDraft.endMs)} ({seconds(barDraft.endMs - barDraft.startMs)})</p>}
       <p className="mt-2 text-xs text-ink-500">Click the video to leave feedback. Drag to mark an area.</p>
       {notice && <p role="status" className="mt-2 text-xs text-ink-300">{notice}</p>}
 
@@ -574,20 +574,20 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
             return (
               <li key={m.momentId} className={`rounded-lg border p-4 ${isSel ? 'border-sky-500/60 bg-ink-900/70' : 'border-ink-800 bg-ink-900/40'}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <button type="button" onClick={() => selectMoment(m)} className="font-mono text-sm text-sky-300 hover:underline">
+                  <button type="button" onClick={() => selectMoment(m)} className="font-mono text-sm text-state-running hover:underline">
                     {i + 1}. {formatMs(m.startMs)}–{formatMs(m.endMs)} <span className="text-ink-500">({seconds(m.endMs - m.startMs)})</span>
                   </button>
-                  <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => removeMoment(m.momentId)} className="text-xs text-ink-400 hover:text-rose-300">Delete</button>
+                  <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => removeMoment(m.momentId)} className="text-xs text-ink-400 hover:text-state-fail">Delete</button>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-400">
                   <span>Region: {m.region ? regionLabel(m.region) : 'none'}</span>
-                  <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => { videoRef.current?.pause(); selectMoment(m); setRegionError(null); setDrawing(true); }} className="text-sky-300 hover:underline">Draw region</button>
-                  {pointerBox && <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => setRegion(m.momentId, pointerBox)} className="text-sky-300 hover:underline">Use pointer box</button>}
+                  <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => { videoRef.current?.pause(); selectMoment(m); setRegionError(null); setDrawing(true); }} className="text-state-running hover:underline">Draw region</button>
+                  {pointerBox && <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => setRegion(m.momentId, pointerBox)} className="text-state-running hover:underline">Use pointer box</button>}
                   {m.region && <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => setRegion(m.momentId, null)} className="text-ink-400 hover:underline">Clear region</button>}
                 </div>
                 <div className="mt-3"><label htmlFor={`${m.momentId}-feedback`} className="sr-only">What should change here?</label><textarea id={`${m.momentId}-feedback`} placeholder="What should change here?" rows={3} maxLength={CARD_FIELD_MAX} value={m.card.whatToDo} onFocus={()=>setSelectedId(m.momentId)} onChange={e=>setField(m.momentId,'whatToDo',e.target.value)} className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 focus:border-sky-500 focus:outline-none"/>
                   {embedded&&<TrainerVoiceNote disabled={busy!==null} onDirtyChange={dirty=>setVoiceDirty(previous=>{const next=new Set(previous);if(dirty)next.add(m.momentId);else next.delete(m.momentId);return next.size===previous.size&&[...next].every(id=>previous.has(id))?previous:next;})} ownerId={ownerId} attach={{sourceKind:detail.origin==='recorded'?'recording':'upload',sourceRef:`${recordingId}:${m.momentId}`,mark:m.endMs>m.startMs?{startMs:m.startMs,endMs:m.endMs}:{frameMs:m.startMs,region:m.region||{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,CARD_FIELD_MAX-m.card.whatToDo.trim().length-(m.card.whatToDo.trim()?2:0))} onInsert={text=>patch(m.momentId,current=>({...current,card:{...current.card,whatToDo:[current.card.whatToDo.trim(),text].filter(Boolean).join('\n\n')}}))}/>}
-                  {warnings.whatToDo&&<p data-testid="card-warning" className="mt-1 text-xs text-amber-300">{warnings.whatToDo.join(' ')}</p>}
+                  {warnings.whatToDo&&<p data-testid="card-warning" className="mt-1 text-xs text-state-needs">{warnings.whatToDo.join(' ')}</p>}
                 </div>
                 {onUseFeedback&&<button type="button" className="mt-3 text-xs text-ink-500 underline underline-offset-4" disabled={busy!==null||dirty||!CARD_FIELDS.some(field=>m.card[field].trim())} onClick={()=>onUseFeedback(recordingId,m)}>Turn into a learning</button>}
                 {CARD_FIELDS.some(field=>field!=='whatToDo'&&m.card[field].trim())&&<details className="mt-3 text-xs text-ink-400"><summary>Previously saved notes</summary>{CARD_FIELDS.filter(field=>field!=='whatToDo'&&m.card[field].trim()).map(field=><p key={field} className="mt-2 whitespace-pre-wrap"><strong>{CARD_FIELD_LABELS[field]}:</strong> {m.card[field]}</p>)}</details>}

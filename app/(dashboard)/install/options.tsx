@@ -58,7 +58,7 @@ claude`;
         <CopyBlock label="Connector URL" content={connectorUrl} />
 
         <p className="text-xs text-ink-500 mt-4">
-          Don't have a key yet? <a href="/settings/api-keys" className="text-brand-600 hover:underline">Get one →</a>
+          Don't have a key yet? <a href="/settings/api-keys" className="text-action-accent hover:underline">Get one →</a>
         </p>
       </Card>
 
@@ -77,7 +77,7 @@ claude`;
           For <strong>Cursor</strong>: Settings → MCP → Add Server
         </p>
 
-        <a href="https://www.npmjs.com/package/@implexa/mcp-server" target="_blank" rel="noreferrer" className="text-xs text-brand-600 hover:underline mt-3 inline-block">npm package →</a>
+        <a href="https://www.npmjs.com/package/@implexa/mcp-server" target="_blank" rel="noreferrer" className="text-xs text-action-accent hover:underline mt-3 inline-block">npm package →</a>
       </Card>
 
       {/* Option 3 — Claude Code plugin */}
@@ -89,7 +89,7 @@ claude`;
 
         <CopyBlock content={claudeCodeCmd} multiline />
 
-        <a href="https://github.com/Implexa-Inc/implexa-claude-plugin" target="_blank" rel="noreferrer" className="text-xs text-brand-600 hover:underline mt-3 inline-block">View on GitHub →</a>
+        <a href="https://github.com/Implexa-Inc/implexa-claude-plugin" target="_blank" rel="noreferrer" className="text-xs text-action-accent hover:underline mt-3 inline-block">View on GitHub →</a>
       </Card>
     </div>
   );

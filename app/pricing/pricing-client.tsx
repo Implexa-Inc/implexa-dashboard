@@ -94,7 +94,7 @@ export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator
                 Your seat on Pro is permanently included with your Founding Creator status. No checkout needed.
                 Everything in Pro is already unlocked for you.
               </p>
-              <Link href="/settings/billing" className="text-xs text-brand-500 hover:underline font-medium">
+              <Link href="/settings/billing" className="text-xs text-action-accent hover:underline font-medium">
                 Manage your seat →
               </Link>
             </div>
@@ -170,7 +170,7 @@ export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator
                     {loading ? 'Loading…' : `Upgrade to Pro (${cycle === 'annual' ? 'Annual' : 'Monthly'})`}
                   </button>
           }
-          extraNote={error ? <p className="text-xs text-red-500 mt-2">{error}</p> : null}
+          extraNote={error ? <p className="text-xs text-state-fail mt-2">{error}</p> : null}
         />
 
         {/* Cloud routines (roadmap teaser, not purchasable) */}
@@ -214,7 +214,7 @@ function PlanCard({
       highlight ? '!border-brand-500/40 bg-gradient-to-b from-brand-500/5 to-transparent' : ''
     }`}>
       {highlight && (
-        <div className="text-[10px] uppercase tracking-wider font-bold text-brand-500 mb-2">
+        <div className="text-[10px] uppercase tracking-wider font-bold text-action-accent mb-2">
           Most popular
         </div>
       )}
@@ -228,7 +228,7 @@ function PlanCard({
       <ul className="mt-6 space-y-2 text-sm text-ink-200 flex-1">
         {bullets.map((b) => (
           <li key={b} className="flex gap-2 leading-snug">
-            <span className="text-brand-500 mt-0.5 shrink-0">✓</span>
+            <span className="text-action-accent mt-0.5 shrink-0">✓</span>
             <span>{b}</span>
           </li>
         ))}

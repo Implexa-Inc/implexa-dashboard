@@ -54,11 +54,11 @@ export function GuidedPublicationReview({open,value,busy=false,error='',onClose,
    <button type="button" className="btn-outline" disabled={unavailable||!value.publication.canPrepare} onClick={()=>work(prepare)}>Prepare exact public preview</button>
    {preview&&<section className="space-y-4 rounded-xl border border-ink-700 p-4" aria-label="Exact public snapshot">
     <div><h3 className="font-medium">{preview.definition.name}</h3><p className="mt-2 text-ink-400">{preview.definition.description}</p></div>
-    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-sm text-amber-300">This selection includes text guidance. Customers need Codex and Implexa Desktop 0.4.160 or newer to run it; Claude execution is not supported for this teaching format yet.</p>}
+    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-sm text-state-needs">This selection includes text guidance. Customers need Codex and Implexa Desktop 0.4.160 or newer to run it; Claude execution is not supported for this teaching format yet.</p>}
     <div className="space-y-2" aria-label="Changes for customers"><h4 className="font-medium">What changes for customers</h4>
      <p>{preview.publicationDelta.definitionChanged?'The public definition changes.':'The public definition stays the same.'}</p>
      <p>{preview.publicationDelta.changes.filter(c=>c.change==='added').length} added · {preview.publicationDelta.changes.filter(c=>c.change==='removed').length} removed · {preview.publicationDelta.changes.filter(c=>c.change==='changed').length} changed · {preview.publicationDelta.changes.filter(c=>c.change==='unchanged').length} unchanged teachings.</p>
-     {preview.publicationDelta.changes.some(c=>c.change==='removed')&&<p className="text-amber-300">The removed teachings will be absent from new installs and from existing customers who accept this update. Existing pins and running tasks stay unchanged.</p>}
+     {preview.publicationDelta.changes.some(c=>c.change==='removed')&&<p className="text-state-needs">The removed teachings will be absent from new installs and from existing customers who accept this update. Existing pins and running tasks stay unchanged.</p>}
      <ul className="text-xs text-ink-400">{preview.publicationDelta.changes.map(c=><li key={c.recordId}>{c.change[0].toUpperCase()+c.change.slice(1)}: {preview.records.find(r=>r.recordId===c.recordId)?.summary||`Teaching ${c.recordId.slice(0,8)}`}</li>)}</ul>
     </div>
     {preview.records.map(r=><article className="border-t border-ink-800 pt-3" key={r.recordId}><p>{r.summary}</p>
@@ -70,7 +70,7 @@ export function GuidedPublicationReview({open,value,busy=false,error='',onClose,
     <p className="text-xs text-ink-500">Material snapshot {preview.snapshotDigest.slice(0,12)}. Selected example copies may be inspected by customers who receive them; withdrawal stops future access.</p>
     {!preview.canPublish&&<><p className="text-ink-400">{trainingSnapshotReason(preview.reason)}</p>
      <button type="button" className="btn-outline" disabled={unavailable} onClick={()=>work(()=>onTest(preview))}>Test this public version</button></>}
-    {preview.canPublish&&<p className="text-emerald-300">A delivered test matches this exact public material.</p>}
+    {preview.canPublish&&<p className="text-state-ok">A delivered test matches this exact public material.</p>}
     {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-xs text-ink-400">Testing this text guidance currently requires Codex and Implexa Desktop 0.4.160 or newer, through the prepared Run now path.</p>}
     <label className="flex items-start gap-3"><input type="checkbox" className="mt-1" checked={consent} disabled={unavailable} onChange={e=>setConsent(e.target.checked)}/>
      <span>I reviewed this definition, the selected guidance and examples, and the additions, changes and removals listed above. I release this exact public version for customers. Raw feedback and recordings stay private.</span></label>

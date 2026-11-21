@@ -67,18 +67,18 @@ export default function AgentPauseToggle({
           type="button"
           onClick={() => patch('active')}
           disabled={pending}
-          className="text-sm px-3.5 py-2 rounded-md border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50 transition-colors"
+          className="text-sm px-3.5 py-2 rounded-md border border-emerald-500/40 text-state-ok hover:bg-emerald-500/10 disabled:opacity-50 transition-colors"
           title="Resume this agent's schedule."
         >
           {pending ? 'Resuming…' : 'Resume schedule'}
         </button>
       )}
       {status === 'paused' && !error && (
-        <span className="text-[11px] text-amber-700 dark:text-amber-400 text-right" title="No scheduled runs until resumed. You can still Run now anytime.">
+        <span className="text-[11px] text-state-needs text-right" title="No scheduled runs until resumed. You can still Run now anytime.">
           Paused
         </span>
       )}
-      {error && <span className="text-[11px] text-rose-600 dark:text-rose-400">{error}</span>}
+      {error && <span className="text-[11px] text-state-fail">{error}</span>}
     </div>
   );
 }

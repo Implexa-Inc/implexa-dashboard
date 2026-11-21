@@ -66,7 +66,7 @@ export default async function DataSettingsPage() {
 
         {loadError ? (
           <div className="card !border-red-500/30">
-            <p className="text-sm text-red-500">Could not load your preferences: {loadError}</p>
+            <p className="text-sm text-state-fail">Could not load your preferences: {loadError}</p>
             <p className="text-xs text-ink-400 mt-2">If this persists, email support@implexa.ai.</p>
           </div>
         ) : snapshot ? (

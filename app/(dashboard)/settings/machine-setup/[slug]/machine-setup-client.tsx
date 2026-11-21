@@ -157,7 +157,7 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
   if (!read) {
     return (
       <div className="flex flex-col gap-3" data-testid="machine-setup">
-        <p className="text-sm text-rose-600 dark:text-rose-400" data-testid="machine-setup-stale">Setup status could not be loaded. {note}</p>
+        <p className="text-sm text-state-fail" data-testid="machine-setup-stale">Setup status could not be loaded. {note}</p>
         <button type="button" disabled={busy === 'recheck'} className="btn-primary text-xs px-3 py-1.5 w-fit disabled:opacity-60" onClick={recheck}>{busy === 'recheck' ? 'Rechecking…' : 'Recheck'}</button>
       </div>
     );
@@ -172,10 +172,10 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
       <div className="text-xs text-ink-400">Checking: <span className="text-ink-200" data-testid="machine-setup-machine">{machineLabel}</span>{read.machine && read.machine.online === false ? ' (offline)' : ''}
         {' · '}
         {stale
-          ? <span className="text-amber-600 dark:text-amber-400" data-testid="machine-setup-stale">Status could not be refreshed — shown state may be out of date</span>
+          ? <span className="text-state-needs" data-testid="machine-setup-stale">Status could not be refreshed — shown state may be out of date</span>
           : read.admitted
             ? <span className="text-success-600 dark:text-success-400" data-testid="machine-setup-ready">Ready to run</span>
-            : <span className="text-rose-600 dark:text-rose-400">Setup required</span>}
+            : <span className="text-state-fail">Setup required</span>}
       </div>
       <ul className="flex flex-col gap-2">
         {read.requirements.requirements.map((req) => {
@@ -205,7 +205,7 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
                   </div>
                 ) : null}
               </div>
-              <div className={`flex-none text-xs ${ready ? 'text-success-600 dark:text-success-400' : req.required ? 'text-rose-600 dark:text-rose-400' : 'text-ink-400'}`}>{req.label} — {label}</div>
+              <div className={`flex-none text-xs ${ready ? 'text-success-600 dark:text-success-400' : req.required ? 'text-state-fail' : 'text-ink-400'}`}>{req.label} — {label}</div>
             </li>
           );
         })}

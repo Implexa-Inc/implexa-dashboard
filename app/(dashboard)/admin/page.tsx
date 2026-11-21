@@ -127,7 +127,7 @@ export default async function AdminPage() {
 
         {error && (
           <div className="card !border-red-500/40 !bg-red-500/5 mb-8">
-            <p className="text-sm text-red-700 dark:text-red-400">Failed to load metrics: {error}</p>
+            <p className="text-sm text-state-fail">Failed to load metrics: {error}</p>
           </div>
         )}
 
@@ -332,8 +332,8 @@ function Stat({
 }) {
   const accentClass =
     accent === 'success' ? 'text-success-400 border-success-400/40' :
-    accent === 'brand'   ? 'text-brand-500 border-brand-500/40'     :
-    accent === 'red'     ? 'text-red-500 border-red-500/40'         :
+    accent === 'brand'   ? 'text-action-accent border-brand-500/40'     :
+    accent === 'red'     ? 'text-state-fail border-red-500/40'         :
     'text-ink-50 border-ink-700';
   return (
     <div className={`card !p-3 border ${accentClass}`}>

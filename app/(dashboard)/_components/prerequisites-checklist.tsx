@@ -121,7 +121,7 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
                   {s.links && s.links.length > 0 && (
                     <div className="mt-1.5 flex items-center gap-4 flex-wrap">
                       {s.links.map((l) => (
-                        <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" className="inline-block text-xs text-brand-500 hover:underline">
+                        <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" className="inline-block text-xs text-action-accent hover:underline">
                           {l.label} ↗
                         </a>
                       ))}

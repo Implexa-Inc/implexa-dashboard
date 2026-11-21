@@ -75,7 +75,7 @@ export default async function ApiKeysPage({
             <span>🪜</span>
             <span>
               You probably don&apos;t need to be here. Go back to{' '}
-              <Link href="/install" className="text-brand-500 hover:underline">/install</Link>{' '}
+              <Link href="/install" className="text-action-accent hover:underline">/install</Link>{' '}
               and paste the one-line install command — it auto-creates a key for you.
               This page is for revoking old installs or generating keys manually (advanced).
             </span>

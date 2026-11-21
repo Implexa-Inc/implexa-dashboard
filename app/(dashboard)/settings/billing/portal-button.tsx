@@ -26,7 +26,7 @@ export default function PortalButton({ jwt }: { jwt: string }) {
       <button onClick={open} disabled={loading} className="btn-primary">
         {loading ? 'Opening…' : 'Manage billing'}
       </button>
-      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+      {error && <p className="text-xs text-state-fail mt-2">{error}</p>}
     </>
   );
 }

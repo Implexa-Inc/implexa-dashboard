@@ -90,7 +90,7 @@ export default function LoginForm({
         <div className="w-full max-w-sm card text-center">
           <h1 className="text-2xl font-semibold mb-2">Check your inbox</h1>
           <p className="text-ink-500 text-sm">We sent a magic link to <strong>{email}</strong>. Click it to sign in — no password needed.</p>
-          <button onClick={() => setMagicSent(false)} className="text-xs text-brand-600 hover:underline mt-4">← Back to sign in</button>
+          <button onClick={() => setMagicSent(false)} className="text-xs text-action-accent hover:underline mt-4">← Back to sign in</button>
         </div>
       </main>
     );
@@ -104,7 +104,7 @@ export default function LoginForm({
         <p className="text-ink-300 text-sm mb-8">Build and run powerful agents in your own Claude or Codex.</p>
 
         {error && (
-          <div className="card !p-3 !border-red-500/40 !bg-red-500/5 mb-4 text-sm text-red-700 dark:text-red-400 leading-relaxed">
+          <div className="card !p-3 !border-red-500/40 !bg-red-500/5 mb-4 text-sm text-state-fail leading-relaxed">
             {error}
             <button onClick={() => setError(null)} className="ml-2 text-xs text-ink-400 hover:underline">dismiss</button>
           </div>
@@ -158,7 +158,7 @@ export default function LoginForm({
               type="button"
               onClick={handleMagicLink}
               disabled={!!loading}
-              className="text-brand-600 hover:underline disabled:opacity-50"
+              className="text-action-accent hover:underline disabled:opacity-50"
             >
               {loading === 'magic' ? 'Sending…' : '🔮 Email me a magic link instead'}
             </button>
@@ -175,7 +175,7 @@ export default function LoginForm({
              * the entire flow goes to /skills instead of completing auth. */}
             New here? <Link
               href={next ? `/signup?next=${encodeURIComponent(next)}` : '/signup'}
-              className="text-brand-600 hover:underline"
+              className="text-action-accent hover:underline"
             >Create an account</Link>
           </p>
         </div>

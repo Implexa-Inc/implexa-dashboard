@@ -73,7 +73,7 @@ export default function ConnectTelegram() {
           <div className="flex items-center gap-2">
             <span className="text-xs text-ink-400">Your link code:</span>
             <code className="text-sm font-mono text-ink-50 bg-ink-900/60 border border-ink-700 rounded px-2 py-1 tracking-widest">{info.code}</code>
-            <button type="button" onClick={copyCode} className="text-xs text-brand-500 hover:underline">
+            <button type="button" onClick={copyCode} className="text-xs text-action-accent hover:underline">
               {copied ? 'Copied ✓' : 'Copy'}
             </button>
           </div>
@@ -95,7 +95,7 @@ export default function ConnectTelegram() {
         </div>
       )}
 
-      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+      {error && <p className="text-xs text-state-fail mt-2">{error}</p>}
     </section>
   );
 }

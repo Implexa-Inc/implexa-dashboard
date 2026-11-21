@@ -48,7 +48,7 @@ export default function RunStepTrace({
         <div className="flex items-center gap-2 mb-3">
           <span className="text-xs font-semibold text-ink-300">{heading}</span>
           {live && (
-            <span className="text-[10px] uppercase tracking-wide font-semibold text-sky-700 dark:text-sky-300 bg-sky-500/15 rounded px-1.5 py-0.5">live</span>
+            <span className="text-[10px] uppercase tracking-wide font-semibold text-state-running bg-sky-500/15 rounded px-1.5 py-0.5">live</span>
           )}
           {action}
         </div>
@@ -74,7 +74,7 @@ export default function RunStepTrace({
         })}
       </ol>
       {stalled && (
-        <p className="text-xs text-amber-700 dark:text-amber-300 mt-3 leading-relaxed">
+        <p className="text-xs text-state-needs mt-3 leading-relaxed">
           Stuck here. This is the last step it reported before it stopped making progress.
         </p>
       )}

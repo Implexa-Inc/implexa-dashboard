@@ -37,12 +37,12 @@ export default function CompletedRunResults({revision = 0}: {revision?: number})
   <div className="flex items-center justify-between gap-3 mb-5"><h2 className="text-lg font-medium text-ink-100">Completed</h2><Link href="/runs" prefetch={false} className="text-xs text-ink-400 hover:text-ink-100">Full history →</Link></div>
   {[...groups].map(([date, results]) => <div key={date} className="mb-5"><h3 className="mb-2 text-xs text-ink-500">{date}</h3><ul className="divide-y divide-ink-800">{results.map(row => <li key={row.id} className="flex items-center gap-3 py-3">
    <span aria-hidden="true" className={`h-2 w-2 rounded-full shrink-0 ${row.status==='partial'?'bg-amber-400':'bg-emerald-400'}`}/>
-   <Link href={`/runs/${encodeURIComponent(row.id)}`} prefetch={false} className="min-w-0 flex-1 text-sm text-ink-100 hover:underline"><span className="block truncate">{name(row.skill_slug)}</span>{row.status==='partial'&&<span className="text-xs text-amber-300">Partially delivered</span>}</Link>
-   <Link href={`/runs/${encodeURIComponent(row.id)}`} prefetch={false} className="shrink-0 text-xs text-ink-300 hover:text-brand-400">View results →</Link>
+   <Link href={`/runs/${encodeURIComponent(row.id)}`} prefetch={false} className="min-w-0 flex-1 text-sm text-ink-100 hover:underline"><span className="block truncate">{name(row.skill_slug)}</span>{row.status==='partial'&&<span className="text-xs text-state-needs">Partially delivered</span>}</Link>
+   <Link href={`/runs/${encodeURIComponent(row.id)}`} prefetch={false} className="shrink-0 text-xs text-ink-300 hover:text-action-accent">View results →</Link>
   </li>)}</ul></div>)}
   {loading && <p role="status" className="text-sm text-ink-500">Loading results…</p>}
-  {failed && <p role="status" className="text-sm text-amber-300">Couldn’t load results. <button onClick={() => void load(retryCursor.current)} className="underline">Try again</button></p>}
+  {failed && <p role="status" className="text-sm text-state-needs">Couldn’t load results. <button onClick={() => void load(retryCursor.current)} className="underline">Try again</button></p>}
   {loaded && !loading && !failed && rows.length===0 && <p className="text-sm text-ink-500">No completed results on this page.</p>}
-  {cursor && !loading && !failed && <button onClick={() => void load(cursor)} className="text-sm text-ink-300 hover:text-brand-400">More ↓</button>}
+  {cursor && !loading && !failed && <button onClick={() => void load(cursor)} className="text-sm text-ink-300 hover:text-action-accent">More ↓</button>}
  </section>;
 }

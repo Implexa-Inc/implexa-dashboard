@@ -69,7 +69,7 @@ export default function GetStartedIntent({ connected = false }: { connected?: bo
       >
         ×
       </button>
-      <div className="text-xs uppercase tracking-wider text-brand-500 mb-2 font-mono">Your agent is ready to build</div>
+      <div className="text-xs uppercase tracking-wider text-action-accent mb-2 font-mono">Your agent is ready to build</div>
       <blockquote className="text-lg text-ink-50 font-medium leading-snug border-l-2 border-brand-500/50 pl-3 mb-3">
         “{intent}”
       </blockquote>

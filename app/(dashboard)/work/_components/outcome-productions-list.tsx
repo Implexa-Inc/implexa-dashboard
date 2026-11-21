@@ -27,9 +27,9 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 function stateClass(state: string): string {
-  if (state === 'running') return 'bg-brand-500/15 text-brand-300 border-brand-500/30';
-  if (state === 'failed' || state === 'partial') return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
-  if (state === 'succeeded') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+  if (state === 'running') return 'bg-brand-500/15 text-action-accent border-brand-500/30';
+  if (state === 'failed' || state === 'partial') return 'bg-amber-500/15 text-state-needs border-amber-500/30';
+  if (state === 'succeeded') return 'bg-emerald-500/15 text-state-ok border-emerald-500/30';
   return 'bg-ink-800 text-ink-300 border-ink-700';
 }
 
@@ -108,7 +108,7 @@ export default function OutcomeProductionsList({ load }: { load: OutcomeProducti
   if (load.status === 'unavailable') {
     return (
       <section role="status" aria-label="Productions unavailable" className="card p-5 border-amber-500/40 mb-6">
-        <p className="text-sm text-amber-300">
+        <p className="text-sm text-state-needs">
           We can’t show your outcome productions right now — this is not the same as having none.
         </p>
         <p className="text-xs text-ink-500 mt-1">{load.reason}</p>

@@ -82,7 +82,7 @@ export function ImplexaJudgePolicy({ slug, compact = false }: { slug: string; co
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h2 className={`${compact ? 'text-sm' : 'text-base'} font-semibold text-ink-50`}>Implexa Judge</h2>
-            <span className="text-[10px] uppercase tracking-wide rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-violet-300">Optional</span>
+            <span className="text-[10px] uppercase tracking-wide rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-state-review">Optional</span>
           </div>
           {/* The old copy promised automatic fixing unconditionally. That is only
               true in every_run; in observe the Judge reviews and reports and
@@ -113,13 +113,13 @@ export function ImplexaJudgePolicy({ slug, compact = false }: { slug: string; co
         </button>
       </div>
       <div className="mt-2 flex items-center gap-2 text-xs">
-        <span className={enabled ? 'text-emerald-400' : 'text-ink-500'}>
+        <span className={enabled ? 'text-state-ok' : 'text-ink-500'}>
           {saving ? 'Saving…'
             : autoRepair ? '✓ Reviews every run and safely repairs what it can'
             : enabled ? '✓ Reviews every run and reports back'
             : 'Off'}
         </span>
-        {error && <span className="text-red-400">{error}</span>}
+        {error && <span className="text-state-fail">{error}</span>}
       </div>
 
       {/* AUTO-REPAIR IS A SEPARATE, EXPLICIT CHOICE. It spends the user's own

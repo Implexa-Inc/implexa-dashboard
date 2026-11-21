@@ -1305,11 +1305,11 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 const selected = segment.artifact?.id === selectedId;
                 const ready = segment.state === 'preview_ready' && segment.artifact;
                 const tone = segment.state === 'qa_failed'
-                  ? 'border-red-500/50 text-red-300'
+                  ? 'border-red-500/50 text-state-fail'
                   : segment.state === 'preview_ready'
-                    ? 'border-emerald-500/50 text-emerald-300'
+                    ? 'border-emerald-500/50 text-state-ok'
                     : segment.state === 'rendering'
-                      ? 'border-sky-500/50 text-sky-300'
+                      ? 'border-sky-500/50 text-state-running'
                       : 'border-ink-800 text-ink-500';
                 return (
                   <button
@@ -1332,7 +1332,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           </div>
         )}
 
-        {props.trainingMode&&!latestFinalOutput&&<p role="status" className="mb-3 text-sm text-amber-300">The latest result could not be verified. Open Result details to choose a file.</p>}
+        {props.trainingMode&&!latestFinalOutput&&<p role="status" className="mb-3 text-sm text-state-needs">The latest result could not be verified. Open Result details to choose a file.</p>}
         <details open={!props.trainingMode||!latestFinalOutput||latestFinalOutput.id!==selectedId} className="mb-3">
           <summary className={props.trainingMode?'cursor-pointer text-xs text-ink-500':'hidden'}>Result details</summary>
         <div className="mb-3 rounded-md border border-ink-800 bg-ink-950/50 px-3 py-2.5" aria-label="Review version identity">
@@ -1345,18 +1345,18 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 Started {reviewTimestamp(currentVersion?.startedAt)} · run {runId.slice(0, 12)}…
               </p>
               {latestFinalOutput ? (
-                <p className="mt-1 truncate text-[11px] text-emerald-300" title={latestFinalOutput.relativePath}>
+                <p className="mt-1 truncate text-[11px] text-state-ok" title={latestFinalOutput.relativePath}>
                   Latest validated final output: {latestFinalOutput.relativePath.split('/').at(-1)} · verified {reviewTimestamp(latestFinalOutput.validatedAt)} · sha256 {latestFinalOutput.sha256?.slice(0, 12)}…
                 </p>
               ) : (
-                <p className="mt-1 text-[11px] text-amber-300">A latest validated final output could not be identified for this revision.</p>
+                <p className="mt-1 text-[11px] text-state-needs">A latest validated final output could not be identified for this revision.</p>
               )}
             </div>
             {latestFinalOutput && latestFinalOutput.id !== selectedId && (
               <button
                 type="button"
                 onClick={() => setSelectedId(latestFinalOutput.id)}
-                className="shrink-0 rounded border border-emerald-500/40 px-2.5 py-1 text-xs text-emerald-300 hover:bg-emerald-500/10"
+                className="shrink-0 rounded border border-emerald-500/40 px-2.5 py-1 text-xs text-state-ok hover:bg-emerald-500/10"
               >
                 Review latest final
               </button>
@@ -1385,14 +1385,14 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             type="button"
             disabled={!canAttachReviewFiles || artifactPicker !== null}
             onClick={() => void pickReviewArtifact('review_target', 'file')}
-            className="shrink-0 rounded border border-ink-700 px-3 py-1.5 text-sm text-sky-300 hover:border-sky-500 disabled:cursor-not-allowed disabled:opacity-40"
+            className="shrink-0 rounded border border-ink-700 px-3 py-1.5 text-sm text-state-running hover:border-sky-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {artifactPicker === 'review_target' ? 'Freezing file…' : 'Open other file'}
           </button>
         </div>
         </details>
         {sources.review_artifacts !== 'ready' && (
-          <p role="status" className="mb-3 text-xs text-amber-300">
+          <p role="status" className="mb-3 text-xs text-state-needs">
             Other review files are unavailable right now. Reload before attaching or sending them.
           </p>
         )}
@@ -1435,7 +1435,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         {artifact && (
           <div className="mt-3 text-xs text-ink-500">
             <p className="truncate">
-              {proxyPreview && <span className="mr-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-sky-300">Review proxy</span>}
+              {proxyPreview && <span className="mr-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-state-running">Review proxy</span>}
               {artifact.relativePath}
               {artifact.sha256 && <span className="ml-2 font-mono">sha256 {artifact.sha256.slice(0, 12)}…</span>}
             </p>
@@ -1488,7 +1488,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                     <button
                       type="button"
                       onClick={() => startEdit(i)}
-                      className="text-sky-400 hover:underline"
+                      className="text-state-running hover:underline"
                     >
                       {feedbackHereEditLabel(n, hereIssues.length)}
                     </button>
@@ -1497,7 +1497,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               </span>
             )}
 
-            {rangeError && <span role="alert" className="text-xs text-amber-300">{rangeError}</span>}
+            {rangeError && <span role="alert" className="text-xs text-state-needs">{rangeError}</span>}
           </div>
         )}
 
@@ -1507,8 +1507,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             take it or you cancel. Nothing here is written until "Set end". */}
         {pendingRange && !frozen && !accepted && (
           <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-sky-500/40 bg-sky-500/10 p-3">
-            <span className="font-mono text-sm text-sky-200">{rangeStartLabel(pendingRange)}</span>
-            <span aria-hidden="true" className="text-sky-300">→</span>
+            <span className="font-mono text-sm text-state-running">{rangeStartLabel(pendingRange)}</span>
+            <span aria-hidden="true" className="text-state-running">→</span>
             <button
               type="button"
               // FOLLOWS the playhead while the start stays frozen. Deliberately not
@@ -1526,7 +1526,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             >
               {CANCEL_RANGE_LABEL}
             </button>
-            <span className="w-full text-xs text-sky-200/80">
+            <span className="w-full text-xs text-state-running">
               Scrub to where this should end, then take it. The start stays where you set it.
             </span>
           </div>
@@ -1598,7 +1598,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 is unsafe while the brief names only the session's artifact: it would
                 arrive under a heading naming a different file, reading as precise. */}
             {targetGuidance(draft.target) && (
-              <p className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs leading-snug text-amber-200">
+              <p className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs leading-snug text-state-needs">
                 {targetGuidance(draft.target)}
               </p>
             )}
@@ -1675,13 +1675,13 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               type="button"
               disabled={busy}
               onClick={() => void resolveIssues(unresolvedPrior.map((issue) => issue.id))}
-              className="mt-2 text-xs text-sky-400 hover:underline disabled:opacity-50"
+              className="mt-2 text-xs text-state-running hover:underline disabled:opacity-50"
             >
               Mark all as resolved
             </button>
           )}
           {proxyPreview && (
-            <p className="mt-2 text-xs text-sky-300">
+            <p className="mt-2 text-xs text-state-running">
               This is a validated segment proxy. Segment feedback, approval, and repair are not enabled in this first slice.
             </p>
           )}
@@ -1692,11 +1692,11 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         <div ref={railListRef} tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {issuesUnavailable ? (
           // NOT an empty rail: we could not read them.
-          <p className="text-xs text-amber-300">
+          <p className="text-xs text-state-needs">
             We couldn&apos;t load this review&apos;s issues. This list is not empty — it&apos;s unknown.
           </p>
         ) : resolutionsUnavailable ? (
-          <p className="text-xs text-amber-300">
+          <p className="text-xs text-state-needs">
             We couldn&apos;t verify which feedback is resolved. Refresh before resolving or sending this revision.
           </p>
         ) : visible.length === 0 ? (
@@ -1719,7 +1719,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 // packet does not contain — there is nothing to switch to.
                 disabled={!group.artifact}
                 onClick={() => group.artifact && setSelectedId(group.artifact.id)}
-                className="truncate text-left text-xs font-medium text-ink-200 hover:text-sky-300 disabled:cursor-default disabled:hover:text-ink-200"
+                className="truncate text-left text-xs font-medium text-ink-200 hover:text-state-running disabled:cursor-default disabled:hover:text-ink-200"
                 title={group.displayName}
               >
                 {group.displayName}
@@ -1727,7 +1727,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               <span className="shrink-0 text-[11px] tabular-nums text-ink-500">{groupCountLabel(group.count)}</span>
             </h3>
             {group.unavailable && (
-              <p className="mb-2 text-[11px] text-amber-300">
+              <p className="mb-2 text-[11px] text-state-needs">
                 These comments name a file this review no longer lists.
               </p>
             )}
@@ -1745,7 +1745,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                     <button
                       type="button"
                       onClick={() => goToIssue(i)}
-                      className="font-mono text-sky-400 hover:underline"
+                      className="font-mono text-state-running hover:underline"
                     >
                       {anchorLabel(i.anchor as Record<string, unknown>)}
                     </button>
@@ -1756,11 +1756,11 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                       the card no longer repeats it. What the heading cannot say is that
                       acting on this one moves the player to a different file. */}
                   {elsewhere && (
-                    <p className="mt-0.5 text-[11px] text-sky-400">Opens another file</p>
+                    <p className="mt-0.5 text-[11px] text-state-running">Opens another file</p>
                   )}
                   <p className="mt-1 whitespace-pre-wrap text-sm text-ink-200">{i.body}</p>
                   {!props.trainingMode&&props.customerOwnerId&&!stale&&isSpatialAnchorV2(i.anchor as never)&&<CustomerFeedbackSharing issue={i} ownerId={props.customerOwnerId}/>}
-                  {props.trainingMode && props.onTeachIssue && group.artifact && !stale && teachingNotes.some(note=>note.issue.id===i.id) && <button type="button" disabled={busy} className="mt-3 text-xs text-brand-400 hover:underline disabled:opacity-40" onClick={()=>props.onTeachIssue?.(i,group.artifact!)}>Extract training</button>}
+                  {props.trainingMode && props.onTeachIssue && group.artifact && !stale && teachingNotes.some(note=>note.issue.id===i.id) && <button type="button" disabled={busy} className="mt-3 text-xs text-action-accent hover:underline disabled:opacity-40" onClick={()=>props.onTeachIssue?.(i,group.artifact!)}>Extract training</button>}
                   {!props.trainingMode && submitView.mode === 'send_changes' && patternEligibleIssueIds.has(i.id) && (
                     <label className="mt-2 flex items-start gap-2 rounded border border-violet-500/20 bg-violet-500/5 px-2 py-1.5 text-[11px] text-ink-300">
                       <input
@@ -1778,7 +1778,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                       type="button"
                       disabled={busy}
                       onClick={() => void resolveIssues([i.id])}
-                      className="mt-1 text-xs text-sky-400 hover:underline disabled:opacity-50"
+                      className="mt-1 text-xs text-state-running hover:underline disabled:opacity-50"
                     >
                       Mark as resolved
                     </button>
@@ -1789,11 +1789,11 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                   {isSpatialAnchorV2(i.anchor as never) && i.status === 'draft' && (() => {
                     const chip = evidenceChip(evidenceForIssue(i));
                     if (!chip) return null;
-                    const tone = chip.tone === 'ok' ? 'text-emerald-300' : chip.tone === 'failed' ? 'text-amber-300' : 'text-ink-500';
+                    const tone = chip.tone === 'ok' ? 'text-state-ok' : chip.tone === 'failed' ? 'text-state-needs' : 'text-ink-500';
                     return <p className={`mt-1 text-[11px] ${tone}`}>{chip.label}</p>;
                   })()}
                   {stale && (
-                    <p className="mt-1 text-xs text-amber-300">
+                    <p className="mt-1 text-xs text-state-needs">
                       This file changed since the comment was made — the highlight may no longer match.
                     </p>
                   )}
@@ -1809,13 +1809,13 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                         type="button"
                         disabled={busy}
                         onClick={() => (edit.opensElsewhere ? goToIssue(i) : startEdit(i))}
-                        className="text-xs text-sky-400 hover:underline disabled:opacity-50"
+                        className="text-xs text-state-running hover:underline disabled:opacity-50"
                       >
                         {edit.label}
                       </button>
                       <button
                         type="button" disabled={busy} onClick={() => dismissIssue(i.id)}
-                        className="text-xs text-ink-500 hover:text-red-300 disabled:opacity-50"
+                        className="text-xs text-ink-500 hover:text-state-fail disabled:opacity-50"
                       >
                         Delete
                       </button>
@@ -1855,29 +1855,29 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             screens and at high zoom, where the rail itself outgrows the window and the
             page scrolls. Opaque, because the issue list slides underneath it. */}
         {props.trainingMode && <div className="shrink-0 space-y-3 border-t border-ink-800 p-4">
-          {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
+          {error && <p role="alert" className="text-xs text-state-fail">{error}</p>}
           {notice && <p role="status" className="text-xs text-ink-300">{notice}</p>}
-          {accepted && <button type="button" disabled={busy} onClick={()=>void addMoreFeedback()} className="text-sm text-brand-400">Add teaching notes</button>}
+          {accepted && <button type="button" disabled={busy} onClick={()=>void addMoreFeedback()} className="text-sm text-action-accent">Add teaching notes</button>}
           {props.onDoneTeaching&&<button type="button" className="btn-primary" disabled={busy||!!draft||!!pendingRange||voiceDirty||!teachingNotes.length} onClick={()=>props.onDoneTeaching?.(teachingNotes)}>Done teaching</button>}
           <p className="text-xs text-ink-500">Your saved notes become lessons you can review before applying.</p>
           {visible.length>teachingNotes.length&&<p className="text-xs text-ink-400">{visible.length-teachingNotes.length} note(s) need a fresh visual mark before extraction.</p>}
           <a href={props.trainingSlug?trainingReviewHref(props.trainingSlug,runId):`/review/${encodeURIComponent(runId)}`} className="inline-block text-xs text-ink-400 underline underline-offset-4">Revise this result →</a>
         </div>}
         <div className={`${props.trainingMode?'hidden ':''}sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900 px-4 py-3`}>
-          {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
-          {notice && <p role="status" className="text-xs text-emerald-300">{notice}</p>}
+          {error && <p role="alert" className="text-xs text-state-fail">{error}</p>}
+          {notice && <p role="status" className="text-xs text-state-ok">{notice}</p>}
 
           {resolutionsUnavailable ? (
-            <p role="alert" className="text-xs text-amber-300">
+            <p role="alert" className="text-xs text-state-needs">
               Resolution status is unavailable. Refresh before resolving or sending feedback.
             </p>
           ) : proxyPreview ? (
             <p className="text-xs text-ink-500">Final render remains unavailable while required segments are unresolved.</p>
           ) : accepted ? (
-            <p className="text-xs text-emerald-300">You accepted this result.</p>
+            <p className="text-xs text-state-ok">You accepted this result.</p>
           ) : activeIssues.length === 0 && reviewerResolved.length > 0 ? (
             <div className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-2">
-              <p className="text-xs font-medium text-emerald-300">Review complete</p>
+              <p className="text-xs font-medium text-state-ok">Review complete</p>
               <p className="mt-1 text-[11px] text-ink-400">All feedback is marked resolved. No revision is waiting to be sent.</p>
             </div>
           ) : submitView.mode === 'queued' ? (
@@ -1885,7 +1885,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             // every number and identity below came back from the server — none of it
             // is inferred from local drafts or from a refreshed prop.
             <>
-              <p className="text-xs text-emerald-300">
+              <p className="text-xs text-state-ok">
                 {revisionCompleted
                   // Past tense, and about the RESULT rather than the queue. The
                   // count still comes from the server; only the tense changes.
@@ -1985,7 +1985,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                       <div className="space-y-2 rounded border border-violet-500/30 bg-violet-500/5 p-2">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <span className="block text-xs font-medium text-violet-100">Apply a repeated pattern</span>
+                            <span className="block text-xs font-medium text-state-review">Apply a repeated pattern</span>
                             <span className="mt-0.5 block text-[11px] leading-snug text-ink-500">
                               Select two or more exact comments in the issue list. Implexa discloses only those comments to compile one bounded rule for this revision. Nothing becomes future training.
                             </span>
@@ -1995,7 +1995,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                             disabled={patternBusy || patternSourceIssues.length < 2 || submissionInFlight}
                             onClick={() => void onSynthesizePattern()}
                             aria-describedby="pattern-selection-status"
-                            className="shrink-0 rounded border border-violet-400/50 px-2 py-1 text-[11px] text-violet-100 disabled:opacity-40"
+                            className="shrink-0 rounded border border-violet-400/50 px-2 py-1 text-[11px] text-state-review disabled:opacity-40"
                           >
                             {patternBusy ? 'Synthesizing…' : patternCandidate ? 'Synthesize again' : 'Synthesize'}
                           </button>
@@ -2058,7 +2058,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                                 setPatternCandidate(null);
                                 setPatternCandidateEvidenceKey(null);
                               }}
-                              className="text-[11px] text-ink-500 hover:text-red-300 disabled:opacity-40"
+                              className="text-[11px] text-ink-500 hover:text-state-fail disabled:opacity-40"
                             >
                               Discard candidate
                             </button>
@@ -2113,7 +2113,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                             type="button"
                             disabled={!canAttachReviewFiles || artifactPicker !== null}
                             onClick={() => void pickReviewArtifact('supporting', 'file')}
-                            className="rounded border border-ink-700 px-2 py-1 text-xs text-sky-300 hover:border-sky-500 disabled:opacity-40"
+                            className="rounded border border-ink-700 px-2 py-1 text-xs text-state-running hover:border-sky-500 disabled:opacity-40"
                           >
                             {artifactPicker === 'supporting_file' ? 'Freezing file…' : 'Attach file'}
                           </button>
@@ -2121,7 +2121,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                             type="button"
                             disabled={!canAttachReviewFiles || artifactPicker !== null}
                             onClick={() => void pickReviewArtifact('supporting', 'directory')}
-                            className="rounded border border-ink-700 px-2 py-1 text-xs text-sky-300 hover:border-sky-500 disabled:opacity-40"
+                            className="rounded border border-ink-700 px-2 py-1 text-xs text-state-running hover:border-sky-500 disabled:opacity-40"
                           >
                             {artifactPicker === 'supporting_folder' ? 'Freezing folder…' : 'Attach folder'}
                           </button>
@@ -2141,7 +2141,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
               {/* THE FROZEN SNAPSHOT, visible before it is sent. */}
               {submitView.mode === 'send_changes' && (
-                <p className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1.5 text-xs text-sky-200">
+                <p className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1.5 text-xs text-state-running">
                   {revisionCompositionLabel(unresolvedPrior.length, drafts.length)}
                 </p>
               )}
@@ -2151,21 +2151,21 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 </p>
               )}
               {!error && submitView.errorLine && (
-                <p role="alert" className="text-xs text-red-300">{submitView.errorLine}</p>
+                <p role="alert" className="text-xs text-state-fail">{submitView.errorLine}</p>
               )}
 
               {/* THE EVIDENCE GATE (Wave 2). Sending only unlocks when every spatial
                   draft holds VALIDATED evidence — the backend refuses anyway; this is
                   the honest button over that rule, with a retry for failed captures. */}
               {submitView.mode !== 'accept_result' && gate.blocked && gate.statusLine && (
-                <p role="status" className="text-xs text-sky-300">{gate.statusLine}</p>
+                <p role="status" className="text-xs text-state-running">{gate.statusLine}</p>
               )}
               {submitView.mode !== 'accept_result' && gate.reason === 'failed' && (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={retryEvidence}
-                  className="w-full rounded-md border border-amber-400/60 px-3 py-2 text-sm text-amber-200 hover:border-amber-300 disabled:opacity-40"
+                  className="w-full rounded-md border border-amber-400/60 px-3 py-2 text-sm text-state-needs hover:border-amber-300 disabled:opacity-40"
                 >
                   Retry screenshot capture
                 </button>
@@ -2220,7 +2220,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                   written feedback is never discarded without a confirmed answer. */}
               {confirmDiscard && (
                 <div className="rounded border border-amber-500/40 bg-amber-500/10 p-2">
-                  <p className="text-xs text-amber-200">
+                  <p className="text-xs text-state-needs">
                     Accepting discards {drafts.length} unsent {drafts.length === 1 ? 'issue' : 'issues'}.
                   </p>
                   <div className="mt-2 flex gap-2">
@@ -2246,7 +2246,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             type="button"
             disabled={busy || historicalProvenanceUnavailable}
             onClick={() => void addMoreFeedback()}
-            className="w-full rounded-md border border-sky-500/40 px-3 py-2 text-center text-sm text-sky-300 hover:border-sky-400 disabled:opacity-50"
+            className="w-full rounded-md border border-sky-500/40 px-3 py-2 text-center text-sm text-state-running hover:border-sky-400 disabled:opacity-50"
           >
             Add more feedback
           </button>
@@ -2267,7 +2267,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             <p className="mt-2 text-sm leading-relaxed text-ink-300">
               Implexa can remove redundant review copies and rejected render intermediates that are no longer referenced.
             </p>
-            <p className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-emerald-200">
+            <p className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-state-ok">
               Your accepted final, editable project, learned decision traces, and original source stay protected.
             </p>
             <div className="mt-4 flex flex-wrap justify-end gap-2">

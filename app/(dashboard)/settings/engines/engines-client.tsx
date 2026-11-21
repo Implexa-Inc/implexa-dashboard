@@ -33,7 +33,7 @@ function when(value?: string | null) {
   const d = new Date(value); return Number.isNaN(d.getTime()) ? 'Unknown' : d.toLocaleString();
 }
 function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
-  return <span className={`text-[11px] rounded-full border px-2 py-0.5 ${ok ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' : 'border-ink-700 text-ink-400'}`}>{ok ? '✓ ' : ''}{children}</span>;
+  return <span className={`text-[11px] rounded-full border px-2 py-0.5 ${ok ? 'border-emerald-500/30 bg-emerald-500/10 text-state-ok' : 'border-ink-700 text-ink-400'}`}>{ok ? '✓ ' : ''}{children}</span>;
 }
 
 export default function EnginesClient({ reports }: { reports: EngineReport[] }) {
@@ -131,10 +131,10 @@ function EngineCard({ engine, report }: { engine: 'claude' | 'codex'; report: En
         <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('permissions', (b) => b.openEnginePermissions?.(engine, caps.computerUse ? 'browser' : 'computerUse'))}>Permissions</button>
         {caps.automation && <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('automations', (b) => b.openEngineAutomations?.(engine))}>Automations</button>}
       </div>
-      {notice && <p className="mt-3 text-xs text-amber-300">{notice}</p>}
+      {notice && <p className="mt-3 text-xs text-state-needs">{notice}</p>}
 
       <div className="mt-4 pt-4 border-t border-ink-800 flex flex-wrap gap-2 text-[11px] text-ink-400">
-        <span>Capabilities:</span>{['browser', 'computerUse', 'automation', 'headless'].map((cap) => <span key={cap} className={caps[cap] ? 'text-emerald-400' : 'text-ink-600'}>{cap === 'computerUse' ? 'computer use' : cap}</span>)}
+        <span>Capabilities:</span>{['browser', 'computerUse', 'automation', 'headless'].map((cap) => <span key={cap} className={caps[cap] ? 'text-state-ok' : 'text-ink-600'}>{cap === 'computerUse' ? 'computer use' : cap}</span>)}
       </div>
     </section>
   );

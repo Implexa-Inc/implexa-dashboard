@@ -81,7 +81,7 @@ export default async function GenerationProposalPage({ params }: { params: { pro
             {read.vm.sourceRunId && (
               <>
                 {' · '}
-                <Link href={`/runs/${read.vm.sourceRunId}`} className="text-sky-400 hover:underline">
+                <Link href={`/runs/${read.vm.sourceRunId}`} className="text-state-running hover:underline">
                   from this run
                 </Link>
               </>
@@ -128,7 +128,7 @@ export default async function GenerationProposalPage({ params }: { params: { pro
           {vm.sourceRunId && (
             <>
               {' · '}
-              <Link href={`/runs/${vm.sourceRunId}`} className="text-sky-400 hover:underline">
+              <Link href={`/runs/${vm.sourceRunId}`} className="text-state-running hover:underline">
                 from this run
               </Link>
             </>

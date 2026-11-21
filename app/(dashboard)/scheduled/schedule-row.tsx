@@ -58,15 +58,15 @@ function formatRelative(iso: string | null): string {
 
 function statusBadge(status: ScheduledSkill['status']) {
   const base = 'inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded';
-  if (status === 'active') return <span className={`${base} bg-emerald-500/15 text-emerald-700 dark:text-emerald-400`}>active</span>;
-  if (status === 'paused') return <span className={`${base} bg-amber-500/15  text-amber-700 dark:text-amber-400`}>paused</span>;
-  return <span className={`${base} bg-rose-500/15 text-rose-700 dark:text-rose-400`}>failed</span>;
+  if (status === 'active') return <span className={`${base} bg-emerald-500/15 text-state-ok`}>active</span>;
+  if (status === 'paused') return <span className={`${base} bg-amber-500/15  text-state-needs`}>paused</span>;
+  return <span className={`${base} bg-rose-500/15 text-state-fail`}>failed</span>;
 }
 
 function overdueBadge() {
   return (
     <span
-      className="inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400"
+      className="inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 text-state-needs"
       title="This routine has not run as expected. A local routine only fires while your machine is awake; consider a remote routine."
     >
       overdue
@@ -77,7 +77,7 @@ function overdueBadge() {
 // Loop-powered routines (watch/until) fire reactively in a /loop session, not
 // on a clock. They get a "live" badge instead of overdue tracking.
 function liveBadge(kind: 'watch' | 'until') {
-  const base = 'inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-violet-500/15 text-violet-700 dark:text-violet-300';
+  const base = 'inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-violet-500/15 text-state-review';
   return (
     <span className={base} title={kind === 'watch' ? 'Reactive: runs when its event fires, via a Claude /loop session.' : 'Converging: re-runs until its condition is met, via a Claude /loop session.'}>
       ⚡ live · {kind}
@@ -146,7 +146,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
             {workflow && <RemoteSafetyBadge safety={workflow.safety} size="xs" />}
           </div>
           {workflow && (
-            <div className="text-xs text-brand-500 mt-1">
+            <div className="text-xs text-action-accent mt-1">
               <Link
                 href={`/workflows/${encodeURIComponent(schedule.skill_slug)}?source=${encodeURIComponent(workflow.source)}`}
                 className="hover:underline"
@@ -181,7 +181,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
             last: {formatRelative(schedule.last_run_at)}
           </div>
           {schedule.post_run_action?.type === 'publish-content' && (
-            <div className="text-xs text-brand-400 mt-1" title={schedule.post_run_action.repo}>
+            <div className="text-xs text-action-accent mt-1" title={schedule.post_run_action.repo}>
               ↳ publishes to{' '}
               <code className="bg-ink-900 px-1 py-0.5 rounded">
                 {(schedule.post_run_action.repo || '').split('/').filter(Boolean).pop() || 'repo'}
@@ -189,7 +189,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
             </div>
           )}
           {error && (
-            <div className="text-xs text-rose-700 dark:text-rose-400 mt-2">Action failed: {error}</div>
+            <div className="text-xs text-state-fail mt-2">Action failed: {error}</div>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -206,7 +206,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
             <button
               onClick={() => patch('active')}
               disabled={pending !== null}
-              className="text-xs px-3 py-1.5 rounded border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
+              className="text-xs px-3 py-1.5 rounded border border-emerald-500/40 text-state-ok hover:bg-emerald-500/10 disabled:opacity-50"
             >
               {pending === 'resume' ? 'Resuming…' : 'Resume'}
             </button>
@@ -214,7 +214,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
           <button
             onClick={del}
             disabled={pending !== null}
-            className="text-xs px-3 py-1.5 rounded border border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
+            className="text-xs px-3 py-1.5 rounded border border-rose-500/40 text-state-fail hover:bg-rose-500/10 disabled:opacity-50"
           >
             {pending === 'delete' ? 'Deleting…' : 'Delete'}
           </button>

@@ -83,8 +83,8 @@ export default async function ScheduledPage() {
           <p className="text-ink-300 text-sm mt-1">
             Your autopilot. Each routine runs a workflow on a schedule, then delivers the result.
             Registered via{' '}
-            <code className="bg-ink-900 px-1.5 py-0.5 rounded text-brand-400">/implexa:schedule</code>;
-            output lands in <Link href="/runs" className="text-brand-500 hover:underline">Runs</Link>{' '}
+            <code className="bg-ink-900 px-1.5 py-0.5 rounded text-action-accent">/implexa:schedule</code>;
+            output lands in <Link href="/runs" className="text-action-accent hover:underline">Runs</Link>{' '}
             and (optionally) Slack.
           </p>
         </header>
@@ -94,7 +94,7 @@ export default async function ScheduledPage() {
             <p className="mb-3">No scheduled skills yet.</p>
             <p>
               From Claude Code, invoke{' '}
-              <code className="bg-ink-900 px-1.5 py-0.5 rounded text-brand-400">/implexa:schedule</code>{' '}
+              <code className="bg-ink-900 px-1.5 py-0.5 rounded text-action-accent">/implexa:schedule</code>{' '}
               followed by a skill slug and a natural-language schedule, e.g.:
             </p>
             <pre className="mt-3 bg-ink-900 border border-ink-800 rounded-lg p-3 text-xs overflow-x-auto">

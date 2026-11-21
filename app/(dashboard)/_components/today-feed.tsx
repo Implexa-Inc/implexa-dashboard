@@ -49,7 +49,7 @@ function Row({ title, detail, href, cta, warn = false }: {
     <div className={`card flex items-center justify-between gap-3 ${warn ? 'border-amber-500/40' : ''}`}>
       <div className="min-w-0">
         <p className="text-sm font-medium text-ink-100 truncate">{title}</p>
-        <p className={`text-xs mt-0.5 ${warn ? 'text-amber-700 dark:text-amber-300' : 'text-ink-500'}`}>{detail}</p>
+        <p className={`text-xs mt-0.5 ${warn ? 'text-state-needs' : 'text-ink-500'}`}>{detail}</p>
       </div>
       <Link href={href} className="btn-outline text-xs px-3 py-1.5 flex-none">{cta}</Link>
     </div>
@@ -79,8 +79,8 @@ function countBlockingNeeds(data: NeedsYou): number {
 export function NeedsYouNotice({data}:{data:NeedsYou}) {
   const count=countBlockingNeeds(data),incomplete=data.partial||data.truncated;
   return <>
-    {incomplete&&<p role="status" className="mb-3 text-sm text-amber-300">We couldn’t check everything that needs you. <Link href="/work?view=needs" className="underline">Open Needs you →</Link></p>}
-    {count>0&&<Link href="/work?view=needs" className="mb-5 block rounded-xl border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">{incomplete?'At least ':''}{count} {count===1?'item needs':'items need'} you <span aria-hidden="true">→</span></Link>}
+    {incomplete&&<p role="status" className="mb-3 text-sm text-state-needs">We couldn’t check everything that needs you. <Link href="/work?view=needs" className="underline">Open Needs you →</Link></p>}
+    {count>0&&<Link href="/work?view=needs" className="mb-5 block rounded-xl border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm text-state-needs">{incomplete?'At least ':''}{count} {count===1?'item needs':'items need'} you <span aria-hidden="true">→</span></Link>}
   </>;
 }
 
@@ -115,7 +115,7 @@ export default function TodayFeed({ data, warning, className = '' }: {
       {warning && (
         <p
           role="status"
-          className="text-xs text-amber-700 dark:text-amber-300 border border-amber-500/40 rounded-md px-3 py-2 mb-3"
+          className="text-xs text-state-needs border border-amber-500/40 rounded-md px-3 py-2 mb-3"
         >
           {warning}
         </p>
@@ -126,7 +126,7 @@ export default function TodayFeed({ data, warning, className = '' }: {
       {liveUnavailable && (
         <p
           role="status"
-          className="text-xs text-amber-700 dark:text-amber-300 border border-amber-500/40 rounded-md px-3 py-2 mb-3"
+          className="text-xs text-state-needs border border-amber-500/40 rounded-md px-3 py-2 mb-3"
         >
           We couldn&apos;t check your live runs just now, so this list may be incomplete. It retries on its own.
         </p>
@@ -162,7 +162,7 @@ export default function TodayFeed({ data, warning, className = '' }: {
             <div key={`missed-${m.id}`} className="card flex items-center justify-between gap-3 border-amber-500/40">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-ink-100 truncate">{m.name}</p>
-                <p className="text-xs mt-0.5 text-amber-700 dark:text-amber-300">
+                <p className="text-xs mt-0.5 text-state-needs">
                   {m.neverArmed
                     ? `Scheduled for ${m.when}, but it hasn't started running yet. Tap Start (keep the Claude app open) and it runs on its own from then on.`
                     : m.failed

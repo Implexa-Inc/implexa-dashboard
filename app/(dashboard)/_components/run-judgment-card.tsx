@@ -39,9 +39,9 @@ export type JudgeRepairRequest = {
 };
 
 const STYLE: Record<RunJudgment['verdict'], { label: string; border: string; text: string; bg: string }> = {
-  pass:      { label: 'Passed review', border: 'border-emerald-500/30', text: 'text-emerald-300', bg: 'bg-emerald-500/5' },
-  repair:    { label: 'Repair needed', border: 'border-amber-500/35', text: 'text-amber-300', bg: 'bg-amber-500/5' },
-  blocked:   { label: 'Blocked', border: 'border-orange-500/35', text: 'text-orange-300', bg: 'bg-orange-500/5' },
+  pass:      { label: 'Passed review', border: 'border-emerald-500/30', text: 'text-state-ok', bg: 'bg-emerald-500/5' },
+  repair:    { label: 'Repair needed', border: 'border-amber-500/35', text: 'text-state-needs', bg: 'bg-amber-500/5' },
+  blocked:   { label: 'Blocked', border: 'border-orange-500/35', text: 'text-state-needs', bg: 'bg-orange-500/5' },
   uncertain: { label: 'Couldn’t confirm', border: 'border-ink-700', text: 'text-ink-300', bg: 'bg-ink-900/40' },
 };
 
@@ -120,15 +120,15 @@ export function RunJudgmentCard({
       {judgment.verdict === 'repair' && (
         <div className="mt-3 rounded-lg border border-violet-500/25 bg-violet-500/5 px-3 py-2.5 text-xs">
           {repair.phase === 'limit_reached' ? (
-            <p className="text-amber-300">Automatic repair stopped after {repairLimit} passes. Review the remaining issue and continue manually below.</p>
+            <p className="text-state-needs">Automatic repair stopped after {repairLimit} passes. Review the remaining issue and continue manually below.</p>
           ) : repair.phase === 'queued' ? (
-            <p className="text-violet-300">Automatic repair pass {repair.nextRound} of {repairLimit} is queued.</p>
+            <p className="text-state-review">Automatic repair pass {repair.nextRound} of {repairLimit} is queued.</p>
           ) : repair.phase === 'running' ? (
-            <p className="text-violet-300">Automatic repair pass {repair.nextRound} of {repairLimit} is running now. The updated result will be judged again.</p>
+            <p className="text-state-review">Automatic repair pass {repair.nextRound} of {repairLimit} is running now. The updated result will be judged again.</p>
           ) : repair.phase === 'completed' && repair.repairedRunId ? (
-            <p className="text-emerald-300">Repair completed. <Link href={`/runs/${encodeURIComponent(repair.repairedRunId)}`} className="underline hover:text-emerald-200">Open the repaired run and its fresh review →</Link></p>
+            <p className="text-state-ok">Repair completed. <Link href={`/runs/${encodeURIComponent(repair.repairedRunId)}`} className="underline hover:text-state-ok">Open the repaired run and its fresh review →</Link></p>
           ) : (
-            <p className="text-amber-300">Automatic repair could not be queued. The instructions remain available below so you can continue manually.</p>
+            <p className="text-state-needs">Automatic repair could not be queued. The instructions remain available below so you can continue manually.</p>
           )}
         </div>
       )}
@@ -140,14 +140,14 @@ export function RunJudgmentCard({
 
       {(judgment.verdict === 'blocked' || judgment.verdict === 'uncertain') && (
         <div className="mt-3 rounded-lg border border-orange-500/25 bg-orange-500/5 px-3 py-2.5">
-          <div className="text-[10px] uppercase tracking-wide text-orange-400 mb-1">Human action required</div>
+          <div className="text-[10px] uppercase tracking-wide text-state-needs mb-1">Human action required</div>
           <p className="text-xs text-ink-300">Implexa stopped the loop instead of guessing or repeating a consequential action. Review the reason above, then continue when ready.</p>
         </div>
       )}
 
       {judgment.repair_prompt && judgment.verdict === 'repair' && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-xs text-brand-400 hover:text-brand-300">Show repair instructions</summary>
+          <summary className="cursor-pointer text-xs text-action-accent hover:text-action-accent">Show repair instructions</summary>
           <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-ink-950/70 border border-ink-800 px-3 py-2.5 text-xs text-ink-300 font-sans">{judgment.repair_prompt}</pre>
         </details>
       )}
@@ -162,7 +162,7 @@ export function RunJudgmentCard({
           <div className="mt-2 space-y-2 text-xs text-ink-400">
             {criteria.map((c, i) => (
               <div key={`${c.criterion || 'criterion'}-${i}`} className="flex gap-2">
-                <span className={c.met === true ? 'text-emerald-400' : c.met === false ? 'text-amber-400' : 'text-ink-500'}>{c.met === true ? '✓' : c.met === false ? '○' : '?'}</span>
+                <span className={c.met === true ? 'text-state-ok' : c.met === false ? 'text-state-needs' : 'text-ink-500'}>{c.met === true ? '✓' : c.met === false ? '○' : '?'}</span>
                 <span><span className="text-ink-300">{c.criterion || 'Criterion'}</span>{c.evidence ? ` — ${c.evidence}` : c.reason ? ` — ${c.reason}` : ''}</span>
               </div>
             ))}
