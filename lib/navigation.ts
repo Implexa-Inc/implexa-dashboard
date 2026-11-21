@@ -79,8 +79,48 @@ export const PRIMARY_NAV: readonly NavItem[] = [
 ];
 
 /** The same three product domains in the web app and Desktop, including the pilot. */
-export function primaryNavigation(_marketplacePilot = false): readonly NavItem[] {
-  return PRIMARY_NAV;
+export function primaryNavigation(_marketplacePilot = false, canTrain = true): readonly NavItem[] {
+  return canTrain ? PRIMARY_NAV : PRIMARY_NAV.filter((item) => item.id !== 'training');
+}
+
+export type WorkAttentionBadge = { count: number; complete: boolean };
+export type ShellNavigationState = {
+  canTrain: boolean | null;
+  work: WorkAttentionBadge | null;
+};
+
+/**
+ * Count the existing Work attention/read models, not "new since visited".
+ * Review roots and their latest revisions are aliases for ONE piece of work;
+ * a held/stalled run may also be in that queue. Setup actions have their own
+ * stable identities. Partial reads are lower bounds, never an all-clear.
+ */
+export function workAttentionBadge(
+  needs: {
+    needGrant: ReadonlyArray<{ slug: string }>;
+    missed: ReadonlyArray<{ id: string }>;
+    signIns: ReadonlyArray<{ domain: string }>;
+    stalled: ReadonlyArray<{ id: string }>;
+    attentionItems: ReadonlyArray<{ runId: string | null; attentionId: string }>;
+  },
+  reviews: ReadonlyArray<{ rootRunId: string; latestRunId: string }>,
+  complete: boolean,
+): WorkAttentionBadge {
+  const roots = new Map<string, string>();
+  for (const review of reviews) {
+    roots.set(review.rootRunId, review.rootRunId);
+    roots.set(review.latestRunId, review.rootRunId);
+  }
+  const runKey = (id: string) => `run:${roots.get(id) ?? id}`;
+  const keys = new Set([
+    ...needs.needGrant.map((item) => `grant:${item.slug}`),
+    ...needs.missed.map((item) => `schedule:${item.id}`),
+    ...needs.signIns.map((item) => `signin:${item.domain}`),
+    ...needs.stalled.map((item) => runKey(item.id)),
+    ...needs.attentionItems.map((item) => item.runId ? runKey(item.runId) : `attention:${item.attentionId}`),
+    ...reviews.map((item) => runKey(item.rootRunId)),
+  ]);
+  return { count: keys.size, complete };
 }
 
 export const SECONDARY_NAV: readonly NavItem[] = [

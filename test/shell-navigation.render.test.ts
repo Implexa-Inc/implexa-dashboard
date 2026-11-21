@@ -29,7 +29,7 @@ const skipLinkMod = await import('@/app/(dashboard)/_components/skip-link.tsx') 
 const { PRIMARY_NAV, SECONDARY_NAV } = await import('@/lib/navigation.ts');
 
 const USER = {
-  displayName: 'Ada', email: 'ada@example.com', plan: 'free',
+  displayName: 'Ada', email: 'ada@example.com', plan: 'free', canTrain: true,
   isFoundingCreator: false, setupStatus: 'active' as const, lastSeenAt: null, isAdmin: false,
 };
 

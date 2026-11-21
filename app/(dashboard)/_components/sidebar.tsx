@@ -1,35 +1,15 @@
 'use client';
 
-/**
- * The dashboard shell's navigation — desktop sidebar + narrow-viewport top bar.
- *
- * Both surfaces render THE SAME model from `lib/navigation` (Agents · Work ·
- * Training, with Settings secondary). They used to disagree: the sidebar held a
- * hand-maintained list of fourteen items with a `hidden` flag on eleven of them,
- * and the mobile bar held the logo and a plan chip with NO navigation at all —
- * so on a phone there was no way to reach any other domain.
- *
- * What changed, and why (DESIGN.md §4.1, §11.1):
- *   - Home and Review left primary navigation. Home owned no unique object;
- *     Review is a filter and a count inside Work. Both routes still resolve.
- *   - The logo points at the state-aware default landing (`/start`), not Home.
- *   - The eleven `hidden` entries are gone from the model rather than carried
- *     as dead rows; every one of their routes is either owned by a domain (so
- *     it lights that domain up) or redirected.
- *   - "Switch account" was removed. It submitted the same sign-out form as
- *     "Sign out", so the label described something the product does not do.
- *   - Selected state is announced (`aria-current="page"`), not just coloured,
- *     and every interactive element has a visible focus ring.
- */
+/** Shared desktop/sidebar and narrow top-bar navigation. */
 
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Logo } from '@/components/logo';
 import { STATUS_PRESENTATION, relativeFromNow, type SetupStatus } from '@/lib/setup-status';
 import {
-  primaryNavigation, SECONDARY_NAV, isNavItemActive, countNewerThan, mergeTimestamps, workSeenKey,
-  type NavItem,
+  primaryNavigation, SECONDARY_NAV, isNavItemActive,
+  type NavItem, type ShellNavigationState, type WorkAttentionBadge,
 } from '@/lib/navigation';
 
 import ThemeControl from '@/components/theme-control';
@@ -37,8 +17,9 @@ import ThemeControl from '@/components/theme-control';
 type UserCtx = {
   themeClock?: boolean;
   marketplacePilot?: boolean;
-  /** Account id — scopes the per-device "last opened Work" marker. */
+  /** Account id scopes background navigation state. */
   id?:         string | null;
+  canTrain?: boolean;
   displayName: string | null;
   email:       string;
   plan:        'free' | 'pro' | 'enterprise' | string;
@@ -60,88 +41,81 @@ const FOCUS_RING =
   'focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ' +
   'focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900';
 
-/**
- * A glanceable "new since you last opened Work" count.
- *
- * DELIBERATELY NOT the unresolved-review count. Visiting a page does not resolve
- * anything, so a seen-based badge would clear itself while the work remained —
- * which is exactly why the old Review entry shipped with no badge at all. The
- * real unresolved-decision count lives inside Work, on the Ready-for-review
- * filter, where it is read from the review queue and cannot self-clear.
- *
- * ISO timestamps are compared as epoch millis so a timezone-suffix format
- * ("+00:00" vs "Z") can't skew the result.
- */
-function useUnreadBadge(timestamps: string[], pathname: string, ownedPrefix: string, seenKey: string | null): number {
-  const [seenMs, setSeenMs] = useState<number | null>(null);
-  const onPage = pathname === ownedPrefix || pathname.startsWith(`${ownedPrefix}/`);
+const ShellState = createContext<ShellNavigationState | undefined>(undefined);
 
+/** One read for both surfaces, after paint; refresh on navigation/focus. */
+export function ShellNavigationProvider({ userId, children }: { userId: string; children: ReactNode }) {
+  const pathname = usePathname();
+  const [state, setState] = useState<ShellNavigationState>();
   useEffect(() => {
-    if (!seenKey) return;            // no account to scope by → no badge at all
-    try {
-      const v = window.localStorage.getItem(seenKey);
-      setSeenMs(v ? Number(v) : 0);   // no marker → everything counts as new
-    } catch { setSeenMs(0); }
-  }, [seenKey]);
-
-  useEffect(() => {
-    if (!onPage || !seenKey) return;
-    const now = Date.now();
-    try { window.localStorage.setItem(seenKey, String(now)); } catch { /* private mode */ }
-    setSeenMs(now);
-  }, [onPage, seenKey]);
-
-  if (seenMs === null) return 0;   // pre-hydration: render no badge (SSR-safe)
-  if (onPage) return 0;
-  return countNewerThan(timestamps, seenMs);
+    const controller = new AbortController();
+    let active = true;
+    let inFlight = false;
+    async function refresh() {
+      if (inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        const res = await fetch('/api/shell-navigation', { cache: 'no-store', signal: controller.signal });
+        const body = res.ok ? await res.json() : null;
+        const work = body?.work;
+        const valid = body?.ok === true && [true, false, null].includes(body.canTrain)
+          && (work === null || (Number.isSafeInteger(work?.count) && work.count >= 0 && typeof work.complete === 'boolean'));
+        if (active) setState(valid ? { canTrain: body.canTrain, work } : { canTrain: null, work: null });
+      } catch {
+        if (active) setState({ canTrain: null, work: null });
+      } finally { inFlight = false; }
+    }
+    void refresh();
+    const onFocus = () => { void refresh(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    const timer = window.setInterval(onFocus, 60_000);
+    return () => {
+      active = false;
+      controller.abort();
+      clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [userId, pathname]);
+  return <ShellState.Provider value={state}>{children}</ShellState.Provider>;
 }
 
-/** Everything both shell surfaces need to render one nav row. */
-function useShellNav(user: UserCtx, resultRunsAt: string[], needsItemsAt: string[]) {
+function useShellNav(user: UserCtx) {
   const pathname = usePathname() || '';
-  // Work's badge spans BOTH facts it owns: results delivered and items that
-  // stalled or are waiting on a decision. One domain, one count — merged rather
-  // than concatenated, because the two server queries read the same table and
-  // the needs-you rows are mostly a subset of the results rows.
-  //
-  // The marker is SCOPED TO THE ACCOUNT. This device genuinely runs more than
-  // one Implexa account (that is what the old "Switch account" control was
-  // for), and an unscoped key hands the second account the first one's
-  // last-opened time — suppressing a badge for work it has never seen.
-  const workUnread = useUnreadBadge(
-    mergeTimestamps(needsItemsAt, resultRunsAt), pathname, '/work', workSeenKey(user.id),
-  );
-  const badgeFor = (item: NavItem) => (item.badgeKey === 'work' ? workUnread : 0);
-  return { pathname, badgeFor };
+  const state = useContext(ShellState);
+  const canTrain = user.canTrain ?? state?.canTrain === true;
+  const items = primaryNavigation(user.marketplacePilot, canTrain);
+  return { pathname, items, work: state?.work };
 }
 
-export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: { user: UserCtx; resultRunsAt?: string[]; needsItemsAt?: string[] }) {
-  const { pathname, badgeFor } = useShellNav(user, resultRunsAt, needsItemsAt);
+export default function Sidebar({ user }: { user: UserCtx }) {
+  const { pathname, items, work } = useShellNav(user);
 
   return (
-    <aside className="hidden md:flex md:flex-col md:sticky md:top-0 app-sidebar shrink-0 border-r border-ink-700 h-screen overflow-y-auto">
+    <aside className="hidden md:flex md:flex-col md:sticky md:top-0 app-sidebar shrink-0 h-screen overflow-y-auto">
       {/* Brand — resolves to the state-aware default landing (Work when
        * something needs you or is running, otherwise Agents), never to a Home
        * page of its own. */}
-      <div className="px-6 pt-8 pb-10">
-        <Link href="/start" className={`inline-flex items-center gap-2 rounded-md text-ink-50 ${FOCUS_RING}`}>
-          <Logo height={27} />
+      <div className="app-sidebar-brand">
+        <Link href="/start" className={`flex items-center gap-2 rounded-md text-ink-50 ${FOCUS_RING}`}>
+          <Logo height={24} />
         </Link>
       </div>
 
-      <nav className="px-2 flex-1" aria-label="Primary">
+      <nav className="app-sidebar-primary" aria-label="Primary">
         <ul className="space-y-0.5">
-          {primaryNavigation(user.marketplacePilot).map((item) => (
+          {items.map((item) => (
             <li key={item.id}>
-              <NavLink item={item} active={isNavItemActive(item, pathname)} badge={badgeFor(item)} />
+              <NavLink item={item} active={isNavItemActive(item, pathname)} badge={item.badgeKey === 'work' ? work : undefined} />
             </li>
           ))}
         </ul>
 
-        <div id="shell-account-nav" className="mt-8 px-3 mb-2 text-[10px] uppercase tracking-wider text-ink-500 font-medium">
-          Account
-        </div>
-        <ul className="space-y-0.5" aria-labelledby="shell-account-nav">
+      </nav>
+      <div className="app-sidebar-divider" />
+      <nav aria-label="Settings and account">
+        <ul className="space-y-0.5">
           {SECONDARY_NAV.map((item) => (
             <li key={item.id}>
               <NavLink item={item} active={isNavItemActive(item, pathname)} />
@@ -168,44 +142,27 @@ export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: 
         )}
       </nav>
 
-      {/* User block at bottom */}
-      <div className="px-5 py-5 border-t border-ink-700">
-        <div className="mb-5"><ThemeControl enabled={user.themeClock} /></div>
-        <div className="text-sm text-ink-100 font-medium truncate" title={user.displayName || user.email}>
-          {user.displayName || user.email.split('@')[0]}
-        </div>
-        <div className="text-[11px] text-ink-400 truncate" title={user.email}>{user.email}</div>
-        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-          {/* Plan badge — for Free we say "Free plan", for paid plans we just
-           * say the name (no redundant "Pro plan"). Founding Creators get a
-           * special green badge instead of the plain plan label since their
-           * status is more meaningful than their org's plan. */}
-          {user.isFoundingCreator ? (
-            <span
-              title="Founding Creator — Pro is free for life on your account"
-              className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400"
-            >
-              Founding creator
-            </span>
-          ) : (
-            <span className={`text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 font-medium ${
-              user.plan === 'pro' || user.plan === 'enterprise'
-                ? 'bg-brand-500/20 text-action-accent'
-                : 'bg-ink-800 text-ink-300'
-            }`}>
-              {user.plan === 'pro' ? 'Pro' : user.plan === 'enterprise' ? 'Enterprise' : 'Free plan'}
-            </span>
-          )}
-        </div>
-        {/* Setup-status chip — tells users at a glance whether their Claude
-         * is actually wired up to Implexa. 'never' is clickable → /install
-         * because that's the failure mode that needs action. */}
+      <div className="app-sidebar-footer">
+        <ThemeControl enabled={user.themeClock} />
         <SetupChip status={user.setupStatus} lastSeenAt={user.lastSeenAt} />
+        <div className="app-sidebar-me">
+          <span className="app-sidebar-avatar" aria-hidden="true">{(user.displayName || user.email).slice(0, 1).toUpperCase()}</span>
+          <div className="min-w-0">
+            <div className="app-sidebar-name truncate" title={user.displayName || user.email}>
+              {user.displayName || user.email.split('@')[0]}
+            </div>
+            <div className="text-[11px] text-ink-400 truncate" title={user.email}>{user.email}</div>
+            <div className="text-xs text-ink-400">
+              {user.isFoundingCreator ? <span title="Founding Creator — Pro is free for life on your account" className="inline-block text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">Founding creator</span>
+                : user.plan === 'pro' ? 'Pro' : user.plan === 'enterprise' ? 'Enterprise' : 'Free plan'}
+            </div>
+          </div>
+        </div>
         {/* Sign out only. "Switch account" sat here and POSTed to the SAME
          * /auth/signout form — the label promised an account chooser the
          * product does not have (DESIGN.md §11.1: implement a real chooser or
          * remove it). */}
-        <div className="mt-3">
+        <div className="app-sidebar-signout">
           <form action="/auth/signout" method="POST">
             <button className={`rounded text-[11px] text-ink-300 hover:text-ink-50 hover:underline ${FOCUS_RING}`}>
               Sign out
@@ -225,87 +182,39 @@ function SetupChip({ status, lastSeenAt }: { status?: SetupStatus; lastSeenAt?: 
 
   // Only the "not connected" state is a CTA — others are passive indicators.
   const isCta = effective === 'never';
-  const inner = (
-    <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-ink-300">
-      <span className={`inline-block w-1.5 h-1.5 rounded-full ${spec.dot} animate-pulse`} aria-hidden="true" />
-      <span>{spec.label}</span>
-    </span>
-  );
-
-  return (
-    <div className="mt-2" title={tooltip}>
-      {isCta ? (
-        <Link href="/install" className={`inline-flex items-center rounded hover:underline ${FOCUS_RING}`}>
-          {inner}
-        </Link>
-      ) : inner}
-    </div>
-  );
+  const labels: Record<SetupStatus, string> = {
+    active: 'Connected recently', idle: 'No recent activity', stale: 'Check your connection', never: 'Connect your app',
+  };
+  const inner = <>
+    <NavIcon icon="desktop" />
+    <span>{labels[effective]}</span>
+    <span className={`app-connection-dot ${spec.dot}`} aria-hidden="true" />
+  </>;
+  return isCta
+    ? <Link href="/install" title={tooltip} className={`app-connection ${FOCUS_RING}`}>{inner}</Link>
+    : <div title={tooltip} className="app-connection">{inner}</div>;
 }
 
 function NavIcon({ icon }: { icon: string }) {
-  /* SVG icon via CSS mask-image — gives us currentColor inheritance.
-   *
-   * Why not <Image src=...>? Next.js Image renders the SVG inside an <img>
-   * tag, which isolates it from the parent's CSS context — so the
-   * `stroke="currentColor"` in our brand SVGs falls back to black and the
-   * icons disappear on the dark sidebar bg.
-   *
-   * Mask-image solves this: the SVG becomes a stencil and bg-current paints
-   * it the parent's text color. Trade-off: any internal `fill=` accents in
-   * the source SVG (e.g. the small flame dot in skills.svg) become part of
-   * the stencil — they don't render as a separate accent color. Acceptable
-   * for tiny 18px nav icons; switch to inline SVGR if we ever need
-   * multi-color icons in nav. */
-  return (
-    <span
-      aria-hidden="true"
-      className="block w-[18px] h-[18px] shrink-0 bg-current"
-      style={{
-        maskImage: `url(/icons/${icon}.svg)`,
-        WebkitMaskImage: `url(/icons/${icon}.svg)`,
-        maskSize: 'contain',
-        WebkitMaskSize: 'contain',
-        maskRepeat: 'no-repeat',
-        WebkitMaskRepeat: 'no-repeat',
-        maskPosition: 'center',
-        WebkitMaskPosition: 'center',
-      }}
-    />
-  );
+  const mockIcon: Record<string, string> = { workflows: 'agents', activity: 'work', trending: 'coach', settings: 'settings', desktop: 'desktop' };
+  if (mockIcon[icon]) return <svg className="app-nav-icon" aria-hidden="true"><use href={`/brand/tukido-icons.svg#${mockIcon[icon]}`} /></svg>;
+  return <span aria-hidden="true" className="app-nav-icon bg-current" style={{ maskImage: `url(/icons/${icon}.svg)`, WebkitMaskImage: `url(/icons/${icon}.svg)`, maskSize: 'contain', maskRepeat: 'no-repeat' }} />;
 }
 
-function NavBadge({ count, label }: { count: number; label: string }) {
-  if (count <= 0) return null;
-  return (
-    <span
-      className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-medium bg-ink-800 text-ink-100"
-      aria-label={`${count} new in ${label}`}
-    >
-      {count > 99 ? '99+' : count}
-    </span>
-  );
+function NavBadge({ value }: { value?: WorkAttentionBadge | null }) {
+  if (value === undefined || (value?.complete && value.count === 0)) return null;
+  const count = value?.count ?? 0;
+  const known = count > 0;
+  const label = known ? `${value?.complete ? '' : 'At least '}${count} need you` : 'Needs-you status unavailable';
+  return <span className="app-nav-count" aria-label={label} title={label}>
+    {known ? `${count > 99 ? '99' : count}${!value?.complete || count > 99 ? '+' : ''}` : '?'}
+  </span>;
 }
 
-function NavLink({ item, active, badge = 0 }: { item: NavItem; active: boolean; badge?: number }) {
-  return (
-    <Link
-      href={item.href}
-      // The selected row is announced, not merely tinted. DESIGN.md §13.1
-      // forbids carrying meaning in colour alone; `aria-current` is how the
-      // same fact reaches a screen reader and a Windows high-contrast theme.
-      aria-current={active ? 'page' : undefined}
-      className={`app-nav-link flex items-center gap-3 px-3 py-2 text-sm transition-colors ${FOCUS_RING} ${
-        active
-          ? 'text-ink-50 font-medium'
-          : 'text-ink-300 hover:text-ink-100'
-      }`}
-    >
-      <NavIcon icon={item.icon} />
-      <span>{item.label}</span>
-      <NavBadge count={badge} label={item.label} />
-    </Link>
-  );
+function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badge?: WorkAttentionBadge | null }) {
+  return <Link href={item.href} aria-current={active ? 'page' : undefined} className={`app-nav-link ${FOCUS_RING}`}>
+    <NavIcon icon={item.icon} /><span>{item.label}</span><NavBadge value={badge} />
+  </Link>;
 }
 
 /**
@@ -317,13 +226,13 @@ function NavLink({ item, active, badge = 0 }: { item: NavItem; active: boolean; 
  * Same model, same active rule, same `aria-current`; laid out as a horizontally
  * scrollable row so three labels plus a badge never overflow a 320px screen.
  */
-export function MobileTopBar({ user, resultRunsAt = [], needsItemsAt = [] }: { user: UserCtx; resultRunsAt?: string[]; needsItemsAt?: string[] }) {
-  const { pathname, badgeFor } = useShellNav(user, resultRunsAt, needsItemsAt);
+export function MobileTopBar({ user }: { user: UserCtx }) {
+  const { pathname, items, work } = useShellNav(user);
 
   return (
     <div className="md:hidden sticky top-0 z-20 bg-ink-900 border-b border-ink-700">
       <div className="px-4 py-3 flex items-center justify-between gap-3">
-        <Link href="/start" className={`inline-flex items-center gap-2 rounded-md text-ink-50 ${FOCUS_RING}`}>
+        <Link href="/start" className={`flex items-center gap-2 rounded-md text-ink-50 ${FOCUS_RING}`}>
           <Logo height={23} />
         </Link>
         <div className="flex items-center gap-2 text-xs">
@@ -333,9 +242,9 @@ export function MobileTopBar({ user, resultRunsAt = [], needsItemsAt = [] }: { u
       </div>
       <nav aria-label="Primary" className="px-2 pb-2 overflow-x-auto">
         <ul className="flex items-center gap-1 min-w-max">
-          {[...primaryNavigation(user.marketplacePilot), ...SECONDARY_NAV].map((item) => {
+          {[...items, ...SECONDARY_NAV].map((item) => {
             const active = isNavItemActive(item, pathname);
-            const badge = badgeFor(item);
+            const badge = item.badgeKey === 'work' ? work : undefined;
             return (
               <li key={item.id}>
                 <Link
@@ -349,7 +258,7 @@ export function MobileTopBar({ user, resultRunsAt = [], needsItemsAt = [] }: { u
                 >
                   <NavIcon icon={item.icon} />
                   <span>{item.label}</span>
-                  <NavBadge count={badge} label={item.label} />
+                  <NavBadge value={badge} />
                 </Link>
               </li>
             );
