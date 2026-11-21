@@ -1206,7 +1206,13 @@ export default async function RunDetailPage({
           </div>
         </div></header>
 
-        <div className={showProgressLayout?'run-detail-layout':undefined} data-priority={held||showRunProblem||info.state==='stalled'?'true':undefined}><div className="run-detail-main">
+        <div className={showProgressLayout?'run-detail-layout':undefined} data-priority={held||showRunProblem||info.state==='stalled'?'true':undefined}>
+        {showProgressLayout&&<aside className="run-detail-rail" aria-label="Run actions">
+          {heldRunControls}
+          {runProblem}
+          <section className="run-control-panel"><h2>This run</h2><p>Follow progress here and review anything the agent needs from you.</p>{cancellation}</section>
+        </aside>}
+        <div className="run-detail-main">
         {showProgressLayout&&runChecklist}
         {r.run_state==='completed'&&verifiedArtifacts.some(artifact=>artifact.role==='final_output')&&<div className="mb-6"><Link href={`/review/${r.id}`} className="btn-primary">Open result</Link></div>}
 
@@ -1534,11 +1540,6 @@ export default async function RunDetailPage({
             output (recommendation engine v1). Renders nothing when there are none. */}
         <NextAgentCards runId={r.id} recommendations={recommendations} />
         </div>
-        {showProgressLayout&&<aside className="run-detail-rail" aria-label="Run actions">
-          {heldRunControls}
-          {runProblem}
-          <section className="run-control-panel"><h2>This run</h2><p>Follow progress here and review anything the agent needs from you.</p>{cancellation}</section>
-        </aside>}
         </div>
       </div>
     </main>
