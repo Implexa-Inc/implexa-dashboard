@@ -35,7 +35,7 @@ test('attention cards cap at three, favorites at four, and unavailable roster do
  const agents=Array.from({length:6},(_,i)=>agent(`agent-${i}`,{favorite:true,needsIntervention:true,interventionReason:'Connect the account'}));
  const r=await render('agents-list.tsx',{agents});
  try{assert.equal(r.document.querySelectorAll('.agent-need-card').length,3);assert.equal(r.document.querySelectorAll('.agent-favorite-card').length,4);await r.click(r.document.querySelector('section[aria-label="Needs you"] .agent-section-more button')!);assert.equal(r.document.querySelectorAll('.agent-need-card').length,6);}finally{r.cleanup();}
- const missing=await render('agents-list.tsx',{agents:[],rosterKnown:false});try{assert.doesNotMatch(missing.text(),/No agents yet/);}finally{missing.cleanup();}
+ const missing=await render('agents-list.tsx',{agents:[],rosterKnown:false});try{assert.doesNotMatch(missing.text(),/No agents yet/);assert.equal(missing.document.querySelector('input[type="search"]'),null);assert.equal(missing.document.querySelector('[aria-label="Filter your agents"]'),null);}finally{missing.cleanup();}
 });
 
 test('a recovered server roster replaces the prior empty view without remounting',async()=>{
@@ -63,4 +63,9 @@ test('empty and no-match states offer the designed actions and preserve the sear
  try{assert.ok(empty.document.querySelector('.collection-empty-enso'));assert.match(empty.text(),/No agents yet/);assert.ok(empty.document.querySelector('.collection-empty a[href="/create"]'));assert.ok(empty.document.querySelector('.collection-empty a[href="/workflows?tab=rent"]'));}finally{empty.cleanup();}
  const r=await render('agents-list.tsx',{agents:[agent('owned')]});
  try{const search=r.document.querySelector('input[type="search"]')!;await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLInputElement.prototype,'value')!.set!.call(search,'invoice');search.dispatchEvent(new r.window.Event('input',{bubbles:true}));});assert.match(r.text(),/Your agent doesn’t match “invoice”/);await r.click(r.getByText('Clear search and filters'));assert.equal(r.document.querySelector('.collection-empty'),null);assert.equal(r.document.querySelectorAll('.agent-roster-row').length,1);}finally{r.cleanup();}
+});
+
+test('the archived panel keeps its live warning and explicit stop/restore actions',async()=>{
+ const r=await render('agents-list.tsx',{agents:[],archived:[{slug:'old-agent',name:'Archived agent',source:'generated',isLive:true}]});
+ try{const toggle=r.document.querySelector('button[aria-controls="archived-agents"]')!;assert.ok(toggle.closest('.agent-collapsed-group'));assert.equal(toggle.getAttribute('aria-expanded'),'false');await r.click(toggle);assert.equal(toggle.getAttribute('aria-expanded'),'true');assert.match(r.text(),/Still live/);assert.ok(r.queryByText('Stop it'));assert.ok(r.queryByText('Restore'));assert.equal(r.calls.backend.length,0,'opening the archive never stops or restores an agent');}finally{r.cleanup();}
 });

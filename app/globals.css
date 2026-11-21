@@ -563,3 +563,5 @@ html, body {
 .collection-read-error>svg {width:28px;height:28px;margin:0 auto 12px;}
 .collection-read-error h3 {font:22px var(--font-display),Georgia,serif;}
 .collection-read-error p {font-size:14px;max-width:30em;margin:8px auto 12px;}
+
+.agent-archive-toggle {display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-body);}

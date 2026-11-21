@@ -421,8 +421,8 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
       {error && <p className="text-xs text-state-fail mb-3">{error}</p>}
 
       {/* One outcome-first query spans owned/hired and eligible available agents. */}
-      <div className="relative mb-4">
-          <span aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 text-sm">⌕</span>
+      {(rosterKnown||list.length>0)&&<div className="relative mb-4">
+          <span aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500"><svg width="16" height="16"><use href="/brand/tukido-icons.svg#search"/></svg></span>
           <input
             type="search"
             value={query}
@@ -431,15 +431,15 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
             aria-label="Search your agents"
             className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm pl-8 pr-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
           />
-      </div>
+      </div>}
 
-      <nav className="agent-filter-chips" aria-label="Filter your agents">
+      {(rosterKnown||list.length>0)&&<nav className="agent-filter-chips" aria-label="Filter your agents">
         <button type="button" aria-pressed={!activeCat} onClick={()=>setCat('')}>All</button>
         <button type="button" aria-pressed={activeCat==='needs'} onClick={()=>setCat(activeCat==='needs'?'':'needs')}>Needs you · {countLabel(list.filter(needsHelp).length)}</button>
         <button type="button" aria-pressed={activeCat==='scheduled'} onClick={()=>setCat(activeCat==='scheduled'?'':'scheduled')}>On a schedule · {countLabel(list.filter(a=>a.section==='scheduled').length)}</button>
         {categories.slice(0,3).map(c=><button key={c.key} type="button" aria-pressed={activeCat===c.key} onClick={()=>setCat(activeCat===c.key?'':c.key)}>{c.label} · {c.n}</button>)}
         {categories.length>3&&<details><summary>More</summary><div>{categories.slice(3).map(c=><button key={c.key} type="button" aria-pressed={activeCat===c.key} onClick={()=>setCat(activeCat===c.key?'':c.key)}>{c.label} · {c.n}</button>)}</div></details>}
-      </nav>
+      </nav>}
       {attention.length>0&&<section className="agent-section" aria-label="Needs you"><div className="agent-section-head"><h2>Needs you</h2><span className="agent-attention-count">{attention.length} agents</span></div><div className="agent-needs-grid">
         {(showNeeds?attention:attention.slice(0,3)).map(a=><article key={a.slug} className={`agent-need-card ${a.lastRun?.status==='failed'?'failed':''}`}><h3>{a.name}</h3><p>{(a.pendingQuestions??0)>0?`${a.pendingQuestions} question${a.pendingQuestions===1?' needs':'s need'} your answer.`:a.interventionReason||'Open this agent to see what it needs.'}</p><Link href={`/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`} className="btn-outline">Open agent</Link></article>)}
       </div>{attention.length>3&&<p className="agent-section-more">{!showNeeds&&`and ${attention.length-3} more · `}<button type="button" onClick={()=>setShowNeeds(!showNeeds)}>{showNeeds?'Show less':`Show all ${attention.length}`}</button></p>}</section>}
@@ -463,11 +463,13 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
           liveness can't be left implicit. If this badge never appears, good:
           that's the contract holding, visibly. */}
       {arch.length > 0 && (
-        <section className="mt-10 pt-6 border-t border-ink-800">
+        <section className="agent-collapsed-group">
           <button
             type="button"
             onClick={() => setShowArchived((v) => !v)}
-            className="text-sm text-ink-400 hover:text-ink-300 flex items-center gap-1.5"
+            aria-expanded={showArchived}
+            aria-controls="archived-agents"
+            className="agent-archive-toggle"
           >
             <span className={`inline-block transition-transform ${showArchived ? 'rotate-90' : ''}`}>▸</span>
             Archived ({arch.length})
@@ -478,7 +480,7 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
             )}
           </button>
           {showArchived && (
-            <>
+            <div id="archived-agents">
               <p className="text-[11px] text-ink-500 mt-2">Hidden from your list. Archiving also stops the schedule.</p>
               <ul className="space-y-2 mt-3">
                 {arch.map((a) => (
@@ -517,7 +519,7 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
                   </li>
                 ))}
               </ul>
-            </>
+            </div>
           )}
         </section>
       )}
