@@ -1269,6 +1269,80 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     ? segmentPlaybackClock(production, selectedSegment, playheadMs ?? 0)
     : null;
 
+  const resultSurface = (<ArtifactSurface
+          runId={runId}
+          // A decision for a DIFFERENT artifact must not be rendered over this one —
+          // otherwise A's failure message shows while B is loading.
+          decision={decision && decision.artifactId === selectedId ? decision.value : null}
+          previewUrl={preview?.url ?? null}
+          onMediaReady={onMediaReady}
+          mediaKey={selectedId ?? 'none'}
+          textContent={textContent}
+          textTruncated={textTruncated}
+          mediaRef={mediaRef}
+          imageRef={imageRef}
+          issues={surfaceIssues}
+          onPlayhead={onPlayhead}
+          onSelectText={(s) => {
+            if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+            setPendingRange(null);
+            setDraft(openDraft({ target: targetIdentity, playheadMs, selection: s }));
+          }}
+          onSeek={seekTo}
+          spatial={{
+            enabled: !voiceDirty && !frozen && !accepted && artifact?.status === 'validated',
+            pins: overlayPins,
+            draftSpatial: draft?.spatial ?? null,
+            freezeMedia: freezeMediaForAnnotation,
+            onAnnotate: onSpatialAnnotate,
+            onNudgeDraft,
+            onCancelDraft: cancelSpatialDraft,
+            onOpenIssue: (issueId) => {
+              const issue = issues.find((i) => i.id === issueId);
+              if (issue) goToIssue(issue);
+            },
+          }}
+        />);
+  const cleanupDialog = (cleanupPrompt && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="post-acceptance-cleanup-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+        >
+          <div ref={cleanupDialogRef} className="w-full max-w-md rounded-xl border border-ink-700 bg-ink-950 p-5 shadow-2xl">
+            <h2 id="post-acceptance-cleanup-title" className="text-lg font-semibold text-ink-100">
+              Free up local storage?
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-ink-300">
+              Tukido can remove redundant review copies and rejected render intermediates that are no longer referenced.
+            </p>
+            <p className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-state-ok">
+              Your accepted final, editable project, learned decision traces, and original source stay protected.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                ref={cleanupDismissRef}
+                type="button"
+                disabled={cleanupBusy}
+                onClick={() => setCleanupPrompt(false)}
+                className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-300 disabled:opacity-40"
+              >
+                Keep for now
+              </button>
+              <button
+                type="button"
+                disabled={cleanupBusy}
+                onClick={() => void openPostAcceptanceCleanup()}
+                className="rounded-md bg-action-strong px-3 py-2 text-sm font-medium text-[var(--on-action-strong)] disabled:opacity-40"
+              >
+                {cleanupBusy ? 'Opening cleanup…' : 'Review cleanup'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ));
+
   return (
     /* THE WORKSPACE IS VIEWPORT-BOUNDED, so feedback volume cannot push the actions
        off screen. Every new issue used to grow the rail, which grew the page: at 100
@@ -1397,40 +1471,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           </p>
         )}
 
-        <ArtifactSurface
-          runId={runId}
-          // A decision for a DIFFERENT artifact must not be rendered over this one —
-          // otherwise A's failure message shows while B is loading.
-          decision={decision && decision.artifactId === selectedId ? decision.value : null}
-          previewUrl={preview?.url ?? null}
-          onMediaReady={onMediaReady}
-          mediaKey={selectedId ?? 'none'}
-          textContent={textContent}
-          textTruncated={textTruncated}
-          mediaRef={mediaRef}
-          imageRef={imageRef}
-          issues={surfaceIssues}
-          onPlayhead={onPlayhead}
-          onSelectText={(s) => {
-            if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
-            setPendingRange(null);
-            setDraft(openDraft({ target: targetIdentity, playheadMs, selection: s }));
-          }}
-          onSeek={seekTo}
-          spatial={{
-            enabled: !voiceDirty && !frozen && !accepted && artifact?.status === 'validated',
-            pins: overlayPins,
-            draftSpatial: draft?.spatial ?? null,
-            freezeMedia: freezeMediaForAnnotation,
-            onAnnotate: onSpatialAnnotate,
-            onNudgeDraft,
-            onCancelDraft: cancelSpatialDraft,
-            onOpenIssue: (issueId) => {
-              const issue = issues.find((i) => i.id === issueId);
-              if (issue) goToIssue(issue);
-            },
-          }}
-        />
+        {resultSurface}
 
         {artifact && (
           <div className="mt-3 text-xs text-ink-500">
@@ -2253,45 +2294,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         </div>
       </aside>
 
-      {cleanupPrompt && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="post-acceptance-cleanup-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-        >
-          <div ref={cleanupDialogRef} className="w-full max-w-md rounded-xl border border-ink-700 bg-ink-950 p-5 shadow-2xl">
-            <h2 id="post-acceptance-cleanup-title" className="text-lg font-semibold text-ink-100">
-              Free up local storage?
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-ink-300">
-              Tukido can remove redundant review copies and rejected render intermediates that are no longer referenced.
-            </p>
-            <p className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-state-ok">
-              Your accepted final, editable project, learned decision traces, and original source stay protected.
-            </p>
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
-              <button
-                ref={cleanupDismissRef}
-                type="button"
-                disabled={cleanupBusy}
-                onClick={() => setCleanupPrompt(false)}
-                className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-300 disabled:opacity-40"
-              >
-                Keep for now
-              </button>
-              <button
-                type="button"
-                disabled={cleanupBusy}
-                onClick={() => void openPostAcceptanceCleanup()}
-                className="rounded-md bg-action-strong px-3 py-2 text-sm font-medium text-[var(--on-action-strong)] disabled:opacity-40"
-              >
-                {cleanupBusy ? 'Opening cleanup…' : 'Review cleanup'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {cleanupDialog}
     </div>
   );
 }
