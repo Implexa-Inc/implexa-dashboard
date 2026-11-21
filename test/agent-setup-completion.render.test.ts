@@ -21,3 +21,9 @@ test('failure waits for an explicit retry and an account switch cannot grant acc
  try{await flush(r);await r.rerender(props);await flush(r);assert.equal(r.calls.backend.filter(c=>c.path.endsWith('/activate')).length,1);await r.click(r.getByText('Try again'));await flush(r);assert.equal(r.calls.backend.filter(c=>c.path.endsWith('/activate')).length,2);}finally{r.cleanup();}
  const foreign=await render('activation-card.tsx',props,{exportName:'ActivationCard',auth:{getSession:async()=>({data:{session:{access_token:'other-jwt',user:{id:'other-account'}}}})},backend:()=>({ok:true})});try{await flush(foreign);assert.equal(foreign.calls.backend.filter(c=>c.path.endsWith('/activate')).length,0);}finally{foreign.cleanup();}
 });
+
+test('a changed target while authentication is pending cannot send a stale completion',async()=>{
+ let release:(value:any)=>void=()=>{};const pending=new Promise(resolve=>{release=resolve;});
+ const r=await render('activation-card.tsx',props,{exportName:'ActivationCard',auth:{getSession:()=>pending},backend:()=>({ok:true})});
+ try{await r.rerender({...props,runInputs:{...props.runInputs,workflowVersionId:'44444444-4444-4444-8444-444444444444'}});await r.act(()=>release({data:{session:{access_token:'synthetic-jwt',user:{id:accountId}}}}));await flush(r);assert.equal(r.calls.backend.filter(c=>c.path.endsWith('/activate')).length,0);assert.ok(r.queryByText('The agent changed. Reload Setup.'));}finally{r.cleanup();}
+});
