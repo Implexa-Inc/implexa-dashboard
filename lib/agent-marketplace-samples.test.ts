@@ -9,10 +9,7 @@ test('only explicit, well-formed sample rows enable the pilot; empty, malformed 
  assert.equal(marketplacePilotEnabled(await readMarketplaceSamples(async()=>{throw Error('timeout');})),false);
 });
 
-test('home branching keeps every non-pilot read on the ordinary page for every tab; only authorized sample rows enable the sidebar destinations',()=>{
- const reads=[{status:'ready',listings:[]},{status:'unavailable',listings:[]}] as const;
- for(const read of reads)for(const tab of [undefined,'rent','running','training','manage','unknown'])assert.equal(agentHomeView(read as any,tab),'ordinary');
- const sample=parseMarketplaceSample({slug:'beta-video',listing})!;
- const enabled={status:'ready',listings:[sample]} as const;
- assert.equal(agentHomeView(enabled as any),'manage');assert.equal(agentHomeView(enabled as any,'rent'),'rent');assert.equal(agentHomeView(enabled as any,'running'),'running');assert.equal(agentHomeView(enabled as any,'training'),'training');assert.equal(agentHomeView(enabled as any,'manage'),'manage');
+test('both Agents tabs and old domain redirects are independent of sample availability',()=>{
+ assert.equal(agentHomeView(),'manage');assert.equal(agentHomeView('unknown'),'manage');
+ for(const tab of ['rent','running','training','manage'] as const)assert.equal(agentHomeView(tab),tab);
 });

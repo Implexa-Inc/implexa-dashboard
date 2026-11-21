@@ -108,3 +108,9 @@ test('an ACTIVE agent is never downgraded to not_activated by the library loop',
   assert.equal(agents.length, 1);
   assert.equal(agents[0].section, 'on_demand');
 });
+
+test('Train is offered only from the authenticated owned library, never an unknown generated fallback',()=>{
+ const {agents}=buildRoster({feed:{status:'ready',active:[feedAgent('owned'),feedAgent('unknown')],needsActivation:[],drafts:[]},mine:[{slug:'owned',name:'Owned',source:'generated'}],paused:[],categorize});
+ assert.equal(agents.find(agent=>agent.slug==='owned')?.canTrain,true);
+ assert.equal(agents.find(agent=>agent.slug==='unknown')?.canTrain,false);
+});

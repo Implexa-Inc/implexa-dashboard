@@ -93,7 +93,7 @@ export default async function WorkflowDetailPage({
   searchParams,
 }: {
   params: { slug: string };
-  searchParams: { source?: string; tab?: string; legacy?: string; trainingPreparationId?:string;trainingPreparationDigest?:string };
+  searchParams: { source?: string; run?:string; tab?: string; legacy?: string; trainingPreparationId?:string;trainingPreparationDigest?:string };
 }) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
@@ -115,7 +115,16 @@ export default async function WorkflowDetailPage({
   const detailPromise = getAgentDetail(params.slug, session.access_token, { source: searchParams.source });
   if (searchParams.legacy !== '1'&&trainingTest.state!=='prepared') {
     const resume = await getAgentResume(params.slug, session.access_token);
-    if (resume.status === 'found') return <AgentResume agent={resume.agent} />;
+    if (resume.status === 'found') {
+      // Follow the same installed-agent path as Use agent, only after the
+      // authoritative marketplace reader confirms this acquisition is ready.
+      if(searchParams.run==='1'&&resume.agent.readiness.state==='Ready'&&resume.agent.acquisition?.lifecycle==='installed'){
+        const target=new URLSearchParams({legacy:'1',run:'1'});
+        if(searchParams.source)target.set('source',searchParams.source);
+        redirect(`/workflows/${encodeURIComponent(params.slug)}?${target}`);
+      }
+      return <AgentResume agent={resume.agent}/>;
+    }
     if (resume.status === 'unavailable') return <main className="app-page agent-resume-page"><div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4"><h1 className="text-lg font-semibold text-ink-50">Agent unavailable</h1><p role="alert" className="mt-2 text-sm text-state-needs">{resume.reason} Marketplace readiness could not be verified, so running is disabled. Try again.</p></div></main>;
   }
 
@@ -787,6 +796,7 @@ export default async function WorkflowDetailPage({
           <div className="min-w-0"><p className="truncate text-sm font-medium text-ink-100">{workflow.name}</p>{typeof workflow.version==='number'&&<p className="text-xs text-ink-400">Version {workflow.version}</p>}</div>
           <div className="flex flex-wrap items-center justify-end gap-3">
               <AgentActions
+                openOnArrival={searchParams.run==='1'}
                 trainingTest={trainingTest.state==='prepared'?trainingTest.binding:null}
                 slug={workflow.slug}
                 name={workflow.name}

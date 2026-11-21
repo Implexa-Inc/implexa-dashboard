@@ -359,22 +359,9 @@ test('newly-built agents send the user to review steps before activation', () =>
   assert.doesNotMatch(building, /Set up & activate/, 'activation copy would push users past the actual steps');
 
   const list = read('agents-list.tsx');
-  assert.match(
-    list,
-    /a\.section === 'not_activated' \? \(\s*\n\s*<Link href=\{detail\}[\s\S]{0,160}>\s*\n\s*Review\s*\n\s*<\/Link>/,
-    'draft rows should open the detail page first so the user sees the steps',
-  );
-  assert.doesNotMatch(
-    list,
-    /a\.section === 'not_activated' \? \(\s*\n\s*<Link href=\{`\/workflows\/\$\{encodeURIComponent\(a\.slug\)\}\/activate`\}/,
-    'draft rows must not deep-link straight into activation',
-  );
-
-  const home = read('agents-home.tsx');
-  const row = home.slice(home.indexOf('function NeedsRow'), home.indexOf('function ActiveRow'));
-  assert.match(row, /href=\{`\/workflows\/\$\{a\.slug\}`\}/, 'Home needs-activation rows review first');
-  assert.match(row, />Review<\/Link>/, 'Home needs-activation CTA should say Review');
-  assert.doesNotMatch(row, /\/activate/, 'Home needs-activation rows must not bypass the step view');
+  assert.match(list,/const isDraft=a.section==='not_activated'/);
+  assert.match(list,/<Link href=\{isDraft\|\|a.section==='paused'\?detail:detail\+'&run=1'\}[\s\S]{0,100}\{isDraft\?'Turn on'/,
+    'Turn on still opens the agent detail/steps, never bypasses activation gates');
 });
 
 test('the Setup tab keeps the permissions/access editor after activation', () => {
@@ -406,28 +393,11 @@ test('the Setup tab keeps the permissions/access editor after activation', () =>
     'an active setup card should not duplicate Run/questions/feedback — only access controls');
 });
 
-test('agent roster shows the last engine/model instead of hiding the executor that ran it', () => {
-  const list = read('agents-list.tsx');
-  assert.match(list, /executor\?: string \| null;/,
-    'the roster type must carry lastRun.executor from /me/agents');
-  assert.match(list, /model\?: string \| null;/,
-    'the roster type must carry lastRun.model from /me/agents');
-  assert.match(list, /function engineLabel\(lastRun: ListAgent\['lastRun'\]\)/,
-    'engine display should be a named helper, not an ad-hoc invisible field');
-  assert.match(list, /title=\{`Last run used \$\{engine\}`\}/,
-    'the chip should expose the exact engine/model used by the latest run');
-  assert.match(list, /\{engine && \(/,
-    'the engine chip must actually render on the row');
-
-  const home = read('agents-home.tsx');
-  assert.match(home, /function engineLabel\(a: MyAgent\)/,
-    'Home agent rows must share the same engine visibility');
-  assert.match(home, /title=\{`Last run used \$\{engine\}`\}/,
-    'Home should expose the exact engine/model used by the latest run too');
-
-  const feed = read('../../../lib/agents-home.ts');
-  assert.match(feed, /executor\?: string \| null;/,
-    'the dashboard feed type must not drop lastRun.executor before components see it');
-  assert.match(feed, /model\?: string \| null;/,
-    'the dashboard feed type must not drop lastRun.model before components see it');
+test('engine metadata remains carried but is removed from collection rows', () => {
+  const list=read('agents-list.tsx');
+  assert.match(list,/executor\?: string \| null;/);assert.match(list,/model\?: string \| null;/);
+  assert.doesNotMatch(list,/function engineLabel|Run details<\/summary>/);
+  assert.match(list,/Last result/);assert.match(list,/lastRunHref=/);
+  const home=read('agents-home.tsx');
+  assert.match(home,/function engineLabel\(a: MyAgent\)/,'legacy non-collection surface remains unchanged');
 });

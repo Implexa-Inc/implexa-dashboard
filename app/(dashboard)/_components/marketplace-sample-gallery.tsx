@@ -1,59 +1,46 @@
 'use client';
-
 import {useState} from 'react';
+import Link from 'next/link';
 import type {MarketplaceSample} from '@/lib/agent-marketplace-samples';
+import type {ApprovedRead} from '@/lib/approved-marketplace-listings';
+import type {AgentDiscoveryResult} from '@/lib/agent-discovery';
+import {categorizeAgent} from '@/lib/agent-category';
 import Modal from './modal';
-import type {ApprovedListing,ApprovedRead} from '@/lib/approved-marketplace-listings';
+import {CollectionEmpty} from './collection-state';
+import RetryButton from './retry-button';
 
-const SAMPLE_PRICING = {
- video: 'Try for free. $50/run. Or $200/mo for unlimited runs.',
- marketing: 'Try for free. $10/day or $100/mo for unlimited runs.',
-};
-
-/** A visual pilot, deliberately disconnected from acquisition and checkout. */
-export default function MarketplaceSampleGallery({listings,approved={status:'ready',listings:[]}}:{listings:MarketplaceSample[];approved?:ApprovedRead}){
- const [category,setCategory]=useState('all'),[view,setView]=useState<'gallery'|'list'>('gallery');
- const [selected,setSelected]=useState<{agent:MarketplaceSample;mode:'details'|'rent'|'owner'}|null>(null);
- const [selectedReal,setSelectedReal]=useState<ApprovedListing|null>(null);
+/** One searchable catalog, retaining the existing admitted and listing contracts. */
+export default function MarketplaceSampleGallery({listings,approved={status:'ready',listings:[]},discovery={status:'ready',agents:[]}}:{listings:MarketplaceSample[];approved?:ApprovedRead;discovery?:AgentDiscoveryResult}){
+ const [query,setQuery]=useState(''),[category,setCategory]=useState('all'),[view,setView]=useState<'gallery'|'list'>('gallery');
+ const [sample,setSample]=useState<MarketplaceSample|null>(null);
  const actual=approved.status==='ready'?approved.listings:[];
- const shown=listings.filter(a=>(a.artwork!=='video'||approved.status==='ready'&&!actual.length)&&(category==='all'||a.artwork===category));
- return <section aria-label="Agents for rent" className="space-y-7">
-  <div className="flex flex-wrap items-end justify-between gap-5"><div><h2 className="text-2xl font-medium tracking-tight text-ink-100">Find a trained agent</h2><p className="mt-2 text-sm text-ink-400">Human taste. Trained judgement.</p></div><div className="inline-flex rounded-lg border border-ink-700 p-1" aria-label="Listing view">{(['gallery','list'] as const).map(v=><button key={v} type="button" aria-pressed={view===v} onClick={()=>setView(v)} className={`rounded-md px-3 py-1.5 text-xs capitalize ${view===v?'bg-ink-800 text-ink-100':'text-ink-400 hover:text-ink-100'}`}>{v==='gallery'?'▦ Gallery':'☷ List'}</button>)}</div></div>
-  <div className="flex flex-wrap items-center justify-between gap-4"><div className="flex flex-wrap gap-2" aria-label="Agent categories">{[{id:'all',name:'All'},{id:'video',name:'YouTube & video'},{id:'marketing',name:'Marketing'}].map(c=><button key={c.id} type="button" aria-pressed={category===c.id} onClick={()=>setCategory(c.id)} className={`rounded-full border px-4 py-2 text-xs ${category===c.id?'border-brand-500 bg-brand-500/10 text-action-accent':'border-ink-800 text-ink-400 hover:border-ink-600'}`}>{c.name}</button>)}</div><p className="text-xs text-ink-500">Beta preview · Illustrative listings are labelled Sample</p></div>
-  {approved.status==='unavailable'&&<p role="alert" className="text-sm text-state-needs">Approved listings could not be loaded. Try refreshing this page.</p>}
-  <div className={view==='gallery'?'grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))]':'space-y-6'} data-view={view}>
-   {category!=='marketing'&&actual.map(agent=><article key={agent.id} className={`overflow-hidden rounded-2xl border border-ink-700 bg-ink-900/30 ${view==='list'?'md:grid md:grid-cols-[280px_minmax(0,1fr)]':'max-w-2xl'}`}>
-    <button type="button" aria-label={`View ${agent.name}`} onClick={()=>setSelectedReal(agent)} className="group relative block w-full text-left"><SampleArtwork kind="video"/><span className="absolute left-5 top-5 rounded-full border border-emerald-800 bg-ink-950/90 px-3 py-1 text-xs text-state-ok">Approved beta listing</span></button>
-    <div className="space-y-5 p-6"><p className="text-xs uppercase tracking-wider text-action-accent">{agent.category}</p><button className="text-left text-2xl font-medium" onClick={()=>setSelectedReal(agent)}>{agent.name}</button><p className="text-sm leading-6 text-ink-300">{agent.output}</p><p className="text-xs leading-5 text-ink-400">You provide: {agent.input}</p><p className="text-sm">{agent.studioName}</p>
-    <p className="text-xs text-ink-400">Supports {agent.engines.map(x=>x==='claude'?'Claude':'Codex').join(' and ')||'the engines shown in Setup'}</p>
-    <p className="text-xs text-ink-500">{agent.sampleCount} approved {agent.sampleCount===1?'sample':'samples'} · Playback unavailable in this beta</p>
-    <p className="text-lg">${(agent.servicePriceCents/100).toFixed(2)} / {agent.pricePeriod==='per_run'?'run':'month'} <span className="text-xs text-ink-500">planned service price</span></p>
-    <button className="btn-primary w-full" onClick={()=>setSelectedReal(agent)}>View agent</button><p className="text-center text-xs text-ink-500">Beta · Billing is not enabled</p></div>
-   </article>)}
-   {shown.map(agent=><article key={agent.slug} className={`overflow-hidden rounded-2xl border border-ink-800 bg-ink-900/30 ${view==='list'?'md:grid md:grid-cols-[280px_minmax(0,1fr)]':'max-w-2xl'}`}>
-    <button type="button" aria-label={`View ${agent.name}`} onClick={()=>setSelected({agent,mode:'details'})} className="group relative block w-full overflow-hidden text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"><SampleArtwork kind={agent.artwork}/><span className="absolute left-5 top-5 rounded-full border border-ink-700 bg-ink-950/80 px-3 py-1 text-[10px] text-ink-300">Sample</span><span className="absolute bottom-5 left-6 text-xs tracking-wide text-ink-300">{agent.artwork==='video'?'From the first frame to the final cut':'Find your audience. Keep getting better.'}</span></button>
-    <div className="space-y-5 p-6"><div><p className="text-[11px] font-medium uppercase tracking-wider text-action-accent">{agent.category}</p><button type="button" onClick={()=>setSelected({agent,mode:'details'})} className="mt-2 text-left text-2xl font-medium tracking-tight text-ink-50 hover:text-action-accent">{agent.name}</button><p className="mt-3 text-sm leading-6 text-ink-300">{agent.outcome}</p><p className="mt-2 text-xs leading-5 text-ink-500">Start with {agent.input.charAt(0).toLowerCase()+agent.input.slice(1)}.</p></div>
-     <p className="text-[10px] uppercase tracking-wider text-ink-500">Sample performance</p><dl className="grid grid-cols-3 gap-3 border-y border-ink-800 py-4 text-sm"><div><dt className="text-[11px] text-ink-500">Taste variants</dt><dd className="mt-1 font-medium text-ink-100">{agent.tasteVariants}</dd></div><div><dt className="text-[11px] text-ink-500">Runs</dt><dd className="mt-1 font-medium text-ink-100">{agent.runCount.toLocaleString('en-US')}</dd><dd className="mt-1 text-[11px] text-state-ok">{agent.deliveryRate}% delivered</dd></div><div><dt className="text-[11px] text-ink-500">Avg. grade</dt><dd className="mt-1 font-medium text-ink-100">{agent.averageGrade}<span className="text-xs font-normal text-ink-500">/100</span></dd></div></dl>
-     <div className="flex items-center gap-2 text-xs"><span className="mr-1 text-ink-500">Supports</span>{agent.supportedEngines.map(engine=><span key={engine} className="rounded-md border border-ink-700 px-2 py-1 text-ink-300">{engine}</span>)}</div>
-     <div className="flex items-center gap-3"><span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-500/10 text-sm text-action-accent">{agent.owner.handle.slice(0,1)}</span><div><button type="button" className="text-sm text-ink-200 hover:text-action-accent" onClick={()=>setSelected({agent,mode:'owner'})}>{agent.owner.handle} <span className="ml-1 text-[10px] text-ink-500">View profile ↗</span></button><p className="mt-1 text-[11px] text-ink-500">Sample trainer · Trains {agent.owner.agentCount} {agent.owner.agentCount===1?'agent':'agents'} · {agent.owner.averageGrade}/100 avg. evaluation</p></div></div>
-     <div><button type="button" className="btn-primary w-full px-4 py-3 text-sm" onClick={()=>setSelected({agent,mode:'rent'})}>{SAMPLE_PRICING[agent.artwork]}</button><p className="mt-3 text-center text-[11px] text-ink-500">Needs your Claude or ChatGPT subscription</p></div>
-    </div>
-   </article>)}
-  </div>
-  {!shown.length&&!(category!=='marketing'&&actual.length)&&approved.status==='ready'&&<p className="py-10 text-sm text-ink-400">No agents in this category.</p>}
-  <Modal open={!!selectedReal} onClose={()=>setSelectedReal(null)} title={selectedReal?.name||'Approved listing'}>{selectedReal&&<div className="space-y-5 text-sm leading-6"><p className="text-state-ok">Approved for the two-account beta · {selectedReal.studioName}</p><p>{selectedReal.output}</p><p className="text-ink-400">You provide: {selectedReal.input}</p><p>{selectedReal.sampleCount} owner-approved {selectedReal.sampleCount===1?'sample':'samples'}. Playback is not hosted yet.</p>
-   <section><h3 className="font-medium">Tools</h3>{selectedReal.tools.map(t=><p key={t.id} className="mt-2 text-ink-400">{t.id==='runway_media'?'Runway':t.id==='veed'?'VEED':t.id} · {t.mode==='included'?`Proposed inclusion; funding setup required${t.maximumChargeCents!==null&&t.validUntil&&Date.now()<Date.parse(t.validUntil)?` (up to $${(t.maximumChargeCents/100).toFixed(2)}/run, estimate)`:' (estimate unavailable)'}`:t.mode==='customer_connects'?'Connect your own account in Setup':'Not included'}</p>)}</section>
-   <p className="text-xs text-ink-500">Uses the existing published agent and normal Setup permissions. Billing and included-tool funding are not activated by this listing.</p><a href={`/workflows/${encodeURIComponent(selectedReal.slug)}?source=generated`} className="btn-primary inline-block">Open agent setup</a>
-  </div>}</Modal>
-  <Modal open={!!selected} onClose={()=>setSelected(null)} title={selected?.mode==='owner'?selected.agent.owner.handle:selected?.agent.name||'Agent preview'}>
-   {selected&&<div className="space-y-4 text-sm leading-6 text-ink-300"><p className="text-xs text-action-accent">Beta sample</p>{selected.mode==='owner'?<><p>Trains {selected.agent.owner.agentCount} {selected.agent.owner.agentCount===1?'agent':'agents'}.</p><p>Average evaluation: {selected.agent.owner.averageGrade}/100.</p><p className="text-xs text-ink-500">Illustrative trainer profile for this preview.</p></>:<><p>{selected.agent.outcome}</p><p className="text-lg text-ink-100">{SAMPLE_PRICING[selected.agent.artwork]}</p><p>Needs your Claude or ChatGPT subscription.</p><p className="text-xs text-ink-500">Sample listing. Agent details and rental checkout are coming next.</p></>}<button type="button" className="btn-primary mt-2" onClick={()=>setSelected(null)}>Done</button></div>}
-  </Modal>
- </section>;
-}
+ const realSlugs=new Set(actual.map(a=>a.slug));
+ const admitted=discovery.status==='ready'?discovery.agents.filter(a=>!realSlugs.has(a.slug)):[];
+ const samples=listings.filter(a=>a.artwork!=='video'||approved.status==='ready'&&!actual.length&&!admitted.length);
+ const categoryFor=(name:string,category:string)=>{const known=categorizeAgent([name,category]);return known.key==='assistant'&&category.trim()?{key:category.trim().toLowerCase(),label:category.trim()}:known;};
+ const categories=new Map<string,string>();
+ for(const a of [...actual,...samples]){const c=categoryFor(a.name,a.category);categories.set(c.key,c.label);}
+ for(const a of admitted){const c=categoryFor(a.name,a.job);categories.set(c.key,c.label);}
+ const needle=query.trim().toLowerCase();
+ const matches=(name:string,cat:string,words:string[])=> (category==='all'||categoryFor(name,cat).key===category)&&(!needle||[name,cat,...words].join(' ').toLowerCase().includes(needle));
+ const shownActual=actual.filter(a=>matches(a.name,a.category,[a.output,a.input,a.studioName]));
+ const shownAdmitted=admitted.filter(a=>matches(a.name,a.job,[a.builder.name,...a.capabilities||[]]));
+ const shownSamples=samples.filter(a=>matches(a.name,a.category,[a.outcome,a.input,a.owner.handle]));
+ const count=shownActual.length+shownAdmitted.length+shownSamples.length;
+ const art=<div className="marketplace-card-art" aria-hidden="true"><svg><use href="/brand/tukido-icons.svg#agents"/></svg></div>;
+ return <section className="marketplace-collection" aria-label="Find a trained agent">
+  <input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="What do you need done? For example: turn my podcast into Shorts" aria-label="Search trained agents" className="input"/>
+  <nav className="agent-filter-chips" aria-label="Agent categories"><button type="button" aria-pressed={category==='all'} onClick={()=>setCategory('all')}>All</button>{Array.from(categories,([key,label])=><button key={key} type="button" aria-pressed={category===key} onClick={()=>setCategory(key)}>{label}</button>)}</nav>
+  <div className="agent-section-head"><h2>Trained by experts</h2><div className="marketplace-view" aria-label="Listing view">{(['gallery','list'] as const).map(v=><button key={v} type="button" aria-pressed={view===v} onClick={()=>setView(v)}>{v==='gallery'?'Gallery':'List'}</button>)}</div></div>
+  {(approved.status==='unavailable'||discovery.status==='unavailable')&&<p role="status" className="mb-5 text-sm text-state-needs">Some trained agents couldn’t be loaded. Known listings are shown below. <RetryButton appearance="button"/></p>}
+  {count>0&&<div className="marketplace-grid" data-view={view}>
+   {shownActual.map(a=><article className="marketplace-card" key={a.id}>{art}<div className="marketplace-card-body"><h3><Link href={`/workflows/${encodeURIComponent(a.slug)}?source=generated`}>{a.name}</Link></h3><p>{a.output}</p><p className="marketplace-meta">You provide: {a.input}</p><p className="marketplace-trainer">Trained by {a.studioName}</p><p className="marketplace-meta">{a.sampleCount} {a.sampleCount===1?'sample':'samples'}</p><div className="marketplace-card-footer"><span>${(a.servicePriceCents/100).toFixed(2)}/{a.pricePeriod==='per_run'?'run':'month'} <small>planned price</small></span><Link href={`/workflows/${encodeURIComponent(a.slug)}?source=generated`} className="btn-outline">View agent</Link></div><small className="marketplace-meta">Check the tools you’ll need before you start.</small></div></article>)}
+   {shownAdmitted.map(a=><article className="marketplace-card" key={a.id}>{art}<div className="marketplace-card-body"><h3><Link href={`/workflows/${encodeURIComponent(a.slug)}`}>{a.name}</Link></h3><p>{a.job}</p><p className="marketplace-trainer">Trained by {a.builder.name}</p>{a.audition&&a.audition.allowance>0&&<p className="marketplace-meta">Free first run. You still pay for any tools it uses on your own accounts.</p>}<Link href={`/workflows/${encodeURIComponent(a.slug)}`} className="btn-outline">View agent</Link></div></article>)}
+   {shownSamples.map(a=><article className="marketplace-card" key={a.slug}>{art}<div className="marketplace-card-body"><span className="marketplace-meta">Sample listing</span><h3>{a.name}</h3><p>{a.outcome}</p><p className="marketplace-meta">You provide: {a.input}</p><p className="marketplace-trainer">Sample trainer · {a.owner.handle}</p><button type="button" onClick={()=>setSample(a)} className="btn-outline">Preview sample</button></div></article>)}
+   <aside className="marketplace-build-card"><h3>Build yours, free</h3><p>Describe the work you want done. We’ll work out the steps together.</p><Link href="/create" className="btn-outline">Describe the job →</Link></aside>
+  </div>}
+  {!count&&approved.status==='ready'&&discovery.status==='ready'&&<CollectionEmpty title="No results" description={needle||category!=='all'?`No trained agents match${needle?` “${query.trim()}”`:''}${category!=='all'?` in ${categories.get(category)||category}`:''}.`:'No trained agents are listed yet. When trainers publish agents they appear here.'}>{(needle||category!=='all')&&<button type="button" className="btn-outline" onClick={()=>{setQuery('');setCategory('all');}}>Clear search and filters</button>}</CollectionEmpty>}
 
-function SampleArtwork({kind}:{kind:'video'|'marketing'}){
- return <svg viewBox="0 0 640 330" role="img" aria-label={kind==='video'?'Illustrated video editing canvas':'Illustrated campaign performance chart'} className="aspect-[1.94] w-full bg-ink-900 transition-transform duration-500 group-hover:scale-[1.02]">
-  <rect width="640" height="330" fill="currentColor" className="text-ink-900"/><path d="M0 66H640M0 132H640M0 198H640M0 264H640M128 0V330M256 0V330M384 0V330M512 0V330" stroke="currentColor" className="text-ink-800"/>
-  {kind==='video'?<><rect x="128" y="59" width="382" height="204" rx="16" fill="currentColor" className="text-ink-950"/><rect x="143" y="74" width="226" height="130" rx="8" fill="currentColor" className="text-action-accent"/><circle cx="256" cy="126" r="31" fill="currentColor" className="text-action-accent"/><path d="M143 191L209 133L262 174L302 149L369 204H143Z" fill="currentColor" className="text-action-accent"/><rect x="382" y="74" width="112" height="130" rx="8" fill="currentColor" className="text-ink-800"/><circle cx="438" cy="114" r="18" fill="currentColor" className="text-ink-500"/><path d="M405 179Q405 140 438 140Q471 140 471 179" fill="currentColor" className="text-ink-500"/><rect x="143" y="218" width="79" height="25" rx="4" fill="currentColor" className="text-action-accent"/><rect x="229" y="218" width="121" height="25" rx="4" fill="currentColor" className="text-action-accent"/><rect x="357" y="218" width="136" height="25" rx="4" fill="currentColor" className="text-ink-700"/><path d="M284 207V253" stroke="currentColor" strokeWidth="2" className="text-ink-100"/></>:<><rect x="121" y="61" width="398" height="203" rx="16" fill="currentColor" className="text-ink-950"/>{[52,75,109,145,177].map((h,i)=><rect key={h} x={167+i*61} y={235-h} width="32" height={h} rx="5" fill="currentColor" className={i===4?'text-action-accent':'text-action-accent'}/>)}<path d="M164 177L225 157L286 164L347 111L408 86L472 78" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="text-action-accent"/><circle cx="472" cy="78" r="7" fill="currentColor" className="text-action-accent"/></>}
- </svg>;
+  <Modal open={!!sample} onClose={()=>setSample(null)} title={sample?.name||'Sample listing'}>{sample&&<div className="space-y-4 text-sm"><p>Sample listing · illustrative, not available to run.</p><p>{sample.outcome}</p><p>You provide: {sample.input}</p><button type="button" onClick={()=>setSample(null)} className="btn-outline">Done</button></div>}</Modal>
+ </section>;
 }
