@@ -44,11 +44,12 @@ test('detail lookup distinguishes authoritative absence from outages and malform
   assert.deepEqual(await getAgentResume('marketplace-agent', 'jwt'), { status: 'unavailable', reason: 'Agent resume response was incomplete.' });
 });
 
-test('workflow detail falls back only for authoritative non-marketplace absence', () => {
-  const page = readFileSync(join(import.meta.dirname, '..', 'app', '(dashboard)', 'workflows', '[slug]', 'page.tsx'), 'utf8');
-  assert.match(page, /resume\.status === 'found'/);
-  assert.match(page, /resume\.status === 'unavailable'/);
-  assert.match(page, /Marketplace readiness could not be verified, so running is disabled/);
-  assert.doesNotMatch(page, /resume\.status === 'unavailable'[\s\S]{0,300}getMyWorkflow/,
-    'an unavailable authority must return before any legacy runnable fallback');
+test('one agent page distinguishes public fallback from an unread acquisition authority', async () => {
+  const {agentPageReadMode}=await import('./agent-detail.ts');
+  const ready=(owner:boolean)=>({status:'ready',detail:{canInspectOwnLearningInfluence:owner}} as any);
+  assert.deepEqual(agentPageReadMode(ready(false),{status:'unavailable',reason:'outage'}),{mode:'detail',discoveryUnavailable:true});
+  assert.deepEqual(agentPageReadMode(ready(true),{status:'unavailable',reason:'outage'}),{mode:'detail',discoveryUnavailable:true});
+  assert.deepEqual(agentPageReadMode({status:'not_found'},{status:'unavailable',reason:'outage'}),{mode:'unavailable'});
+  assert.deepEqual(agentPageReadMode({status:'unavailable'},{status:'found',agent:{id:'public'} as any}),{mode:'public',agent:{id:'public'}});
+  assert.deepEqual(agentPageReadMode({status:'not_found'},{status:'not_marketplace'}),{mode:'schedule'});
 });

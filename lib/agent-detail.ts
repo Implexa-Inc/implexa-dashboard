@@ -260,3 +260,11 @@ export function agentActionContext(result:AgentDetailResult){
   pendingUpdate:w?.update_available?{version:w.update_available.version,state:w.update_available.state}:null};
 }
 export type AgentActionContext=ReturnType<typeof agentActionContext>;
+
+/** One page selects its readable authority without turning discovery outages into runnable public fallbacks. */
+export function agentPageReadMode(detail:AgentDetailResult,resume:import('./agent-discovery').AgentResumeResult|null){
+  if(detail.status==='ready')return {mode:'detail' as const,discoveryUnavailable:resume?.status==='unavailable'};
+  if(resume?.status==='found')return {mode:'public' as const,agent:resume.agent};
+  if(detail.status==='unavailable'||resume?.status==='unavailable')return {mode:'unavailable' as const};
+  return {mode:'schedule' as const};
+}

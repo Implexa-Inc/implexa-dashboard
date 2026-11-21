@@ -22,7 +22,7 @@ const agent={id:'11111111-1111-4111-8111-111111111111',slug:'my-agent',name:'My 
 test('installed customer Run opens the existing form and management remains in More without mutation',async()=>{
  const r=await render('agent-resume.tsx',{agent});
  try{
-  const run=r.document.querySelector('a[href="/workflows/my-agent?legacy=1&run=1"]');assert.equal(run?.textContent,'Run');
+  const run=r.document.querySelector('a[href="/workflows/my-agent?run=1"]');assert.equal(run?.textContent,'Run');
   assert.equal(r.document.querySelector('a[href="/training/my-agent"]'),null);
   const more=r.document.querySelector('.agent-page-more');assert.ok(more?.querySelector('button'));
   assert.ok(more?.textContent?.includes('Pause agent'));
@@ -32,4 +32,16 @@ test('installed customer Run opens the existing form and management remains in M
 test('only an owner gets Training and edit links in the same agent layout',async()=>{
  const r=await render('agent-resume.tsx',{agent:{...agent,ownership:'Owned'}});
  try{assert.ok(r.document.querySelector('a[href="/training/my-agent"]'));assert.ok(r.document.querySelector('a[href="/training/my-agent?chat=edit"]'));assert.equal(r.calls.backend.length,0);}finally{r.cleanup();}
+});
+
+test('Overview has the same give/get sections without editable input fields',async()=>{
+ const fields=[{key:'brief',label:'Your brief',description:'Context',kind:'text',required:true}];
+ for(const ownership of ['Owned','Hired','Available']){
+  const r=await render('agent-resume.tsx',{agent:{...agent,ownership,requiredInputs:{version:1,fields}}});
+  try{assert.ok(r.queryByText('What you give, what you get'));assert.ok(r.queryByText('You give'));assert.ok(r.queryByText('You get'));assert.equal(r.document.querySelector('input,textarea,select'),null);assert.equal(r.queryByText('Required inputs'),null);assert.equal(r.calls.backend.length,0);}finally{r.cleanup();}
+ }
+});
+test('marketplace setup retains its configured inputs and exact acquisition writer',async()=>{
+ const r=await render('agent-resume.tsx',{surface:'setup',agent:{...agent,readiness:{state:'Needs setup',reason:null},requiredInputs:{version:1,fields:[{key:'brief',label:'Your brief',description:'Context',kind:'text',required:true}]}}});
+ try{const field=r.document.querySelector('input:not([type="checkbox"])');assert.ok(field);assert.ok(r.queryByText('Required inputs'));assert.equal(r.calls.backend.length,0);}finally{r.cleanup();}
 });

@@ -26,10 +26,11 @@ import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
 import { listMyWorkflows, workflowRunInputs } from '@/lib/workflow-catalog';
-import { getAgentDetail, agentActionContext } from '@/lib/agent-detail';
+import { getAgentDetail, agentActionContext, agentPageReadMode } from '@/lib/agent-detail';
 import { remoteSafety } from '@/lib/remote-safety';
 import { loadInboxItems } from '@/lib/inbox';
 import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
+import AgentOverview from '../../_components/agent-overview';
 import AgentPageHeader from '../../_components/agent-page-header';
 import AgentReadiness from '../../_components/agent-readiness';
 import { missingRequiredApiKeys } from '@/lib/agent-readiness-requirements';
@@ -96,6 +97,7 @@ export default async function WorkflowDetailPage({
   params: { slug: string };
   searchParams: { source?: string; run?:string; tab?: string; legacy?: string; trainingPreparationId?:string;trainingPreparationDigest?:string };
 }) {
+  if(searchParams.legacy){const query=new URLSearchParams(Object.entries(searchParams).filter(([key,value])=>key!=='legacy'&&typeof value==='string') as Array<[string,string]>);redirect(`/workflows/${encodeURIComponent(params.slug)}${query.size?'?'+query:''}`);}
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
@@ -114,30 +116,19 @@ export default async function WorkflowDetailPage({
   // it now runs in parallel with the envelope and simply wins when the agent is
   // a marketplace one.
   const detailPromise = getAgentDetail(params.slug, session.access_token, { source: searchParams.source });
-  if (searchParams.legacy !== '1'&&trainingTest.state!=='prepared') {
-    const resume = await getAgentResume(params.slug, session.access_token);
-    if (resume.status === 'found') {
-      // Follow the same installed-agent path as Use agent, only after the
-      // authoritative marketplace reader confirms this acquisition is ready.
-      if(searchParams.run==='1'&&resume.agent.readiness.state==='Ready'&&resume.agent.acquisition?.lifecycle==='installed'){
-        const target=new URLSearchParams({legacy:'1',run:'1'});
-        if(searchParams.source)target.set('source',searchParams.source);
-        redirect(`/workflows/${encodeURIComponent(params.slug)}?${target}`);
-      }
-      return <AgentResume agent={resume.agent}/>;
-    }
-    if (resume.status === 'unavailable') return <main className="app-page agent-resume-page"><div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4"><h1 className="text-lg font-semibold text-ink-50">Agent unavailable</h1><p role="alert" className="mt-2 text-sm text-state-needs">{resume.reason} Marketplace readiness could not be verified, so running is disabled. Try again.</p></div></main>;
-  }
-
+  const resume=trainingTest.state==='prepared'?null:await getAgentResume(params.slug,session.access_token);
   const detailResult = await detailPromise;
 
+  // A readable public/acquisition projection remains useful if the deeper detail is absent.
+  const readMode=agentPageReadMode(detailResult,resume);
+  if(readMode.mode==='public')return <AgentResume agent={readMode.agent} detailUnavailable/>;
   // A FAILED READ IS NOT A MISSING AGENT. 'unavailable' used to fall through to
   // the schedule-only branch below, which calls notFound() when the agent has
   // no schedule row — so a backend blip told the owner their agent had been
   // deleted. The reader distinguishes not_found from unavailable precisely so
   // this branch can, and the schedule-only fallback stays reserved for its real
   // case: a scheduled SKILL that genuinely is not in the workflow catalog.
-  if (detailResult.status === 'unavailable') {
+  if (readMode.mode === 'unavailable') {
     return (
       <main className="app-page agent-resume-page">
         <div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4">
@@ -260,7 +251,9 @@ export default async function WorkflowDetailPage({
   // failure hides the queued edit and offers both Run now and Edit Agent again.
   const lifecycleUnavailable = detail!.isUnavailable('lifecycle');
   // Any section whose failure makes the primary action unsafe to offer.
-  const actionsBlocked = activationUnavailable || connectionsUnavailable || lifecycleUnavailable;
+  const discoveryUnavailable=readMode.mode==='detail'&&readMode.discoveryUnavailable;
+  const marketplaceAgent=resume?.status==='found'?resume.agent:null;
+  const actionsBlocked = activationUnavailable || connectionsUnavailable || lifecycleUnavailable||discoveryUnavailable;
   const safety = remoteSafety(workflow);
   const boundCount = workflow.steps.filter((s) => s.ref && !s.gap).length;
 
@@ -331,36 +324,11 @@ export default async function WorkflowDetailPage({
   const activeTab = searchParams.tab && tabKeys.includes(searchParams.tab) ? searchParams.tab : 'overview';
 
   const canTrain = detail!.canInspectOwnLearningInfluence === true;
-  const setupHref=`/workflows/${encodeURIComponent(workflow.slug)}?${new URLSearchParams({...(searchParams.source?{source:searchParams.source}:{}),legacy:'1',tab:'setup'})}`;
+  const setupHref=`/workflows/${encodeURIComponent(workflow.slug)}?${new URLSearchParams({...(searchParams.source?{source:searchParams.source}:{}),tab:'setup'})}`;
 
-  const overviewPanel = () => (
-    <>
-      {(workflow.input_contract?.fields.length||workflow.primary_outcome)&&<section className="agent-give-get mb-8" aria-label="Inputs and output">
-        <div className="card"><h2 className="mb-4 text-lg font-medium">You give</h2>
-          {workflow.input_contract?.fields.length?<ul className="space-y-3">{workflow.input_contract.fields.map(field=><li key={field.key} className="text-sm"><p className="font-medium text-ink-100">{field.label}<span className="ml-2 text-xs font-normal text-ink-400">{field.required?'Required':'Optional'}</span></p>{field.description&&<p className="mt-1 text-xs leading-relaxed text-ink-400">{field.description}</p>}</li>)}</ul>:<p className="text-sm text-ink-400">No run inputs declared.</p>}
-        </div>
-        <div className="card"><h2 className="mb-4 text-lg font-medium">You get</h2><p className="text-sm leading-relaxed text-ink-200">{workflow.primary_outcome||workflow.job||workflow.description}</p>
-          {workflow.signals.length>0&&<ul className="mt-4 space-y-2 text-xs text-ink-400">{workflow.signals.map(signal=><li key={signal}>{signal}</li>)}</ul>}
-        </div>
-      </section>}
-
-      <section className="agent-needs-section"><h2>What it needs</h2>      {/* Readiness, not a shopping list. "What you'll need" is PROVISIONING and
-          now lives in Activate, where it can be finished and then collapse — it
-          used to sit here permanently, never reflecting satisfaction, offering
-          "Get it" for keys the user already had. */}
-      <AgentReadiness
-        slug={workflow.slug}
-        setupHref={setupHref}
-        isActive={isActive}
-        blockingQuestions={blockingQuestions}
-        optionalQuestions={optionalQuestions}
-        requirementsSatisfied={missingServices.length === 0}
-        missingServices={missingServices}
-      />
-
-</section>
-
-      {/* Steps */}
+  const overviewPanel = () => <AgentOverview
+    inputs={workflow.input_contract?.fields} output={workflow.primary_outcome||workflow.job||workflow.description} signals={workflow.signals}
+    steps={workflow.steps.length?<>      {/* Steps */}
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">How it works</h2>
@@ -388,39 +356,19 @@ export default async function WorkflowDetailPage({
             ))}
           </ul>
         )}
-        {/* Extend this chain in place (cycle-checked) — append one of your other
-            agents as a new step, instead of building a duplicate chain. */}
-        {isChain && (
-          <div className="mt-3 pt-3 border-t border-ink-800">
-            <ExtendChain slug={workflow.slug} candidates={chainCandidates} />
-          </div>
-        )}
       </div>
-
-      {/* Caveat */}
-      {workflow.caveat && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20 p-5 mb-6">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-state-needs mb-1">Keep in mind</h2>
-          <p className="text-sm text-state-needs">{workflow.caveat}</p>
-        </div>
-      )}
-
-      {/* Runs hands-free with */}
-      {workflow.capabilities.length > 0 && (
-        <div className="card mb-6">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-3">Runs hands-free with</h2>
-          <ul className="space-y-3">
-            {workflow.capabilities.map((cap) => (
-              <li key={cap.id} className="text-sm">
-                <div className="text-ink-100">{cap.name}</div>
-                <div className="text-xs text-ink-400 mt-0.5">{cap.why}</div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <details className="proof-disclosure mb-6"><summary><span>Run history and checks</span><span className="ml-3 inline-flex flex-wrap items-center gap-2 text-xs font-normal text-ink-300">{grade && <span>Delivered {Math.round(grade.rate * 100)}% across {grade.runs} real run{grade.runs === 1 ? '' : 's'}</span>}<RemoteSafetyBadge safety={safety} size="xs" /></span></summary><div className="mt-5">
+</>:null}
+    needs={<>      <AgentReadiness
+        slug={workflow.slug}
+        setupHref={setupHref}
+        isActive={isActive}
+        blockingQuestions={blockingQuestions}
+        optionalQuestions={optionalQuestions}
+        requirementsSatisfied={missingServices.length === 0}
+        missingServices={missingServices}
+      /></>}
+    limitations={workflow.caveat}
+    trust={<>      <details className="proof-disclosure mb-6"><summary><span>Run history and checks</span><span className="ml-3 inline-flex flex-wrap items-center gap-2 text-xs font-normal text-ink-300">{grade && <span>Delivered {Math.round(grade.rate * 100)}% across {grade.runs} real run{grade.runs === 1 ? '' : 's'}</span>}<RemoteSafetyBadge safety={safety} size="xs" /></span></summary><div className="mt-5">
       {/* Build evidence — whether this agent was assembled from parts that
           have actually delivered in real runs, not merely from semantic matches. */}
       {workflow.build_evidence && workflow.build_evidence.status !== 'pending' && (
@@ -473,9 +421,8 @@ export default async function WorkflowDetailPage({
         )}
       </div>
 
-      </div></details>
-
-      {/* Changelog */}
+      </div></details></>}
+  >      {/* Changelog */}
       {workflow.versions.length > 0 && (
         <div id="agent-history" className="card mb-6">
           <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -520,8 +467,7 @@ export default async function WorkflowDetailPage({
           </ul>
         </div>
       )}
-    </>
-  );
+</AgentOverview>;
 
   const runsPanel = () => runsUnavailable ? (
     // NOT the empty state: we did not read the history, so we cannot say it is
@@ -546,6 +492,23 @@ export default async function WorkflowDetailPage({
 
   const setupPanel = () => (
     <>
+      {marketplaceAgent&&<AgentResume agent={marketplaceAgent} surface="setup"/>}
+      {/* Runs hands-free with */}
+      {workflow.capabilities.length > 0 && (
+        <div className="card mb-6">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-3">Runs hands-free with</h2>
+          <ul className="space-y-3">
+            {workflow.capabilities.map((cap) => (
+              <li key={cap.id} className="text-sm">
+                <div className="text-ink-100">{cap.name}</div>
+                <div className="text-xs text-ink-400 mt-0.5">{cap.why}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+
       {/* Schedule — edit / pause / make-on-demand inline, no navigating away. */}
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-3">
@@ -650,13 +613,22 @@ export default async function WorkflowDetailPage({
         <AgentPageHeader
           title={<AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={true}/>}
           description={workflow.job || workflow.description}
-          byline={<><span>{canTrain?'Built by you':checklist?.requiresLocal?'Runs on your computer':'Agent'}</span><span>·</span><span>{workflow.activity.run_count} recorded runs</span>{typeof workflow.version==='number'&&<><span>·</span><span data-testid="active-version">Active version: v{workflow.version}</span></>}{judgePolicy==='observe'&&<><span>·</span><span title="Reviews each run without changing or rerunning it">Judge on</span></>}{judgePolicy==='every_run'&&<><span>·</span><span title="Reviews and may rerun one repair using your subscription">Judge on · may repair</span></>}{workflow.unproven&&<><span>·</span><span>Not proven by runs yet</span></>}</>}
+          byline={<><span>{canTrain?'Built by you':marketplaceAgent?`Trained by ${marketplaceAgent.builder.name}`:checklist?.requiresLocal?'Runs on your computer':'Agent'}</span><span>·</span><span>{workflow.activity.run_count} recorded runs</span>{typeof workflow.version==='number'&&<><span>·</span><span data-testid="active-version">Active version: v{workflow.version}</span></>}{judgePolicy==='observe'&&<><span>·</span><span title="Reviews each run without changing or rerunning it">Judge on</span></>}{judgePolicy==='every_run'&&<><span>·</span><span title="Reviews and may rerun one repair using your subscription">Judge on · may repair</span></>}{workflow.unproven&&<><span>·</span><span>Not proven by runs yet</span></>}</>}
           more={<>
             <Link href={setupHref.replace('tab=setup','tab=overview')+'#agent-history'}>Version history</Link>
             <AgentDefinitionReview definition={workflow.revision_contract ?? null} versionSource={workflow.definition_version_source ?? null} updateAvailable={!!workflow.update_available} revisePending={revisePending} statusUnavailable={lifecycleUnavailable} slug={workflow.slug}/>
-            <AgentEditButton slug={workflow.slug} statusUnavailable={lifecycleUnavailable} revisePending={revisePending}/>
+            <AgentEditButton slug={workflow.slug} statusUnavailable={lifecycleUnavailable} revisePending={revisePending} chainEditor={isChain?<ExtendChain slug={workflow.slug} candidates={chainCandidates}/>:undefined}/>
             {workflow.run_input_version_source==='installed'&&<ForkRunCta skillSlug={workflow.slug} source={workflow.source} versionId={workflow.workflow_version_id}/>}
             {pausableRoutine&&<AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status}/>}
+              {/* Desktop-first: open this agent in the app (gated until the app
+                  ships; web actions above remain the fallback). */}
+              {desktopAppLive() && (
+                <NotInApp>
+                  <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-action-accent hover:underline">
+                    Open in the Tukido app ↗
+                  </a>
+                </NotInApp>
+              )}
           </>}
         >
           {revisePending&&<div role="status" className="agent-page-notice">Your edit is being prepared. Running is paused until it is ready.{<ReviseLandedPoller revisePending={revisePending}/>}</div>}
@@ -665,7 +637,7 @@ export default async function WorkflowDetailPage({
         <div className="agent-sample-placeholder" role="img" aria-label="Sample preview unavailable"><span>Sample output</span><p>A sample preview is not available here yet.</p></div>
         <div className="agent-page-stats" aria-label="Recorded agent activity">
           <Stat label="Runs recorded" value={`${workflow.activity.run_count}`}/>
-          <Stat label="Delivered" value={gradeUnavailable?'Unavailable':grade?`${Math.round(grade.rate*100)}% of ${grade.runs} runs`:'Not measured yet'}/>
+          <Stat label="Delivered" value={gradeUnavailable?'Unavailable':grade?`${Math.round(grade.rate*100)}% · ${grade.runs} checked runs`:'Not measured yet'}/>
           <Stat label="Last run" value={detail!.isUnavailable('latest_run')?'Unavailable':rel(workflow.activity.last_run_at)}/>
         </div>
 
@@ -704,6 +676,7 @@ export default async function WorkflowDetailPage({
           </div>
         )}
 
+        {discoveryUnavailable&&<p role="status">Marketplace setup could not be checked. Running is paused until it loads.</p>}
         <AgentTabs
           tabs={tabs}
           active={activeTab}
@@ -712,7 +685,9 @@ export default async function WorkflowDetailPage({
         <div className="agent-action-bar" aria-label="Agent actions">
           <div className="min-w-0"><p className="truncate text-sm font-medium text-ink-100">{actionsBlocked?'Setup status unavailable':blockingQuestions>0||missingServices.length?'Finish the required setup':isActive?'Ready for your next run':'Finish the required setup'}</p>{typeof workflow.version==='number'&&<p className="text-xs text-ink-400">Version {workflow.version}{canTrain?' · built by you':''}</p>}</div>
           <div className="flex flex-wrap items-center justify-end gap-3">
-              <AgentActions
+              <Link href={setupHref} className="btn-outline px-4 py-2 text-sm">Setup</Link>
+              {marketplaceAgent&&marketplaceAgent.readiness.state!=='Ready'?<AgentResume agent={marketplaceAgent} surface="action"/>:<AgentActions
+                runLabel="Run" presentation="dock"
                 openOnArrival={searchParams.run==='1'}
                 trainingTest={trainingTest.state==='prepared'?trainingTest.binding:null}
                 slug={workflow.slug}
@@ -732,16 +707,8 @@ export default async function WorkflowDetailPage({
                 inputContract={workflow.input_contract}
                 inputContractDigest={workflow.input_contract_digest}
                 pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
-              />
-              {/* Desktop-first: open this agent in the app (gated until the app
-                  ships; web actions above remain the fallback). */}
-              {desktopAppLive() && (
-                <NotInApp>
-                  <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-action-accent hover:underline">
-                    Open in the Tukido app ↗
-                  </a>
-                </NotInApp>
-              )}
+              />}
+
           </div>
         </div>
       </div>
