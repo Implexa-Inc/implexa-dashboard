@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
+import WorkItemRow from '../_components/work-item-row';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
@@ -159,8 +160,10 @@ export default function InboxList({
   initialItems,
   basePath = '/inbox',
   heading = 'Inbox',
+  workRows = false,
 }: {
   initialItems: InboxItem[];
+  workRows?: boolean;
   /** Route the `?run=` deep-link syncs to. Home embeds this list at /overview. */
   basePath?: string;
   /** Section header label (with a live count). Pass null to hide it — e.g. the
@@ -208,7 +211,7 @@ export default function InboxList({
 
   const open = useCallback((id: string) => {
     setOpenId(id);
-    router.replace(`${basePath}?run=${id}`, { scroll: false });
+    router.replace(`${basePath}${basePath.includes('?') ? '&' : '?'}run=${encodeURIComponent(id)}`, { scroll: false });
   }, [router, basePath]);
 
   const close = useCallback(() => {
@@ -286,7 +289,7 @@ export default function InboxList({
           onClick={() => open(it.id)}
           className={`${base} border-ink-700 text-ink-400 hover:text-ink-100 hover:border-ink-500`}
         >
-          {dot} View
+          {dot} {workRows ? 'Open' : 'View'}
         </button>
       </div>
     );
@@ -306,6 +309,10 @@ export default function InboxList({
     const line = snippet(item.output_markdown);
     const cat = categorizeAgent([item.name, item.why]);
     const scheduled = item.source === 'scheduled';
+    if (workRows) return <li key={item.id}><WorkItemRow title={item.name}
+      detail={line || item.why || (scheduled ? 'Scheduled run' : 'Manual run')}
+      state={item.state.state === 'failed' ? 'Failed' : item.state.attention ? 'Needs input' : item.pending ? 'Ready for review' : 'Delivered'}
+      when={dayLabel(item.ran_at)} actions={renderAction(item)}/></li>;
     return (
       <li key={item.id}>
         <div className="card hover:border-ink-600 transition-colors">
@@ -405,7 +412,7 @@ export default function InboxList({
         </div>
       )}
 
-      <div className="space-y-8">
+      {workRows ? <ul className="work-rows">{items.map(renderSingle)}</ul> : <div className="space-y-8">
         {days.map((day) => {
           const delivered = day.items.filter((i) => i.output_markdown).length;
           const needYouDay = day.items.filter((i) => lightOf(i) !== 'green').length;
@@ -436,7 +443,7 @@ export default function InboxList({
             </section>
           );
         })}
-      </div>
+      </div>}
 
       {openItem && (
         <div

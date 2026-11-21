@@ -26,9 +26,11 @@
  * resolves (see JudgeFeedbackControls).
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import WorkItemRow from './work-item-row';
+import LocalTime from './local-time';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import type { AttentionItem, RequiredAction } from '@/lib/attention';
@@ -73,7 +75,7 @@ const ACTION_UI: Record<RequiredAction, {
   },
 };
 
-export default function JudgeReviewCard({ item }: { item: AttentionItem }) {
+export default function JudgeReviewCard({ item, workRow = false, extraActions, extraDetails }: { item: AttentionItem; workRow?: boolean; extraActions?:ReactNode; extraDetails?:ReactNode }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -85,16 +87,21 @@ export default function JudgeReviewCard({ item }: { item: AttentionItem }) {
 
   const who = item.agentName || item.agentSlug || 'An agent';
 
+  const trigger = (<button ref={triggerRef} type="button" onClick={() => setOpen(true)} className="btn-outline text-xs px-3 py-1.5 flex-none">
+        {item.primaryAction.label}
+      </button>);
   return (
-    <div className="card flex items-center justify-between gap-3 border-amber-500/40">
+    <div className={workRow ? '' : 'card flex items-center justify-between gap-3 border-amber-500/40'}>
+      {workRow ? <WorkItemRow title={who} detail={<>{item.whatHappened}{item.actionDetail ? ` · ${item.actionDetail}` : ''}</>}
+        state={item.requiredAction === 'grant_permission' ? 'Needs approval' : 'Needs input'}
+        when={item.createdAt ? <LocalTime iso={item.createdAt}/> : null} actions={<>{trigger}{extraActions}</>}/> : <>
       <div className="min-w-0">
         <p className="text-sm font-medium text-ink-100 truncate">{who}</p>
         <p className="text-xs mt-0.5 text-state-needs">{item.whatHappened}</p>
         {item.actionDetail && <p className="text-[11px] mt-1 text-ink-400">{item.actionDetail}</p>}
       </div>
-      <button ref={triggerRef} type="button" onClick={() => setOpen(true)} className="btn-outline text-xs px-3 py-1.5 flex-none">
-        {item.primaryAction.label}
-      </button>
+      {trigger}</>}
+      {workRow && extraDetails}
       {open && (
         <JudgeReviewModal
           item={item}

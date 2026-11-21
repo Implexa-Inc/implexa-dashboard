@@ -5,7 +5,7 @@ import Link from 'next/link';
 export default function WorkItemRow({title, detail, href, state, when, actions, progress}: {
   title: string; detail?: ReactNode; href?: string | null;
   state: 'Needs input' | 'Needs approval' | 'Ready for review' | 'Running' | 'Revising' | 'Accepted' | 'Delivered' | 'Failed';
-  when?: string | null; actions: ReactNode; progress?: {value:number;total:number};
+  when?: ReactNode; actions: ReactNode; progress?: {value:number;total:number};
 }) {
   const tone = state === 'Failed' ? 'fail' : state.startsWith('Needs') ? 'needs'
     : state === 'Ready for review' ? 'review' : state === 'Running' || state === 'Revising' ? 'running' : 'ok';

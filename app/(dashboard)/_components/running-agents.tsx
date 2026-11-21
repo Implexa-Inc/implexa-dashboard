@@ -206,7 +206,7 @@ function elapsedMs(iso: string | null): number {
  */
 export type LiveState = { status: 'loading' | 'ready' | 'unavailable'; count: number };
 
-export type LiveWorkRow = { key: string; runId: string | null; status: string; needsYou: boolean; node: ReactNode };
+export type LiveWorkRow = { key: string; runId: string | null; status: string; needsYou: boolean; actions: ReactNode; details: ReactNode; node: ReactNode };
 
 export default function RunningAgents({ alertsOnly = false, bare = false, onState, compact = false, onFinished, pollMs = POLL_MS, renderList }: {
   alertsOnly?: boolean;
@@ -520,8 +520,10 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
     onStateRef.current?.({ status: liveStatus, count: list.length });
   }, [liveStatus, list.length]);
 
-  if (!cards && !renderList) return null;
-  if (list.length === 0 && !renderList) return null; // invisible at rest
+  if (!renderList) {
+    if (!cards) return null;
+    if (list.length === 0) return null; // invisible at rest
+  }
   const visibleLimit = compact ? 3 : 5;
   const shown = renderList || showAll ? list : list.slice(0, visibleLimit);
 
@@ -714,11 +716,13 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                 : NOTIFY.has(c.status) ? (c.status === 'needs_attention' ? 'Needs input' : 'Failed')
                 : c.status === 'finished' ? 'Delivered' : c.status === 'built' ? 'Ready for review' : 'Running'}
               detail={<>{c.headline ? `${humanize(c.skillSlug)} · ` : ''}{c.freshness !== 'fresh' ? freshnessNotice(c.freshness)
-                : c.runId && stoppingRunIds.has(c.runId) ? 'Stopping…' : visibleFailure(c.failureReason) || c.attention?.summary || (c.status === 'action_available' ? c.actionLabel : null) || s.label}
-                {c.currentStepIndex != null && c.totalSteps ? ` · Step ${c.currentStepIndex + 1} of ${c.totalSteps}${c.currentStepLabel ? ` · ${c.currentStepLabel}` : ''}` : ''}
-                {c.status === 'preparing_inputs' && c.bytesRead != null && c.totalBytes ? ` · ${Math.floor(c.bytesRead / c.totalBytes * 100)}% verified` : ''}
+                : c.runId && stoppingRunIds.has(c.runId) ? 'Stopping…' : visibleFailure(c.failureReason) || c.fallbackReason || c.attention?.summary || (c.status === 'action_available' ? c.actionLabel : null) || s.label}
+                {c.currentStepIndex != null && c.totalSteps ? ` · Step ${Math.min(c.currentStepIndex || 1,c.totalSteps)} of ${c.totalSteps}${c.currentStepLabel ? ` · ${c.currentStepLabel}` : ''}` : ''}
+                {c.status === 'preparing_inputs' && c.bytesRead != null && c.totalBytes ? ` · ${Math.min(100,Math.floor(c.bytesRead / c.totalBytes * 100))}% verified` : ''}
+                {c.status === 'running' && c.typicalMs ? ` · ${elapsedMs(c.since)>c.typicalMs*1.5?'Longer than usual · ':''}~${fmtDur(c.typicalMs)} typical` : ''}
+                {c.status === 'resuming' && c.resumeStep != null ? ` · Resuming from step ${c.resumeStep}` : ''}
               </>}
-              progress={c.status === 'running' && c.currentStepIndex != null && c.totalSteps ? {value:c.currentStepIndex,total:c.totalSteps} : undefined}
+              progress={c.status === 'running' && c.currentStepIndex != null && c.totalSteps ? {value:Math.max(0,c.currentStepIndex-1),total:c.totalSteps} : undefined}
               when={rel(c.finishedAt || c.since)}
               actions={<>{href && <Link href={href} prefetch={false} className={NOTIFY.has(c.status) ? 'btn-outline work-row-action' : 'work-row-open'}>{c.status === 'waiting_approval' || c.status === 'action_available' ? 'Review & approve' : NOTIFY.has(c.status) ? 'Open & resolve' : c.status === 'finished' || c.status === 'built' ? 'Open' : 'View progress'}</Link>}{controls}</>}/>
           ) : linkable ? (
@@ -726,14 +730,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           ) : (
             <div className={cls}>{body}</div>
           );
-          const node = (
-            // The continuity identity is both React's reconciliation key and a
-            // DOM attribute. The attribute is not decoration: a React key is
-            // invisible to a rendered test, so without it "this card belongs to
-            // THIS request" is a claim no test can grade — and card identity is
-            // exactly what the production defect got wrong.
-            <div key={key} data-continuity-key={key}>
-              {card}
+          const recovery = (<>
               {showRetry && (
                 <div className="mt-1.5 ml-7">
                   <Link
@@ -836,9 +833,25 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   <p className="mt-1 text-[11px] text-ink-500 leading-snug">{queuedWait.detail}</p>
                 </div>
               )}
+          </>);
+          const details = renderList ? (showRetry || showPreparationRetry || showStuck || queuedWait || c.failureReason || c.fallbackReason
+            ? <details className="work-row-details"><summary>Run details & recovery</summary>
+                {c.failureReason && <p>{visibleFailure(c.failureReason)}</p>}
+                {c.fallbackReason && <p>{c.fallbackReason}{c.resumeStep != null ? ` · Resuming from step ${c.resumeStep}` : ''}</p>}
+                {recovery}
+              </details> : null) : recovery;
+          const node = (
+            // The continuity identity is both React's reconciliation key and a
+            // DOM attribute. The attribute is not decoration: a React key is
+            // invisible to a rendered test, so without it "this card belongs to
+            // THIS request" is a claim no test can grade — and card identity is
+            // exactly what the production defect got wrong.
+            <div key={key} data-continuity-key={key}>
+              {card}
+              {details}
             </div>
           );
-          return { key, runId:c.runId, status:c.status, needsYou:NOTIFY.has(c.status), node };
+          return { key, runId:c.runId, status:c.status, needsYou:NOTIFY.has(c.status), actions:controls, details, node };
   });
 
   return (

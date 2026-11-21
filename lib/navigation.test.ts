@@ -71,15 +71,15 @@ test('deep links light up the domain that owns them', () => {
   assert.equal(activeNavItem('/admin'), null, 'an unowned path claims no domain rather than guessing');
 });
 
-test('Work views are the three states Work owns, defaulting to Needs you', () => {
-  assert.deepEqual([...WORK_VIEWS], ['needs', 'review', 'delivered']);
-  assert.equal(DEFAULT_WORK_VIEW, 'needs');
+test('Work has five shared filters and defaults to Active', () => {
+  assert.deepEqual([...WORK_VIEWS], ['activity', 'needs', 'review', 'running', 'delivered']);
+  assert.equal(DEFAULT_WORK_VIEW, 'activity');
   assert.equal(parseWorkView('review'), 'review');
   assert.equal(parseWorkView(['delivered']), 'delivered');
   // A junk or absent filter must not blank the page.
-  assert.equal(parseWorkView(undefined), 'needs');
-  assert.equal(parseWorkView('nonsense'), 'needs');
-  assert.equal(workViewHref('needs'), '/work', 'the default view is the bare canonical URL');
+  assert.equal(parseWorkView(undefined), 'activity');
+  assert.equal(parseWorkView('nonsense'), 'activity');
+  assert.equal(workViewHref('activity'), '/work', 'the default view is the bare canonical URL');
   assert.equal(workViewHref('review'), '/work?view=review');
 });
 
@@ -188,19 +188,19 @@ test('the redesign unifies exactly the existing domains; every deep link retains
  }
 });
 
-test('Work defaults to Needs you outside the pilot, and explicit decisions remain reachable for pilots',()=>{
- for(const value of [undefined,null,''])assert.equal(resolveWorkView(value,false),'needs');
+test('Work defaults to Active for every account while explicit legacy filters stay reachable',()=>{
+ for(const value of [undefined,null,''])assert.equal(resolveWorkView(value,false),'activity');
  assert.equal(resolveWorkView(undefined,true),'activity');
- for(const pilot of [false,true])for(const view of ['needs','review','delivered','activity'] as const){
+ for(const pilot of [false,true])for(const view of ['needs','review','delivered','activity','running'] as const){
   assert.equal(resolveWorkView(view,pilot),view);assert.equal(resolveWorkView([view],pilot),view);
  }
- assert.equal(resolveWorkView('unknown',false),'needs');
+ assert.equal(resolveWorkView('unknown',false),'activity');
 });
 
 
-test('All agents collection belongs only to the pilot; legacy filters retain their destinations',()=>{
+test('Legacy All agents resolves to the Agents collection for both account types',()=>{
  assert.equal(resolveWorkView('agents',true),'agents');
- assert.equal(resolveWorkView('agents',false),'needs');
+ assert.equal(resolveWorkView('agents',false),'agents');
  assert.equal(resolveWorkView(undefined,true),'activity');
  for(const view of ['needs','review','delivered'] as const) assert.equal(resolveWorkView(view,true),view);
 });

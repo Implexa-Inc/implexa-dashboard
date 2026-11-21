@@ -185,17 +185,18 @@ export function activeNavItem(pathname: string): NavItem | null {
 
 // ── Work views ───────────────────────────────────────────────────────────────
 //
-// Work's three states (DESIGN.md §8.2). `review` is the "Ready for review"
+// Work's five filters (approved Work mockup). `review` is the "Ready for review"
 // filter that replaces the old Review navigation entry — a filter changes entry
 // context, never destination ownership (§8.5).
 
-export const WORK_VIEWS = ['needs', 'review', 'delivered'] as const;
+export const WORK_VIEWS = ['activity', 'needs', 'review', 'running', 'delivered'] as const;
 export type WorkView = typeof WORK_VIEWS[number] | 'activity' | 'agents';
 
-export const DEFAULT_WORK_VIEW: WorkView = 'needs';
+export const DEFAULT_WORK_VIEW: WorkView = 'activity';
 
 export const WORK_VIEW_LABELS: Record<WorkView, string> = {
-  activity: 'All runs',
+  activity: 'Active',
+  running: 'Running',
   agents: 'All agents',
   needs:     'Needs you',
   review:    'Ready for review',
@@ -208,11 +209,11 @@ export function parseWorkView(raw: string | string[] | undefined | null): WorkVi
   return (WORK_VIEWS as readonly string[]).includes(v ?? '') ? (v as WorkView) : DEFAULT_WORK_VIEW;
 }
 
-/** Default changes only for a readable pilot; explicit legacy filters still win. */
+/** Active is the shared default; all legacy explicit filters keep their destination. */
 export function resolveWorkView(raw: string | string[] | undefined | null, marketplacePilot = false): WorkView {
   const value=Array.isArray(raw)?raw[0]:raw;
-  if (marketplacePilot && value==='agents') return 'agents';
-  return value==='activity'||(marketplacePilot&&!value)?'activity':parseWorkView(value);
+  if (value === 'agents') return 'agents';
+  return parseWorkView(value);
 }
 
 export function workViewHref(view: WorkView): string {
