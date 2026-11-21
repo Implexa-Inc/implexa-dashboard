@@ -364,15 +364,15 @@ function SurfaceContent({ surface, hasKey, keyPrefix, coworkHooksLive, installCu
           <strong className="text-ink-50">A.</strong> Open <strong>Claude Code</strong> on your Mac (the visual app, not the terminal command).
         </p>
 
-        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+        <div className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
           <strong className="text-ink-50">B.</strong> Click{' '}
           <HoverImageHint src="/img/install/customize.png" alt="The Customize button in the Claude Code sidebar">
             <strong>Customize</strong>
           </HoverImageHint>
           {' '}in the sidebar → scroll to <strong>Personal plugins</strong>.
-        </p>
+        </div>
 
-        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+        <div className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
           <strong className="text-ink-50">C.</strong> Click{' '}
           <HoverImageHint
             src="/img/install/create-plugin.png"
@@ -382,7 +382,7 @@ function SurfaceContent({ surface, hasKey, keyPrefix, coworkHooksLive, installCu
             <strong>+ Create plugin</strong>
           </HoverImageHint>
           {' '}→ choose <strong>Add marketplace</strong> (not &ldquo;Create with Claude&rdquo; — that opens a chat to build a new plugin from scratch).
-        </p>
+        </div>
         <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
 
         <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
@@ -540,15 +540,15 @@ source ~/.zshrc`}
           )}
         </p>
 
-        <p className="text-sm text-ink-200 mt-5 mb-2 leading-relaxed">
+        <div className="text-sm text-ink-200 mt-5 mb-2 leading-relaxed">
           <strong className="text-ink-50">A.</strong> Open <strong>Claude Desktop</strong>, switch to the <strong>Chat</strong> tab, then click{' '}
           <HoverImageHint src="/img/install/chat-customize.png" alt="The Customize button in the Chat sidebar">
             <strong>Customize</strong>
           </HoverImageHint>
           {' '}in the sidebar.
-        </p>
+        </div>
 
-        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+        <div className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
           <strong className="text-ink-50">B.</strong> In the Customize panel, click <strong>Connectors</strong> in the left rail, then click the{' '}
           <HoverImageHint
             src="/img/install/chat-connectors.png"
@@ -557,9 +557,9 @@ source ~/.zshrc`}
           >
             <strong>+</strong> button (top right) → <strong>Add custom connector</strong>
           </HoverImageHint>.
-        </p>
+        </div>
 
-        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+        <div className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
           <strong className="text-ink-50">C.</strong> In the{' '}
           <HoverImageHint
             src="/img/install/chat-custom-connector.png"
@@ -568,7 +568,7 @@ source ~/.zshrc`}
           >
             <strong>Add custom connector</strong> dialog
           </HoverImageHint>:
-        </p>
+        </div>
         <ul className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-disc marker:text-ink-500">
           <li><strong>Name:</strong> type <code className="bg-ink-800 px-1 rounded text-xs">Implexa</code></li>
           <li><strong>Remote MCP server URL:</strong> paste the URL you edited above</li>
@@ -610,12 +610,12 @@ source ~/.zshrc`}
           Installing the Implexa plugin in Cowork automatically registers the Custom Connector in your Claude chat (Desktop) too — one install, both surfaces. No extra step for Claude chat.
         </p>
       </div>
-      <p className="text-sm text-ink-200 mb-3 leading-relaxed">
+      <div className="text-sm text-ink-200 mb-3 leading-relaxed">
         Open the Claude Desktop app and switch to <strong>Cowork</strong>, then in the left sidebar click{' '}
         <HoverImageHint src="/img/install/customize.png" alt="The Customize button in the Claude Code sidebar — same UI in Cowork">
           <strong>Customize</strong>
         </HoverImageHint>:
-      </p>
+      </div>
       <ol className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400">
         <li>Scroll to the <strong>Personal plugins</strong> section</li>
         <li>

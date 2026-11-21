@@ -27,6 +27,16 @@ test('Coach navigation is a trainer capability, in both pilot and ordinary accou
   }
 });
 
+test('install instructions do not put disclosure hints inside paragraphs (hydration regression)', async () => {
+  const React = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { default: InstallFlow } = await import('../app/(dashboard)/install/install-flow');
+  const html = renderToStaticMarkup(React.createElement(InstallFlow, {
+    hasKey: false, keyPrefix: null, coworkHooksLive: false, installCurl: null,
+  }));
+  assert.doesNotMatch(html, /<p\b[^>]*>(?:(?!<\/p>).)*<details\b/s);
+});
+
 test('both real shell surfaces retain attention on visiting Work, refresh after resolving, and fail visibly', async () => {
   const { JSDOM } = await import('jsdom');
   const React = await import('react');

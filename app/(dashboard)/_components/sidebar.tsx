@@ -60,9 +60,11 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
         const work = body?.work;
         const valid = body?.ok === true && [true, false, null].includes(body.canTrain)
           && (work === null || (Number.isSafeInteger(work?.count) && work.count >= 0 && typeof work.complete === 'boolean'));
-        if (active) setState(valid ? { canTrain: body.canTrain, work } : { canTrain: null, work: null });
+        if (active) setState((previous) => valid
+          ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work }
+          : { canTrain: previous?.canTrain ?? null, work: null });
       } catch {
-        if (active) setState({ canTrain: null, work: null });
+        if (active) setState((previous) => ({ canTrain: previous?.canTrain ?? null, work: null }));
       } finally { inFlight = false; }
     }
     void refresh();
