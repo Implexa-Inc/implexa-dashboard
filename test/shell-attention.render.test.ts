@@ -148,7 +148,7 @@ test('Work publishes one count to both menu surfaces and a slower shell response
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
  let calls=0;let finish:((response:Response)=>void)|undefined;globalThis.fetch=(()=>{calls++;return new Promise<Response>(resolve=>{finish=resolve;});}) as typeof fetch;
  const root=createRoot(document.getElementById('root')!);const user={displayName:'Review account',email:'review@example.com',plan:'free',isFoundingCreator:false};
- const render=(count:number|null)=>React.createElement(ShellNavigationProvider,{userId:'review-account',children:React.createElement(React.Fragment,null,React.createElement(Sidebar,{user}),React.createElement(MobileTopBar,{user}),count===null?null:React.createElement(WorkAttentionSync,{badge:{count,complete:false}}))});
+ const render=(count:number|null,complete=false)=>React.createElement(ShellNavigationProvider,{userId:'review-account',children:React.createElement(React.Fragment,null,React.createElement(Sidebar,{user}),React.createElement(MobileTopBar,{user}),count===null?null:React.createElement(WorkAttentionSync,{badge:{count,complete}}))});
  try{
   __setPathname('/work');await React.act(async()=>root.render(render(20)));
   assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2);
@@ -168,6 +168,10 @@ test('Work publishes one count to both menu surfaces and a slower shell response
   now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));
   await React.act(async()=>finish?.(Response.json({ok:true,canTrain:true,work:{count:0,complete:true}})));
   assert.equal(document.querySelectorAll('.app-nav-count').length,0,'a subsequent independent confirmed read can update the retained count');
+  window.sessionStorage.setItem('tukido.work-attention:review-account','20');
+  await React.act(async()=>root.render(null));
+  await React.act(async()=>root.render(render(0,true)));
+  assert.equal(document.querySelectorAll('.app-nav-count').length,0,'a cached UI hint cannot override a fresh complete count from the page');
  }finally{await React.act(async()=>root.unmount());dom.window.close();Object.assign(globalThis,before);Date.now=realNow;}
 
 });

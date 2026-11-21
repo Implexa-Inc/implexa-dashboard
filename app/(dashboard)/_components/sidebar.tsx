@@ -71,7 +71,7 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
     // Per-account, per-tab UI hint. It carries no permissions or authentication.
     try {
       const cached=JSON.parse(window.sessionStorage.getItem(`tukido.work-attention:${userId}`)||'null');
-      if(Number.isSafeInteger(cached)&&cached>0)setState(previous=>({canTrain:previous?.canTrain??null,work:mergeWorkCount(previous?.work,{count:cached,complete:false})}));
+      if(Number.isSafeInteger(cached)&&cached>0)setState(previous=>previous?.work?.complete?previous:{canTrain:previous?.canTrain??null,work:mergeWorkCount(previous?.work,{count:cached,complete:false})});
     } catch { /* Storage is optional; unreadable is never a zero. */ }
     try {
       const known = window.localStorage.getItem(roleKey);
