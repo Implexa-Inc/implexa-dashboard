@@ -468,7 +468,7 @@ test('autosave preserves edits made in flight and saves the newer draft next', a
 test('one M marks two seconds at the playhead, clips at the end and is ignored while typing',async()=>{
  const b=bridge((op,args)=>op==='get'?{ok:true,recording:detail()}:op==='preview'?previewOk:op==='saveMoments'?{ok:true,moments:args.moments}:{ok:true});
  const page=await render(PLAYER,{recordingId:ID,ownerId:ID},{bridge:b.value});
- try{const video=page.document.querySelector('video')!;video.pause=()=>{};video.currentTime=2;await key(page,page.window,'m');assert.equal(page.document.querySelectorAll('textarea').length,1);assert.match(page.text(),/00:02\.000–00:04\.000/);
+ try{const video=page.document.querySelector('video')!;video.pause=()=>{};video.currentTime=2;await key(page,page.window,'m');assert.equal(page.document.querySelectorAll('textarea').length,1);assert.match(page.text(),/0:02 – 0:04/);
   await key(page,page.document.querySelector('textarea')!,'m');assert.equal(page.document.querySelectorAll('textarea').length,1);
   video.currentTime=64.5;await key(page,page.window,'m');await autosave(page);const saved=b.calls.find(c=>c.operation==='saveMoments')!.args.moments;assert.equal(saved[1].startMs,64500);assert.equal(saved[1].endMs,65000);
  }finally{page.cleanup();}
@@ -698,7 +698,7 @@ test('a pending voice transcript keeps its moment region frozen until inserted o
  },{trainerCommentaryContractVersion:'1'});
  const page=await render(PLAYER,{recordingId:ID,ownerId:ID,embedded:true},{bridge:b.value});
  try{
-  await page.click(page.document.querySelector('button[aria-label="Moment 1 at 00:01.000"]')!);
+  await page.click(page.document.querySelector('button[aria-label="Moment 1 at 0:01"]')!);
   await page.click(button(page,/Add a voice note/)!);await page.act(async()=>{await new Promise(resolve=>setTimeout(resolve,20));});
   assert.equal((page.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'This spoken note refers to the original box.');
   assert.equal(button(page,'Draw region')!.disabled,true,'changing attach geometry must not silently clear a voice transcript');
@@ -742,14 +742,14 @@ test('the picture note opens from a moment; Cancel restores the local note and D
   await page.act(()=>{});
   const note=()=>page.document.querySelector('.recording-note') as HTMLElement;
   assert.equal(note().hidden,true);
-  await page.click(page.document.querySelector('button[aria-label="Moment 1 at 00:01.000"]')!);
+  await page.click(page.document.querySelector('button[aria-label="Moment 1 at 0:01"]')!);
   assert.equal(note().hidden,false);
   await typeInto(page,page.document.querySelector('textarea')!,'Make the crop wider');
   assert.equal(b.calls.filter(c=>c.operation==='saveMoments').length,0,'typing is debounced rather than writing every keystroke');
   await page.click(button(page,'Cancel changes')!);
   assert.equal(note().hidden,true);
   assert.equal(page.document.querySelector('textarea')!.value,original.card.whatToDo);
-  await page.click(page.document.querySelector('button[aria-label="Moment 1 at 00:01.000"]')!);
+  await page.click(page.document.querySelector('button[aria-label="Moment 1 at 0:01"]')!);
   await typeInto(page,page.document.querySelector('textarea')!,'Make the crop wider');
   await page.click(button(page,'Done')!);
   assert.equal(note().hidden,true);
@@ -791,7 +791,7 @@ test('Cancel restores the opening snapshot even after intermediate edits were au
  const original={momentId:M1,startMs:1000,endMs:4000,region:null,card:{...emptyCard(),whatToDo:'Original'},createdAt:NOW};
  const b=bridge((op,args)=>op==='get'?{ok:true,recording:detail({},[original])}:op==='preview'?previewOk:op==='saveMoments'?{ok:true,moments:args.moments}:{ok:true});
  const page=await render(PLAYER,{recordingId:ID,ownerId:ID},{bridge:b.value});
- try{await page.click(page.document.querySelector('button[aria-label="Moment 1 at 00:01.000"]')!);await typeInto(page,page.document.querySelector('textarea')!,'Intermediate change');await autosave(page);await typeInto(page,page.document.querySelector('textarea')!,'Later change');await page.click(button(page,'Cancel changes')!);assert.equal(page.document.querySelector('textarea')!.value,'Original');await autosave(page);const saves=b.calls.filter(c=>c.operation==='saveMoments');assert.equal(saves.length,2);assert.equal(saves[1].args.moments[0].card.whatToDo,'Original');assert.match(page.text(),/Saved on this Mac/);
+ try{await page.click(page.document.querySelector('button[aria-label="Moment 1 at 0:01"]')!);await typeInto(page,page.document.querySelector('textarea')!,'Intermediate change');await autosave(page);await typeInto(page,page.document.querySelector('textarea')!,'Later change');await page.click(button(page,'Cancel changes')!);assert.equal(page.document.querySelector('textarea')!.value,'Original');await autosave(page);const saves=b.calls.filter(c=>c.operation==='saveMoments');assert.equal(saves.length,2);assert.equal(saves[1].args.moments[0].card.whatToDo,'Original');assert.match(page.text(),/Saved on this Mac/);
  }finally{page.cleanup();}
 });
 
@@ -823,6 +823,20 @@ test('Cancel remains responsive during autosave and the restored note is saved a
  const pending=deferred();let writes=0;const original={momentId:M1,startMs:1000,endMs:4000,region:null,card:{...emptyCard(),whatToDo:'Original'},createdAt:NOW};
  const b=bridge((op,args)=>op==='get'?{ok:true,recording:detail({},[original])}:op==='preview'?previewOk:op==='saveMoments'?(++writes===1?pending.promise:{ok:true,moments:args.moments}):{ok:true});
  const page=await render(PLAYER,{recordingId:ID,ownerId:ID},{bridge:b.value});
- try{await page.click(page.document.querySelector('button[aria-label="Moment 1 at 00:01.000"]')!);await typeInto(page,page.document.querySelector('textarea')!,'Draft');await autosave(page);const sent=b.calls.find(c=>c.operation==='saveMoments')!.args.moments;assert.equal(button(page,'Cancel changes')!.disabled,false);await page.click(button(page,'Cancel changes')!);assert.equal(page.document.querySelector('textarea')!.value,'Original');await page.act(()=>pending.resolve({ok:true,moments:sent}));await autosave(page);const saves=b.calls.filter(c=>c.operation==='saveMoments');assert.equal(saves.length,2);assert.equal(saves[1].args.moments[0].card.whatToDo,'Original');assert.match(page.text(),/Saved on this Mac/);
+ try{await page.click(page.document.querySelector('button[aria-label="Moment 1 at 0:01"]')!);await typeInto(page,page.document.querySelector('textarea')!,'Draft');await autosave(page);const sent=b.calls.find(c=>c.operation==='saveMoments')!.args.moments;assert.equal(button(page,'Cancel changes')!.disabled,false);await page.click(button(page,'Cancel changes')!);assert.equal(page.document.querySelector('textarea')!.value,'Original');await page.act(()=>pending.resolve({ok:true,moments:sent}));await autosave(page);const saves=b.calls.filter(c=>c.operation==='saveMoments');assert.equal(saves.length,2);assert.equal(saves[1].args.moments[0].card.whatToDo,'Original');assert.match(page.text(),/Saved on this Mac/);
+ }finally{page.cleanup();}
+});
+
+test('the Moments rail retains readable note summaries while the note is open',async()=>{
+ const notes=[{momentId:M1,startMs:1000,endMs:3000,region:null,card:{...emptyCard(),whatToDo:'Keep the subject clear'},createdAt:NOW}];
+ const b=bridge((op)=>op==='get'?{ok:true,recording:detail({},notes)}:op==='preview'?previewOk:{ok:true});
+ const page=await render(PLAYER,{recordingId:ID,ownerId:ID},{bridge:b.value});
+ try{
+  const row=page.document.querySelector('.recording-moment')!;
+  assert.equal(row.querySelector('.recording-moment-number')!.textContent,'1');
+  assert.equal(row.querySelector('.recording-moment-summary')!.textContent,'Keep the subject clear');
+  assert.match(row.querySelector('.recording-moment-select')!.textContent!,/0:01 – 0:03/);
+  assert.equal(page.document.querySelector('textarea')!.value,'Keep the subject clear');
+  assert.match(row.querySelector('.recording-moment-select')!.getAttribute('title')!,/00:01\.000–00:03\.000/);
  }finally{page.cleanup();}
 });

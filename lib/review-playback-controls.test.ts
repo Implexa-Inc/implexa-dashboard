@@ -161,3 +161,17 @@ test('changing artifact detaches old media listeners; stale events cannot update
     assert.equal(h.range('Seek video').value, '1');
   } finally { h.cleanup(); }
 });
+
+test('teaching transport keeps readable clocks and truthful precise-step descriptions',async()=>{
+ const h=await mount();
+ try{
+  await h.page.rerender({...h.props,variant:'teaching'});
+  assert.match(h.page.text(),/0:04 \/ 0:10/);
+  assert.match(h.page.text(),/Sound on/);
+  assert.equal(h.button('Step back 1/30 second').textContent,'‹');
+  assert.match(h.button('Step back 1/30 second').getAttribute('title')!,/exact source frame rate is unavailable/);
+  await h.page.click(h.button('Step back 1/30 second'));
+  assert.ok(Math.abs(h.seeks.at(-1)!-(4125-1000/30))<.001);
+  await h.page.click(h.button('Mute'));assert.match(h.page.text(),/Sound off/);
+ }finally{h.cleanup();}
+});

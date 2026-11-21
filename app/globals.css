@@ -621,3 +621,10 @@ html, body {
 /* Keep note decisions visible even when a small picture constrains its height. */
 .recording-note[data-floating="true"] .recording-note-actions{position:sticky;bottom:-20px;margin-bottom:-20px;padding-bottom:16px;background:var(--bg-surface);z-index:1;}
 .recording-area-options>summary{cursor:pointer;}
+
+.recording-save-error{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;}
+.recording-moment-select{display:inline-flex;align-items:center;gap:8px;font:12px var(--font-mono),monospace;}
+.recording-moment .recording-moment-number{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--bg-inverse);color:var(--text-inverse);font:12px var(--font-sans);}
+.recording-moment-summary{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+[data-variant="teaching"] .playback-button[aria-label="Play"],[data-variant="teaching"] .playback-button[aria-label="Pause"]{min-width:auto;border-radius:var(--r-sm);background:transparent;color:var(--text-body);padding:6px 10px;border-color:var(--border-control);}
+.playback-volume{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);}

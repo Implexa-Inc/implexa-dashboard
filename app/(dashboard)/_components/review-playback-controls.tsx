@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { formatMs } from '@/lib/review-anchor';
+import { formatMs, formatMediaTime } from '@/lib/review-anchor';
 
 /** Shared transport for Review Room and recorded demonstrations. The children are
  * the picture/annotation surface; every transport control is its following sibling.
  * Neither preview contract supplies FPS: the small steps are labelled as time, not
  * presented as exact source frames. This never owns an artifact or preview token. */
-export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, children, timeline, trailingAction }: {
+export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, children, timeline, trailingAction, variant }: {
   mediaRef: RefObject<HTMLMediaElement>;
   mediaKey: string;
+  variant?: 'teaching';
   timeline?: ReactNode;
   trailingAction?: ReactNode;
   onSeek: (ms: number) => void;
@@ -113,6 +114,7 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
     <div
       ref={playerRef}
       data-testid="review-playback"
+      data-variant={variant}
       role="group"
       aria-label="Video player"
       tabIndex={0}
@@ -136,13 +138,13 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
         />
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className={buttonClass} aria-label={state.paused ? 'Play' : 'Pause'} onClick={() => void togglePlayback()}>{state.paused ? 'Play' : 'Pause'}</button>
-          <button type="button" className={buttonClass} aria-label="Step back 1/30 second" title="Time step; exact source frame rate is unavailable" disabled={!state.duration} onClick={() => step(-1)}>−1/30 s</button>
-          <button type="button" className={buttonClass} aria-label="Step forward 1/30 second" title="Time step; exact source frame rate is unavailable" disabled={!state.duration} onClick={() => step(1)}>+1/30 s</button>
-          <span className="font-mono text-xs text-ink-400">{formatMs(Math.round(state.time * 1000))} / {formatMs(Math.round(state.duration * 1000))}</span>
+          <button type="button" className={buttonClass} aria-label="Step back 1/30 second" title="Time step; exact source frame rate is unavailable" disabled={!state.duration} onClick={() => step(-1)}>{variant==='teaching'?'‹':'−1/30 s'}</button>
+          <button type="button" className={buttonClass} aria-label="Step forward 1/30 second" title="Time step; exact source frame rate is unavailable" disabled={!state.duration} onClick={() => step(1)}>{variant==='teaching'?'›':'+1/30 s'}</button>
+          <span className="font-mono text-xs text-ink-400" title={`${formatMs(Math.round(state.time*1000))} / ${formatMs(Math.round(state.duration*1000))}`}>{(variant==='teaching'?formatMediaTime:formatMs)(Math.round(state.time * 1000))} / {(variant==='teaching'?formatMediaTime:formatMs)(Math.round(state.duration * 1000))}</span>
           <div className="playback-speeds" role="group" aria-label="Playback speed">{[.5,1,2].map(rate=><button key={rate} type="button" aria-pressed={state.rate===rate} onClick={()=>{const media=mediaRef.current;if(media){media.playbackRate=rate;setState(current=>({...current,rate}));}}}>{rate}×</button>)}</div>
-          <button type="button" className={buttonClass} aria-label={state.muted ? 'Unmute' : 'Mute'} onClick={() => { const media = mediaRef.current; if (media) media.muted = !media.muted; }}>{state.muted ? 'Unmute' : 'Mute'}</button>
-          <input type="range" aria-label="Volume" min={0} max={1} step={0.05} value={state.muted ? 0 : state.volume}
-            className="w-20 accent-[var(--action-strong)]" onChange={(event) => { const media = mediaRef.current; if (media) { media.volume = Number(event.currentTarget.value); media.muted = false; } }} />
+          <button type="button" className={buttonClass} aria-label={state.muted ? 'Unmute' : 'Mute'} onClick={() => { const media = mediaRef.current; if (media) media.muted = !media.muted; }}>{variant==='teaching'?(state.muted?'Sound off':'Sound on'):(state.muted ? 'Unmute' : 'Mute')}</button>
+          <label className="playback-volume">{variant==='teaching'&&<span>Volume</span>}<input type="range" aria-label="Volume" min={0} max={1} step={0.05} value={state.muted ? 0 : state.volume}
+            className="w-20 accent-[var(--action-strong)]" onChange={(event) => { const media = mediaRef.current; if (media) { media.volume = Number(event.currentTarget.value); media.muted = false; } }} /></label>
           <button type="button" className={buttonClass} disabled={!canFullscreen} aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} onClick={() => void toggleFullscreen()}>{fullscreen ? 'Exit fullscreen' : 'Fullscreen'}</button>
           {trailingAction}
           {state.seeking && <span role="status" className="text-xs text-ink-400">Seeking…</span>}
