@@ -30,6 +30,7 @@ import { getAgentDetail, agentActionContext } from '@/lib/agent-detail';
 import { remoteSafety } from '@/lib/remote-safety';
 import { loadInboxItems } from '@/lib/inbox';
 import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
+import AgentPageHeader from '../../_components/agent-page-header';
 import AgentReadiness from '../../_components/agent-readiness';
 import { missingRequiredApiKeys } from '@/lib/agent-readiness-requirements';
 import AgentNameEditor from '../../_components/agent-name-editor';
@@ -329,28 +330,11 @@ export default async function WorkflowDetailPage({
   const tabKeys = ['overview', 'runs', 'setup'];
   const activeTab = searchParams.tab && tabKeys.includes(searchParams.tab) ? searchParams.tab : 'overview';
 
+  const canTrain = detail!.canInspectOwnLearningInfluence === true;
+  const setupHref=`/workflows/${encodeURIComponent(workflow.slug)}?${new URLSearchParams({...(searchParams.source?{source:searchParams.source}:{}),legacy:'1',tab:'setup'})}`;
+
   const overviewPanel = () => (
     <>
-      {/* Readiness, not a shopping list. "What you'll need" is PROVISIONING and
-          now lives in Activate, where it can be finished and then collapse — it
-          used to sit here permanently, never reflecting satisfaction, offering
-          "Get it" for keys the user already had. */}
-      <AgentReadiness
-        slug={workflow.slug}
-        isActive={isActive}
-        blockingQuestions={blockingQuestions}
-        optionalQuestions={optionalQuestions}
-        requirementsSatisfied={missingServices.length === 0}
-        missingServices={missingServices}
-      />
-
-      {/* Stat strip */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <Stat label="Steps" value={`${workflow.steps.length}`} />
-        <Stat label="Runs recorded" value={`${workflow.activity.run_count}`} highlight={workflow.activity.run_count > 0} />
-        <Stat label="Last run" value={rel(workflow.activity.last_run_at)} />
-      </div>
-
       {(workflow.input_contract?.fields.length||workflow.primary_outcome)&&<section className="agent-give-get mb-8" aria-label="Inputs and output">
         <div className="card"><h2 className="mb-4 text-lg font-medium">You give</h2>
           {workflow.input_contract?.fields.length?<ul className="space-y-3">{workflow.input_contract.fields.map(field=><li key={field.key} className="text-sm"><p className="font-medium text-ink-100">{field.label}<span className="ml-2 text-xs font-normal text-ink-400">{field.required?'Required':'Optional'}</span></p>{field.description&&<p className="mt-1 text-xs leading-relaxed text-ink-400">{field.description}</p>}</li>)}</ul>:<p className="text-sm text-ink-400">No run inputs declared.</p>}
@@ -359,6 +343,22 @@ export default async function WorkflowDetailPage({
           {workflow.signals.length>0&&<ul className="mt-4 space-y-2 text-xs text-ink-400">{workflow.signals.map(signal=><li key={signal}>{signal}</li>)}</ul>}
         </div>
       </section>}
+
+      <section className="agent-needs-section"><h2>What it needs</h2>      {/* Readiness, not a shopping list. "What you'll need" is PROVISIONING and
+          now lives in Activate, where it can be finished and then collapse — it
+          used to sit here permanently, never reflecting satisfaction, offering
+          "Get it" for keys the user already had. */}
+      <AgentReadiness
+        slug={workflow.slug}
+        setupHref={setupHref}
+        isActive={isActive}
+        blockingQuestions={blockingQuestions}
+        optionalQuestions={optionalQuestions}
+        requirementsSatisfied={missingServices.length === 0}
+        missingServices={missingServices}
+      />
+
+</section>
 
       {/* Steps */}
       <div className="card mb-6">
@@ -475,35 +475,11 @@ export default async function WorkflowDetailPage({
 
       </div></details>
 
-      {/* Schedule — edit / pause / make-on-demand inline, no navigating away. */}
-      <div className="card mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Schedule</h2>
-          {scheduleRoutine && (
-            <span className="text-xs text-ink-400">
-              {scheduleRoutine.run_count} run{scheduleRoutine.run_count === 1 ? '' : 's'} · last {rel(scheduleRoutine.last_run_at)}
-            </span>
-          )}
-        </div>
-        {schedulesUnavailable ? (
-          // NOT the on-demand state. ScheduleManager REPLACES any existing
-          // routine on save, so offering the editor over an unread schedule
-          // list invites the user to overwrite a cadence we failed to show
-          // them. Say so and withhold the control instead.
-          <p role="status" className="text-sm text-ink-300">
-            Schedule unavailable — we could not read whether this agent runs on a clock, so editing is disabled to
-            avoid replacing a schedule you cannot see. Reload to try again.
-          </p>
-        ) : (
-          <ScheduleManager slug={workflow.slug} agentName={workflow.name} routine={scheduleRoutine} />
-        )}
-      </div>
-
       {/* Changelog */}
       {workflow.versions.length > 0 && (
-        <div className="card mb-6">
+        <div id="agent-history" className="card mb-6">
           <div className="flex items-center gap-2 mb-3 flex-wrap">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Changelog</h2>
+            <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Version history</h2>
             {workflow.proposed_count > 0 && (
               <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/40 text-state-needs">
                 {workflow.proposed_count} proposed
@@ -570,6 +546,31 @@ export default async function WorkflowDetailPage({
 
   const setupPanel = () => (
     <>
+      {/* Schedule — edit / pause / make-on-demand inline, no navigating away. */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Schedule</h2>
+          {scheduleRoutine && (
+            <span className="text-xs text-ink-400">
+              {scheduleRoutine.run_count} run{scheduleRoutine.run_count === 1 ? '' : 's'} · last {rel(scheduleRoutine.last_run_at)}
+            </span>
+          )}
+        </div>
+        {schedulesUnavailable ? (
+          // NOT the on-demand state. ScheduleManager REPLACES any existing
+          // routine on save, so offering the editor over an unread schedule
+          // list invites the user to overwrite a cadence we failed to show
+          // them. Say so and withhold the control instead.
+          <p role="status" className="text-sm text-ink-300">
+            Schedule unavailable — we could not read whether this agent runs on a clock, so editing is disabled to
+            avoid replacing a schedule you cannot see. Reload to try again.
+          </p>
+        ) : (
+          <ScheduleManager slug={workflow.slug} agentName={workflow.name} routine={scheduleRoutine} />
+        )}
+      </div>
+
+<details className="proof-disclosure mb-6"><summary>Technical details</summary><code className="mt-3 block break-all">{workflow.slug}</code>{workflow.vertical&&<p>Category: {workflow.vertical}</p>}{workflow.cadence&&<p>Cadence: {workflow.cadence}</p>}</details>
       <AgentExecutorPreference slug={workflow.slug} />
       {/* Same run-input identity the header's <AgentActions/> gets — the card
           renders its own Run now, and a Run button that can't build the envelope
@@ -632,7 +633,8 @@ export default async function WorkflowDetailPage({
 
   const tabs: TabDef[] = [
     { key: 'overview', label: 'Overview' },
-    { key: 'runs', label: agentRuns.length ? `Runs (${agentRuns.length})` : 'Runs' },
+    { key: 'runs', label: agentRuns.length ? `My runs (${agentRuns.length})` : 'My runs' },
+    ...(canTrain?[{key:'training',label:'Training',href:`/training/${encodeURIComponent(workflow.slug)}`}]:[]),
     { key: 'setup', label: 'Setup', attention: setupAttention },
   ];
 
@@ -645,112 +647,27 @@ export default async function WorkflowDetailPage({
 
         {workflow.publisher_text_guidance_required&&<p className="mb-4 rounded-lg border border-amber-500/30 p-3 text-sm text-state-needs">The latest released training requires Codex and Implexa Desktop 0.4.160 or newer. Check this before installing or adopting it; Claude execution is not supported for this text guidance yet.</p>}
 
-        {/* Header */}
-        <header className="mb-6">
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-            {workflow.vertical && (
-              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-ink-700 text-ink-400">
-                {workflow.vertical}
-              </span>
-            )}
-            {workflow.cadence && (
-              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-ink-700 text-state-needs">
-                {workflow.cadence}
-              </span>
-            )}
-            {workflow.unproven && (
-              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/40 text-state-needs">
-                auto-generated · unproven
-              </span>
-            )}
-            {/* Judge state belongs beside the other "what is this agent" facts, so
-                you can see at a glance that a second model reviews this agent's runs
-                without opening Setup.
-                The two ON modes are NOT collapsed into one badge on purpose: observe
-                only reviews, every_run may queue a repair that RE-RUNS the agent on
-                your own subscription. A badge that said just "ON" for both would hide
-                the one that spends money. */}
-            {judgePolicy === 'observe' && (
-              <span
-                className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-violet-500/40 text-state-review"
-                title="Tukido Judge reviews every run of this agent and reports back. Nothing is changed or re-run."
-              >
-                Judge: on
-              </span>
-            )}
-            {judgePolicy === 'every_run' && (
-              <span
-                className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-violet-500/40 text-state-review"
-                title="Tukido Judge reviews every run AND may automatically re-run this agent to repair what it safely can, on your own subscription."
-              >
-                Judge: on · repair
-              </span>
-            )}
-          </div>
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                {/* Rename is a per-user alias (your view only, never the shared
-                    name), so it's available on EVERY agent — not just generated. */}
-                <AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={true} />
-                {/* Distinct from the rename pencil above: this opens the
-                    plain-language "edit what this agent does" form directly (a
-                    pop-up, not a tab-switch-and-scroll — founder feedback: the
-                    old Link "doesn't do anything" visible at the click itself).
-                    The Setup tab no longer carries its own copy of this form. */}
-                <AgentEditButton slug={workflow.slug} statusUnavailable={lifecycleUnavailable} revisePending={revisePending} />
-                {workflow.run_input_version_source === 'installed' && <ForkRunCta skillSlug={workflow.slug} source={workflow.source} versionId={workflow.workflow_version_id} />}
-                <AgentDefinitionReview definition={workflow.revision_contract ?? null} versionSource={workflow.definition_version_source ?? null} updateAvailable={!!workflow.update_available} revisePending={revisePending} statusUnavailable={lifecycleUnavailable} slug={workflow.slug} />
-              </div>
-              <details className="mt-2 text-xs text-ink-400"><summary className="cursor-pointer">Agent details</summary><code className="mt-2 block font-mono">{workflow.slug}</code></details>
-              {revisePending && (
-                <div className="mt-3 flex items-start gap-2 rounded-md border border-violet-500/30 bg-violet-500/5 px-3 py-2 max-w-xl">
-                  <span className="mt-0.5 inline-block h-2 w-2 flex-none rounded-full bg-violet-500 animate-pulse" aria-hidden />
-                  <p className="text-xs text-state-review leading-snug">
-                    <span className="font-medium">Rewrite in progress.</span> Your Claude is updating this agent’s
-                    steps with your edit. Running is paused until it lands. If its permissions or inputs changed,
-                    you’ll review and activate the update before using it.
-                    {/* A revise lands ASYNCHRONOUSLY (the drainer calls revise_workflow
-                        minutes later). Without this the page kept showing the OLD steps
-                        until a manual reload — the banner was the only thing that ever
-                        updated. Re-running the server render is the check. */}
-                    <ReviseLandedPoller revisePending={revisePending} />
-                  </p>
-                </div>
-              )}
-              <p className="text-ink-200 mt-3">{workflow.job || workflow.description}</p>
-              <div className="mt-3 flex items-center gap-2 flex-wrap">
-                {/→|->/.test(workflow.name || '') && (
-                  <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-state-review" title="A chain — runs several agents in sequence, each feeding the next">⛓ Chain</span>
-                )}
-                <RemoteSafetyBadge safety={safety} />
-              </div>
-            </div>
-            <div className="flex-none flex flex-col items-end gap-2">
-              {workflow.update_available?.input_contract_digest && (
-                <AgentUpdateGate
-                  workflowId={workflow.id}
-                  update={{ ...workflow.update_available, input_contract_digest: workflow.update_available.input_contract_digest }}
-                />
-              )}
-              {/*
-                §3.1 — the active version, stated, beside the run action.
-                A compatible edit now lands on its own, so the ONLY signal the
-                owner got that their edit took effect was an update card
-                disappearing. Absence of a card is not a receipt: it looks
-                identical to an edit that never registered. Say which version is
-                live, permanently, so "did my change land?" has an answer that
-                does not depend on having watched the previous screen.
-              */}
-              {typeof workflow.version === 'number' && (
-                <p className="text-[11px] text-ink-500" data-testid="active-version">
-                  Active version: v{workflow.version}
-                </p>
-              )}
-
-            </div>
-          </div>
-        </header>
+        <AgentPageHeader
+          title={<AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={true}/>}
+          description={workflow.job || workflow.description}
+          byline={<><span>{canTrain?'Built by you':checklist?.requiresLocal?'Runs on your computer':'Agent'}</span><span>·</span><span>{workflow.activity.run_count} recorded runs</span>{typeof workflow.version==='number'&&<><span>·</span><span data-testid="active-version">Active version: v{workflow.version}</span></>}{judgePolicy==='observe'&&<><span>·</span><span title="Reviews each run without changing or rerunning it">Judge on</span></>}{judgePolicy==='every_run'&&<><span>·</span><span title="Reviews and may rerun one repair using your subscription">Judge on · may repair</span></>}{workflow.unproven&&<><span>·</span><span>Not proven by runs yet</span></>}</>}
+          more={<>
+            <Link href={setupHref.replace('tab=setup','tab=overview')+'#agent-history'}>Version history</Link>
+            <AgentDefinitionReview definition={workflow.revision_contract ?? null} versionSource={workflow.definition_version_source ?? null} updateAvailable={!!workflow.update_available} revisePending={revisePending} statusUnavailable={lifecycleUnavailable} slug={workflow.slug}/>
+            <AgentEditButton slug={workflow.slug} statusUnavailable={lifecycleUnavailable} revisePending={revisePending}/>
+            {workflow.run_input_version_source==='installed'&&<ForkRunCta skillSlug={workflow.slug} source={workflow.source} versionId={workflow.workflow_version_id}/>}
+            {pausableRoutine&&<AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status}/>}
+          </>}
+        >
+          {revisePending&&<div role="status" className="agent-page-notice">Your edit is being prepared. Running is paused until it is ready.{<ReviseLandedPoller revisePending={revisePending}/>}</div>}
+          {workflow.update_available?.input_contract_digest&&<AgentUpdateGate workflowId={workflow.id} update={{...workflow.update_available,input_contract_digest:workflow.update_available.input_contract_digest}}/>}
+        </AgentPageHeader>
+        <div className="agent-sample-placeholder" role="img" aria-label="Sample preview unavailable"><span>Sample output</span><p>A sample preview is not available here yet.</p></div>
+        <div className="agent-page-stats" aria-label="Recorded agent activity">
+          <Stat label="Runs recorded" value={`${workflow.activity.run_count}`}/>
+          <Stat label="Delivered" value={gradeUnavailable?'Unavailable':grade?`${Math.round(grade.rate*100)}% of ${grade.runs} runs`:'Not measured yet'}/>
+          <Stat label="Last run" value={detail!.isUnavailable('latest_run')?'Unavailable':rel(workflow.activity.last_run_at)}/>
+        </div>
 
         {/* Connection warning - an account this agent needs is signed out. Loud,
          * above the tabs, with a one-tap sign-in. Renders nothing when healthy. */}
@@ -793,7 +710,7 @@ export default async function WorkflowDetailPage({
           panel={activeTab === 'runs' ? runsPanel() : activeTab === 'setup' ? setupPanel() : overviewPanel()}
         />
         <div className="agent-action-bar" aria-label="Agent actions">
-          <div className="min-w-0"><p className="truncate text-sm font-medium text-ink-100">{workflow.name}</p>{typeof workflow.version==='number'&&<p className="text-xs text-ink-400">Version {workflow.version}</p>}</div>
+          <div className="min-w-0"><p className="truncate text-sm font-medium text-ink-100">{actionsBlocked?'Setup status unavailable':blockingQuestions>0||missingServices.length?'Finish the required setup':isActive?'Ready for your next run':'Finish the required setup'}</p>{typeof workflow.version==='number'&&<p className="text-xs text-ink-400">Version {workflow.version}{canTrain?' · built by you':''}</p>}</div>
           <div className="flex flex-wrap items-center justify-end gap-3">
               <AgentActions
                 openOnArrival={searchParams.run==='1'}
@@ -816,9 +733,6 @@ export default async function WorkflowDetailPage({
                 inputContractDigest={workflow.input_contract_digest}
                 pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
               />
-              {pausableRoutine && (
-                <AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status} />
-              )}
               {/* Desktop-first: open this agent in the app (gated until the app
                   ships; web actions above remain the fallback). */}
               {desktopAppLive() && (

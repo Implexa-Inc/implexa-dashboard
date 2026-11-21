@@ -2,6 +2,8 @@
 
 import { useRef, useState } from 'react';
 import Link from 'next/link';
+import AgentPageHeader from './agent-page-header';
+import AgentTabs from './agent-tabs';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
@@ -92,7 +94,7 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
       : agent.readiness.state === 'Update available' && update
         ? <button disabled={busy || (update.authorityDiff.changesAuthority && !acceptedUpdate)} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/update`, { acceptAuthorityChange: acceptedUpdate })} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">Accept update</button>
         : agent.readiness.state === 'Ready'
-          ? <Link href={`/workflows/${encodeURIComponent(agent.slug)}?legacy=1`} className="btn-primary px-4 py-2 text-sm">Use agent</Link>
+          ? <Link href={`/workflows/${encodeURIComponent(agent.slug)}?legacy=1&run=1`} className="btn-primary px-4 py-2 text-sm">Run</Link>
           : null;
   const auditionAction = agent.audition && agent.readiness.state === 'Ready' ? (
     <div className="mt-5 rounded-md border border-brand-500/30 bg-brand-500/5 p-4">
@@ -119,20 +121,23 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
   return (
     <main className="app-page agent-resume-page"><article className="app-content">
       <Link href="/workflows" className="text-sm text-ink-500 hover:text-ink-200">← Agents</Link>
-      <header className="mt-6 border-b border-ink-800 pb-7">
-        <div className="flex flex-wrap items-start justify-between gap-5"><div>
-          <div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-semibold text-ink-50">{agent.name}</h1><span className="rounded border border-ink-700 px-2 py-0.5 text-xs text-ink-300">{agent.ownership}</span><span className="rounded border border-sky-500/40 px-2 py-0.5 text-xs text-state-running">{agent.readiness.state}</span></div>
-          <p className="mt-3 max-w-2xl text-ink-200">{agent.job}</p><p className="mt-2 text-xs text-ink-500">Built by {agent.builder.name} · v{agent.version.number} · updated {new Date(agent.version.updatedAt).toLocaleDateString()}</p>
-        </div></div>
+      <AgentPageHeader title={<h1>{agent.name}</h1>} description={agent.job}
+        byline={<><span>Trained by <b>{agent.builder.name}</b></span><span>·</span><span>Version {agent.version.number}</span><span>·</span><span>{agent.ownership==='Owned'?'Built by you':agent.ownership==='Hired'?'In your agents':'Available'}</span></>}
+        more={<><Link href={`/workflows/${encodeURIComponent(agent.slug)}?legacy=1&tab=setup`}>Setup and permissions</Link>{agent.ownership==='Owned'&&<><Link href={`/training/${encodeURIComponent(agent.slug)}`}>Train this agent</Link><Link href={`/training/${encodeURIComponent(agent.slug)}?chat=edit`}>Edit agent</Link></>}{auditionConfiguration&&<details><summary>Free audition settings</summary>{auditionConfiguration}</details>}{agent.acquisition && agent.acquisition.lifecycle !== 'uninstalled' && <div className="mt-5 border-t border-ink-800 pt-4"><p className="text-xs text-ink-500">Disabling or removing this agent pauses schedules. Prior runs, receipts, reviews, learning evidence, and version provenance stay intact.</p><div className="mt-3 flex flex-wrap items-center gap-3">{agent.acquisition.lifecycle === 'disabled' ? <button className="btn-outline px-3 py-1.5 text-xs" disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/enable`)}>Resume agent</button> : <button className="btn-outline px-3 py-1.5 text-xs" disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/disable`)}>Pause agent</button>}<label className="flex items-center gap-2 text-xs text-ink-400"><input aria-label="Confirm removing this agent without deleting history" type="checkbox" checked={confirmUninstall} onChange={(event) => setConfirmUninstall(event.target.checked)} />I understand this removes access, not history</label><button className="rounded border border-rose-500/40 px-3 py-1.5 text-xs text-state-fail disabled:opacity-50" disabled={busy || !confirmUninstall} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/uninstall`)}>Remove agent</button></div></div>}</>}
+      >
         {agent.readiness.reason && <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">{agent.readiness.reason}</p>}
         {error && <p role="alert" className="mt-3 text-sm text-state-fail">{error}</p>}
-        {auditionConfiguration}
-        {auditionAction}
-        {update && <div className="mt-4 rounded-md border border-ink-700 p-3 text-sm text-ink-300"><p className="font-medium">Update {update.fromVersion || 'current'} → {update.toVersion}</p><p className="mt-1 text-xs text-ink-500">Added capabilities: {update.authorityDiff.addedCapabilities.join(', ') || 'none'} · Removed capabilities: {update.authorityDiff.removedCapabilities.join(', ') || 'none'} · Added permissions: {update.authorityDiff.addedPermissions.join(', ') || 'none'} · Removed permissions: {update.authorityDiff.removedPermissions.join(', ') || 'none'}</p>{update.authorityDiff.changesAuthority && <label className="mt-3 flex items-start gap-2 text-xs"><input type="checkbox" checked={acceptedUpdate} onChange={(event) => setAcceptedUpdate(event.target.checked)} /><span>I accept the capability and permission changes for this exact version.</span></label>}</div>}
-        {agent.ownership === 'Owned' && <div className="mt-4 flex gap-3"><Link href={`/workflows/${agent.slug}?legacy=1&tab=setup`} className="text-sm text-action-accent hover:underline">Configure</Link><Link href={`/training/${encodeURIComponent(agent.slug)}`} className="text-sm text-action-accent hover:underline">Train</Link><Link href={`/training/${encodeURIComponent(agent.slug)}?chat=edit`} className="text-sm text-action-accent hover:underline">✦ Chat with AI</Link></div>}
-        {agent.acquisition && agent.acquisition.lifecycle !== 'uninstalled' && <div className="mt-5 border-t border-ink-800 pt-4"><p className="text-xs text-ink-500">Disabling or removing this agent pauses schedules. Prior runs, receipts, reviews, learning evidence, and version provenance stay intact.</p><div className="mt-3 flex flex-wrap items-center gap-3">{agent.acquisition.lifecycle === 'disabled' ? <button className="btn-outline px-3 py-1.5 text-xs" disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/enable`)}>Enable</button> : <button className="btn-outline px-3 py-1.5 text-xs" disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/disable`)}>Disable</button>}<label className="flex items-center gap-2 text-xs text-ink-400"><input aria-label="Confirm removing this agent without deleting history" type="checkbox" checked={confirmUninstall} onChange={(event) => setConfirmUninstall(event.target.checked)} />I understand this removes access, not history</label><button className="rounded border border-rose-500/40 px-3 py-1.5 text-xs text-state-fail disabled:opacity-50" disabled={busy || !confirmUninstall} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/uninstall`)}>Remove agent</button></div></div>}
-      </header>
-      <div className="grid gap-8 py-8 md:grid-cols-2">
+                {update && <div className="mt-4 rounded-md border border-ink-700 p-3 text-sm text-ink-300"><p className="font-medium">Update {update.fromVersion || 'current'} → {update.toVersion}</p><p className="mt-1 text-xs text-ink-500">Added capabilities: {update.authorityDiff.addedCapabilities.join(', ') || 'none'} · Removed capabilities: {update.authorityDiff.removedCapabilities.join(', ') || 'none'} · Added permissions: {update.authorityDiff.addedPermissions.join(', ') || 'none'} · Removed permissions: {update.authorityDiff.removedPermissions.join(', ') || 'none'}</p>{update.authorityDiff.changesAuthority && <label className="mt-3 flex items-start gap-2 text-xs"><input type="checkbox" checked={acceptedUpdate} onChange={(event) => setAcceptedUpdate(event.target.checked)} /><span>I accept the capability and permission changes for this exact version.</span></label>}</div>}
+
+
+      </AgentPageHeader>
+      <div className="agent-sample-placeholder" role="img" aria-label="Sample preview unavailable"><span>Sample output</span><p>A sample preview is not available here yet.</p></div>
+      <AgentTabs active="overview" tabs={[
+        {key:'overview',label:'Overview'},
+        ...(agent.acquisition?[{key:'runs',label:'My runs',href:`/workflows/${encodeURIComponent(agent.slug)}?legacy=1&tab=runs`}]:[]),
+        ...(agent.ownership==='Owned'?[{key:'training',label:'Training',href:`/training/${encodeURIComponent(agent.slug)}`}]:[]),
+        {key:'setup',label:'Setup',href:`/workflows/${encodeURIComponent(agent.slug)}?legacy=1&tab=setup`},
+      ]} panel={<div className="agent-overview-content grid gap-8 py-8 md:grid-cols-2">
         <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">What it can and cannot do</h2><p className="mt-3 text-sm text-ink-300">{agent.limitations}</p></section>
         <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Tested compatibility</h2><p className="mt-3 text-sm text-ink-300">{agent.testedCompatibility.executionEngines.length ? agent.testedCompatibility.executionEngines.join(', ') : 'No supported engine has been established.'}</p></section>
 
@@ -170,7 +175,8 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
             <p role="status" className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">Evidence by source is unavailable for this version, so none is shown. {evidenceChannels.reason}</p>
           )}
         </section></div></details>
-      </div>
+      {auditionAction}
+      </div>}/>
     <div className="agent-action-bar"><p className="min-w-0 truncate text-sm text-ink-100">{agent.name}</p><div>{action}</div></div>
     </article></main>
   );
