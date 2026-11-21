@@ -115,3 +115,15 @@ test('the Coach entry opens the listing page without loading private draft data'
  assert.equal(link.tagName,'A');assert.equal(link.getAttribute('href'),'/training/studio/listing');
  assert.deepEqual(calls,[]);assert.equal(r.document.querySelector('[role="dialog"]'),null);
 });
+
+test('an unreadable initial draft has an explicit read-only retry',async t=>{
+ let attempts=0;const posts:any[]=[];
+ const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{fetch:(async(_url:string,init:any={})=>{if(init.method==='POST')posts.push(init);attempts++;return attempts===1?{ok:false,json:async()=>({reason:'marketplace_submission_unavailable'})}:{ok:true,json:async()=>fixture()};}) as typeof fetch});t.after(()=>r.cleanup());
+ assert.ok(r.getByText('Try again'));assert.equal(r.document.querySelector('fieldset'),null);
+ await r.click(r.getByText('Try again'));assert.equal(attempts,2);assert.equal(posts.length,0);
+ assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'Video studio');
+});
+test('the Coach entry preserves the trainer’s expected version in its link',async t=>{
+ const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{exportName:'MarketplaceSubmissionEntry'});t.after(()=>r.cleanup());
+ assert.equal(r.getByText('Prepare marketplace listing').getAttribute('href'),`/training/studio/listing?versionId=${V}`);
+});

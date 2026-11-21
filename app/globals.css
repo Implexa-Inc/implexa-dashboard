@@ -264,3 +264,5 @@ html, body {
 .listing-layout { display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: 32px; align-items: start; }
 .listing-preview { position: sticky; top: 24px; }
 @media (max-width: 1100px) { .listing-layout { grid-template-columns: minmax(0,1fr); } .listing-preview { position: static; } }
+
+@media (max-width: 1535px) { .training-companion { width: min(420px,calc(100vw - 24px)); left: auto; right: 12px; } }

@@ -6,7 +6,7 @@ import { THEME_STORAGE_KEY } from '@/lib/theme';
 type Preference = 'auto' | 'light' | 'dark';
 
 /** A device-local appearance choice; never changes account or run settings. */
-export default function ThemeControl() {
+export default function ThemeControl({enabled=false}:{enabled?:boolean}) {
   const [preference, setPreference] = useState<Preference>('auto');
   useEffect(() => {
     const sync = () => {
@@ -32,6 +32,7 @@ export default function ThemeControl() {
     } catch { /* Storage can be disabled; keep the effective theme unchanged. */ }
   }
 
+  if(!enabled)return null;
   return <div className="theme-switch" role="group" aria-label="Appearance">
     {(['auto', 'light', 'dark'] as const).map(value => <button
       key={value} type="button" aria-pressed={preference === value}

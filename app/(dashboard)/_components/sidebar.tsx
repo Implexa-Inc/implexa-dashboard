@@ -35,6 +35,7 @@ import {
 import ThemeControl from '@/components/theme-control';
 
 type UserCtx = {
+  themeClock?: boolean;
   marketplacePilot?: boolean;
   /** Account id — scopes the per-device "last opened Work" marker. */
   id?:         string | null;
@@ -169,7 +170,7 @@ export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: 
 
       {/* User block at bottom */}
       <div className="px-5 py-5 border-t border-ink-700">
-        <div className="mb-5"><ThemeControl /></div>
+        <div className="mb-5"><ThemeControl enabled={user.themeClock} /></div>
         <div className="text-sm text-ink-100 font-medium truncate" title={user.displayName || user.email}>
           {user.displayName || user.email.split('@')[0]}
         </div>

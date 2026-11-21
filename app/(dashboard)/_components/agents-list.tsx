@@ -178,7 +178,7 @@ function nextRunLabel(iso: string): string {
 function stateBadge(a: ListAgent): { label: string; cls: string } | null {
   const rs = a.lastRun?.runState;
   const st = a.lastRun?.status;
-  if (rs === 'stalled') return { label: 'Needs attention', cls: 'border-amber-500/50 text-amber-700 dark:text-amber-300' };
+  if (rs === 'stalled') return { label: 'Progress interrupted', cls: 'border-amber-500/50 text-amber-700 dark:text-amber-300' };
   if (st === 'failed' || rs === 'failed') return { label: 'Last run failed', cls: 'border-rose-500/50 text-rose-700 dark:text-rose-300' };
   if (st === 'partial') return { label: 'Partly delivered', cls: 'border-amber-500/50 text-amber-700 dark:text-amber-300' };
   if (st === 'completed' || rs === 'completed') return { label: 'Delivered', cls: 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300' };
@@ -272,6 +272,8 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
           {engine && (
             <details title={`Last run used ${engine}`} className="mt-1 text-xs text-ink-400"><summary className="cursor-pointer">Run details</summary><p className="mt-2">{a.category.label} · {engine}</p></details>
           )}
+          {/* Category remains visible even before the first run. */}
+          <p className="mt-1 text-xs text-ink-400">{a.category.label}</p>
           {/* status line */}
           <p className="text-xs text-ink-500 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
             {a.needsIntervention && (
@@ -663,7 +665,8 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
           scheduled + on-demand, scheduler-tagged — rows open the agent page). The
           two overlap on purpose: same agents, two doors. Then Need activation, then
           Paused. Scheduling is surfaced as a per-row ⏰ tag, not a list split. */}
-      <Section title="Favourites" subtitle="your starred agents" agents={favorites} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
+      <div className="mb-5 text-sm"><Link href="/workflows?tab=rent" className="text-brand-500 hover:underline">Find a trained agent →</Link></div>
+      <Section title="Favorites" subtitle="your starred agents" agents={favorites} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
       <Section title="Running & recently ran" subtitle="live activity · opens the run" agents={recentlyActive} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} spotlight />
       <Section title="Active agents" agents={activated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
       <Section title="Need activation" agents={notActivated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />

@@ -25,7 +25,7 @@ test('favorites float into their own top section and are removed from the lower 
   for (const s of ['scheduled', 'on_demand', 'not_activated', 'paused']) {
     assert.match(SRC, new RegExp(`a\\.section === '${s}' && !a\\.favorite`), `the ${s} section excludes favorites`);
   }
-  assert.match(SRC, /<Section title="Favourites"/, 'the Favorites section is rendered');
+  assert.match(SRC, /<Section title="Favorites"/, 'the Favorites section is rendered');
 });
 
 test('a running FAVORITE still appears in the live spotlight (not hidden by the exclusion)', () => {

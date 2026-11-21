@@ -30,6 +30,7 @@ import CreateFab from './_components/create-fab';
 import SkipLink from './_components/skip-link';
 import {getMarketplaceSamples} from '@/lib/agent-marketplace-samples-server';
 import {marketplacePilotEnabled} from '@/lib/agent-marketplace-samples';
+import { themeMode } from '@/lib/theme';
 import { MAIN_CONTENT_ID } from '@/lib/navigation';
 
 export const dynamic = 'force-dynamic';
@@ -118,6 +119,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const isAdmin = adminEmails.includes((profile.email || '').toLowerCase());
 
   const userCtx = {
+    themeClock: themeMode() === 'clock',
     // Scopes the shell's per-device "last opened Work" marker so two accounts
     // on one machine cannot inherit each other's badge state.
     id:                profile.id,

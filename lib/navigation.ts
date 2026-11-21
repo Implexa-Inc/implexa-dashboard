@@ -3,7 +3,7 @@
  *
  * DESIGN.md §4.1 locks primary navigation to three product domains:
  *
- *     Agents · Work · Training          (Settings is secondary)
+ *     Agents · Work · Coach             (Settings is secondary)
  *
  * and locks out two entries that used to exist here:
  *
