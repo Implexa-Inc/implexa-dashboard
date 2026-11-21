@@ -245,6 +245,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [session, setSession] = useState('');
   const [sessionVersion, setSessionVersion] = useState('');
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  const observedVersion=useRef<string|null>(null);
   const reportRunPending=useCallback((count:number)=>{const identity=`${session}:${currentVersion}`;setRunPending(previous=>previous.identity===identity&&previous.count===count?previous:{identity,count});},[session,currentVersion]);
   const [agentName, setAgentName] = useState(slug);
   const [versionChanged, setVersionChanged] = useState(false);
@@ -252,7 +253,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [trainingStatusRefresh,setTrainingStatusRefresh] = useState(0);
   const trainingAuthorityEpoch=useRef(0);
   const intakeReadEpoch=useRef(0);
-  const [homeError,setHomeError]=useState(false);
+  const [homeCheck,setHomeCheck]=useState<'pending'|'complete'|'unavailable'|'stale'>('pending');
   function invalidateTrainingContinuity(){trainingAuthorityEpoch.current++;setActiveTraining(null);}
   const [publication,setPublication]=useState<{versionId:string;shared:boolean;publicUrl:string}|null>(null);
   const [publishConfirmed,setPublishConfirmed]=useState(false);
@@ -624,10 +625,12 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const trainingNeedsCoach = Boolean(!versionChanged && requirementsAreCurrent && managerTrainingRequirements?.readiness === 'coach_reference_training_required');
   // Progressive disclosure must never hide a warning that training is ineffective
   // or a preserved operation still needs the owner. These use the original facts.
-  const readinessNeedsAttention=Boolean((currentVersion&&!requirementsAreCurrent&&!activeVersionTrainingIsReady)||trainingNeedsCoach||coverageNeedsUpdate
-    ||((acceptedEvidenceCount>0||(managerCoverage?.acceptedLocalRecordCount||0)>0)&&!coverageCanClaimReady&&!coverageNeedsUpdate));
+  const readinessCheckComplete=homeCheck==='complete'&&!evidenceLoading&&!evidenceError;
+  const readinessNeedsAttention=Boolean(trainingNeedsCoach||coverageNeedsUpdate
+    ||(readinessCheckComplete&&((currentVersion&&!requirementsAreCurrent&&!activeVersionTrainingIsReady)
+      ||((acceptedEvidenceCount>0||(managerCoverage?.acceptedLocalRecordCount||0)>0)&&!coverageCanClaimReady&&!coverageNeedsUpdate))));
   const preservedWorkCount=failed.length+pending.length+Number(!!pendingAnswerLinks)+Number(!!pendingDemoLink)+Number(!!pendingRecordingLink);
-  const trainingNeedsAttention=readinessNeedsAttention||preservedWorkCount>0;
+  const trainingNeedsAttention=readinessNeedsAttention||homeCheck==='unavailable'||homeCheck==='stale'||preservedWorkCount>0;
 
   async function call(operation: string, args: unknown) {
     if(installationId&&['scope','create'].includes(operation)){
@@ -760,6 +763,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }
 
   function rememberScope(scope: Scope) {
+    observedVersion.current=scope.agent.currentVersionId;
     setAgentName(scope.agent.name || slug); setCurrentVersion(scope.agent.currentVersionId);
     if (scope.session) setSessionVersion(scope.session.baseVersionId);
   }
@@ -783,8 +787,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   useEffect(() => {
     let live = true;
     const intakeEpoch=intakeReadEpoch.current;
+    const authorityEpoch=trainingAuthorityEpoch.current;
     const isolated=!installationId&&bridge()?.trainingIntakeScopeContractVersion==='1';
-    const currentHome=()=>live&&(!isolated||intakeReadEpoch.current===intakeEpoch);
+    const currentHome=()=>live&&authorityEpoch===trainingAuthorityEpoch.current&&(!isolated||intakeReadEpoch.current===intakeEpoch);
     async function loadSavedEvidence(id: string, activeVersionId: string, predecessor: TrainingSuccessorProjection['eligiblePredecessor']) {
       const read = ++evidenceRead.current;
       const authorityEpoch = trainingAuthorityEpoch.current;
@@ -827,8 +832,11 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       }
       const authorityEpoch=trainingAuthorityEpoch.current;
       const result = await call('home', { slug });
-      if (!currentHome() || !result.home) return;
+      if (!currentHome()) return;
+      if(!result.home)throw new TrainingError('training_unavailable');
       const home = result.home;
+      if(observedVersion.current&&home.agent.currentVersionId!==observedVersion.current)
+        throw new TrainingError('training_version_changed');
       setRecentSessions(home.recentSessions);
       if (!isTrainingSuccessorProjection(home.successorProjection, home.agent.currentVersionId)) {
         throw new TrainingError('training_successor_projection_unavailable', 'Update Implexa Desktop before training. The version-transition evidence projection could not be verified.');
@@ -864,8 +872,17 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         setSession(predecessor.sessionId); rememberScope(scoped.scope); rememberList(prior); setVersionChanged(true);
       }
     }
+    setHomeCheck('pending');
+    async function runHomeCheck(){
+      try{
+        await checkTrainingHome();
+        if(live)setHomeCheck(currentHome()?'complete':'unavailable');
+      }catch(caught){
+        if(live)setHomeCheck(caught instanceof TrainingError&&caught.reason==='training_version_changed'?'stale':'unavailable');
+        if(!isolated)throw caught;
+      }
+    }
     if(isolated){
-      setHomeError(false);
       // Current-session editing/applying must not await optional historical
       // evidence discovery. This read has no carry or admission side effects.
       void call('scope',{slug}).then(result=>{
@@ -875,8 +892,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
           setSession(scope.session.sessionId);setSessionVersion(scope.session.baseVersionId);setVersionChanged(false);
         }
       }).catch(()=>{});
-      void checkTrainingHome().catch(()=>{if(currentHome())setHomeError(true);});
-    }else void work('Checking agent training',checkTrainingHome);
+      void runHomeCheck();
+    }else void work('Checking agent training',runHomeCheck);
     return () => { live = false; };
     // The slug is the route identity. A new slug remounts the authoritative scope.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1899,6 +1916,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       label:'Open Apply & Test',optional:false,action:()=>selectTrainingStep(3),
     }]:[]),
     ...(preservedWorkCount>0?[{key:`recovery:${preservedWorkCount}`,title:'Finish saved work',description:'An upload or teaching on this Mac needs another look.',label:'Review saved work',optional:true,action:()=>openTrainingHistory('training-recovery')}]:[]),
+    ...(homeCheck==='stale'?[{key:'readiness-version',title:'Agent version changed',description:'Reload training to check the current version.',label:'Reload training',optional:false,action:()=>window.location.reload()}]:[]),
+    ...(homeCheck==='unavailable'?[{key:'readiness-check',title:'Saved training couldn’t be checked',description:'Your lessons are still saved. Try checking them again.',label:'Retry check',optional:false,action:()=>setTrainingStatusRefresh(value=>value+1)}]:[]),
     ...(readinessNeedsAttention?[{key:'readiness',title:'Check training setup',description:'Some saved lessons need attention before they can guide this agent.',label:'Check setup',optional:false,action:()=>reveal('training-readiness')}]:[]),
 
   ];
@@ -1983,6 +2002,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     <div id="training-workspace" className={installationId?'':'overflow-hidden rounded-2xl border border-ink-700'}>
     {!installationId&&trainingStep!==1&&<div className="flex items-center justify-between gap-4 border-b border-ink-800 p-5"><button type="button" onClick={()=>selectTrainingStep(1)} className="text-sm text-ink-400">← Ways to train</button><span className="text-sm font-medium">{trainingStep===2?'Review training':'Apply & test'}</span></div>}
     <div className={installationId?'':'space-y-6 p-5 sm:p-8'}>
+    {homeCheck==='pending'&&<p role="status" className="text-sm text-ink-400">Checking saved training… You can keep teaching while this finishes.</p>}
+    {installationId&&homeCheck==='unavailable'&&<p role="status">Saved training couldn’t be checked. <button type="button" className="underline" onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry training check</button></p>}
     {intakeStatus&&<p role="status" className="text-sm text-ink-300">{intakeStatus}</p>}
     {reviewedIntake&&!reviewedIntake.recordingId&&intakePanel}
     {!installationId&&busy&&!analysisInProgress&&<p role="status" className="text-sm text-ink-400">{busy}…</p>}{!installationId&&error&&<p role="alert" className="text-sm text-amber-300">{reasonLabel(error)}</p>}
@@ -2216,13 +2237,12 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         </button>)}
       </div>}
     </div>}
-    {homeError&&<p role="status">Version details couldn’t load. <button type="button" className="underline" onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry version details</button></p>}
     {separateIntake&&changesError&&<p role="status">Saved lessons couldn’t load. <button type="button" className="underline" disabled={changesBusy} onClick={()=>void loadChanges()}>Refresh saved lessons</button></p>}
     {readinessNeedsAttention&&versionTransition?.sources.some(source=>source.decisions.some(decision=>decision.state==='accepted'))&&<button type="button" onClick={()=>openTrainingHistory('training-earlier')}>Review training from earlier versions</button>}
     {acceptedEvidenceCount > 0 && <p role="status" className="rounded border border-emerald-600 p-3">Evidence accepted: {acceptedEvidenceCount} immutable decision{acceptedEvidenceCount === 1 ? '' : 's'} in this session. Acceptance preserves the teaching; Agent readiness is verified separately below.</p>}
-    {currentVersion && !requirementsAreCurrent && !activeVersionTrainingIsReady && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager reference training readiness unavailable</h2><p>Implexa cannot verify the required stage and quality-reference pairs for this exact active version. Accepted evidence remains preserved. Decision, procedure, criterion, and machine-custody requirements are verified separately at run prelaunch.</p></section>}
+    {readinessCheckComplete && currentVersion && !requirementsAreCurrent && !activeVersionTrainingIsReady && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager reference training readiness unavailable</h2><p>Implexa cannot verify the required stage and quality-reference pairs for this exact active version. Accepted evidence remains preserved. Decision, procedure, criterion, and machine-custody requirements are verified separately at run prelaunch.</p></section>}
     {!installationId && trainingNeedsCoach && managerTrainingRequirements && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Evidence accepted — reference training not ready</h2><p>The immutable Agent policy still requires accepted visual-reference evidence at the stage/property routes below. Create or explicitly expand successor drafts, review their exact evidence, and accept each new digest. Implexa does not silently widen an accepted record. Other Manager families are verified separately before a run starts.</p><ul className="list-disc pl-5">{managerTrainingRequirements.missingPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul></section>}
-    {(acceptedEvidenceCount > 0 || (managerCoverage?.acceptedLocalRecordCount || 0) > 0) && !coverageCanClaimReady && !coverageNeedsUpdate && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager coverage status unavailable</h2><p>Implexa cannot prove that this exact agent version can consume the accepted evidence across its training sessions. Update Desktop or reload after the coverage service is available. The evidence remains preserved, but this page will not describe it as ready for a run.</p></section>}
+    {readinessCheckComplete && (acceptedEvidenceCount > 0 || (managerCoverage?.acceptedLocalRecordCount || 0) > 0) && !coverageCanClaimReady && !coverageNeedsUpdate && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager coverage status unavailable</h2><p>Implexa cannot prove that this exact agent version can consume the accepted evidence across its training sessions. Update Desktop or reload after the coverage service is available. The evidence remains preserved, but this page will not describe it as ready for a run.</p></section>}
     {coverageNeedsUpdate && managerCoverage && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Agent update required before this evidence can guide runs</h2><p>{managerCoverage.reason === 'manager_quality_coverage_unclassified_training' ? 'This version has no Manager training-coverage policy.' : 'This version does not cover every accepted evidence property, relation, and stage.'} This is the version-wide result across all training sessions for this immutable agent version. Your accepted evidence remains immutable and preserved, but uncovered decisions cannot be selected at planning or any other uncovered stage.</p><p>Publish a new immutable agent version with Manager v3 coverage for the listed evidence. Existing accepted records will not be rewritten.</p>{managerCoverage.uncoveredPairs.length > 0 && <ul className="list-disc pl-5">{managerCoverage.uncoveredPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul>}</section>}
     {coverageCanClaimReady && managerCoverage?.contractVersion === 'manager-training-coverage.v1' && <p role="status" className="rounded border border-emerald-600 p-3">This immutable agent version classifies all {managerCoverage.acceptedPairs.length} accepted stage-scoped evidence routes across all training sessions.</p>}
     {coverageCanClaimReady && managerCoverage?.contractVersion === 'manager-training-coverage.v2' && <section role="status" className="rounded border border-ink-700 p-3 space-y-2"><h2 className="font-semibold">Private training routing available</h2><p>{managerCoverage.coveredPairs.length} required-policy routes · {managerCoverage.optionalPairs.length} optional taste routes. Optional taste can guide supported decisions without editing this agent. Each run selects a bounded set; eligibility does not mean an example was selected or applied.</p>{managerCoverage.optionalPairs.length > 0 && <ul className="list-disc pl-5">{managerCoverage.optionalPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)} · Optional taste</li>)}</ul>}{managerCoverage.unsupportedPairs.length > 0 && <div className="text-amber-400"><p>{managerCoverage.unsupportedPairs.length} accepted routes are not supported by this routing policy. They remain saved, are not selected through optional routing, and do not block other supported training.</p><ul className="list-disc pl-5">{managerCoverage.unsupportedPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)} · Unsupported</li>)}</ul></div>}</section>}

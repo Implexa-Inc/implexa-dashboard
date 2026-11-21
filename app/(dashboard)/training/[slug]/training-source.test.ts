@@ -3343,3 +3343,60 @@ test('current training candidate opens and applies while optional home history i
   assert.equal(r.calls.backend.some(call=>call.path==='/api/v2/me/run-requests'),false);
  }finally{r.cleanup();}
 });
+
+test('pending background readiness is a status, not a setup problem; failure offers retry and confirmed gaps stay actionable',async()=>{
+ const h=harness(),prior=h.bridge.trainingLocal;
+ Object.assign(h.bridge,{trainingIntakeScopeContractVersion:'1'});
+ let finish!:(value:any)=>void,homeReads=0;
+ h.bridge.trainingLocal=async(operation,args)=>{
+  if(operation==='home'){homeReads++;return new Promise(resolve=>{finish=resolve;});}
+  if(operation==='scope')return {ok:true,scope:{agent:{name:'Video craft',currentVersionId:VERSION_A},session:{sessionId:SESSION,baseVersionId:VERSION_A,parentSessionId:null,terminal:false}}};
+  return prior(operation,args);
+ };
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+ const button=(text:string)=>Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent===text);
+ try{
+  assert.equal(homeReads,1);
+  assert.match(r.text(),/Checking saved training… You can keep teaching/);
+  assert.equal(button('Check setup →'),undefined);
+  assert.doesNotMatch(r.text(),/Manager reference training readiness unavailable/);
+  assert.equal((r.getByText('↑ Upload') as HTMLButtonElement).disabled,false);
+  await r.act(async()=>{finish({ok:false,reason:'training_unavailable'});await new Promise(resolve=>setTimeout(resolve,20));});
+  assert.doesNotMatch(r.text(),/Checking saved training…/);
+  assert.match(r.text(),/Saved training couldn’t be checked/);
+  assert.equal(button('Check setup →'),undefined);
+  await r.click(r.getByText('Retry check →'));
+  assert.equal(homeReads,2);assert.match(r.text(),/Checking saved training…/);
+  assert.equal(button('Check setup →'),undefined);
+  const result=await prior('home',{});
+  await r.act(async()=>{finish(result);await new Promise(resolve=>setTimeout(resolve,20));});
+  assert.doesNotMatch(r.text(),/Checking saved training…|Saved training couldn’t be checked/);
+  assert.equal(button('Check setup →'),undefined);
+  // A settled, exact-version policy gap must still request action.
+  const deficient=harness({managerTrainingRequirements:requirements(VERSION_A,{readiness:'coach_reference_training_required',missingPairs:[planningPair],fulfilledPairs:[],reason:'manager_required_reference_training_missing'})});
+  const second=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:deficient.bridge});
+  try{assert.ok(second.getByText('Check setup →'));assert.match(second.text(),/Evidence accepted — reference training not ready/);}finally{second.cleanup();}
+  assert.equal(r.calls.backend.some(call=>call.path==='/api/v2/me/run-requests'),false);
+ }finally{r.cleanup();}
+});
+
+test('late home from an older version and typed version changes request reload rather than setup',async()=>{
+ for(const typed of [false,true]){
+  const h=harness(),prior=h.bridge.trainingLocal;let finish!:(value:any)=>void;
+  Object.assign(h.bridge,{trainingIntakeScopeContractVersion:'1'});
+  h.bridge.trainingLocal=async(operation,args)=>{
+   if(operation==='home')return new Promise(resolve=>{finish=resolve;});
+   if(operation==='scope')return {ok:true,scope:{agent:{name:'Video craft',currentVersionId:VERSION_B},session:{sessionId:NEW_SESSION,baseVersionId:VERSION_B,parentSessionId:null,terminal:false}}};
+   return prior(operation,args);
+  };
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+  try{
+   const value=typed?{ok:false,reason:'training_version_changed'}:await prior('home',{});
+   await r.act(async()=>{finish(value);await new Promise(resolve=>setTimeout(resolve,20));});
+   assert.match(r.text(),/Agent version changed/);assert.ok(r.getByText('Reload training →'));
+   assert.doesNotMatch(r.text(),/Check training setup|Checking saved training…|Saved training couldn’t be checked/);
+   assert.match(r.text(),new RegExp(`Active version: ${VERSION_B.slice(0,8)}`));
+   assert.equal(h.calls.some(call=>['accept','delivery','create','annotate'].includes(call.operation)),false);
+  }finally{r.cleanup();}
+ }
+});
