@@ -111,7 +111,7 @@ export default function ScheduleManager({
     return (
       <div>
         <p className="text-sm text-ink-500">
-          Runs on-demand (the Run now button above){editing ? '.' : ' — no automatic schedule yet.'}
+          Runs on demand{editing ? '.' : ' — no automatic schedule yet.'}
         </p>
         {editing ? (
           <>

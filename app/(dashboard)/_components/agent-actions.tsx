@@ -1708,12 +1708,14 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                   {origin === 'cleared' && savedPath && (
                     <span className="ml-2 text-[11px] text-ink-400 border border-ink-700 rounded px-1.5 py-0.5">cleared for this run</span>
                   )}
+                  {field.kind==='choice'&&!brollBudget&&field.description.length>180?<details className="mt-1 text-xs leading-relaxed text-ink-400"><summary className="cursor-pointer">About {field.label.toLowerCase()}</summary><p className="mt-2">{field.description}</p></details>:(
                   <p className="text-xs text-ink-400 mt-1 leading-relaxed">{brollBudget
                     ? brollEstimate
                       ? `Aim for ${brollEstimate.minClips === brollEstimate.maxClips ? brollEstimate.minClips : `${brollEstimate.minClips}–${brollEstimate.maxClips}`} B-roll clips at 2–3 per minute. Budget roughly ${brollEstimate.estimatedCredits} credits if generating them all. Actual costs vary by model and clip length.`
                       : presenterFileId ? 'Aim for 2–3 B-roll clips per minute. Enter the video length for a credit estimate.'
                       : 'Aim for 2–3 B-roll clips per minute. Choose a presenter video to estimate a credit cap.'
                     : field.description}</p>
+                  )}
                   {brollBudget && presenterFileId && !durationHintMs && (
                     <label className="mt-2 flex items-center gap-2 text-xs text-ink-400">
                       Video length (minutes)
@@ -1759,6 +1761,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 </div>
                 {field.kind === 'text' ? (
                   <input
+                    aria-label={field.label}
                     value={field.cardinality === 'many' ? scalarMany.join(', ') : scalar}
                     onChange={(event) => override(field.cardinality === 'many'
                       ? event.target.value.split(',').map((entry) => entry.trim()).filter(Boolean)
@@ -1873,6 +1876,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <label className="block text-sm text-ink-200 mb-1">Notes for this agent <span className="text-ink-500 font-normal">(every run)</span></label>
         <p className="text-[11px] text-ink-500 mb-1.5">Standing instructions the agent follows on every run. Editing here updates them for good.</p>
         <textarea
+          aria-label="Standing instructions for every run"
           value={standingNote}
           onChange={(e) => setStandingNote(e.target.value)}
           rows={3}
@@ -1887,6 +1891,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <label className="block text-sm text-ink-200 mb-1">Anything to add for this run? <span className="text-ink-500 font-normal">(just this run)</span></label>
         <p className="text-[11px] text-ink-500 mb-1.5">Steers this one run only — it doesn’t change the agent. To change it for every run, use “Change how this agent works” in Setup.</p>
         <textarea
+          aria-label="Instructions for this run"
           value={runNote}
           onChange={(e) => setRunNote(e.target.value)}
           rows={3}
