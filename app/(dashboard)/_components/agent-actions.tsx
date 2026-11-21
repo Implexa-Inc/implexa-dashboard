@@ -334,7 +334,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const router = useRouter();
   const arrivalHandled=useRef(false);
   useEffect(()=>{
-    if(!openOnArrival||arrivalHandled.current||presentation!=='agent')return;
+    if(!openOnArrival||arrivalHandled.current||presentation==='training')return;
     arrivalHandled.current=true;
     // Next's native-history integration updates the URL/search params without
     // re-fetching this agent page or leaving a replayable launch intent.
@@ -1541,7 +1541,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           See what that run produced →
         </Link>
       )}
-      {presentation==='dock'&&!trainingTest&&!pendingUpdate&&!observingOpenRun&&!betaTrial&&<details className="mt-5 text-sm"><summary>More run options</summary><div className="mt-3 space-y-2"><label className="flex items-center gap-2"><input type="radio" name="run-mode" checked={preRunMode==='queue'} onChange={()=>setPreRunMode('queue')}/>Run automatically</label><label className="flex items-center gap-2"><input type="radio" name="run-mode" checked={preRunMode==='watch'} onChange={()=>setPreRunMode('watch')}/>Open in a session to watch</label></div></details>}
+
       <div className="mt-4 flex items-center justify-end gap-3">
         <button type="button" onClick={() => setDupe(null)} className="btn-outline text-sm px-4 py-2">
           Cancel
@@ -1966,6 +1966,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           Start with settings collapsed next time (they stay one click away)
         </label>
       )}
+      {presentation==='dock'&&!trainingTest&&!pendingUpdate&&!observingOpenRun&&!betaTrial&&<details className="mt-5 text-sm"><summary>More run options</summary><div className="mt-3 space-y-2"><label className="flex items-center gap-2"><input type="radio" name="run-mode" checked={preRunMode==='queue'} onChange={()=>setPreRunMode('queue')}/>Run automatically</label><label className="flex items-center gap-2"><input type="radio" name="run-mode" checked={preRunMode==='watch'} onChange={()=>setPreRunMode('watch')}/>Open in a session to watch</label></div></details>}
       <div className="mt-4 flex items-center justify-end gap-3">
         <button
           type="button"
