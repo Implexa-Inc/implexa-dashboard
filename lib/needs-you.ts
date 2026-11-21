@@ -27,6 +27,7 @@
  * the four bullets above.
  */
 
+import {humanize} from './inbox-items';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getMyAgents, type MyAgent } from '@/lib/agents-home';
 import { looksOverdue } from '@/lib/routine-status';
@@ -37,9 +38,11 @@ import { getAttention, type AttentionItem } from '@/lib/attention';
 export type NeedGrant = { slug: string; name: string; reason: string };
 export type MissedSchedule = { id: string; slug: string; name: string; failed: boolean; neverArmed: boolean; when: string; claudeTaskId: string | null };
 export type SignIn = { domain: string; label: string; who: string; fixSlug: string; count: number };
-export type Stalled = { id: string; slug: string; name: string };
+export type Stalled = { id: string; slug: string; name: string; at?:string|null };
 
 export type NeedsYou = {
+  /** Display names from the already-read caller roster; no additional lookup. */
+  agentNames?:Record<string,string>;
   needGrant: NeedGrant[];
   missed: MissedSchedule[];
   signIns: SignIn[];
@@ -198,7 +201,7 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
     .map((r) => ({
       id: r.id,
       slug: r.skill_slug,
-      name: nameBySlug.get(r.skill_slug) || r.skill_slug,
+      name: nameBySlug.get(r.skill_slug) || humanize(r.skill_slug),
       failed: r.status === 'failed',
       neverArmed: isNeverArmed(r),
       when: r.schedule_nl || r.cron_expression || 'its schedule',
@@ -226,8 +229,9 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
 
   const stalled: Stalled[] = ((stalledRows as StalledRow[]) || []).map((r) => ({
     id: r.id,
+    at:r.stalled_at||r.ran_at,
     slug: r.skill_slug,
-    name: nameBySlug.get(r.skill_slug) || r.skill_slug,
+    name: nameBySlug.get(r.skill_slug) || humanize(r.skill_slug),
   }));
 
   // Run-level attention, straight from the backend's unified read. The agent name
@@ -236,7 +240,7 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
   const attentionItems: AttentionItem[] = attention.items.map((it) => ({
     ...it,
     agentSlug: it.agentSlug,
-    agentName: it.agentSlug ? (nameBySlug.get(it.agentSlug) || it.agentSlug) : null,
+    agentName: it.agentSlug ? (nameBySlug.get(it.agentSlug) || humanize(it.agentSlug)) : null,
   })) as AttentionItem[];
   const pendingReviews = attentionItems.filter((i) => i.sourceType === 'held_run').length;
   // Home now has a dedicated live "Alerts" section (RunningAgents alertsOnly)
@@ -262,6 +266,7 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
   const total = setupCount + attentionItems.length + stalled.length;
 
   return {
+    agentNames:Object.fromEntries(nameBySlug),
     needGrant, missed, signIns, stalled, attentionItems, homeAttention, pendingReviews, homeCount, total,
     // Carried all the way to the surface so an empty list can never be mistaken
     // for a verified all-clear. unavailableSources already folds in the endpoint's

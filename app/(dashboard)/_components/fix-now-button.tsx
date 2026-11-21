@@ -29,7 +29,8 @@ type Bridge = {
   handoffAgent?: (prompt: string, surface?: string, target?: string) => Promise<{ ok: boolean; mode?: string }>;
 };
 
-export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = false }: {
+export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = false, primary = false }: {
+  primary?: boolean;
   slug: string;
   name: string;
   claudeTaskId?: string | null;
@@ -81,7 +82,7 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
           type="button"
           onClick={async () => { if (firing) return; setFiring(true); setErr(null); const queued = await enqueueRun(); if (!queued) setFiring(false); }}
           disabled={firing}
-          className="btn-success text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60"
+          className={`${primary?'btn-primary':'btn-success'} text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60`}
         >
           {firing ? 'Starting…' : 'Fix now in Claude ↗'}
         </button>
@@ -115,7 +116,7 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
         type="button"
         onClick={fix}
         disabled={firing}
-        className="btn-success text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60"
+        className={`${primary?'btn-primary':'btn-success'} text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60`}
       >
         {firing ? 'Starting…' : neverArmed ? 'Start it' : 'Fix now'}
       </button>

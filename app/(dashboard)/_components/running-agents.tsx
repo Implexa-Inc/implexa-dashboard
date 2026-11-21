@@ -14,6 +14,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import WorkItemRow from './work-item-row';
+import LocalTime from './local-time';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
@@ -206,10 +207,11 @@ function elapsedMs(iso: string | null): number {
  */
 export type LiveState = { status: 'loading' | 'ready' | 'unavailable'; count: number };
 
-export type LiveWorkRow = { key: string; runId: string | null; status: string; needsYou: boolean; actions: ReactNode; details: ReactNode; node: ReactNode };
+export type LiveWorkRow = { key: string; runId: string | null; at: string | null; status: string; needsYou: boolean; actions: ReactNode; details: ReactNode; node: ReactNode };
 
-export default function RunningAgents({ alertsOnly = false, bare = false, onState, compact = false, onFinished, pollMs = POLL_MS, renderList }: {
+export default function RunningAgents({ alertsOnly = false, bare = false, onState, compact = false, onFinished, pollMs = POLL_MS, renderList, agentNames = {} }: {
   alertsOnly?: boolean;
+  agentNames?:Record<string,string>;
   /** Presentation seam only: the same poller, continuity and action handlers own every row. */
   renderList?: (rows: LiveWorkRow[], state: LiveState['status']) => ReactNode;
   /** Compact Run rows reuse this same lifecycle, polling and action controls. */
@@ -710,21 +712,30 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           const showPreparationRetry = c.status === 'failed' && !c.runId && !!c.requestId
             && (String(c.failureReason || '').startsWith('desktop_preparation_')
               || c.failureReason === 'run_enqueue_interrupted');
+          const plainStatus = c.status==='needs_attention' ? 'Open this run to review what your agent needs.'
+            : c.status==='waiting_approval' ? 'Approve the next action before your agent continues.'
+            : c.status==='action_available' ? c.actionLabel||'A prepared action is ready for your review.'
+            : c.status==='fallback_blocked' ? 'Check the previous attempt before your agent continues.'
+            : ['failed','start_failed','claim_expired'].includes(c.status) ? 'This run could not finish. Open it to review the next step.'
+            : c.status==='built' ? 'Your updated agent is ready to review.'
+            : c.status==='finished' ? 'Delivered · open to review'
+            : c.status==='verifying' ? 'Checking the result.'
+            : c.status==='running' ? 'Working on your request.' : 'Getting ready to start.';
           const card = renderList ? (
-            <WorkItemRow title={c.headline || humanize(c.skillSlug) || 'Agent'}
+            <WorkItemRow agentSlug={c.headline?undefined:c.skillSlug} title={c.headline || agentNames[c.skillSlug] || humanize(c.skillSlug) || 'Agent'}
               href={href} state={c.status === 'waiting_approval' || c.status === 'action_available' ? 'Needs approval'
                 : NOTIFY.has(c.status) ? (c.status === 'needs_attention' ? 'Needs input' : 'Failed')
                 : c.status === 'finished' ? 'Delivered' : c.status === 'built' ? 'Ready for review' : 'Running'}
-              detail={<>{c.headline ? `${humanize(c.skillSlug)} · ` : ''}{c.freshness !== 'fresh' ? freshnessNotice(c.freshness)
-                : c.runId && stoppingRunIds.has(c.runId) ? 'Stopping…' : visibleFailure(c.failureReason) || c.fallbackReason || c.attention?.summary || (c.status === 'action_available' ? c.actionLabel : null) || s.label}
+              detail={<>{c.headline ? `${agentNames[c.skillSlug]||humanize(c.skillSlug)} · ` : ''}{c.freshness !== 'fresh' ? freshnessNotice(c.freshness)
+                : c.runId && stoppingRunIds.has(c.runId) ? 'Stopping…' : plainStatus}
                 {c.currentStepIndex != null && c.totalSteps ? ` · Step ${Math.min(c.currentStepIndex || 1,c.totalSteps)} of ${c.totalSteps}${c.currentStepLabel ? ` · ${c.currentStepLabel}` : ''}` : ''}
                 {c.status === 'preparing_inputs' && c.bytesRead != null && c.totalBytes ? ` · ${Math.min(100,Math.floor(c.bytesRead / c.totalBytes * 100))}% verified` : ''}
                 {c.status === 'running' && c.typicalMs ? ` · ${elapsedMs(c.since)>c.typicalMs*1.5?'Longer than usual · ':''}~${fmtDur(c.typicalMs)} typical` : ''}
                 {c.status === 'resuming' && c.resumeStep != null ? ` · Resuming from step ${c.resumeStep}` : ''}
               </>}
               progress={c.status === 'running' && c.currentStepIndex != null && c.totalSteps ? {value:Math.max(0,c.currentStepIndex-1),total:c.totalSteps} : undefined}
-              when={rel(c.finishedAt || c.since)}
-              actions={<>{href && <Link href={href} prefetch={false} className={NOTIFY.has(c.status) ? 'btn-outline work-row-action' : 'work-row-open'}>{c.status === 'waiting_approval' || c.status === 'action_available' ? 'Review & approve' : NOTIFY.has(c.status) ? 'Open & resolve' : c.status === 'finished' || c.status === 'built' ? 'Open' : 'View progress'}</Link>}{controls}</>}/>
+              when={c.finishedAt||c.since?<LocalTime iso={(c.finishedAt||c.since)!}/>:null}
+              actions={<>{href && <Link href={href} prefetch={false} className={c.status==='needs_attention' ? 'btn-primary work-row-action' : NOTIFY.has(c.status) ? 'btn-outline work-row-action' : 'work-row-open'}>{c.status === 'waiting_approval' || c.status === 'action_available' ? 'Review & approve' : NOTIFY.has(c.status) ? 'Open & resolve' : c.status === 'finished' || c.status === 'built' ? 'Open' : 'View progress'}</Link>}{controls}</>}/>
           ) : linkable ? (
             <Link href={href!} prefetch={compact ? false : undefined} className={`${cls} hover:border-ink-700 transition-colors`}>{body}</Link>
           ) : (
@@ -851,7 +862,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               {details}
             </div>
           );
-          return { key, runId:c.runId, status:c.status, needsYou:NOTIFY.has(c.status), actions:controls, details, node };
+          return { key, runId:c.runId, at:c.finishedAt||c.since, status:c.status, needsYou:NOTIFY.has(c.status), actions:controls, details, node };
   });
 
   return (

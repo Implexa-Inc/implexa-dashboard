@@ -98,14 +98,15 @@ export type ShellNavigationState = {
 
 /**
  * Work's actionable sources: setup rows and Judge cards from TodayFeed, plus
- * the same human-needed live statuses rendered by RunningAgents. The broader
- * needs-you endpoint also contains historical holds/stalls that this page does
- * not render; counting those produced a misleading 73+ badge instead of the 20 rendered actions.
+ * the same human-needed live statuses and bounded recent stalls Work renders.
+ * The broader attention endpoint also contains historical holds outside this
+ * view; those are not counted as extra rows.
  * Partial reads are lower bounds, never an all-clear.
  */
 export function workAttentionBadge(
   needs: {
     needGrant: ReadonlyArray<{ slug: string }>;
+    stalled?: ReadonlyArray<{id:string}>;
     missed: ReadonlyArray<{ id: string }>;
     signIns: ReadonlyArray<{ domain: string }>;
     homeAttention: ReadonlyArray<{ runId: string | null; attentionId: string }>;
@@ -121,6 +122,7 @@ export function workAttentionBadge(
     ...needs.needGrant.map((item) => `grant:${item.slug}`),
     ...needs.missed.map((item) => `schedule:${item.id}`),
     ...needs.signIns.map((item) => `signin:${item.domain}`),
+    ...(needs.stalled??[]).map(item=>`run:${runAliases.get(item.id)??item.id}`),
     ...needs.homeAttention.map((item) => item.runId ? `run:${runAliases.get(item.runId) ?? item.runId}` : `attention:${item.attentionId}`),
     ...actionable.map((item, index) => `run:${continuityKey({ runId: item.runId, requestId: item.requestId }) ?? `untracked:${index}`}`),
   ]);

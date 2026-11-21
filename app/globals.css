@@ -456,3 +456,4 @@ html, body {
 .work-row-details > p { margin-top:8px; line-height:1.6; }
 @media(max-width:1100px) { .work-row-details { margin-left:112px; } }
 @media(max-width:767px) { .work-row-details { margin-left:82px; } }
+.work-row-when { white-space:nowrap; }

@@ -77,3 +77,39 @@ test('live work renders while server sources are pending; later streamed actions
   assert.equal(r.calls.backend.filter(call=>call.path.startsWith('/api/v2/scheduled-skills/live')).length,1,'streaming a source does not mount another live poller');
  }finally{r.cleanup();}
 });
+
+test('Needs-you rows sort newest first, use plain needs copy and retain bounded stalled work once',async()=>{
+ const judge={attentionId:'old',sourceType:'judge_block',sourceId:'judgment',runId:'old-judge',agentSlug:'old-video-agent',agentName:'old-video-agent',whatHappened:'Internal verification detail with TOOL_KEY and frozen proof',requiredAction:'provide_information',actionDetail:'Raw internal detail',primaryAction:{kind:'provide_information',targetType:'judge_block',targetId:'judgment',label:'Provide information'},reasons:[],createdAt:'2026-11-20T12:00:00Z',seenAt:null,resolvedAt:null};
+ const needs={...emptyNeeds,homeAttention:[judge],stalled:[{id:'new-stall',slug:'new-video-agent',name:'new-video-agent',at:'2026-11-21T12:00:00Z'},{id:'running-id',slug:'video-agent',name:'Video agent',at:'2026-11-21T12:00:00Z'}]};
+ const r=await render('../work/_components/work-feed.tsx',{...base,view:'needs',needs},{exportName:'WorkList',fetch:fetchSummary,backend:path=>path.startsWith('/api/v2/scheduled-skills/live')?{items:[{...live,status:'needs_attention',since:'2026-11-21T13:00:00Z'}]}:{ok:true}});
+ try{
+  await flush(r);
+  const titles=Array.from(r.document.querySelectorAll('[aria-label="Work items"] .work-row-title')).map(node=>node.textContent);
+  assert.deepEqual(titles,['A real run title','New Video Agent','Old Video Agent']);
+  assert.equal(titles.filter(title=>title==='New Video Agent').length,1);
+  assert.ok(r.document.querySelector('a[href="/runs/new-stall"]'));
+  const subs=Array.from(r.document.querySelectorAll('.work-row-sub')).map(node=>node.textContent).join(' ');
+  assert.doesNotMatch(subs,/TOOL_KEY|frozen proof|Raw internal detail/);
+  assert.match(subs,/needs information/);
+  assert.match(r.document.querySelector('.work-row-details')?.textContent||'',/Internal verification detail|This run stopped/);
+  const inputAction=Array.from(r.document.querySelectorAll('button')).find(node=>node.textContent==='Provide information');
+  assert.ok(inputAction?.className.includes('btn-primary'));
+ }finally{r.cleanup();}
+});
+
+test('row times are compact relative labels or short dates, with the precise timestamp retained',async()=>{
+ const iso=new Date(Date.now()-10*60_000).toISOString();
+ const r=await render('local-time.tsx',{iso});
+ try{
+  await flush(r);assert.match(r.text(),/10 min ago/);assert.equal(r.document.querySelector('time')?.dateTime,iso);
+  await r.rerender({iso:'2025-04-03T12:00:00Z'});await flush(r);assert.equal(r.text(),'Apr 3');
+ }finally{r.cleanup();}
+});
+
+test('the already-loaded caller names are shared with review and recent-result rows',async()=>{
+ const r=await render('../work/_components/work-feed.tsx',{...base,needs:{...emptyNeeds,agentNames:{'private-video-agent':'My private studio'}}},{exportName:'WorkList',fetch:(async()=>Response.json({rows:[{id:'delivered',skill_slug:'private-video-agent',status:'completed',ran_at:'2026-11-21T12:00:00Z'}],nextCursor:null})) as typeof fetch,backend:()=>({items:[]})});
+ try{
+  await flush(r);
+  const recent=r.document.querySelector('[aria-label="Recently delivered"] .work-row-title');assert.equal(recent?.textContent,'My private studio');
+ }finally{r.cleanup();}
+});

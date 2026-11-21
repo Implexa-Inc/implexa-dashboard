@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import WorkItemRow from '../_components/work-item-row';
+import LocalTime from '../_components/local-time';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
@@ -309,10 +310,10 @@ export default function InboxList({
     const line = snippet(item.output_markdown);
     const cat = categorizeAgent([item.name, item.why]);
     const scheduled = item.source === 'scheduled';
-    if (workRows) return <li key={item.id}><WorkItemRow title={item.name}
-      detail={line || item.why || (scheduled ? 'Scheduled run' : 'Manual run')}
-      state={item.state.state === 'failed' ? 'Failed' : item.state.attention ? 'Needs input' : item.pending ? 'Ready for review' : 'Delivered'}
-      when={dayLabel(item.ran_at)} actions={renderAction(item)}/></li>;
+    if (workRows) return <li key={item.id}><WorkItemRow agentSlug={item.slug} title={item.name}
+      detail={item.state.label==='Paused'?'Its schedule is paused. Open the agent to resume it.':item.state.state==='failed'?'This run did not finish. Open it to review the next step.':item.state.attention?'Your agent needs your input before it can continue.':item.pending?'A result is ready for your review.':item.state.label==='Partial'?'Partly delivered · open to see what remains.':'Delivered · open to review'}
+      state={item.state.state === 'failed' ? 'Failed' : item.state.attention || item.state.label==='Paused' ? 'Needs input' : item.state.label.toLowerCase().includes('partial') ? 'Partly delivered' : item.pending ? 'Ready for review' : 'Delivered'}
+      when={<LocalTime iso={item.ran_at}/>} actions={renderAction(item)}/></li>;
     return (
       <li key={item.id}>
         <div className="card hover:border-ink-600 transition-colors">

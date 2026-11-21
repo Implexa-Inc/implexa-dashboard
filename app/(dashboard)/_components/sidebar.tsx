@@ -2,7 +2,7 @@
 
 /** Shared desktop/sidebar and narrow top-bar navigation. */
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Logo } from '@/components/logo';
@@ -41,17 +41,32 @@ const FOCUS_RING =
   'focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ' +
   'focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900';
 
+const WorkAttentionUpdates=createContext<((value:WorkAttentionBadge|undefined)=>void)|null>(null);
+
+/** Work owns its current on-page count; both navigation surfaces read that same value. */
+export function WorkAttentionSync({badge}:{badge:WorkAttentionBadge|undefined}){
+  const publish=useContext(WorkAttentionUpdates);
+  useEffect(()=>{publish?.(badge);return()=>publish?.(undefined);},[publish,badge?.count,badge?.complete]);
+  return null;
+}
+
 const ShellState = createContext<ShellNavigationState | undefined>(undefined);
 export function useWorkAttentionBadge(){return useContext(ShellState)?.work;}
 
 /** One read for both surfaces after paint, with throttled focus/periodic refresh. */
 export function ShellNavigationProvider({ userId, children }: { userId: string; children: ReactNode }) {
   const [state, setState] = useState<ShellNavigationState>();
+  const pageWork=useRef<WorkAttentionBadge>();
+  const publishWork=useCallback((badge:WorkAttentionBadge|undefined)=>{
+    pageWork.current=badge;
+    if(badge)setState(previous=>previous?.work?.count===badge.count&&previous.work.complete===badge.complete?previous:{canTrain:previous?.canTrain??null,work:badge});
+  },[]);
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
     let inFlight = false;
     let lastRead = 0;
+    let ownershipVerified = false;
     const roleKey = `tukido.coach-navigation:${userId}`;
     // Per-account, per-tab UI hint. It carries no permissions or authentication.
     try {
@@ -66,6 +81,7 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
       }
     } catch { /* A blocked storage area does not block navigation. */ }
     async function refresh() {
+      if (pageWork.current && ownershipVerified) return; // Work already owns the visible count; avoid duplicate attention reads.
       if (inFlight || document.visibilityState === 'hidden' || Date.now() - lastRead < 15_000) return;
       lastRead = Date.now();
       inFlight = true;
@@ -77,17 +93,18 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
           && (work === null || (Number.isSafeInteger(work?.count) && work.count >= 0 && typeof work.complete === 'boolean'));
         if (active) {
           if (valid && typeof body.canTrain === 'boolean') {
+            ownershipVerified = true;
             try {
               window.localStorage.setItem(roleKey, String(body.canTrain));
               window.localStorage.setItem(`${roleKey}:checked-at`, String(Date.now()));
             } catch { /* UI hint only, never authorization */ }
           }
           setState((previous) => valid
-            ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work:mergeWorkCount(previous?.work,work) }
-            : { canTrain: previous?.canTrain ?? null, work:mergeWorkCount(previous?.work,null) });
+            ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work:pageWork.current??mergeWorkCount(previous?.work,work) }
+            : { canTrain: previous?.canTrain ?? null, work:pageWork.current??mergeWorkCount(previous?.work,null) });
         }
       } catch {
-        if (active) setState((previous) => ({ canTrain: previous?.canTrain ?? null, work:mergeWorkCount(previous?.work,null) }));
+        if (active) setState((previous) => ({ canTrain: previous?.canTrain ?? null, work:pageWork.current??mergeWorkCount(previous?.work,null) }));
       } finally { inFlight = false; }
     }
     void refresh();
@@ -114,7 +131,7 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
   },[userId,state?.work?.count,state?.work?.complete]);
   // Navigation remounts do not create another read; the provider belongs to the
   // persistent layout. Focus/periodic checks refresh decisions with a minimum gap.
-  return <ShellState.Provider value={state}>{children}</ShellState.Provider>;
+  return <WorkAttentionUpdates.Provider value={publishWork}><ShellState.Provider value={state}>{children}</ShellState.Provider></WorkAttentionUpdates.Provider>;
 }
 
 function useShellNav(user: UserCtx) {
