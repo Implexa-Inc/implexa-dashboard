@@ -22,7 +22,7 @@ import { callBackend } from '@/lib/api';
 import InstallFlow from './install-flow';
 import HeroInstall from './hero-install';
 import { desktopAppLive, macDownloadUrl } from '@/lib/app-links';
-import { Logo } from '@/components/logo';
+import PageHeader from '@/components/page-header';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,16 +123,14 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
       <div className="app-content">
         {showWelcome && welcomeBanner}
 
-        <header className="mb-8 text-center">
-          <div className="mb-4 flex justify-center"><Logo height={18} /></div>
-          <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Run your agents</h1>
-          <p className="text-ink-300 mt-3 leading-relaxed max-w-xl mx-auto">
+        <PageHeader title="Run your agents">
+          <p className="app-page-description">
             One download. The app connects Tukido to your own Claude or Codex and runs your agents there, as you, free. That&apos;s it.
           </p>
-          <p className="text-ink-500 text-sm mt-3 leading-relaxed max-w-xl mx-auto">
+          <p className="app-page-description">
             Claude Code runs in the background, so you don&apos;t work there. Build, run, and approve every agent right here in Tukido.
           </p>
-        </header>
+        </PageHeader>
 
         {/* THE single primary action: the one-click app (live + notarized). It
          * connects Claude/Codex and sets up the extension, so it's all most

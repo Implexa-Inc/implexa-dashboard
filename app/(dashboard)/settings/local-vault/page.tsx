@@ -1,3 +1,4 @@
+import PageHeader from '@/components/page-header';
 /**
  * /settings/local-vault — the Local key vault management surface.
  *
@@ -15,7 +16,6 @@
  * native dialog the page cannot render or click.
  */
 
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import VaultManager from './vault-manager';
@@ -28,26 +28,22 @@ export default async function LocalVaultPage() {
   if (!session?.user) redirect('/login');
 
   return (
-    <main className="app-page">
-      <div className="max-w-2xl mx-auto">
-        <nav className="text-xs text-ink-500 mb-4">
-          <Link href="/settings" className="hover:underline">← Settings</Link>
-        </nav>
+    <section className="settings-page">
+      <div className="settings-page-content">
 
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight">Local key vault</h1>
+        <PageHeader title="Local key vault">
           {/* Trust-true for v1: a granted agent process CAN use the key locally.
               Never claim agents structurally cannot see keys — that is the v2
               capability proxy, which does not exist yet. */}
-          <p className="text-ink-300 text-sm mt-2 leading-relaxed">
+          <p className="app-page-description">
             Your keys are encrypted on this Mac. Tukido doesn&apos;t upload them.
             Agents you approve can use them locally to call the provider.
           </p>
-        </header>
+        </PageHeader>
 
         <VaultManager jwt={session.access_token} />
       </div>
-    </main>
+    </section>
   );
 }
 

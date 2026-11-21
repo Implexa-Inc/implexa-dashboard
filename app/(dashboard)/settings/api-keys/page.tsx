@@ -1,3 +1,4 @@
+import PageHeader from '@/components/page-header';
 /**
  * /settings/api-keys — "Connected installs" view.
  *
@@ -50,25 +51,22 @@ export default async function ApiKeysPage({
   const cameFromInstall = next === '/install';
 
   return (
-    <main className="app-page">
-      <div className="max-w-2xl mx-auto">
+    <section className="settings-page">
+      <div className="settings-page-content">
         <nav className="text-xs text-ink-500 mb-4">
           {cameFromInstall ? (
             <Link href="/install" className="hover:underline">← Back to install</Link>
-          ) : (
-            <Link href="/settings" className="hover:underline">← Settings</Link>
-          )}
+          ) : null}
         </nav>
 
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight">Connected installs</h1>
-          <p className="text-ink-300 text-sm mt-2 leading-relaxed">
+        <PageHeader title="Devices & installs">
+          <p className="app-page-description">
             Every device or session connected to your Tukido account.
             Revoke any you don&apos;t recognize. New installs created automatically
             when you run the install script — you don&apos;t need to generate
             keys manually anymore.
           </p>
-        </header>
+        </PageHeader>
 
         {cameFromInstall && (
           <div className="card !p-3 !bg-gradient-to-r !from-brand-500/10 !to-brand-500/5 !border-brand-500/40 mb-6 text-sm text-ink-200 flex items-start gap-2">
@@ -84,6 +82,6 @@ export default async function ApiKeysPage({
 
         <ApiKeysManager jwt={session.access_token} initial={keys} next={next} />
       </div>
-    </main>
+    </section>
   );
 }

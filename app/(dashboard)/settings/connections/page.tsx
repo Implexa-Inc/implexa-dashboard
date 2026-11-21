@@ -1,3 +1,4 @@
+import PageHeader from '@/components/page-header';
 /**
  * /settings/connections — "All your accounts" (the global inventory).
  *
@@ -20,7 +21,6 @@ import {
   type ConnectionAccount,
   type AgentConnections,
 } from '@/lib/connections';
-import BackLink from '../../_components/back-link';
 import { ConnectionAdvisoryNote } from '../../_components/connection-attention-banner';
 
 export const dynamic = 'force-dynamic';
@@ -167,16 +167,14 @@ export default async function AllConnectionsPage() {
   const broken = status?.connections.filter((c) => c.status === 'unreachable').length ?? 0;
 
   return (
-    <main className="app-page">
-      <div className="app-content">
-        <BackLink fallback="/settings" label="Settings" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5 mb-4" />
-        <header className="mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">Your accounts</h1>
-          <p className="text-sm text-ink-400 mt-2 max-w-2xl">
+    <section className="settings-page">
+      <div className="settings-page-content">
+        <PageHeader title="Connected accounts">
+          <p className="app-page-description">
             Every account your agents drive in the Tukido browser, and which agents need what.
             You sign in once; agents use what you can, no API keys. Set-up happens on each agent&apos;s activation card.
           </p>
-        </header>
+        </PageHeader>
 
         {/* Signed in, but not proven through the pinned agents'-browser extension — not the browser
          * the agents drive. Shown here because this page is the answer to "what can my
@@ -232,6 +230,6 @@ export default async function AllConnectionsPage() {
           </>
         )}
       </div>
-    </main>
+    </section>
   );
 }
