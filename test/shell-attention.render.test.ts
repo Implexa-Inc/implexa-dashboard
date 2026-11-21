@@ -12,8 +12,9 @@ test('Work badge counts the page actions, deduplicates Judge/live aliases and ex
   }, [{ runId: 'v2', requestId: 'request', status: 'needs_attention' },
       { runId: 'v2', requestId: 'request', status: 'needs_attention' }], true);
   assert.deepEqual(badge, { count: 4, complete: true });
-  const broadFeed = { ...empty, attentionItems: Array.from({ length: 70 }, (_, i) => ({ runId: `old-${i}`, attentionId: `old-${i}` })), stalled: [{ id: 'old-stall' }] };
-  assert.equal(workAttentionBadge(broadFeed, [], true).count, 0, 'historical holds/stalls absent from the Work view do not inflate its badge');
+  const broadFeed = { ...empty, attentionItems: Array.from({ length: 70 }, (_, i) => ({ runId: `old-${i}`, attentionId: `old-${i}` })) };
+  assert.equal(workAttentionBadge(broadFeed, [], true).count, 0, 'historical holds absent from the Work view do not inflate its badge');
+  assert.equal(workAttentionBadge({...empty,stalled:[{id:'recent-stall'}]},[{runId:'recent-stall',status:'needs_attention'}],true).count,1,'bounded recent stalls share their live identity');
 });
 
 test('partial/unavailable sources never become an exact zero or an exact known total', () => {
@@ -128,10 +129,50 @@ test('both real shell surfaces retain attention on visiting Work, refresh after 
 });
 
 
-test('only a complete Work count can reduce a previously known lower bound',()=>{
+
+test('a weaker shell background read cannot reduce a previously known lower bound',()=>{
  assert.deepEqual(mergeWorkCount({count:20,complete:true},{count:2,complete:false}),{count:20,complete:false});
  assert.deepEqual(mergeWorkCount({count:20,complete:false},null),{count:20,complete:false});
  assert.deepEqual(mergeWorkCount({count:20,complete:false},{count:23,complete:false}),{count:23,complete:false});
  assert.deepEqual(mergeWorkCount({count:20,complete:false},{count:0,complete:true}),{count:0,complete:true});
  assert.equal(mergeWorkCount(undefined,null),null);
+});
+
+
+test('Work publishes one count to both menu surfaces and a slower shell response cannot replace it',async()=>{
+ const {JSDOM}=await import('jsdom');const React=await import('react');const {createRoot}=await import('react-dom/client');
+ const {default:Sidebar,MobileTopBar,ShellNavigationProvider,WorkAttentionSync}=await import('../app/(dashboard)/_components/sidebar');
+ const {__setPathname}=await import('./support/stubs/next-navigation.ts');
+ const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost/work',pretendToBeVisual:true});
+ const before={window:globalThis.window,document:globalThis.document,fetch:globalThis.fetch};const realNow=Date.now;let now=realNow();Date.now=()=>now;
+ Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
+ let calls=0;let finish:((response:Response)=>void)|undefined;globalThis.fetch=(()=>{calls++;return new Promise<Response>(resolve=>{finish=resolve;});}) as typeof fetch;
+ const root=createRoot(document.getElementById('root')!);const user={displayName:'Review account',email:'review@example.com',plan:'free',isFoundingCreator:false};
+ const render=(count:number|null,complete=false)=>React.createElement(ShellNavigationProvider,{userId:'review-account',children:React.createElement(React.Fragment,null,React.createElement(Sidebar,{user}),React.createElement(MobileTopBar,{user}),count===null?null:React.createElement(WorkAttentionSync,{badge:{count,complete}}))});
+ try{
+  __setPathname('/work');await React.act(async()=>root.render(render(20)));
+  assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2);
+  await React.act(async()=>finish?.(Response.json({ok:true,canTrain:true,work:{count:2,complete:false}})));
+  assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2,'the independent shell read cannot overwrite the current page count');
+  await React.act(async()=>root.render(render(15)));
+  assert.equal(document.querySelectorAll('[aria-label="At least 15 need you"]').length,2);
+  now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));
+  assert.equal(calls,1,'Work already supplies attention; verified ownership does not need another whole attention read');
+  await React.act(async()=>finish?.(Response.json({ok:false})));
+  assert.equal(document.querySelectorAll('[aria-label="At least 15 need you"]').length,2,'an unavailable background route does not contradict visible Work rows');
+  __setPathname('/workflows');await React.act(async()=>root.render(render(null)));
+  assert.equal(document.querySelectorAll('[aria-label="At least 15 need you"]').length,2,'leaving Work retains the last page count instead of jumping to the older shell read');
+  now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));assert.equal(calls,2);
+  await React.act(async()=>finish?.(Response.json({ok:true,canTrain:true,work:{count:2,complete:false}})));
+  assert.equal(document.querySelectorAll('[aria-label="At least 15 need you"]').length,2,'the lower partial read after leaving Work cannot erase the better session bound');
+  now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));
+  await React.act(async()=>finish?.(Response.json({ok:true,canTrain:true,work:{count:0,complete:true}})));
+  assert.equal(document.querySelectorAll('.app-nav-count').length,0,'a subsequent independent confirmed read can update the retained count');
+  window.sessionStorage.setItem('tukido.work-attention:review-account','20');
+  await React.act(async()=>root.render(null));
+  await React.act(async()=>root.render(render(0,false)));
+  assert.equal(document.querySelectorAll('[aria-label="Needs-you status unavailable"]').length,2,'a cached UI hint cannot override a fresh partial zero from the page');
+  assert.equal(window.sessionStorage.getItem('tukido.work-attention:review-account'),null);
+ }finally{await React.act(async()=>root.unmount());dom.window.close();Object.assign(globalThis,before);Date.now=realNow;}
+
 });

@@ -98,14 +98,15 @@ export type ShellNavigationState = {
 
 /**
  * Work's actionable sources: setup rows and Judge cards from TodayFeed, plus
- * the same human-needed live statuses rendered by RunningAgents. The broader
- * needs-you endpoint also contains historical holds/stalls that this page does
- * not render; counting those produced a misleading 73+ badge instead of the 20 rendered actions.
+ * the same human-needed live statuses and bounded recent stalls Work renders.
+ * The broader attention endpoint also contains historical holds outside this
+ * view; those are not counted as extra rows.
  * Partial reads are lower bounds, never an all-clear.
  */
 export function workAttentionBadge(
   needs: {
     needGrant: ReadonlyArray<{ slug: string }>;
+    stalled?: ReadonlyArray<{id:string}>;
     missed: ReadonlyArray<{ id: string }>;
     signIns: ReadonlyArray<{ domain: string }>;
     homeAttention: ReadonlyArray<{ runId: string | null; attentionId: string }>;
@@ -121,6 +122,7 @@ export function workAttentionBadge(
     ...needs.needGrant.map((item) => `grant:${item.slug}`),
     ...needs.missed.map((item) => `schedule:${item.id}`),
     ...needs.signIns.map((item) => `signin:${item.domain}`),
+    ...(needs.stalled??[]).map(item=>`run:${runAliases.get(item.id)??item.id}`),
     ...needs.homeAttention.map((item) => item.runId ? `run:${runAliases.get(item.runId) ?? item.runId}` : `attention:${item.attentionId}`),
     ...actionable.map((item, index) => `run:${continuityKey({ runId: item.runId, requestId: item.requestId }) ?? `untracked:${index}`}`),
   ]);
@@ -185,17 +187,18 @@ export function activeNavItem(pathname: string): NavItem | null {
 
 // ── Work views ───────────────────────────────────────────────────────────────
 //
-// Work's three states (DESIGN.md §8.2). `review` is the "Ready for review"
+// Work's five filters (approved Work mockup). `review` is the "Ready for review"
 // filter that replaces the old Review navigation entry — a filter changes entry
 // context, never destination ownership (§8.5).
 
-export const WORK_VIEWS = ['needs', 'review', 'delivered'] as const;
+export const WORK_VIEWS = ['activity', 'needs', 'review', 'running', 'delivered'] as const;
 export type WorkView = typeof WORK_VIEWS[number] | 'activity' | 'agents';
 
-export const DEFAULT_WORK_VIEW: WorkView = 'needs';
+export const DEFAULT_WORK_VIEW: WorkView = 'activity';
 
 export const WORK_VIEW_LABELS: Record<WorkView, string> = {
-  activity: 'All runs',
+  activity: 'Active',
+  running: 'Running',
   agents: 'All agents',
   needs:     'Needs you',
   review:    'Ready for review',
@@ -208,11 +211,11 @@ export function parseWorkView(raw: string | string[] | undefined | null): WorkVi
   return (WORK_VIEWS as readonly string[]).includes(v ?? '') ? (v as WorkView) : DEFAULT_WORK_VIEW;
 }
 
-/** Default changes only for a readable pilot; explicit legacy filters still win. */
+/** Active is the shared default; all legacy explicit filters keep their destination. */
 export function resolveWorkView(raw: string | string[] | undefined | null, marketplacePilot = false): WorkView {
   const value=Array.isArray(raw)?raw[0]:raw;
-  if (marketplacePilot && value==='agents') return 'agents';
-  return value==='activity'||(marketplacePilot&&!value)?'activity':parseWorkView(value);
+  if (value === 'agents') return 'agents';
+  return parseWorkView(value);
 }
 
 export function workViewHref(view: WorkView): string {

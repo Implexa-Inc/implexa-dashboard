@@ -75,15 +75,6 @@ function countBlockingNeeds(data: NeedsYou): number {
   return blockingCount;
 }
 
-/** A pointer to pending decisions, not a second action list or live poller. */
-export function NeedsYouNotice({data}:{data:NeedsYou}) {
-  const count=countBlockingNeeds(data),incomplete=data.partial||data.truncated;
-  return <>
-    {incomplete&&<p role="status" className="mb-3 text-sm text-state-needs">We couldn’t check everything that needs you. <Link href="/work?view=needs" className="underline">Open Needs you →</Link></p>}
-    {count>0&&<Link href="/work?view=needs" className="mb-5 block rounded-xl border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm text-state-needs">{incomplete?'At least ':''}{count} {count===1?'item needs':'items need'} you <span aria-hidden="true">→</span></Link>}
-  </>;
-}
-
 export default function TodayFeed({ data, warning, className = '' }: {
   data: NeedsYou;
   /** attentionWarning(...) computed by the server page — see the import note above. */

@@ -1,212 +1,70 @@
-/**
- * /work — the canonical Work domain.
- *
- * Work answers one question (DESIGN.md §8.1): *what outcome is being produced,
- * what needs me, and what was delivered?* It is the destination that absorbs
- * three surfaces that used to compete for that answer:
- *
- *   /review    → the **Ready for review** filter (Review is not a destination)
- *   /inbox     → the **Delivered** filter (Results is not a destination)
- *   Home's Today feed → the **Needs you** filter
- *
- * Both legacy routes redirect here with their query string intact, so a result
- * notification pointing at `/inbox?run=<id>` still opens that result.
- *
- * WHAT THIS PAGE DOES NOT DO. It does not group work by a canonical Work-item
- * identity, does not render revision lineage, and does not open a Work
- * workspace: that identity contract is Phase B and is owned by the backend
- * (DESIGN.md §14 — "No design phase begins while its corresponding backend
- * contract is absent"). Every list below is rendered by the SAME component the
- * old surface used, from the SAME loader, so this change moves where a fact is
- * read, never what it claims. Rows still open the existing run and review
- * destinations.
- */
-
-import {Suspense} from 'react';
+/** Work's shared list. Existing readers and source-specific actions remain authoritative. */
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
+import { loadNeedsYou, type NeedsYou } from '@/lib/needs-you';
 import { loadInboxItems } from '@/lib/inbox';
-import { loadNeedsYou } from '@/lib/needs-you';
-import { attentionWarning, getAttention } from '@/lib/attention';
-import {readMyWorkflows} from '@/lib/workflow-catalog';
-import {reviewQueueForArea} from '@/lib/training-review-routing';
-import { getReviewQueue, reviewQueueWarning } from '@/lib/review';
-import { getMyAgents } from '@/lib/agents-home';
-import { resolveWorkView, AGENTS_MANAGE_HREF, WORK_VIEW_LABELS } from '@/lib/navigation';
-import TodayFeed,{NeedsYouNotice} from '../_components/today-feed';
-import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
-import InboxList from '../inbox/inbox-list';
-import WorkFilterTabs from './_components/work-filter-tabs';
-import ReadyForReviewList from './_components/ready-for-review-list';
-import OutcomeProductionsList from './_components/outcome-productions-list';
-import {getMarketplaceSamples} from '@/lib/agent-marketplace-samples-server';
-import {marketplacePilotEnabled} from '@/lib/agent-marketplace-samples';
-import {selectRuns,type RunRow} from '@/lib/run-state';
-import LiveRunActivity from '../_components/live-run-activity';
-import RunActivity from '../_components/run-activity';
-import {CompactRunAlerts,CompactActiveProductions} from '../_components/compact-run-attention';
+import { readMyWorkflows } from '@/lib/workflow-catalog';
+import { getReviewQueue, reviewQueueWarning, versionSummary, unresolvedIssueLabel } from '@/lib/review';
+import { reviewQueueForArea } from '@/lib/training-review-routing';
+import { resolveWorkView, AGENTS_MANAGE_HREF } from '@/lib/navigation';
+import { settleWithin } from '@/lib/landing';
 import { listOutcomeProductions } from '@/lib/outcome-production-load';
+import PageHeader from '@/components/page-header';
+import WorkFeed,{WorkSource} from './_components/work-feed';
+import OutcomeProductionsList from './_components/outcome-productions-list';
+import InboxList from '../inbox/inbox-list';
+import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
 
 export const dynamic = 'force-dynamic';
-
-export default async function WorkPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}) {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) redirect('/login');
-
-  const profile = await readUserProfile(supabase
-    .from('users').select('id, organization_id').eq('id', session.user.id));
-  if (!profile?.organization_id) redirect('/onboarding');
-
-  const pilot=marketplacePilotEnabled(await getMarketplaceSamples());
-  const view = resolveWorkView(searchParams?.view,pilot);
-
-
-  // The pilot list does not need review payloads or the installed catalog.
-  // Stream slower attention/production reads after the shell is visible.
-  if (pilot && view === 'agents') redirect(AGENTS_MANAGE_HREF);
-  if (pilot && view === 'activity') {
-    return <div className="app-page"><div className="app-content">
-      <header className="flex items-center justify-between gap-4 mb-7"><h1 className="text-3xl font-semibold text-ink-50">Work</h1><Link href="/work?view=needs" prefetch={false} className="text-sm text-ink-300 hover:text-action-accent">Needs you →</Link></header>
-      <WorkFilterTabs current={view} reviewCount={null} activity />
-      <>
-        <Suspense fallback={<p role="status" className="text-xs text-ink-500 mb-3">Checking decisions…</p>}><CompactRunAttention/></Suspense>
-        <Suspense fallback={<p role="status" className="text-xs text-ink-500 mb-3">Checking other active work…</p>}><CompactProductionList jwt={session.access_token}/></Suspense>
-        <LiveRunActivity compact/>
-      </>
-    </div></div>;
-  }
-
-  // The review queue is read on EVERY view because the Ready-for-review count is
-  // what replaced the old Review navigation entry — a filter whose count only
-  // appears once you are already looking at it is not a queue.
-  const [allReview,owned]=await Promise.all([getReviewQueue(),readMyWorkflows(session.access_token)]);
-  const queue=reviewQueueForArea(allReview,owned,'work');
-  // Only claim a number when the queue was fully readable. reviewQueueWarning()
-  // is non-null whenever a source was unavailable or the list was truncated.
-  const reviewCount = reviewQueueWarning(queue) === null ? queue.items.length : null;
-
-  return (
-    <div className="app-page">
-      <div className="app-content">
-        <header className="mb-6">
-          <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-semibold tracking-tight text-ink-50">Work</h1>{pilot&&<Link href={AGENTS_MANAGE_HREF} className="text-xs text-ink-400 hover:text-ink-100">Manage installed agents →</Link>}</div>
-          <p className="text-ink-300 text-sm mt-1">
-            What your agents are producing, what needs you, and what they delivered.
-          </p>
-        </header>
-
-        <WorkFilterTabs current={view} reviewCount={reviewCount} activity={pilot||view==='activity'} />
-
-        {view === 'activity' && <ActivityView jwt={session.access_token} />}
-
-        {view === 'needs'     && <NeedsYouView jwt={session.access_token} />}
-        {view === 'review'    && <ReviewView queue={queue} />}
-        {view === 'delivered' && <DeliveredView />}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Needs you — missing input, decisions, approvals, and recoverable blockers.
- * <TodayFeed> is unchanged and remains the ONLY thing allowed to claim the
- * all-clear, because it is the only component that can see both the live alert
- * count and the server-known setup count.
- */
-async function NeedsYouView({ jwt }: { jwt: string }) {
-  const supabase = createClient();
-  const [needsYou, productions] = await Promise.all([
-    loadNeedsYou(supabase),
-    // An outcome production IS work being produced, and this is the only
-    // surface that can lead a user back to one that is already running.
-    listOutcomeProductions(jwt),
-  ]);
-  return (
-    <>
-      <OutcomeProductionsList load={productions} />
-      <TodayFeed
-        data={needsYou}
-        warning={attentionWarning({ partial: needsYou.partial, truncated: needsYou.truncated, live: !needsYou.partial })}
-      />
-    </>
-  );
-}
-
-async function ReviewView({ queue }: { queue: Awaited<ReturnType<typeof getReviewQueue>> }) {
-  // Agent NAME is the primary identity (the slug is an implementation detail the
-  // user never chose). Falls back to the slug rather than rendering "undefined".
-  const myAgents = await getMyAgents();
-  const nameBySlug = new Map(
-    [
-      ...(myAgents.status === 'ready' ? myAgents.active : []),
-      ...(myAgents.status === 'ready' ? myAgents.needsActivation : []),
-      ...(myAgents.status === 'ready' ? myAgents.drafts : []),
-    ].map((a) => [a.slug, a.name] as const),
-  );
-  return <ReadyForReviewList queue={queue} nameBySlug={nameBySlug} />;
-}
-
-/**
- * Delivered — the work your agents produced, newest first. Same loader and same
- * list component as the old Results page; `basePath` keeps the `?run=` deep
- * link syncing to /work so a shared or notified result URL stays stable.
- *
- * <RunAttentionBanner> is carried over from /inbox deliberately. A result that
- * did not finish cleanly must be impossible to miss from whichever entry point
- * the user arrived through, and a deep link into Delivered does not pass
- * through Needs you.
- */
-async function DeliveredView() {
-  const supabase = createClient();
-  const items = await loadInboxItems(supabase, 40);
-  const attentionItems: AttentionItem[] = items.map((it) => ({
-    id: it.id, name: it.name, info: it.state, ran_at: it.ran_at,
-  }));
-
-  if (items.length === 0) {
-    return (
-      <section className="card text-center py-12" aria-label={WORK_VIEW_LABELS.delivered}>
-        <p className="text-ink-100 font-medium">No results yet.</p>
-        <p className="text-ink-400 text-sm mt-1">
-          When your agents run, the work they produce shows up here.{' '}
-          <Link href="/workflows" className="text-action-accent hover:underline">Build an agent</Link>.
-        </p>
-      </section>
-    );
-  }
-  return (
-    <>
-      <RunAttentionBanner items={attentionItems} />
-      <InboxList initialItems={items} basePath="/work" />
-    </>
-  );
-}
-
-/** The same live lifecycle plus caller-scoped recent history; no agent roster. */
-async function ActivityView({jwt}:{jwt:string}) {
-  let runs:RunRow[]=[],unavailable=false;
+export default async function WorkPage({searchParams}: {searchParams?:Record<string,string|string[]|undefined>}) {
   const supabase=createClient();
-  const [productions,needsYou]=await Promise.all([
-    listOutcomeProductions(jwt),
-    loadNeedsYou(supabase),
-    selectRuns(supabase,{limit:40,extraColumns:'current_step_index,total_steps,current_step_label',throwOnError:true})
-      .then(rows=>{runs=rows;}).catch(()=>{unavailable=true;}),
+  const {data:{session}}=await supabase.auth.getSession();
+  if(!session?.user) redirect('/login');
+  const profile=await readUserProfile(supabase.from('users').select('id, organization_id').eq('id',session.user.id));
+  if(!profile?.organization_id) redirect('/onboarding');
+  const view=resolveWorkView(searchParams?.view);
+  if(view==='agents') redirect(AGENTS_MANAGE_HREF);
+  return <div className="app-page work-page"><div className="app-content">
+    <PageHeader title="Work" actions={<Link href="/workflows" className="btn-primary"><svg className="h-4 w-4" aria-hidden="true"><use href="/brand/tukido-icons.svg#plus"/></svg>Start work</Link>}>
+      <p className="app-page-description">What your agents are producing, and what needs you.</p>
+    </PageHeader>
+    <WorkFeed view={view}
+      delivered={view==='delivered'?<Suspense fallback={<p role="status" className="work-list-notice">Loading delivered work…</p>}><DeliveredView/></Suspense>:null}
+      productions={<Suspense fallback={<p role="status" className="work-list-notice">Checking other work…</p>}><OtherWork jwt={session.access_token}/></Suspense>}>
+      <Suspense fallback={null}><NeedsSource/></Suspense>
+      <Suspense fallback={null}><ReviewSource jwt={session.access_token}/></Suspense>
+    </WorkFeed>
+  </div></div>;
+}
+
+async function NeedsSource(){
+  const read=await settleWithin<NeedsYou|null>(loadNeedsYou(createClient()),10_000,null);
+  const value:NeedsYou=read??{needGrant:[],missed:[],signIns:[],stalled:[],attentionItems:[],homeAttention:[],pendingReviews:0,homeCount:0,total:0,partial:true,truncated:false,unavailableSources:['needs_you_timeout']};
+  return <WorkSource data={{kind:'needs',value}}/>;
+}
+async function ReviewSource({jwt}:{jwt:string}){
+  const [read,owned]=await Promise.all([
+    getReviewQueue(),
+    settleWithin(readMyWorkflows(jwt),10_000,{status:'unavailable' as const,reason:'timeout' as const}),
   ]);
-  return <><NeedsYouNotice data={needsYou}/><OutcomeProductionsList load={productions}/><LiveRunActivity/><RunActivity runs={runs} unavailable={unavailable}/></>;
+  const queue=reviewQueueForArea(read??{items:[],truncated:false,total:null,visibleCount:0,sources:{review_endpoint:'unavailable'},live:false},owned,'work');
+  return <WorkSource data={{kind:'review',value:{queue,
+    names:Object.fromEntries(owned.status==='ready'?owned.workflows.map(agent=>[agent.slug,agent.name]):[]),
+    warning:reviewQueueWarning(queue),
+    reviewDetails:Object.fromEntries(queue.items.map(item=>[item.rootRunId,`${versionSummary(item)} · ${unresolvedIssueLabel(item.unresolvedIssueCount)}`])),
+  }}}/>;
 }
 
-
-/** Independent stream boundaries keep a slow parent read from holding alerts. */
-async function CompactRunAttention() {
- return <CompactRunAlerts attention={await getAttention()}/>;
+async function DeliveredView() {
+  const items=await loadInboxItems(createClient(),40);
+  const attentionItems:AttentionItem[]=items.map(item=>({id:item.id,name:item.name,info:item.state,ran_at:item.ran_at}));
+  return <><RunAttentionBanner items={attentionItems}/><InboxList initialItems={items} basePath="/work?view=delivered" heading={null} workRows/>{items.length===0&&<div className="work-empty"><h2>No results on this page yet</h2><p>Delivered work appears here after a run.</p><Link href="/workflows" className="btn-outline">Go to agents</Link></div>}</>;
 }
-async function CompactProductionList({jwt}:{jwt:string}) {
- return <CompactActiveProductions load={await listOutcomeProductions(jwt,{activeOnly:true})}/>;
+async function OtherWork({jwt}:{jwt:string}) {
+  const load=await listOutcomeProductions(jwt);
+  if(load.status==='absent'||load.status==='ready'&&load.productions.length===0) return null;
+  return <details className="mt-6 rounded-lg border border-ink-800 p-4"><summary className="cursor-pointer text-sm text-ink-300">Other work & productions</summary><div className="mt-4"><OutcomeProductionsList load={load}/></div></details>;
 }

@@ -26,9 +26,12 @@
  * resolves (see JudgeFeedbackControls).
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import WorkItemRow from './work-item-row';
+import LocalTime from './local-time';
+import {humanize} from '@/lib/inbox-items';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import type { AttentionItem, RequiredAction } from '@/lib/attention';
@@ -43,6 +46,7 @@ import JudgeFeedbackControls from './judge-feedback-controls';
 // workstream keeps paying for.
 const ACTION_UI: Record<RequiredAction, {
   primaryLabel: string;
+  needSummary: string;
   requireText: boolean;      // the answer IS the info — cannot continue empty
   resumePrompt: string;      // default continuation if the user leaves the box empty
   prefill: (detail: string | null) => string;
@@ -51,29 +55,34 @@ const ACTION_UI: Record<RequiredAction, {
   provide_information: {
     primaryLabel: 'Continue with this answer',
     requireText: true, resumePrompt: '', prefill: () => '', allowClose: false,
+    needSummary: 'Your agent needs information before it can continue.',
   },
   grant_permission: {
     primaryLabel: 'I granted access — continue',
     requireText: false, resumePrompt: 'I’ve granted the access it needed. Please continue where you left off.',
     prefill: () => 'I’ve granted the access it needed. Please continue where you left off.', allowClose: false,
+    needSummary: 'Review the access or change your agent needs before it continues.',
   },
   open_service: {
     primaryLabel: 'I’m signed in — continue',
     requireText: false, resumePrompt: 'I’m signed in now. Please continue where you left off.',
     prefill: () => 'I’m signed in now. Please continue where you left off.', allowClose: false,
+    needSummary: 'Open or sign in to the service your agent needs.',
   },
   continue_work: {
     primaryLabel: 'Continue the work',
     requireText: false, resumePrompt: 'I approve the staged work. Continue with the remaining steps.',
     prefill: () => 'I approve the staged work. Continue with the remaining steps.', allowClose: false,
+    needSummary: 'Review the prepared work before your agent continues.',
   },
   review_result: {
     primaryLabel: 'Continue with this note',
     requireText: false, resumePrompt: 'Please continue.', prefill: () => '', allowClose: true,
+    needSummary: 'Your agent has a result for you to review.',
   },
 };
 
-export default function JudgeReviewCard({ item }: { item: AttentionItem }) {
+export default function JudgeReviewCard({ item, workRow = false, extraActions, extraDetails }: { item: AttentionItem; workRow?: boolean; extraActions?:ReactNode; extraDetails?:ReactNode }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -83,18 +92,24 @@ export default function JudgeReviewCard({ item }: { item: AttentionItem }) {
   // catches up after a server refresh.
   const [feedback, setFeedback] = useState(item.feedback ?? null);
 
-  const who = item.agentName || item.agentSlug || 'An agent';
+  const who = item.agentName && item.agentName!==item.agentSlug ? item.agentName : item.agentSlug ? humanize(item.agentSlug) : 'An agent';
+  const plainNeed = ACTION_UI[item.requiredAction]?.needSummary;
 
+  const trigger = (<button ref={triggerRef} type="button" onClick={() => setOpen(true)} className="btn-outline text-xs px-3 py-1.5 flex-none">
+        {item.primaryAction.label}
+      </button>);
   return (
-    <div className="card flex items-center justify-between gap-3 border-amber-500/40">
+    <div className={workRow ? '' : 'card flex items-center justify-between gap-3 border-amber-500/40'}>
+      {workRow ? <WorkItemRow agentSlug={item.agentSlug||undefined} title={who} detail={plainNeed}
+        state={item.requiredAction === 'grant_permission' ? 'Needs approval' : 'Needs input'}
+        when={item.createdAt ? <LocalTime iso={item.createdAt}/> : null} actions={<>{trigger}{extraActions}</>}/> : <>
       <div className="min-w-0">
         <p className="text-sm font-medium text-ink-100 truncate">{who}</p>
         <p className="text-xs mt-0.5 text-state-needs">{item.whatHappened}</p>
         {item.actionDetail && <p className="text-[11px] mt-1 text-ink-400">{item.actionDetail}</p>}
       </div>
-      <button ref={triggerRef} type="button" onClick={() => setOpen(true)} className="btn-outline text-xs px-3 py-1.5 flex-none">
-        {item.primaryAction.label}
-      </button>
+      {trigger}</>}
+      {workRow && <><details className="work-row-details"><summary>What happened & details</summary><p>{item.whatHappened}</p>{item.actionDetail&&<p>{item.actionDetail}</p>}</details>{extraDetails}</>}
       {open && (
         <JudgeReviewModal
           item={item}
