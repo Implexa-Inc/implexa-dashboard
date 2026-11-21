@@ -29,7 +29,7 @@ test('drafts can be archived, and Pause retains the original stop-schedule opera
 test('active roster is capped, Run keeps the normal agent gate, and result links remain separate',async()=>{
  const agents=Array.from({length:10},(_,i)=>agent(`video-${i}`,{lastRun:{id:`run-${i}`,status:'completed',runState:'completed',ranAt:`2026-11-${String(10+i).padStart(2,'0')}T12:00:00Z`}}));
  const r=await render('agents-list.tsx',{agents});
- try{assert.equal(r.document.querySelectorAll('.agent-roster-row').length,8);const row=r.document.querySelector('.agent-roster-row')!;assert.equal(row.querySelector('a.agent-run')?.textContent,'Run');assert.match(row.querySelector('a.agent-run')?.getAttribute('href')||'',/\/workflows\/video-9\?source=generated/);assert.equal(row.querySelector('.agent-last-run')?.getAttribute('href'),'/runs/run-9');await r.click(r.getByText('Show all 10'));assert.equal(r.document.querySelectorAll('.agent-roster-row').length,10);assert.equal(r.calls.backend.length,0);}finally{r.cleanup();}
+ try{assert.equal(r.document.querySelectorAll('.agent-roster-row').length,8);const row=r.document.querySelector('.agent-roster-row')!;assert.equal(row.querySelector('a.agent-run')?.textContent,'Run');assert.match(row.querySelector('a.agent-run')?.getAttribute('href')||'',/\/workflows\/video-9\?source=generated&run=1/);assert.equal(row.querySelector('.agent-last-run')?.getAttribute('href'),'/runs/run-9');await r.click(r.getByText('Show all 10'));assert.equal(r.document.querySelectorAll('.agent-roster-row').length,10);assert.equal(r.calls.backend.length,0);}finally{r.cleanup();}
 });
 test('attention cards cap at three, favorites at four, and unavailable roster does not claim no agents',async()=>{
  const agents=Array.from({length:6},(_,i)=>agent(`agent-${i}`,{favorite:true,needsIntervention:true,interventionReason:'Connect the account'}));
@@ -56,4 +56,11 @@ test('archive and rollback keep the collection header count consistent with the 
   await r.click(Array.from(r.document.querySelectorAll('[role="menuitem"]')).find(n=>n.textContent?.startsWith('Archive'))!);
   assert.equal(count(),'Your agents 1');assert.match(r.text(),/Could not archive/);
  }finally{r.cleanup();}
+});
+
+test('empty and no-match states offer the designed actions and preserve the searched phrase',async()=>{
+ const empty=await render('agents-list.tsx',{agents:[]});
+ try{assert.ok(empty.document.querySelector('.collection-empty-enso'));assert.match(empty.text(),/No agents yet/);assert.ok(empty.document.querySelector('.collection-empty a[href="/create"]'));assert.ok(empty.document.querySelector('.collection-empty a[href="/workflows?tab=rent"]'));}finally{empty.cleanup();}
+ const r=await render('agents-list.tsx',{agents:[agent('owned')]});
+ try{const search=r.document.querySelector('input[type="search"]')!;await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLInputElement.prototype,'value')!.set!.call(search,'invoice');search.dispatchEvent(new r.window.Event('input',{bubbles:true}));});assert.match(r.text(),/Your agent doesn’t match “invoice”/);await r.click(r.getByText('Clear search and filters'));assert.equal(r.document.querySelector('.collection-empty'),null);assert.equal(r.document.querySelectorAll('.agent-roster-row').length,1);}finally{r.cleanup();}
 });

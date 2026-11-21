@@ -107,7 +107,9 @@ const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in t
 // ./run-attachments. The per-run note rides the run-request `note` (a one-off
 // channel), never the saved standing note.
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, setupRouteClass = null, activeVersionNumber = null, inputContract = null, inputContractDigest = null, pendingUpdate = null,trainingTest:initialTrainingTest=null,presentation='agent',trainingChoices,runRequest,onQueued }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, setupRouteClass = null, activeVersionNumber = null, inputContract = null, inputContractDigest = null, pendingUpdate = null,trainingTest:initialTrainingTest=null,presentation='agent',trainingChoices,runRequest,onQueued,openOnArrival=false }: {
+  /** Opens the existing input/review gate only; submission remains explicit. */
+  openOnArrival?:boolean;
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
@@ -329,6 +331,14 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   },[runRequest?.nonce]);
   const supabase = createClient();
   const router = useRouter();
+  const arrivalHandled=useRef(false);
+  useEffect(()=>{
+    if(!openOnArrival||arrivalHandled.current||presentation!=='agent')return;
+    arrivalHandled.current=true;
+    void runNow().catch(error=>setMsg(error instanceof Error?error.message:'Could not open the run form.'));
+    // Only an explicit collection navigation opens the form, never a later readiness change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[openOnArrival]);
   useEffect(() => {
     const changed = () => { trialEpoch.current++; trialReply.current?.(false); trialReply.current = null; setTrialReview(null); };
     const subscription = supabase.auth.onAuthStateChange?.((event) => {

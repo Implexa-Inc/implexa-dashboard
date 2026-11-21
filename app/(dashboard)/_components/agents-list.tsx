@@ -216,7 +216,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, car
     <span className={`agent-state ${isDraft?'border-ink-700 text-ink-400':badge?.cls||''}`}>{isDraft?'Draft':badge?.label}</span>
     {!card&&<div className="agent-when"><span>{isDraft?'Not turned on':a.section==='scheduled'&&a.nextRunAt?`Next: ${nextRunLabel(a.nextRunAt)}`:a.lastRun?.ranAt?<><span>Ran </span><LocalTime iso={a.lastRun.ranAt}/></>:'Not run yet'}</span><small>{a.section==='scheduled'?(a.scheduleNl||'On a schedule'):a.section==='paused'?'Schedule paused':isDraft?'Saved for later':'On demand'}</small></div>}
     {!card&&<div className="agent-row-grade">{a.grade?.hasGrade?<><span>{Math.round(a.grade.rate*100)}% delivered</span><small>of {a.grade.runs} runs</small></>:<span aria-label="No delivery history">—</span>}</div>}
-    <Link href={detail} className="btn-outline agent-run">{isDraft?'Turn on':a.section==='paused'?'Resume':'Run'}</Link>
+    <Link href={isDraft||a.section==='paused'?detail:detail+'&run=1'} prefetch={false} className="btn-outline agent-run">{isDraft?'Turn on':a.section==='paused'?'Resume':'Run'}</Link>
     <RowMenu onArchive={()=>onArchive(a)} onDeactivate={()=>onDeactivate(a)} canDeactivate={a.section==='scheduled'} busy={busy} trainingHref={a.canTrain?`/training/${encodeURIComponent(a.slug)}`:undefined} lastRunHref={a.lastRun?.id?`/runs/${encodeURIComponent(a.lastRun.id)}`:undefined}/>
   </li>;
 }
@@ -447,7 +447,10 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
       <Section title="All active agents" agents={activated} {...rowHandlers}/>
       <Section title="Drafts" subtitle="saved but not turned on" agents={notActivated} collapsible limit={3} {...rowHandlers}/>
       <Section title="Paused" agents={paused} collapsible limit={3} {...rowHandlers}/>
-      {shown.length===0&&rosterKnown&&<div className="card text-center py-10"><p>{q?'No agents match your search.':activeCat?'No agents match this filter.':'No agents yet.'}</p><p className="mt-2 text-sm">{q?<button type="button" onClick={()=>setQuery('')}>Clear search</button>:activeCat?<button type="button" onClick={()=>setCat('')}>Clear filter</button>:<Link href="/create">Build an agent</Link>}</p></div>}
+      {shown.length===0&&rosterKnown&&<div className="collection-empty">
+        {q||activeCat?<><h3>No results</h3><p>{list.length===1?'Your agent doesn’t match':`None of your ${list.length} agents match`}{q?` “${query.trim()}”`:''}{activeCat?` in ${activeCat==='needs'?'Needs you':activeCat==='scheduled'?'On a schedule':categories.find(c=>c.key===activeCat)?.label||activeCat}`:''}.</p><button type="button" className="btn-outline" onClick={()=>{setQuery('');setCat('');}}>Clear search and filters</button></>:
+          <><div className="collection-empty-enso" aria-hidden="true"/><h3>No agents yet</h3><p>Agents you build or pick up from a trainer appear here, ready to run.</p><div><Link href="/create" className="btn-primary">Build an agent</Link> <Link href="/workflows?tab=rent" className="btn-outline">Find a trained agent</Link></div></>}
+      </div>}
 
       {/* Archived — per-user hidden agents, restorable. The shared agents are
           untouched; this is just the caller's view.

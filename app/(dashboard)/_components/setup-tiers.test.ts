@@ -360,7 +360,7 @@ test('newly-built agents send the user to review steps before activation', () =>
 
   const list = read('agents-list.tsx');
   assert.match(list,/const isDraft=a.section==='not_activated'/);
-  assert.match(list,/<Link href=\{detail\} className="btn-outline agent-run">\{isDraft\?'Turn on'/,
+  assert.match(list,/<Link href=\{isDraft\|\|a.section==='paused'\?detail:detail\+'&run=1'\}[\s\S]{0,100}\{isDraft\?'Turn on'/,
     'Turn on still opens the agent detail/steps, never bypasses activation gates');
 });
 

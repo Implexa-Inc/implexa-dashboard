@@ -21,3 +21,8 @@ test('one search filters authoritative admitted agents and approved listings wit
  const r=await render('marketplace-sample-gallery.tsx',{listings:[],approved:{status:'ready',listings:[actual]},discovery:{status:'ready',agents:[{...generated.available,id:'another',name:'Proof Reader',job:'Review a draft'}]}});
  try{const search=r.document.querySelector('input')!;await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLInputElement.prototype,'value')!.set!.call(search,'Proof Reader');search.dispatchEvent(new r.window.Event('input',{bubbles:true}));});assert.match(r.text(),/Proof Reader/);assert.doesNotMatch(r.text(),/Real trained studio/);assert.equal(r.document.querySelector('article a.btn-outline')?.getAttribute('href'),`/workflows/${generated.available.slug}`);assert.equal(r.calls.backend.length,0);}finally{r.cleanup();}
 });
+
+test('empty Find states use plain list-state wording, and an empty search does not promote a build card',async()=>{
+ const r=await render('marketplace-sample-gallery.tsx',{listings:[]});
+ try{assert.match(r.text(),/No results/);assert.match(r.text(),/No trained agents are listed yet/);assert.equal(r.document.querySelector('.marketplace-build-card'),null);}finally{r.cleanup();}
+});
