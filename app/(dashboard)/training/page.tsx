@@ -3,6 +3,7 @@ import Link from 'next/link';
 import {redirect} from 'next/navigation';
 import PageHeader from '@/components/page-header';
 import {createClient} from '@/lib/supabase/server';
+import {readTrainingCoach} from '@/lib/training-coach-server';
 import {readMyWorkflows} from '@/lib/workflow-catalog';
 import {reviewQueueForArea} from '@/lib/training-review-routing';
 import {getReviewQueue} from '@/lib/review';
@@ -21,6 +22,7 @@ export default async function TrainingPage({searchParams}:{searchParams?:{view?:
  </div></main>;
 }
 async function CoachContents({jwt,review,recordingId}:{jwt:string;review:boolean;recordingId?:string}){
+ if(!review){const summary=await readTrainingCoach(jwt);if(summary.status!=='ready')return <TrainingFeedUnavailable reason="http_error"/>;const owned=summary.page.agents.map(agent=>({slug:agent.slug,name:agent.name,source:'generated',description:'',updated_at:agent.lastTaughtAt}));return <TrainingAgentPicker owned={owned} recordingId={recordingId} partial={!summary.page.complete} summary={summary.page}/>;}
  const feed=await readMyWorkflows(jwt);
  if(feed.status!=='ready')return <TrainingFeedUnavailable reason={feed.reason}/>;
  const owned=feed.workflows.filter(agent=>agent.source==='generated');
