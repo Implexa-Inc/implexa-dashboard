@@ -1,61 +1,65 @@
+'use client';
+import {useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
-import RetryButton from './retry-button';
+import {useRouter} from 'next/navigation';
 import type {MyWorkflowsRead,MyWorkflowCard} from '@/lib/workflow-catalog';
+import {humanize,oneLine} from '@/lib/inbox-items';
+import {CollectionEmpty,CollectionReadError} from './collection-state';
+import Modal from './modal';
 
-export default function TrainingAgentPicker({ owned,recordingId }: { owned: MyWorkflowCard[];recordingId?:string }) {
-  // Ownership is the whole gate here: a renter sees the empty state, an owner
-  // sees their agents. There is no mode toggle (DESIGN.md §4.2).
-  const bySlug = new Map<string, MyWorkflowCard>();
-  for (const agent of owned) {
-    const current = bySlug.get(agent.slug);
-    if (!current || (agent.source === 'generated' && current.source !== 'generated')) bySlug.set(agent.slug, agent);
-  }
+function AgentRows({agents,recordingId}:{agents:MyWorkflowCard[];recordingId?:string}){
+ return <ul className="coach-agent-list">{agents.map(agent=>{
+  const href=`/training/${encodeURIComponent(agent.slug)}${recordingId?`?annotateRecording=${encodeURIComponent(recordingId)}`:''}`;
+  return <li key={agent.slug} className="coach-agent-row">
+   <div className="coach-agent-picture" aria-hidden="true"><svg><use href="/brand/tukido-icons.svg#coach"/></svg></div>
+   <div><h3><Link href={href} prefetch={false}>{agent.name.trim()||humanize(agent.slug)}</Link></h3>{oneLine(agent.description)&&<p>{oneLine(agent.description)}</p>}</div>
+   <Link href={href} prefetch={false} className="btn-outline">{recordingId?'Choose agent':'Train'}</Link>
+  </li>;
+ })}</ul>;
+}
+const filterAgents=(agents:MyWorkflowCard[],query:string)=>{
+ const needle=query.trim().toLowerCase();
+ return agents.filter(agent=>!needle||`${agent.name} ${agent.description||''}`.toLowerCase().includes(needle));
+};
 
-  if (owned.length === 0) {
-    return (
-      <section className="card text-center py-12">
-        <p className="text-ink-100 font-medium">You don&apos;t own an agent yet.</p>
-        <p className="text-ink-400 text-sm mt-1">
-          Training is where an agent you own accumulates evidence from the work you review.{' '}
-          <Link href="/create?from=training" className="text-action-accent hover:underline">Build your first agent</Link>.
-        </p>
-      </section>
-    );
-  }
-
-  return (
-    <>
-      <ul className="coach-agent-list">
-        {[...bySlug.values()].map((a) => (
-          <li key={a.slug} className="card p-0 transition-colors hover:border-ink-500">
-            <Link
-              href={`/training/${encodeURIComponent(a.slug)}${recordingId?`?annotateRecording=${encodeURIComponent(recordingId)}`:''}`}
-              className="flex items-center justify-between gap-5 rounded-lg px-4 py-6 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900"
-            >
-              <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ink-800 text-ink-200">✦</span><span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-ink-100">{a.name.trim() || a.slug}</span>
-              </span>
-              <span className="shrink-0 text-xs text-ink-400">Teach →</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-
-      <p className="mt-7 flex items-center gap-3 text-sm text-ink-500">Starting with something new?<Link href="/create?from=training" className="text-ink-200 underline underline-offset-4 hover:text-action-accent">Build a new agent →</Link></p>
-    </>
-  );
+/** One trainer-owned roster; the recording arrival is a rare target-choice dialog. */
+export default function TrainingAgentPicker({owned,recordingId,partial=false}:{owned:MyWorkflowCard[];recordingId?:string;partial?:boolean}){
+ const router=useRouter();
+ const [query,setQuery]=useState(''),[all,setAll]=useState(false);
+ const [chooseRecording,setChooseRecording]=useState(!!recordingId),[targetQuery,setTargetQuery]=useState('');
+ useEffect(()=>{setChooseRecording(!!recordingId);setTargetQuery('');},[recordingId]);
+ const agents=useMemo(()=>{
+  const bySlug=new Map<string,MyWorkflowCard>();
+  for(const agent of owned)if(agent.source==='generated'&&!bySlug.has(agent.slug))bySlug.set(agent.slug,agent);
+  // The existing roster projects last_seen_at as updated_at, not last taught.
+  const stamp=(agent:MyWorkflowCard)=>{const at=Date.parse(agent.updated_at||'');return Number.isFinite(at)?at:0;};
+  return [...bySlug.values()].sort((a,b)=>stamp(b)-stamp(a)||a.name.localeCompare(b.name)||a.slug.localeCompare(b.slug));
+ },[owned]);
+ const needle=query.trim().toLowerCase(),shown=filterAgents(agents,query),targets=filterAgents(agents,targetQuery);
+ const closeRecording=()=>{
+  setChooseRecording(false);
+  const url=new URL(window.location.href);url.searchParams.delete('recordingId');
+  router.replace(url.pathname+url.search+url.hash,{scroll:false});
+ };
+ const unavailable=<CollectionReadError title="Some agents couldn’t be checked" description="Your agents and saved training are unchanged. Try refreshing the list."/>;
+ return <>
+  <div className="coach-collection-tools">
+   {agents.length>0&&<><input type="search" className="input" value={query} onChange={e=>{setQuery(e.target.value);setAll(false);}} placeholder="Search your agents" aria-label="Search agents you train"/><button type="button" aria-pressed={!needle} onClick={()=>setQuery('')} className="coach-all-count">All · {partial?`${agents.length}+`:agents.length}</button></>}
+   <Link href="/training?view=review" className="coach-history-entry" prefetch={false}>Feedback from runs →</Link>
+  </div>
+  {!agents.length&&!partial?<CollectionEmpty enso title="No agents to train yet" description="Build an agent, then teach it with examples, feedback, or a conversation."><Link href="/create?from=training" className="btn-primary">Build your first agent</Link></CollectionEmpty>:
+   <section className="coach-collection" aria-label="All agents you train">
+    <div className="agent-section-head"><h2>All agents you train</h2><span>{partial?(shown.length?`${shown.length}+`:'?'):shown.length}</span></div>
+    {shown.length?<><AgentRows agents={all?shown:shown.slice(0,8)}/>{shown.length>8&&<p className="agent-section-more">Showing {all?shown.length:8} of {shown.length} · <button type="button" onClick={()=>setAll(!all)}>{all?'Show less':`Show all ${shown.length}`}</button></p>}</>:
+     partial?unavailable:<CollectionEmpty title="No results" description={`No agents match “${query.trim()}”.`}><button type="button" className="btn-outline" onClick={()=>setQuery('')}>Clear search</button></CollectionEmpty>}
+   </section>}
+  <Modal open={chooseRecording&&!!recordingId} onClose={closeRecording} title="Which agent should this recording teach?" subtitle="Your recording stays saved on this Mac." maxWidth="max-w-3xl">
+   {agents.length>0&&<input type="search" className="input mb-4" value={targetQuery} onChange={e=>setTargetQuery(e.target.value)} aria-label="Find an agent for this recording" placeholder="Search your agents"/>}
+   {targets.length?<div className="coach-recording-targets"><AgentRows agents={targets} recordingId={recordingId}/></div>:partial?unavailable:<CollectionEmpty title={agents.length?'No results':'No agents to train yet'} description={agents.length?`No agents match “${targetQuery.trim()}”.`:'Build an agent, then choose this recording from your saved recordings.'}>{agents.length?<button type="button" className="btn-outline" onClick={()=>setTargetQuery('')}>Clear search</button>:<Link href="/create?from=training" className="btn-primary">Build your first agent</Link>}</CollectionEmpty>}
+  </Modal>
+ </>;
 }
 
-/**
- * An unreadable roster is not an empty roster. Showing "Build your first agent"
- * to an owner whose feed just failed would tell them their work does not exist.
- */
-export function TrainingFeedUnavailable({ reason }: { reason: Extract<MyWorkflowsRead, {status:'unavailable'}>['reason'] }) {
-  return (
-    <div role="status" className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-10 text-center">
-      <p className="text-sm text-ink-300">We can&apos;t show your agents right now.</p>
-      <p className="mt-1 text-xs text-ink-500">{reason === 'timeout' ? 'The agent lookup took too long.' : reason === 'no_session' ? 'Your session is unavailable.' : 'The agent lookup could not be completed.'} This is not the same as having none.</p>
-      <RetryButton />
-    </div>
-  );
+export function TrainingFeedUnavailable({reason}:{reason:Extract<MyWorkflowsRead,{status:'unavailable'}>['reason']}){
+ return <CollectionReadError title="Couldn’t load the agents you train" description={reason==='no_session'?'Your session couldn’t be checked. Reload to try again.':'Your agents and saved training are unchanged. This page couldn’t reach Tukido.'}/>;
 }
