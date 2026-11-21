@@ -1364,7 +1364,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       <aside className="finished-run-rail" aria-label="Review this result">
         <section className="finished-decision">
           <h2>{accepted?'Accepted':activeIssues.length?`You have ${activeIssues.length} saved ${activeIssues.length===1?'note':'notes'}`:!canAccept?'Review this result':'Happy with it?'}</h2>
-          <p>Accepting marks your review complete. Nothing is published anywhere.</p>
+          {!accepted&&activeIssues.length===0&&<p>Accepting marks your review complete. Nothing is published anywhere.</p>}
           {error&&<p role="alert" className="text-state-fail">{error}</p>}
           {notice&&<p role="status">{notice}</p>}
           {accepted?<p className="text-state-ok">You accepted this result.</p>:canAccept?<button type="button" className="btn-primary" disabled={busy} onClick={()=>void onPrimary()}>{busy?'Accepting…':'Accept'}</button>:<p role="status">{historicalProvenanceUnavailable||issuesUnavailable||resolutionsUnavailable?'Review details could not be verified. Open the review before accepting.':proxyPreview?'The final result is not ready for acceptance.':'Open the review to check what is needed before accepting.'}</p>}
