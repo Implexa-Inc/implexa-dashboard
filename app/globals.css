@@ -535,3 +535,17 @@ html, body {
 .marketplace-grid[data-view="list"] .marketplace-card-art {border-radius:var(--r-md) 0 0 var(--r-md);height:100%;aspect-ratio:auto;}
 @media(max-width:1100px){.marketplace-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:600px){.marketplace-grid{grid-template-columns:1fr;}.marketplace-grid[data-view="list"] .marketplace-card{grid-template-columns:1fr;}.marketplace-grid[data-view="list"] .marketplace-card-art{aspect-ratio:16/9;border-radius:var(--r-md) var(--r-md) 0 0;}.marketplace-view button{padding:5px 8px;}}
+@media(max-width:600px){
+ .agent-roster-row>.agent-row-name{grid-column:2/4;grid-row:1;padding-right:0;}
+ .agent-roster-row>.agent-state{grid-column:2;grid-row:2;}
+ .agent-roster-row>.agent-when{grid-column:2/4;grid-row:3;}
+ .agent-roster-row>.agent-row-grade{grid-column:2/4;grid-row:4;display:flex;gap:4px;}
+ .agent-roster-row>.agent-run{grid-column:3/5;grid-row:2;justify-self:end;}
+ .agent-row-name>p,.agent-last-run{display:inline;font-size:11px;}
+ .agent-last-run{margin-left:6px;}
+ .agent-when small{display:inline;margin-left:6px;}
+ .agent-favorite-card>.agent-row-name{grid-column:1/-1;grid-row:auto;}
+ .agent-favorite-card>.agent-state{grid-column:1;grid-row:auto;}
+ .agent-favorite-card>.agent-run{grid-column:2;grid-row:auto;}
+ .agent-favorite-card .agent-last-run{display:block;margin-left:0;}
+}
