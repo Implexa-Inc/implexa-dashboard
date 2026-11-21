@@ -36,3 +36,11 @@ test('interrupted runs show a recorded date instead of a misleading weeks-long e
  const r=await render('run-steps-list.tsx',{steps:[],progress:{state:'stalled',elapsedMs:2300000000,startedAt:'2026-10-26T12:00:00Z',interruptedAt:'2026-10-27T12:00:00Z'}});
  try{assert.equal(r.document.querySelector('time')?.getAttribute('datetime'),'2026-10-27T12:00:00Z');assert.match(r.text(),/Oct 27, 2026/);assert.doesNotMatch(r.text(),/elapsed|26d|min left/);}finally{r.cleanup();}
 });
+
+test('finished Judge card leads with a real score and plain model limits',async()=>{
+ const creative_grade={contractVersion:'creative-grade.v2',overallBand:'B',overallScore:85,summary:'Clear treatment.',calibration:'uncalibrated',relativePath:'video.mp4',artifactSha256:'a'.repeat(64),rubricDigest:'b'.repeat(64),dimensions:[],coverage:{durationMs:8000,timestampsMs:[],limitations:'Sampled review.',continuousPlaybackVerified:false}};
+ const r=await render('run-judgment-card.tsx',{presentation:'finished',judgment:{verdict:'pass',summary:'Readable result.',creative_grade}},{exportName:'RunJudgmentCard'});
+ try{assert.equal(r.document.querySelector('h2')?.textContent,'Judge: 85/100');assert.match(r.text(),/A model’s assessment. It can miss things./);assert.equal(r.document.querySelector('span.flex-none'),null);assert.ok(r.getByText('Review details'));}finally{r.cleanup();}
+ const unknown=await render('run-judgment-card.tsx',{presentation:'finished',judgment:{verdict:'pass',summary:'Readable result.'}},{exportName:'RunJudgmentCard'});
+ try{assert.equal(unknown.document.querySelector('h2')?.textContent,'Judge');assert.doesNotMatch(unknown.document.querySelector('h2')!.textContent!,/0\/100/);}finally{unknown.cleanup();}
+});

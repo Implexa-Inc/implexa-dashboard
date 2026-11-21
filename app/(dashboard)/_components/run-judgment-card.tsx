@@ -46,8 +46,9 @@ const STYLE: Record<RunJudgment['verdict'], { label: string; border: string; tex
 };
 
 export function RunJudgmentCard({
-  judgment, repairRequest = null, currentRunId, finalOutputSha256, reviewPending = false,
+  judgment, repairRequest = null, currentRunId, finalOutputSha256, reviewPending = false, presentation,
 }: {
+  presentation?:'finished';
   judgment: RunJudgment | null;
   repairRequest?: JudgeRepairRequest | null;
   currentRunId?: string;
@@ -81,12 +82,12 @@ export function RunJudgmentCard({
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-sm font-semibold text-ink-100">Tukido Judge</h2>
+            <h2 className="text-sm font-semibold text-ink-100">{presentation==='finished'?assessedScore?`Judge: ${total}/100`:'Judge':'Tukido Judge'}</h2>
             <span className={`text-xs font-medium ${s.text}`}>{verdictLabel}</span>
           </div>
           <details className="mt-2 text-sm"><summary className="cursor-pointer text-ink-300">Review notes</summary><p className="mt-2 leading-relaxed whitespace-pre-wrap text-ink-300">{judgment.summary}</p></details>
         </div>
-        <span className="flex-none text-[10px] uppercase tracking-wide text-ink-500">AI review</span>
+        {presentation!=='finished'&&<span className="flex-none text-[10px] uppercase tracking-wide text-ink-500">AI review</span>}
       </div>
 
       {judgment.verdict === 'uncertain' && judgment.id && currentRunId && finalOutputSha256 &&
@@ -172,11 +173,16 @@ export function RunJudgmentCard({
         </details>
       )}
 
-      <p className="mt-3 text-[11px] text-ink-500">
+      {presentation==='finished'?<><p className="mt-3 text-xs text-ink-500">A model’s assessment. It can miss things.</p><details className="mt-3 text-xs text-ink-500"><summary>Review details</summary>      <p className="mt-3 text-[11px] text-ink-500">
         {judgment.judge_executor ? `${judgment.judge_executor}${judgment.judge_model ? ` · ${judgment.judge_model}` : ''}` : 'Fresh review session'}
         {judgment.worker_executor ? ` reviewed work from ${judgment.worker_executor}${judgment.worker_model ? ` · ${judgment.worker_model}` : ''}` : ''}.
         {' '}This model review is separate from the evidence-based “Delivered” badge above.
-      </p>
+      </p></details></>:(      <p className="mt-3 text-[11px] text-ink-500">
+        {judgment.judge_executor ? `${judgment.judge_executor}${judgment.judge_model ? ` · ${judgment.judge_model}` : ''}` : 'Fresh review session'}
+        {judgment.worker_executor ? ` reviewed work from ${judgment.worker_executor}${judgment.worker_model ? ` · ${judgment.worker_model}` : ''}` : ''}.
+        {' '}This model review is separate from the evidence-based “Delivered” badge above.
+      </p>)}
+
 
       {/* Calibration on EVERY verdict, not just blocks. A wrong `pass` is the most
           valuable signal observe mode can collect, and exposing feedback only on

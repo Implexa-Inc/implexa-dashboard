@@ -21,8 +21,8 @@ const source = readFileSync(
 
 /** The issue rail, from its opening tag to its close. */
 const rail = (() => {
-  const start = source.indexOf('<aside');
-  const end = source.indexOf('</aside>');
+  const start = source.indexOf('<aside className="flex max-h-');
+  const end = source.indexOf('</aside>',start);
   assert.ok(start > 0 && end > start, 'the issue rail could not be located');
   return source.slice(start, end);
 })();

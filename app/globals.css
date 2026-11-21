@@ -631,3 +631,23 @@ html, body {
 .recording-moment .recording-note .recording-moment-number{background:var(--action-primary);color:var(--on-action-primary);}
 .recording-note .btn-primary small{color:inherit;opacity:.8;}
 @media(max-width:1100px){.recording-moment.is-selected>div:first-child>.recording-moment-select,.recording-moment.is-selected>.recording-moment-summary{display:none;}.recording-moment.is-selected>div:first-child{justify-content:flex-end;}}
+
+.finished-run-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:32px;align-items:start;margin:24px 0;}
+.finished-result{min-width:0;}.finished-result>[data-testid="review-playback"]{overflow:hidden;border-radius:var(--r-md);}
+.finished-result-name{font-size:13px;color:var(--text-muted);margin:12px 0;overflow-wrap:anywhere;}
+.finished-run-rail{display:grid;gap:20px;min-width:0;}.finished-decision,.finished-versions{padding:24px;border:1px solid var(--border-subtle);border-radius:var(--r-md);background:var(--bg-surface);}
+.finished-decision h2{font:24px var(--font-display),Georgia,serif;}.finished-decision>p{font-size:13px;color:var(--text-muted);margin:8px 0 16px;}.finished-decision>.btn-primary{width:100%;}
+.finished-changes{border-top:1px solid var(--border-subtle);margin-top:24px;padding-top:20px;}.finished-continue textarea{min-height:120px;}.finished-continue .revision-options{font-size:12px;color:var(--text-muted);margin-top:16px;}.finished-continue .revision-options>summary{cursor:pointer;}.finished-markup{display:block;margin-top:20px;padding:12px;border:1px solid var(--border-subtle);border-radius:var(--r-sm);font-size:12px;text-decoration:none;}.finished-markup strong{display:block;font-size:13px;margin-bottom:4px;}
+.finished-file-picker{display:block;font-size:12px;color:var(--text-muted);margin-bottom:12px;}.finished-file-picker select{display:block;width:100%;padding:10px;border:1px solid var(--border-control);border-radius:var(--r-sm);background:var(--bg-surface);margin-top:6px;color:var(--text-body);}
+.finished-versions h2{font-weight:500;margin-bottom:10px;}.finished-versions>a{display:flex;gap:12px;justify-content:space-between;padding:8px;font-size:13px;border-radius:var(--r-sm);}.finished-versions [aria-current]{background:var(--bg-selected);}.finished-run-details{margin:24px 0;border-top:1px solid var(--border-subtle);padding-top:20px;}.finished-run-details>summary{cursor:pointer;font-weight:500;margin-bottom:20px;}
+@media(max-width:1100px){.finished-run-layout{grid-template-columns:minmax(0,1fr);gap:24px;}}
+
+.finished-more{position:relative;}.finished-more>summary{cursor:pointer;list-style:none;padding:6px 14px;border:1px solid var(--border-control);border-radius:var(--r-sm);}.finished-more>div{position:absolute;right:0;top:100%;z-index:10;width:280px;padding:16px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--r-sm);box-shadow:var(--shadow-pop);}.finished-more a{display:block;margin-top:12px;font-size:13px;}.finished-what-next{border-top:1px solid var(--border-subtle);padding-top:20px;margin-top:24px;}.finished-what-next>summary{cursor:pointer;font-weight:500;margin-bottom:20px;}
+
+
+/* Independent desktop columns; phone decision follows the actual player. */
+.finished-run-layout{grid-template-rows:min-content 1fr;}.finished-result{grid-column:1;grid-row:1;}.finished-after-result{grid-column:1;grid-row:2;min-width:0;}.finished-run-rail{grid-column:2;grid-row:1 / span 2;}
+.finished-checks-title{font-size:14px;font-weight:500;margin-bottom:8px;}.finished-check-count{font-size:13px;color:var(--text-muted);margin-bottom:16px;}
+@media(max-width:1100px){.finished-run-layout{grid-template-rows:auto;}.finished-result{grid-column:1;grid-row:1;}.finished-run-rail{display:contents;}.finished-decision{grid-column:1;grid-row:2;}.finished-after-result{grid-column:1;grid-row:3;}.finished-run-layout>.finished-run-rail>.finished-checks{grid-column:1;grid-row:4;}.finished-versions{grid-column:1;grid-row:5;}}
+
+.finished-primary-files{margin:-8px 0 24px;padding-bottom:16px;border-bottom:1px solid var(--border-subtle);list-style:none;}

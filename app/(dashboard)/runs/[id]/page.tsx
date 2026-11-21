@@ -64,6 +64,8 @@ import StageCompetenceProof from '../../_components/stage-competence-proof';
 import StageManagerProof from '../../_components/stage-manager-proof';
 import TasteFitReviewCard from '../../_components/taste-fit-review';
 import { runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-presentation';
+import ReviewRoom from '../../_components/review-room';
+import type {ReactNode} from 'react';
 import { getReviewPacket } from '@/lib/review';
 import { loadReviewAmendmentTarget } from '@/lib/review-amendment-target';
 import { classifyHeldApprovalSurface, parsePaidActionApprovalRead, type PaidActionApprovalView } from '@/lib/paid-action-approval';
@@ -742,6 +744,7 @@ export default async function RunDetailPage({
   }
 
   let creativeGradeNotice: string | null = null;
+  let creativeGradePlainNotice: string | null = null;
   if (requiresCreativeReview && !judgment?.creative_grade) {
     try {
       const {data: policy, error: policyError} = await supabase.from('user_agent_judge_policies').select('mode')
@@ -752,6 +755,7 @@ export default async function RunDetailPage({
         ? 'Creative grade required, but this agent’s Judge is off. The delivered output remains available.'
         : judgmentPending ? 'Creative grade pending. Delivery and grading are separate.'
           : 'Creative grade required but not available yet. This output has no assessed creative grade.';
+      creativeGradePlainNotice=policyError?'The quality review settings could not be checked.':(!policy||policy.mode==='off')?'Quality review is turned off for this agent.':judgmentPending?'The quality review is still running.':'A visual quality score is not available yet.';
     } catch { /* Existing delivery is still readable when review metadata is unavailable. */ }
   }
 
@@ -927,6 +931,7 @@ export default async function RunDetailPage({
     && UUID_RE.test(searchParams.superseded) ? searchParams.superseded : null;
 
   const showProgressLayout = info.state !== 'completed' || held;
+  const showFinishedReview = !showProgressLayout && competencePacket.live && competencePacket.run?.id===r.id;
   const heldRunControls = <>
         {/* The ONE action surface for a held run — context-aware primary (Approve &
             finish / Mark as done / Answer & continue), Request-changes on demand, a
@@ -1136,6 +1141,121 @@ export default async function RunDetailPage({
   </>;
   const cancellation = <RunStopControl key={r.id} runId={r.id} runState={r.run_state ?? null} cancelRequestedAt={run?.cancel_requested_at} />;
 
+  const continueBox = (<RunContinueBox presentation={showFinishedReview?'finished':undefined} runId={r.id}
+              agentName={name}
+              slug={r.skill_slug}
+              workflowVersionId={runWorkflowVersionId}
+              pending={false}
+              audioEdits={supportsAudioRevision}
+              higgsfieldCreditChoices={revisionCreditChoices}
+              initialNote={judgment?.verdict === 'repair' ? (judgment.repair_prompt || judgment.next_action || '') : ''}
+            />);
+  const judgmentPanel = <section className="finished-checks" aria-label="Checked before it reached you">{showFinishedReview&&<><h2 className="finished-checks-title">Checked before it reached you</h2>{(competencePacket.sources.verification!=='ready'||competencePacket.verification.receipts.length>0)&&<p className="finished-check-count">{competencePacket.sources.verification!=='ready'?'Recorded checks could not be loaded.':competencePacket.verification.receipts.length?competencePacket.verification.receipts.every(receipt=>['pass','fail'].includes(receipt.status))?`${competencePacket.verification.receipts.filter(receipt=>receipt.status==='pass').length} of ${competencePacket.verification.receipts.length} recorded checks passed`:`${competencePacket.verification.receipts.length} checks recorded`:'No checks recorded for this result.'}</p>}</>}{creativeGradeNotice && <p role="status" className="mb-4 text-sm text-state-needs">{showFinishedReview?creativeGradePlainNotice:creativeGradeNotice}</p>}
+        <RunJudgmentCard presentation={showFinishedReview?'finished':undefined} judgment={judgment} repairRequest={repairRequest} currentRunId={r.id}
+          finalOutputSha256={finalReviewArtifactSha256} reviewPending={judgmentPending} />
+        {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
+        {judgmentReadUnavailable && <p className="text-sm text-state-needs">Final review status is unavailable. Refresh to check it again.</p>}
+        {failedJudgeRetry && (
+          <section className="card border-amber-500/30" aria-label="Final review recovery">
+            <h2 className="font-medium text-ink-100">Final review is incomplete</h2>
+            <p className="mt-1 text-sm text-ink-300">Your delivered work is unchanged.</p>
+            <ControlPlaneRetry requestId={failedJudgeRetry.requestId} runId={failedJudgeRetry.runId} />
+          </section>
+        )}
+        {judgment?.verdict === 'repair' && ['pending', 'consumed'].includes(repairRequest?.status || '') && (
+          <RunJudgmentPending phase="repair" requestStatus={(repairRequest?.status as 'pending' | 'consumed') || null} createdAt={repairRequest?.created_at || null} />
+        )}</section>;
+  const brollAction = <>
+        {/* First quality-mode entry point: only offer B-roll generation beside a
+            desktop-validated video deliverable. A markdown path is a worker claim,
+            not evidence that there is a video to build from. The proposal itself
+            is still no-spend; the next page requires an explicit approval. */}
+        {r.output_markdown && verifiedArtifacts.some(isValidatedVideoOutput) && (
+          <div className="mb-6 rounded-lg border border-sky-500/30 bg-sky-500/[0.07] p-4">
+            <p className="text-sm font-medium text-ink-100">Add a B-roll moment</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-400">
+              Name one 2–10 second window, compare Quick, Professional, and Production, then review the exact maximum before approving anything paid.
+            </p>
+            <Link href={`/runs/${encodeURIComponent(r.id)}/generate-broll`} className="mt-3 inline-flex btn-primary px-4 py-2 text-sm">
+              Generate B-roll
+            </Link>
+          </div>
+        )}
+
+        {!showProgressLayout&&heldRunControls}
+
+  </>;
+  const suggestedActions = <>
+        {/* Proposed follow-up actions (run_actions, 0090) — the one-tap "what's
+            next" for a DELIVERED run (publish / approve render / …). Held runs use
+            RunActions above; this is for the delivered-with-next-steps case the
+            founder flagged (a run that shipped real follow-ups but went silent). */}
+        {!held && !approvalContinuationRecovery && runActions.length > 0 && (
+          <div className="mb-6">
+            <RunActionItems runId={r.id} actions={runActions} />
+          </div>
+        )}
+
+        {/* "Finish this run" — a DELIVERED run that clearly stopped mid-pipeline
+            (its notes list remaining/blocked steps) gets a one-tap finish, so the
+            user never has to read prose to figure out how to continue. Suppressed
+            when the run already surfaced granular run_actions (no double CTA). */}
+        {!held && r.run_state === 'completed' && !!r.output_markdown &&
+          runActions.length === 0 &&
+          PARTIAL_RUN_RE.test(r.output_markdown.replace(/[*_`]/g, '')) && (
+          <div className="mb-6">
+            <FinishRunButton runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
+          </div>
+        )}
+
+  </>;
+  const laterActions = <>
+        {/* Per-run feedback — the same form the Results overlay shows, so a run
+            opened from an Active-Agents card / email / Telegram / the calendar is
+            rateable right here instead of forcing a detour through the Runs tab.
+            Only when there's a deliverable to rate (matches the overlay). */}
+        {r.output_markdown && (
+          <div className="mt-5 rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+            {preferenceInstallationId&&<p className="mb-3 text-sm"><Link className="text-action-accent hover:underline"
+              href={`/training/${encodeURIComponent(r.skill_slug)}?installationId=${preferenceInstallationId}`}>Remember preferences just for me</Link>
+              <span className="block text-xs text-ink-400">Review and save private examples for your future runs. The trainer’s agent stays unchanged.</span></p>}
+            <RunFeedback
+              runId={r.id}
+              feedbackQuestions={feedbackQuestions}
+              feedbackAnswers={feedbackAnswers}
+              feedbackAt={feedbackAt}
+              heading
+              agentSlug={r.skill_slug}
+            />
+          </div>
+        )}
+
+        {/* Make it recurring — once an ON-DEMAND agent delivers a clean result,
+            offer to put it on a schedule so it runs hands-off from now on (the
+            whole point of Implexa). Only when there's a real deliverable and the
+            agent has no recurring schedule yet. */}
+        {r.output_markdown && isOnDemand && (
+          <MakeRecurring slug={r.skill_slug} agentName={name} />
+        )}
+
+        {/* Chain this agent — "this agent's output feeds your weekly SEO agent".
+            One tap composes them into a pipeline. Renders nothing when this
+            agent isn't part of any suggested chain. */}
+        {r.output_markdown && <RunChainSuggestions slug={r.skill_slug} />}
+
+        {/* Next agents to build — the run's own recommendations, right under its
+            output (recommendation engine v1). Renders nothing when there are none. */}
+        <NextAgentCards runId={r.id} recommendations={recommendations} />
+  </>;
+  const finishedView = showFinishedReview ? <ReviewRoom runId={r.id} agentName={name} agentSlug={r.skill_slug}
+    customerOwnerId={preferenceInstallationId?session.user.id:undefined} artifacts={competencePacket.artifacts}
+    historicalCandidates={competencePacket.historicalCandidates} production={competencePacket.production} issues={competencePacket.issues}
+    session={competencePacket.session} reviewArtifacts={competencePacket.reviewArtifacts} sources={competencePacket.sources}
+    isApprovalHold={false} versions={competencePacket.lineage.versions}
+    finishedView={{reviewHref:`/review/${encodeURIComponent(r.id)}`,changes:continueBox,checks:judgmentPanel,
+      fallbackResult:r.output_markdown?<div className="prose prose-sm max-w-none"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div>:undefined,
+      afterResult:<VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} finished/>}}/> : null;
+
   return (
     <main className="app-page">
       <div className="app-content">
@@ -1192,8 +1312,8 @@ export default async function RunDetailPage({
             ) : name}
           </h1>
           <div className="flex items-center gap-2.5 mt-2 flex-wrap">
-            <RunStateBadge info={info} size="xs" />
-            <RunVerificationBadge status={verificationStatus} size="xs" />
+            {showFinishedReview?<span className="finished-review-state">{competencePacket.sources.session!=='ready'?'Review status unavailable':competencePacket.session?.state==='accepted'?'Accepted':competencePacket.session?.state==='submitted'?'Changes requested':'Ready for your review'}</span>:<RunStateBadge info={info} size="xs" />}
+            {!showFinishedReview&&<RunVerificationBadge status={verificationStatus} size="xs" />}
             <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
 
             {desktopAppLive() && (
@@ -1204,8 +1324,10 @@ export default async function RunDetailPage({
               </NotInApp>
             )}
           </div>
-        </div></header>
+        </div>{showFinishedReview&&<details className="finished-more"><summary aria-label="More actions">⋯</summary><div><RunShareButton runId={r.id}/><Link href={`${agentHref}${agentHref.includes('?')?'&':'?'}run=1`}>Run again from scratch →</Link></div></details>}</header>
 
+        {finishedView}
+        <FinishedRunDetails collapsed={showFinishedReview}>
         <div className={showProgressLayout?'run-detail-layout':undefined} data-priority={held||showRunProblem||info.state==='stalled'?'true':undefined}>
         {showProgressLayout&&<aside className="run-detail-rail" aria-label="Run actions">
           {heldRunControls}
@@ -1214,33 +1336,19 @@ export default async function RunDetailPage({
         </aside>}
         <div className="run-detail-main">
         {showProgressLayout&&runChecklist}
-        {r.run_state==='completed'&&verifiedArtifacts.some(artifact=>artifact.role==='final_output')&&<div className="mb-6"><Link href={`/review/${r.id}`} className="btn-primary">Open result</Link></div>}
+        {!showFinishedReview&&r.run_state==='completed'&&verifiedArtifacts.some(artifact=>artifact.role==='final_output')&&<div className="mb-6"><Link href={`/review/${r.id}`} className="btn-primary">Open result</Link></div>}
 
 
         {!showProgressLayout&&cancellation}
-        <VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} progress={showProgressLayout}/>
+        {!showFinishedReview&&<VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} progress={showProgressLayout}/>}
         {r.output_markdown ? (verifiedArtifacts.length ? <details className="proof-disclosure mb-6"><summary>Agent’s notes</summary><div className="prose prose-sm mt-4 max-w-none"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div></details>:<div className="prose prose-sm mb-6 max-w-none rounded-lg border border-ink-700 bg-ink-900 p-5"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div>) : null}
 
-        {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-state-needs">{creativeGradeNotice}</p>}
-        <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id}
-          finalOutputSha256={finalReviewArtifactSha256} reviewPending={judgmentPending} />
-        {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
-        {judgmentReadUnavailable && <p className="text-sm text-state-needs">Final review status is unavailable. Refresh to check it again.</p>}
-        {failedJudgeRetry && (
-          <section className="card border-amber-500/30" aria-label="Final review recovery">
-            <h2 className="font-medium text-ink-100">Final review is incomplete</h2>
-            <p className="mt-1 text-sm text-ink-300">Your delivered work is unchanged.</p>
-            <ControlPlaneRetry requestId={failedJudgeRetry.requestId} runId={failedJudgeRetry.runId} />
-          </section>
-        )}
-        {judgment?.verdict === 'repair' && ['pending', 'consumed'].includes(repairRequest?.status || '') && (
-          <RunJudgmentPending phase="repair" requestStatus={(repairRequest?.status as 'pending' | 'consumed') || null} createdAt={repairRequest?.created_at || null} />
-        )}
+        {!showFinishedReview&&judgmentPanel}
 
         {/* Share — prominent on ANY completed run with a deliverable, so the owner
             can turn it into a public, forkable Run Card without hunting (founder
             ask). Amber + share icon. The detailed URL/copy state expands in place. */}
-        {r.run_state === 'completed' && r.output_markdown && (
+        {!showFinishedReview && r.run_state === 'completed' && r.output_markdown && (
           <div className="mb-6">
             <RunShareButton runId={r.id} />
           </div>
@@ -1370,23 +1478,7 @@ export default async function RunDetailPage({
 
         <CheckpointedContinuationHistoryCard history={checkpointedContinuations} />
 
-        {/* First quality-mode entry point: only offer B-roll generation beside a
-            desktop-validated video deliverable. A markdown path is a worker claim,
-            not evidence that there is a video to build from. The proposal itself
-            is still no-spend; the next page requires an explicit approval. */}
-        {r.output_markdown && verifiedArtifacts.some(isValidatedVideoOutput) && (
-          <div className="mb-6 rounded-lg border border-sky-500/30 bg-sky-500/[0.07] p-4">
-            <p className="text-sm font-medium text-ink-100">Add a B-roll moment</p>
-            <p className="mt-1 text-xs leading-relaxed text-ink-400">
-              Name one 2–10 second window, compare Quick, Professional, and Production, then review the exact maximum before approving anything paid.
-            </p>
-            <Link href={`/runs/${encodeURIComponent(r.id)}/generate-broll`} className="mt-3 inline-flex btn-primary px-4 py-2 text-sm">
-              Generate B-roll
-            </Link>
-          </div>
-        )}
-
-        {!showProgressLayout&&heldRunControls}
+        {!showFinishedReview&&brollAction}
 
         {/* Caught needing browser / computer-use access → one-click "Grant browser
             access" that opens Claude with a grant-only prompt (it pops the macOS
@@ -1422,27 +1514,7 @@ export default async function RunDetailPage({
           </div>
         )}
 
-        {/* Proposed follow-up actions (run_actions, 0090) — the one-tap "what's
-            next" for a DELIVERED run (publish / approve render / …). Held runs use
-            RunActions above; this is for the delivered-with-next-steps case the
-            founder flagged (a run that shipped real follow-ups but went silent). */}
-        {!held && !approvalContinuationRecovery && runActions.length > 0 && (
-          <div className="mb-6">
-            <RunActionItems runId={r.id} actions={runActions} />
-          </div>
-        )}
-
-        {/* "Finish this run" — a DELIVERED run that clearly stopped mid-pipeline
-            (its notes list remaining/blocked steps) gets a one-tap finish, so the
-            user never has to read prose to figure out how to continue. Suppressed
-            when the run already surfaced granular run_actions (no double CTA). */}
-        {!held && r.run_state === 'completed' && !!r.output_markdown &&
-          runActions.length === 0 &&
-          PARTIAL_RUN_RE.test(r.output_markdown.replace(/[*_`]/g, '')) && (
-          <div className="mb-6">
-            <FinishRunButton runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
-          </div>
-        )}
+        {!showFinishedReview&&suggestedActions}
 
         {!showProgressLayout&&runChecklist}
 
@@ -1477,17 +1549,9 @@ export default async function RunDetailPage({
             you just read. Failed/stalled runs are already covered by "Run again" +
             <StuckRunButton> in the no-deliverable branch, so this stays scoped to a
             real deliverable and never stacks a second CTA on a failure. */}
-        {!held && r.output_markdown && (
+        {!held && r.output_markdown && !showFinishedReview && (
           <div className="mt-5">
-            <RunContinueBox runId={r.id}
-              agentName={name}
-              slug={r.skill_slug}
-              workflowVersionId={runWorkflowVersionId}
-              pending={false}
-              audioEdits={supportsAudioRevision}
-              higgsfieldCreditChoices={revisionCreditChoices}
-              initialNote={judgment?.verdict === 'repair' ? (judgment.repair_prompt || judgment.next_action || '') : ''}
-            />
+            {continueBox}
           </div>
         )}
 
@@ -1503,44 +1567,12 @@ export default async function RunDetailPage({
           </Link>
         </div>
 
-        {/* Per-run feedback — the same form the Results overlay shows, so a run
-            opened from an Active-Agents card / email / Telegram / the calendar is
-            rateable right here instead of forcing a detour through the Runs tab.
-            Only when there's a deliverable to rate (matches the overlay). */}
-        {r.output_markdown && (
-          <div className="mt-5 rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-            {preferenceInstallationId&&<p className="mb-3 text-sm"><Link className="text-action-accent hover:underline"
-              href={`/training/${encodeURIComponent(r.skill_slug)}?installationId=${preferenceInstallationId}`}>Remember preferences just for me</Link>
-              <span className="block text-xs text-ink-400">Review and save private examples for your future runs. The trainer’s agent stays unchanged.</span></p>}
-            <RunFeedback
-              runId={r.id}
-              feedbackQuestions={feedbackQuestions}
-              feedbackAnswers={feedbackAnswers}
-              feedbackAt={feedbackAt}
-              heading
-              agentSlug={r.skill_slug}
-            />
-          </div>
-        )}
+        {!showFinishedReview&&laterActions}
 
-        {/* Make it recurring — once an ON-DEMAND agent delivers a clean result,
-            offer to put it on a schedule so it runs hands-off from now on (the
-            whole point of Implexa). Only when there's a real deliverable and the
-            agent has no recurring schedule yet. */}
-        {r.output_markdown && isOnDemand && (
-          <MakeRecurring slug={r.skill_slug} agentName={name} />
-        )}
-
-        {/* Chain this agent — "this agent's output feeds your weekly SEO agent".
-            One tap composes them into a pipeline. Renders nothing when this
-            agent isn't part of any suggested chain. */}
-        {r.output_markdown && <RunChainSuggestions slug={r.skill_slug} />}
-
-        {/* Next agents to build — the run's own recommendations, right under its
-            output (recommendation engine v1). Renders nothing when there are none. */}
-        <NextAgentCards runId={r.id} recommendations={recommendations} />
         </div>
         </div>
+        </FinishedRunDetails>
+        {showFinishedReview&&<details className="finished-what-next"><summary>What next</summary>{brollAction}{suggestedActions}{laterActions}</details>}
       </div>
     </main>
   );
@@ -1552,4 +1584,9 @@ function artifactRolePriority(role: string | null): number {
   if (role === 'qa_report') return 2;
   if (role === 'source') return 3;
   return 4;
+}
+
+/** Existing recovery, proof and follow-up actions remain available without dominating a delivered result. */
+function FinishedRunDetails({collapsed,children}:{collapsed:boolean;children:ReactNode}){
+ return collapsed?<details id="run-details" className="finished-run-details"><summary>Delivery details and more actions</summary>{children}</details>:<>{children}</>;
 }
