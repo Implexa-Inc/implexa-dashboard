@@ -60,6 +60,7 @@ export default function ReviewSpatialOverlay(props: {
   mediaKind: 'video' | 'image';
   /** Defaults to native for existing callers. External controls are outside the image. */
   controlsMode?: 'native' | 'external';
+  appearance?: 'teaching';
   /** The live media element — measured at event time, never cached across renders. */
   mediaEl: () => HTMLVideoElement | HTMLImageElement | null;
   enabled: boolean;
@@ -302,7 +303,7 @@ export default function ReviewSpatialOverlay(props: {
       role="button"
       tabIndex={enabled ? 0 : -1}
       aria-label={OVERLAY_ARIA_LABEL}
-      className="absolute left-0 right-0 top-0 cursor-crosshair select-none focus:outline focus:outline-2 focus:outline-sky-400"
+      className={`absolute left-0 right-0 top-0 cursor-crosshair select-none focus:outline focus:outline-2 focus:outline-sky-400 ${props.appearance==='teaching'?'teaching-overlay':''}`}
       // Only legacy native transport needs a strip. External controls follow the image.
       style={{ bottom: mediaKind === 'video' && controlsMode === 'native' ? CONTROLS_EXCLUSION_PX : 0, touchAction: 'none' }}
       onPointerDown={onPointerDown}
@@ -311,6 +312,7 @@ export default function ReviewSpatialOverlay(props: {
       onPointerLeave={() => setCue(null)}
       onKeyDown={onKeyDown}
     >
+      {props.appearance==='teaching'&&cue&&enabled&&content&&!marquee&&<><span className="teaching-spotlight" style={{left:cue.x,top:cue.y}} aria-hidden="true"/><span className="teaching-cursor" style={{left:cue.x,top:cue.y}} aria-hidden="true">+</span></>}
       {/* Saved pins — numbered, clickable, drawn from normalized geometry. */}
       {pins.map((pin) => {
         const at = project(pin.geometry);
@@ -321,6 +323,7 @@ export default function ReviewSpatialOverlay(props: {
               key={pin.issueId}
               type="button"
               data-testid={`spatial-pin-${pin.ordinal}`}
+              data-selected={pin.highlighted}
               title={pin.title}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); onOpenIssue(pin.issueId); }}
@@ -341,6 +344,7 @@ export default function ReviewSpatialOverlay(props: {
             key={pin.issueId}
             type="button"
             data-testid={`spatial-pin-${pin.ordinal}`}
+              data-selected={pin.highlighted}
             title={pin.title}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onOpenIssue(pin.issueId); }}

@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { register } from 'node:module';
 import { JSDOM } from 'jsdom';
 
-register(new URL('../scripts/dom-test-loader.mjs', import.meta.url));
+register(new URL('../scripts/dom-test-loader.mjs', import.meta.url), {data:{stubs:{'next/link':['test','support','stubs','next-link.tsx']}}});
 
 // Loaded dynamically in before() — a static .tsx import would resolve before the
 // loader registration above takes effect.

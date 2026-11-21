@@ -206,3 +206,13 @@ export function nudgeNormalizedPoint(
     y: roundNormalized(Math.min(1, Math.max(0, point.y + dy))),
   };
 }
+
+/** Keep the selected recording note beside its mark and inside a usable picture. */
+export function recordingNotePlacement(picture:ContentRect,mark:ContentRect|null,noteHeight:number){
+  if(![picture.left,picture.top,picture.width,picture.height,noteHeight].every(Number.isFinite)||picture.width<480||picture.height<240)return null;
+  const width=Math.min(320,picture.width-24),maxHeight=picture.height-16,height=Math.min(Math.max(noteHeight,120),maxHeight),gap=12;
+  const area=mark||{left:picture.width/2,top:16,width:0,height:0};
+  const right=area.left+area.width+gap;
+  const left=right+width<=picture.width-8?right:area.left-width-gap>=8?area.left-width-gap:Math.max(8,picture.width-width-8);
+  return {left:picture.left+left,top:picture.top+Math.max(8,Math.min(area.top,picture.height-height-8)),width,maxHeight};
+}
