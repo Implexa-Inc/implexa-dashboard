@@ -45,3 +45,9 @@ test('marketplace setup retains its configured inputs and exact acquisition writ
  const r=await render('agent-resume.tsx',{surface:'setup',agent:{...agent,readiness:{state:'Needs setup',reason:null},requiredInputs:{version:1,fields:[{key:'brief',label:'Your brief',description:'Context',kind:'text',required:true}]}}});
  try{const field=r.document.querySelector('input:not([type="checkbox"])');assert.ok(field);assert.ok(r.queryByText('Required inputs'));assert.equal(r.calls.backend.length,0);}finally{r.cleanup();}
 });
+
+test('unavailable evidence stays in Setup without a trust claim on Overview',async()=>{
+ const r=await render('agent-resume.tsx',{agent});
+ try{assert.equal(r.queryByText('Why you can trust it'),null);assert.equal(r.queryByText('Evidence and limits · unavailable'),null);}finally{r.cleanup();}
+ const setup=await render('agent-resume.tsx',{agent,surface:'setup'});try{assert.ok(setup.queryByText('Evidence and limits'));assert.ok(setup.text().includes('unavailable'));}finally{setup.cleanup();}
+});

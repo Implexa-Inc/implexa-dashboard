@@ -326,49 +326,8 @@ export default async function WorkflowDetailPage({
   const canTrain = detail!.canInspectOwnLearningInfluence === true;
   const setupHref=`/workflows/${encodeURIComponent(workflow.slug)}?${new URLSearchParams({...(searchParams.source?{source:searchParams.source}:{}),tab:'setup'})}`;
 
-  const overviewPanel = () => <AgentOverview
-    inputs={workflow.input_contract?.fields} output={workflow.primary_outcome||workflow.job||workflow.description} signals={workflow.signals}
-    steps={workflow.steps.length?<>      {/* Steps */}
-      <div className="card mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">How it works</h2>
-          <span className="text-xs text-ink-500">
-            {workflow.steps.length} steps
-            {boundCount > 0 && (
-              <span className="text-state-ok">
-                {' '}· {Number(workflow.build_evidence?.provenSteps || 0) > 0
-                  ? `${workflow.build_evidence?.provenSteps} from proven runs`
-                  : `${boundCount} bound skills`}
-              </span>
-            )}
-          </span>
-        </div>
-        {workflow.steps.length === 0 ? (
-          <p className="text-sm text-ink-500 italic">No steps recorded.</p>
-        ) : (
-          <ul className="divide-y divide-ink-800">
-            {workflow.steps.map((s) => (
-              <StepRow
-                key={`${s.order}-${s.label.slice(0, 16)}`}
-                step={s}
-                showBuildEvidence={Boolean(workflow.build_evidence && workflow.build_evidence.status !== 'pending')}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
-</>:null}
-    needs={<>      <AgentReadiness
-        slug={workflow.slug}
-        setupHref={setupHref}
-        isActive={isActive}
-        blockingQuestions={blockingQuestions}
-        optionalQuestions={optionalQuestions}
-        requirementsSatisfied={missingServices.length === 0}
-        missingServices={missingServices}
-      /></>}
-    limitations={workflow.caveat}
-    trust={<>      <details className="proof-disclosure mb-6"><summary><span>Run history and checks</span><span className="ml-3 inline-flex flex-wrap items-center gap-2 text-xs font-normal text-ink-300">{grade && <span>Delivered {Math.round(grade.rate * 100)}% across {grade.runs} real run{grade.runs === 1 ? '' : 's'}</span>}<RemoteSafetyBadge safety={safety} size="xs" /></span></summary><div className="mt-5">
+  const hasTrackRecord=!!grade&&grade.runs>0||Number(workflow.build_evidence?.provenSteps)>0||Number(workflow.build_evidence?.verifiedSteps)>0;
+  const trustDetails=<>      <details className="proof-disclosure mb-6"><summary><span>Run history and checks</span><span className="ml-3 inline-flex flex-wrap items-center gap-2 text-xs font-normal text-ink-300">{grade && <span>Delivered {Math.round(grade.rate * 100)}% across {grade.runs} real run{grade.runs === 1 ? '' : 's'}</span>}<RemoteSafetyBadge safety={safety} size="xs" /></span></summary><div className="mt-5">
       {/* Build evidence — whether this agent was assembled from parts that
           have actually delivered in real runs, not merely from semantic matches. */}
       {workflow.build_evidence && workflow.build_evidence.status !== 'pending' && (
@@ -421,7 +380,51 @@ export default async function WorkflowDetailPage({
         )}
       </div>
 
-      </div></details></>}
+      </div></details></>;
+
+  const overviewPanel = () => <AgentOverview
+    inputs={workflow.input_contract?.fields} output={workflow.primary_outcome||workflow.job||workflow.description} signals={workflow.signals}
+    steps={workflow.steps.length?<>      {/* Steps */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">How it works</h2>
+          <span className="text-xs text-ink-500">
+            {workflow.steps.length} steps
+            {boundCount > 0 && (
+              <span className="text-state-ok">
+                {' '}· {Number(workflow.build_evidence?.provenSteps || 0) > 0
+                  ? `${workflow.build_evidence?.provenSteps} from proven runs`
+                  : `${boundCount} bound skills`}
+              </span>
+            )}
+          </span>
+        </div>
+        {workflow.steps.length === 0 ? (
+          <p className="text-sm text-ink-500 italic">No steps recorded.</p>
+        ) : (
+          <ul className="divide-y divide-ink-800">
+            {workflow.steps.map((s) => (
+              <StepRow
+                key={`${s.order}-${s.label.slice(0, 16)}`}
+                step={s}
+                showBuildEvidence={Boolean(workflow.build_evidence && workflow.build_evidence.status !== 'pending')}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+</>:null}
+    needs={<>      <AgentReadiness
+        slug={workflow.slug}
+        setupHref={setupHref}
+        isActive={isActive}
+        blockingQuestions={blockingQuestions}
+        optionalQuestions={optionalQuestions}
+        requirementsSatisfied={missingServices.length === 0}
+        missingServices={missingServices}
+      /></>}
+    limitations={workflow.caveat}
+    trust={hasTrackRecord?trustDetails:undefined}
   >      {/* Changelog */}
       {workflow.versions.length > 0 && (
         <div id="agent-history" className="card mb-6">
@@ -577,6 +580,7 @@ export default async function WorkflowDetailPage({
         </div>
       </div>
 
+      {!hasTrackRecord&&trustDetails}
       {/* Author-only Learning Influence v1 rule management. Selected publisher
           teachings and customer-private preferences use separate runtime paths. */}
       {detail!.canInspectOwnLearningInfluence === true && (
