@@ -1251,7 +1251,7 @@ export default async function RunDetailPage({
     session={competencePacket.session} reviewArtifacts={competencePacket.reviewArtifacts} sources={competencePacket.sources}
     isApprovalHold={false} versions={competencePacket.lineage.versions}
     finishedView={{reviewHref:`/review/${encodeURIComponent(r.id)}`,changes:continueBox,checks:judgmentPanel,
-      afterResult:<><VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} finished/>{judgment?.summary&&<section className="finished-good-to-know"><h2>Good to know before you use it</h2><p className="text-xs text-ink-500">The Judge’s notes · a machine assessment</p><p>{judgment.summary}</p><a href="#run-details">Read the full delivery details →</a></section>}</>}}/> : null;
+      afterResult:<><VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} finished/>{judgment?.summary&&<section className="finished-good-to-know"><h2>Good to know before you use it</h2><p className="text-xs text-ink-500">The Judge’s notes · a machine assessment</p><p className="finished-notes-preview">{judgment.summary}</p><details><summary>Read full Judge notes</summary><p>{judgment.summary}</p></details></section>}</>}}/> : null;
 
   return (
     <main className="app-page">
@@ -1309,7 +1309,7 @@ export default async function RunDetailPage({
             ) : name}
           </h1>
           <div className="flex items-center gap-2.5 mt-2 flex-wrap">
-            <RunStateBadge info={info} size="xs" />
+            {showFinishedReview?<span className="finished-review-state">{competencePacket.sources.session!=='ready'?'Review status unavailable':competencePacket.session?.state==='accepted'?'Accepted':competencePacket.session?.state==='submitted'?'Changes requested':'Ready for your review'}</span>:<RunStateBadge info={info} size="xs" />}
             <RunVerificationBadge status={verificationStatus} size="xs" />
             <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
 
