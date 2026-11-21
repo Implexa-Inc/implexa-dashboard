@@ -1206,7 +1206,7 @@ export default async function RunDetailPage({
           </div>
         </div></header>
 
-        <div className={showProgressLayout?'run-detail-layout':undefined}><div className="run-detail-main">
+        <div className={showProgressLayout?'run-detail-layout':undefined} data-priority={held||showRunProblem||info.state==='stalled'?'true':undefined}><div className="run-detail-main">
         {showProgressLayout&&runChecklist}
         {r.run_state==='completed'&&verifiedArtifacts.some(artifact=>artifact.role==='final_output')&&<div className="mb-6"><Link href={`/review/${r.id}`} className="btn-primary">Open result</Link></div>}
 
