@@ -20,6 +20,7 @@ export function RunStateBadge({
   size?: 'sm' | 'xs';
 }) {
   const spec = presentationFor(info);
+  const label=info.label==='Done'?'Delivered':info.label==='Partial'?'Partly delivered':info.label==='Stalled'?'Progress interrupted':info.label;
   const pad = size === 'xs' ? 'text-[10px] px-2 py-0.5' : 'text-xs px-2.5 py-1';
   const tip = info.estimated ? `${info.reason} (estimated - pending the backend run state)` : info.reason;
   return (
@@ -38,7 +39,7 @@ export function RunStateBadge({
           but label='Partial' — using spec.label would mislabel it "Done"
           (a degraded run reading as success, the exact thing this surface
           exists to prevent). info.label === spec.label for every other state. */}
-      {info.label}
+      {label}
       {info.estimated && <span className="opacity-60 font-normal">· est.</span>}
     </span>
   );

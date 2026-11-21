@@ -118,6 +118,7 @@ function ResetPasswordInner() {
               type="password"
               required
               minLength={8}
+              aria-label="New password"
               placeholder="New password (8+ chars)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -128,6 +129,7 @@ function ResetPasswordInner() {
               type="password"
               required
               minLength={8}
+              aria-label="Confirm new password"
               placeholder="Confirm new password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}

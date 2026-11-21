@@ -144,9 +144,9 @@ export default function LoginForm({
           </div>
 
           <form onSubmit={handleEmailLogin} className="space-y-3">
-            <input type="email" required placeholder="you@work.com" value={email}
+            <input type="email" aria-label="Email address" required placeholder="you@work.com" value={email}
                    onChange={(e) => setEmail(e.target.value)} className="input" />
-            <PasswordInput required placeholder="password" value={password}
+            <PasswordInput aria-label="Password" required placeholder="password" value={password}
                    onChange={(e) => setPassword(e.target.value)} className="input" />
             <button type="submit" disabled={!!loading} className="btn-primary w-full">
               {loading === 'password' ? 'Signing in…' : 'Sign in with password'}

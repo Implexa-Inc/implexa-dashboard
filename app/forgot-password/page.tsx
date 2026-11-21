@@ -62,6 +62,7 @@ function ForgotPasswordInner() {
           <form onSubmit={handleSubmit} className="space-y-3">
             <input
               type="email"
+              aria-label="Email address"
               required
               placeholder="you@work.com"
               value={email}

@@ -158,11 +158,11 @@ export default function SignupForm({
           </div>
 
           <form onSubmit={handleSignup} className="space-y-3">
-            <input type="text" required placeholder="Your name" value={name}
+            <input type="text" aria-label="Full name" required placeholder="Your name" value={name}
                    onChange={(e) => setName(e.target.value)} className="input" />
-            <input type="email" required placeholder="you@work.com" value={email}
+            <input type="email" aria-label="Email address" required placeholder="you@work.com" value={email}
                    onChange={(e) => setEmail(e.target.value)} className="input" />
-            <PasswordInput required minLength={8} placeholder="password (8+ chars)" value={password}
+            <PasswordInput aria-label="Password" required minLength={8} placeholder="password (8+ chars)" value={password}
                    onChange={(e) => setPassword(e.target.value)} className="input" />
             {error && <p className="text-sm text-state-fail">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary w-full">
