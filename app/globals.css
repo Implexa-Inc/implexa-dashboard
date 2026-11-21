@@ -565,3 +565,15 @@ html, body {
 .collection-read-error p {font-size:14px;max-width:30em;margin:8px auto 12px;}
 
 .agent-archive-toggle {display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-body);}
+
+/* Run detail: one existing action surface in a sticky rail, never duplicated. */
+.run-detail-layout {display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:32px;align-items:start;}
+.run-detail-main,.run-detail-title {min-width:0;}
+.run-detail-title>h1 {font:var(--fs-page-title,36px) var(--font-display),Georgia,serif;font-weight:500;}
+.run-detail-rail {position:sticky;top:24px;display:flex;flex-direction:column;gap:20px;min-width:0;}
+.run-detail-rail>div:empty {display:none;}
+.run-detail-rail .mb-6 {margin-bottom:0;}
+.run-control-panel {padding:20px;border:1px solid var(--border-subtle);border-radius:var(--r-md);background:var(--bg-surface);}
+.run-control-panel>h2 {font:22px var(--font-display),Georgia,serif;color:var(--text-strong);}
+.run-control-panel>p {font-size:13px;line-height:1.7;margin:8px 0 16px;color:var(--text-muted);}
+@media(max-width:1000px){.run-detail-layout{grid-template-columns:minmax(0,1fr);}.run-detail-rail{position:static;}}
