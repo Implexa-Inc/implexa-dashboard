@@ -539,8 +539,15 @@ export function clampMomentRange(aMs: number, bMs: number, durationMs: number): 
   return { startMs, endMs };
 }
 
+/** A single teaching mark covers two seconds, clipped to the recording end. */
+export function momentAt(timeMs:number,durationMs:number):{startMs:number;endMs:number}|null{
+  if(!Number.isFinite(timeMs)||!Number.isSafeInteger(durationMs)||durationMs<=0)return null;
+  const startMs=Math.max(0,Math.min(durationMs-1,Math.round(timeMs)));
+  return {startMs,endMs:Math.min(durationMs,startMs+2000)};
+}
+
 /**
- * A drag (or an M…M mark) from `anchorMs` to `headMs`. Unlike `clampMomentRange`, the
+ * A drag from `anchorMs` to `headMs`. Unlike `clampMomentRange`, the
  * ANCHOR is kept: dragging left past 30 s pulls the start toward the anchor, not the
  * end away from it. `snapMs` rounds both ends (the range bar snaps to 100 ms).
  */

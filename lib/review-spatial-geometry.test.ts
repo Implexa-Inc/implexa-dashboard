@@ -213,3 +213,11 @@ test('a nudge moves by whole percents and clamps at the edges instead of rejecti
   assert.deepEqual(nudgeNormalizedPoint({ x: 0.995, y: 0 }, 'right'), { x: 1, y: 0 });
   assert.deepEqual(nudgeNormalizedPoint({ x: 0, y: 0.004 }, 'up'), { x: 0, y: 0 });
 });
+
+
+test('a recording note flips beside the mark, stays inside the picture and falls back for narrow media',async()=>{
+ const {recordingNotePlacement}=await import('./review-spatial-geometry.ts');const picture={left:20,top:100,width:800,height:450};
+ const right=recordingNotePlacement(picture,{left:80,top:30,width:100,height:100},300)!;assert.equal(right.left,212);assert.equal(right.top,130);
+ const left=recordingNotePlacement(picture,{left:650,top:400,width:100,height:40},300)!;assert.equal(left.left,338);assert.ok(left.top+300<=picture.top+picture.height-8);assert.ok(left.left>=picture.left);
+ assert.equal(recordingNotePlacement({...picture,width:390},null,300),null);assert.equal(recordingNotePlacement({...picture,height:120},null,300),null);
+});

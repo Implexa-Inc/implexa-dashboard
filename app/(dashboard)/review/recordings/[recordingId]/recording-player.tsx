@@ -6,17 +6,18 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import Modal from '../../../_components/modal';
+import PageHeader from '@/components/page-header';
 import ReviewSpatialOverlay from '../../../_components/review-spatial-overlay';
 import ReviewPlaybackControls from '../../../_components/review-playback-controls';
 import TrainerVoiceNote from '../../../_components/trainer-voice-note';
 import { formatMs } from '@/lib/review-anchor';
 import { inDesktopApp, revokePreview } from '@/lib/review-preview';
-import { visualContentRect } from '@/lib/review-spatial-geometry';
+import { visualContentRect,recordingNotePlacement } from '@/lib/review-spatial-geometry';
 import {
   CARD_FIELDS, CARD_FIELD_LABELS, CARD_FIELD_MAX, COORD_MAX, MAX_MOMENTS, MAX_MOMENT_MS, MOMENTS_NEXT_NOTE,
-  addMoment, cardWarnings, createReviewRecorderClient, defaultRegionFromPointer, failureMessage, momentsDirty,
+  addMoment, momentAt, cardWarnings, createReviewRecorderClient, defaultRegionFromPointer, failureMessage, momentsDirty,
   pointerTrailAt, rangeFromDrag, rangesOverlap, recorderAvailability, recorderErrorMessage, recoverAction,
   regionFromSpatial, regionOverlayStyle, suggestMoments,
   type CardField, type Moment, type RecorderAvailability, type RecordingDetail, type RecordingPreview, type Region,
@@ -24,7 +25,7 @@ import {
 
 const SNAP_MS = 100;
 const BAR_DRAG_PX = 4;
-const LEAVE_COPY = 'You have unsaved moments on this recording. If you leave now, those changes are lost.';
+const LEAVE_COPY = 'Your latest changes are still saving or couldn’t be saved. Leaving now may lose them.';
 
 type Range = { startMs: number; endMs: number };
 
@@ -59,7 +60,6 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const hoverDecoder=useRef<HTMLVideoElement|null>(null);
   const hoverSecond=useRef<number|null>(null);
   const [hoverMs,setHoverMs] = useState<number|null>(null);
-  const [markStartMs, setMarkStartMs] = useState<number | null>(null);
   const [barDraft, setBarDraft] = useState<Range | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [regionError, setRegionError] = useState<string | null>(null);
@@ -77,11 +77,22 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
+  const workspaceRef=useRef<HTMLDivElement|null>(null),noteRef=useRef<HTMLDivElement|null>(null);
+  const [notePosition,setNotePosition]=useState<ReturnType<typeof recordingNotePlacement>>(null);
   const playLineRef = useRef<HTMLDivElement | null>(null);
   const barGesture = useRef<{ anchorMs: number; startX: number; dragging: boolean } | null>(null);
   const resizeGesture = useRef<{moment:Moment;edge:'startMs'|'endMs'}|null>(null);
   const loadSeq = useRef(0);
   const busyRef = useRef(false);
+  const scope=`${ownerId}:${recordingId}`;
+  const scopeRef=useRef(scope);scopeRef.current=scope;
+  const loadedScope=useRef<string|null>(null);
+  const failedAutoSave=useRef<Moment[]|null>(null);
+
+  useLayoutEffect(()=>{
+    if(loadedScope.current===scope)return;
+    setDetail(null);setSaved([]);setMoments([]);setSelectedId(null);setVoiceDirty(new Set());noteSnapshot.current=null;setError(null);failedAutoSave.current=null;
+  },[scope]);
 
   const durationMs = detail?.state === 'ready' ? detail.durationMs : null;
   const samples = detail?.pointerTrack?.samples ?? null;
@@ -107,14 +118,14 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     const fail=()=>{if(live)setHoverUnavailable(true);};
     const capture=()=>{
       if(!live||hoverSecond.current===null||!video.videoWidth||!video.videoHeight||Math.abs(video.currentTime-hoverSecond.current)>.2)return;
-      try{const canvas=document.createElement('canvas');canvas.width=192;canvas.height=Math.max(1,Math.round(192*video.videoHeight/video.videoWidth));const context=canvas.getContext('2d');if(!context)return;context.drawImage(video,0,0,canvas.width,canvas.height);setHoverImage({second:hoverSecond.current,url:canvas.toDataURL('image/jpeg',.65)});}
+      try{const canvas=document.createElement('canvas');canvas.width=Math.min(1280,video.videoWidth);canvas.height=Math.max(1,Math.round(canvas.width*video.videoHeight/video.videoWidth));const context=canvas.getContext('2d');if(!context)return;context.drawImage(video,0,0,canvas.width,canvas.height);setHoverImage({second:hoverSecond.current,url:canvas.toDataURL('image/jpeg',.65)});}
       catch{fail();}
     };
     const seekHover=()=>{if(hoverSecond.current!==null)video.currentTime=Math.min(hoverSecond.current,Math.max(0,video.duration-.01));};
     video.addEventListener('loadedmetadata',seekHover);video.addEventListener('loadeddata',capture);video.addEventListener('seeked',capture);video.addEventListener('error',fail);
     return()=>{live=false;hoverDecoder.current=null;video.removeEventListener('loadedmetadata',seekHover);video.removeEventListener('loadeddata',capture);video.removeEventListener('seeked',capture);video.removeEventListener('error',fail);if(video.getAttribute('src')){video.removeAttribute('src');video.load();}};
   },[preview]);
-  const hoveredSecond=hoverMs===null?null:Math.floor(hoverMs/1000);
+  const hoveredSecond=hoverMs===null?null:Math.round(hoverMs/100)/10;
   useEffect(()=>{
     hoverSecond.current=hoveredSecond;
     if(hoveredSecond===null||!preview||hoverUnavailable)return;
@@ -127,18 +138,20 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const load = useCallback(async () => {
     // Change events can trigger overlapping loads; only the newest answer applies.
     const seq = ++loadSeq.current;
+    const expectedScope=scope;
     try {
       const d = await client.get(recordingId);
-      if (seq !== loadSeq.current) return;
+      if (seq !== loadSeq.current||scopeRef.current!==expectedScope) return;
+      loadedScope.current=expectedScope;
       setDetail(d);loadedCallback.current?.(d);
       setSaved(d.moments);
       setMoments(d.moments);
       setLoadError(null);
     } catch (caught) {
-      if (seq !== loadSeq.current) return;
+      if (seq !== loadSeq.current||scopeRef.current!==expectedScope) return;
       setLoadError(recorderErrorMessage(caught) ?? 'This recording could not be opened just now.');
     }
-  }, [client, recordingId]);
+  }, [client, recordingId, scope]);
 
   useEffect(() => {
     const a = recorderAvailability();
@@ -199,6 +212,8 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
       document.removeEventListener('click', onClick, true);
     };
   }, [dirty]);
+
+  useEffect(()=>{if(!dirty)setLeaveHref(null);},[dirty]);
 
   // ── element geometry and the trail ────────────────────────────────────────
 
@@ -261,8 +276,6 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   // updater (StrictMode invokes updaters twice, which would mint two moments).
   const momentsRef = useRef<Moment[]>(moments);
   momentsRef.current = moments;
-  const markStartRef = useRef<number | null>(null);
-  const setMark = (v: number | null) => { markStartRef.current = v; setMarkStartMs(v); };
 
   const createMoment = useCallback((range: Range | null, region?: Region | null) => {
     if (!range || durationMs === null) return;
@@ -286,7 +299,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     if(durationMs===null)return;
     const frameMs=Math.min(timeMs,durationMs-1);
     seek(frameMs);
-    createMoment({startMs:frameMs,endMs:frameMs},{x:0,y:0,width:COORD_MAX,height:COORD_MAX});
+    createMoment(momentAt(frameMs,durationMs),{x:0,y:0,width:COORD_MAX,height:COORD_MAX});
   }
 
   useEffect(() => {
@@ -294,25 +307,19 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return;
-      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat || leaveHref) return;
-      if (e.key === 'Escape') { setMark(null); setDrawing(false); return; }
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.repeat || leaveHref) return;
+      if (e.key === 'Escape') { setDrawing(false); return; }
       if (e.key !== 'm' && e.key !== 'M') return;
       e.preventDefault();
-      const now = Math.round((videoRef.current?.currentTime ?? 0) * 1000);
-      const start = markStartRef.current;
-      if (start === null) { setMark(now); setNotice(null); return; }
-      const range = rangeFromDrag(start, now, durationMs);
-      // Same rule as the bar: a moment needs a span. The mark stays open.
-      if (!range || range.endMs <= range.startMs) {
-        setNotice('A moment needs a start and an end. Play or seek, then press M again.');
-        return;
-      }
-      setMark(null);
-      createMoment(range);
+      if(voiceDirty.size)return;
+      const video=videoRef.current;
+      if(!video||video.seeking)return;
+      video.pause();
+      createMoment(momentAt(video.currentTime*1000,durationMs));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [createMoment, durationMs, leaveHref]);
+  }, [createMoment, durationMs, leaveHref,voiceDirty.size]);
 
   const barMs = (clientX: number) => {
     const rect = barRef.current?.getBoundingClientRect();
@@ -357,7 +364,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     if(!drawing){
       if(frozenTimestampMs===null||durationMs===null||frozenTimestampMs<0||frozenTimestampMs>durationMs){setRegionError('Wait for the picture to finish seeking, then mark it again.');return;}
       const region=regionFromSpatial(spatial.geometry);if(!region)return;
-      createMoment({startMs:frozenTimestampMs,endMs:frozenTimestampMs},region);setRegionError(null);return;
+      createMoment(momentAt(frozenTimestampMs,durationMs),region);setRegionError(null);return;
     }
     if (!selected) return;
     if (frozenTimestampMs !== selected.startMs) {
@@ -389,37 +396,39 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     if (selectedId === id) { setSelectedId(null); setDrawing(false); }
   };
   const selectMoment = (m: Moment) => {
-    if(voiceDirty.size || busyRef.current){setNotice(voiceDirty.size?'Insert or discard your voice note before changing moments.':'Saving feedback. Wait a moment before changing moments.');return;}
+    if(voiceDirty.size){setNotice('Insert or discard your voice note before changing moments.');return;}
     if(noteSnapshot.current?.id!==m.momentId)noteSnapshot.current={id:m.momentId,before:m};
     setSelectedId(m.momentId); seek(m.startMs);
   };
   function cancelNote(){
     const snapshot=noteSnapshot.current;
-    if(!snapshot||voiceDirty.size||busyRef.current)return;
+    if(!snapshot||voiceDirty.size)return;
     const next=snapshot.before?momentsRef.current.map(m=>m.momentId===snapshot.id?snapshot.before!:m):momentsRef.current.filter(m=>m.momentId!==snapshot.id);
     momentsRef.current=next;setMoments(next);setSelectedId(null);setDrawing(false);noteSnapshot.current=null;
   }
   async function doneNote(){
     if(voiceDirty.size)return;
-    if(await save()){setSelectedId(null);setDrawing(false);noteSnapshot.current=null;}
+    if(!momentsDirty(saved,momentsRef.current)||await save()){setSelectedId(null);setDrawing(false);noteSnapshot.current=null;}
   }
 
   function resizeMoment(moment:Moment,edge:'startMs'|'endMs',ms:number){
-    if(durationMs===null||voiceDirty.size||busyRef.current)return;
+    if(durationMs===null||voiceDirty.size)return;
     const snapped=Math.round(ms/SNAP_MS)*SNAP_MS;
     const value=edge==='startMs'?Math.max(0,Math.min(moment.endMs,snapped),moment.endMs-MAX_MOMENT_MS):Math.min(durationMs,Math.max(moment.startMs,snapped),moment.startMs+MAX_MOMENT_MS);
     patch(moment.momentId,current=>({...current,[edge]:value}));
   }
 
   async function save() {
-    if (busyRef.current || durationMs === null) return false;
+    if (busyRef.current || durationMs === null || loadedScope.current!==scope || detail?.recordingId!==recordingId) return false;
+    const expectedScope=scope;
     busyRef.current = true; setBusy('save'); setError(null);
     // What is being sent. Edits made while the save is in flight must survive it.
     const sent = momentsRef.current;
+    failedAutoSave.current=null;
     try {
       const stored = await client.saveMoments(recordingId, sent, durationMs);
+      if(scopeRef.current!==expectedScope)return false;
       setSaved(stored);
-      if(noteSnapshot.current){const id=noteSnapshot.current.id;noteSnapshot.current={id,before:stored.find(moment=>moment.momentId===id)??null};}
       if (momentsRef.current === sent) {
         // Nothing changed meanwhile: the Desktop's stored list is the truth.
         momentsRef.current = stored;
@@ -428,13 +437,38 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
         setNotice('Feedback saved on this Mac.');return true;
       } else {
         // Newer edits stay, and stay dirty against the stored baseline.
-        setNotice('Saved. You have changed moments since; save again to keep those changes.');
+        setNotice('Saving your latest changes…');
       }
     } catch (caught) {
-      setError(recorderErrorMessage(caught));
+      if(scopeRef.current===expectedScope){failedAutoSave.current=sent;setError(recorderErrorMessage(caught)||'Your latest changes couldn’t be saved. Try again.');}
     } finally { busyRef.current = false; setBusy(null); }
     return false;
   }
+
+  // Debounce and serialize through the existing typed save path. A failure pauses
+  // automatic retries for that exact draft; newer edits or explicit Retry can save.
+  useEffect(()=>{
+    if(detail?.state!=='ready'||loadedScope.current!==scope||detail.recordingId!==recordingId||busy||voiceDirty.size||!momentsDirty(saved,moments)||failedAutoSave.current===moments)return;
+    const timer=window.setTimeout(()=>void save(),650);
+    return()=>window.clearTimeout(timer);
+    // save uses this render’s draft and the same scope/owner checks as Done.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[moments,saved,busy,voiceDirty.size,scope,detail?.state,detail?.recordingId]);
+
+  useLayoutEffect(()=>{
+    const video=videoRef.current,note=noteRef.current,workspace=workspaceRef.current;
+    if(!selected||!video||!note||!workspace){setNotePosition(null);return;}
+    const place=()=>{
+      const picture=video.getBoundingClientRect();
+      const content=intrinsic?visualContentRect({elementWidth:picture.width,elementHeight:picture.height,naturalWidth:intrinsic.w,naturalHeight:intrinsic.h}):null;
+      const region=selected.region;
+      const mark=region&&content?{left:content.left+region.x/COORD_MAX*content.width,top:content.top+region.y/COORD_MAX*content.height,width:region.width/COORD_MAX*content.width,height:region.height/COORD_MAX*content.height}:null;
+      const next=picture.top<16||picture.bottom>window.innerHeight-16?null:recordingNotePlacement({left:picture.left,top:picture.top,width:picture.width,height:picture.height},mark,note.scrollHeight);
+      setNotePosition(previous=>JSON.stringify(previous)===JSON.stringify(next)?previous:next);
+    };
+    place();const observer=typeof ResizeObserver==='undefined'?null:new ResizeObserver(place);observer?.observe(video);observer?.observe(note);window.addEventListener('resize',place);window.addEventListener('scroll',place,true);
+    return()=>{observer?.disconnect();window.removeEventListener('resize',place);window.removeEventListener('scroll',place,true);};
+  },[selectedId,selected?.region?.x,selected?.region?.y,selected?.region?.width,selected?.region?.height,intrinsic?.w,intrinsic?.h,preview]);
 
   async function recover() {
     if (busyRef.current) return;
@@ -489,6 +523,16 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const selectedRegionStyle = selected?.region && overlayDims ? regionOverlayStyle(selected.region, overlayDims) : null;
   const pctOf = (ms: number) => `${(ms / Math.max(1, durationMs)) * 100}%`;
   const full = moments.length >= MAX_MOMENTS;
+  const tickMs=Math.max(1000,Math.ceil(durationMs/60000)*1000);
+  const ticks=Array.from({length:Math.floor(durationMs/tickMs)+1},(_,i)=>i*tickMs);
+  const finishTeaching=async()=>{
+    if(dirty&&!(await save()))return;
+    const notes=momentsRef.current.filter(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()));
+    if(notes.length)onDoneTeaching?.(recordingId,notes);else onAnalyzeNarration?.(recordingId,selectedId);
+  };
+  const teachingDisabled=busy!==null||voiceDirty.size>0||(!moments.some(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()))&&(!onAnalyzeNarration||!!narrationUnavailable));
+  const doneTeaching=onDoneTeaching?<button type="button" className="btn-primary" disabled={teachingDisabled} onClick={()=>void finishTeaching()}>Done teaching</button>:null;
+  const markButton=<button type="button" aria-label="Mark this moment" className="btn-secondary recording-mark" disabled={full||voiceDirty.size>0} onClick={()=>{const ms=freezeForRegion();if(ms!==null)createMoment(momentAt(ms,durationMs),{x:0,y:0,width:COORD_MAX,height:COORD_MAX});}}>+ Mark this moment</button>;
 
   const timeline = (
 <div
@@ -502,7 +546,8 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
         onPointerCancel={() => { barGesture.current = null; setBarDraft(null); }}
         className="recording-timeline relative mt-3 h-16 cursor-text select-none rounded bg-ink-800/70"
       >
-        {hoverMs!==null&&<output className="timeline-hover" style={{left:pctOf(hoverMs)}}>{hoverImage?.second===Math.floor(hoverMs/1000)&&<img src={hoverImage.url} alt="Timeline preview" className="mb-1 max-h-48 w-48 rounded object-contain"/>}{hoverUnavailable&&<span className="mb-1 block text-xs">Frame preview unavailable</span>}{formatMs(hoverMs)}</output>}
+        <div className="recording-ticks" aria-hidden="true">{ticks.map((ms,i)=><span key={ms} style={{left:pctOf(ms)}}>{i%5===0?formatMs(ms).replace('.000',''):''}</span>)}</div>
+        {hoverMs!==null&&<output className="timeline-hover" style={{left:pctOf(hoverMs)}}>{hoverImage?.second===Math.round(hoverMs/100)/10&&<img src={hoverImage.url} alt="Timeline preview" className="mb-1 max-h-48 w-48 rounded object-contain"/>}{hoverUnavailable&&<span className="mb-1 block text-xs">Frame preview unavailable</span>}{formatMs(hoverMs)}</output>}
         {openSuggestions.map((s) => (
           <button
             key={`s-${s.startMs}`}
@@ -511,9 +556,9 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
             disabled={full}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => createMoment({ startMs: s.startMs, endMs: s.endMs }, s.region)}
-            className="absolute top-1 bottom-1 rounded-sm border border-dashed border-amber-300/70 bg-amber-300/10 hover:bg-amber-300/25"
+            className="recording-suggestion absolute top-1 bottom-1 rounded-sm border border-dashed border-amber-300/70 bg-amber-300/10 hover:bg-amber-300/25"
             style={{ left: pctOf(s.startMs), width: `max(4px, ${pctOf(s.endMs - s.startMs)})` }}
-          />
+          >+ Add</button>
         ))}
         {moments.map((m, i) => (
           <div key={m.momentId} className={`recording-moment-bar absolute top-2 bottom-2 rounded-sm ${m.momentId===selectedId?'is-selected':''}`}
@@ -522,7 +567,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
               onPointerDown={e=>e.stopPropagation()} onClick={()=>selectMoment(m)}>{i+1}</button>
             {(['startMs','endMs'] as const).map(edge=><button key={edge} type="button" className={`moment-resize ${edge==='startMs'?'start':'end'}`}
               aria-label={`${edge==='startMs'?'Start':'End'} of moment ${i+1}`} title="Drag to adjust; arrow keys adjust by 0.1 second"
-              disabled={busy!==null||voiceDirty.size>0}
+              disabled={voiceDirty.size>0}
               onPointerDown={e=>{e.stopPropagation();if(e.button!==0)return;selectMoment(m);resizeGesture.current={moment:m,edge};e.currentTarget.setPointerCapture?.(e.pointerId);}}
               onPointerMove={e=>{e.stopPropagation();const g=resizeGesture.current;if(g?.moment.momentId===m.momentId&&g.edge===edge)resizeMoment(g.moment,edge,barMs(e.clientX));}}
               onPointerUp={e=>{e.stopPropagation();resizeGesture.current=null;}}
@@ -534,28 +579,25 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
           <div className="pointer-events-none absolute top-0 bottom-0 rounded-sm border-2 border-sky-300 bg-sky-300/20"
             style={{ left: pctOf(barDraft.startMs), width: pctOf(barDraft.endMs - barDraft.startMs) }} />
         )}
-        {markStartMs !== null && (
-          <div className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-rose-400" style={{ left: pctOf(markStartMs) }} />
-        )}
         <div ref={playLineRef} className="recording-playhead pointer-events-none absolute top-0 bottom-0 w-px" style={{ left: pctOf(playheadMs) }} />
       </div>
   );
 
   return (
-    <Shell embedded={embedded} back={back} title={detail.title || 'Recording'}>
+    <Shell embedded={embedded} back={back} title={detail.title || 'Recording'} description={`${detail.origin==='recorded'?'Screen recording':'Uploaded video'} · ${seconds(durationMs)} · ${new Date(detail.createdAt).toLocaleString()}`} actions={<><span role="status" className="recording-save-status">{voiceDirty.size?'Voice note in progress':error&&dirty?'Couldn’t save changes':dirty?'Saving…':'✓ Saved on this Mac'}</span>{doneTeaching}</>}>
       {error && <p role="alert" className="mb-3 rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-state-fail">{error}</p>}
 
       {embedded&&onClose&&<button type="button" className="text-xs text-ink-400 underline" onClick={onClose}>Close recording</button>}
       {embedded&&trainingReview}
-      <div className="recording-workspace">
+      <div className="recording-workspace" ref={workspaceRef}>
       <div className="recording-stage">
       <div className="relative">
         {previewError && <p role="status" className="rounded border border-ink-800 bg-ink-950 p-6 text-center text-sm text-ink-200">{previewError}</p>}
         {!preview && !previewError && <div className="h-64 animate-pulse rounded bg-ink-800/50" aria-label="Loading video" />}
         {preview && (
-          <ReviewPlaybackControls key={recordingId} mediaKey={recordingId} mediaRef={videoRef} onSeek={seek} timeline={timeline}>
+          <ReviewPlaybackControls key={recordingId} mediaKey={recordingId} mediaRef={videoRef} onSeek={seek} timeline={timeline} trailingAction={markButton}>
           <>
-          <div className="relative">
+          <div className="relative recording-picture">
             <video
               ref={videoRef}
               src={preview.url}
@@ -568,11 +610,12 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
               onTimeUpdate={(e) => setPlayheadMs(Math.round(e.currentTarget.currentTime * 1000))}
               onSeeked={(e) => setPlayheadMs(Math.round(e.currentTarget.currentTime * 1000))}
             />
+            {hoverMs!==null&&hoverImage&&<><img className="recording-hover-picture" src={hoverImage.url} alt="Timeline preview"/><span className="recording-preview-badge">Preview {formatMs(Math.round(hoverImage.second*1000))}</span></>}
             <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" />
             {selectedRegionStyle && (
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute rounded-sm border-2 border-sky-400 bg-sky-400/10"
+                className="recording-selected-area pointer-events-none absolute rounded-sm border-2 border-sky-400 bg-sky-400/10"
                 style={{ left: `${selectedRegionStyle.leftPct}%`, top: `${selectedRegionStyle.topPct}%`, width: `${selectedRegionStyle.widthPct}%`, height: `${selectedRegionStyle.heightPct}%` }}
               />
             )}
@@ -580,6 +623,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
               <ReviewSpatialOverlay
                 mediaKind="video"
                 controlsMode="external"
+                appearance="teaching"
                 mediaEl={() => videoRef.current}
                 enabled={voiceDirty.size===0}
                 pins={moments.flatMap((m,i)=>m.region&&playheadMs>=m.startMs&&playheadMs<=m.endMs?[{issueId:m.momentId,ordinal:i+1,geometry:{kind:'rect' as const,x:m.region.x/COORD_MAX,y:m.region.y/COORD_MAX,width:m.region.width/COORD_MAX,height:m.region.height/COORD_MAX},highlighted:m.momentId===selectedId,title:m.card.whatToDo||'Feedback'}]:[])}
@@ -599,7 +643,6 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
       </div>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-400">
-        <span className="font-mono">{formatMs(playheadMs)} / {formatMs(durationMs)}</span>
         <div className="flex items-center gap-3">
           {detail.hasPointerTrack && (
             <label className="flex items-center gap-1.5">
@@ -613,34 +656,21 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
       </div>
 
       <p className="mt-1.5 text-xs text-ink-500">
-        {markStartMs !== null
-          ? `Marking from ${formatMs(markStartMs)}. Press M again to end (at most ${MAX_MOMENT_MS / 1000} s), or Esc to cancel.`
-          : `Drag on the bar to mark a moment, or press M to start and M again to end. Dashed marks are suggestions: click one to add it.`}
+        Click the picture or press M to mark two seconds. Drag the timeline to choose a longer moment. Dashed marks are suggestions; click one to add it.
       </p>
       {barDraft && <p className="text-xs text-state-running">{formatMs(barDraft.startMs)}–{formatMs(barDraft.endMs)} ({seconds(barDraft.endMs - barDraft.startMs)})</p>}
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <button type="button" className="btn-outline" disabled={full||busy!==null||voiceDirty.size>0} onClick={()=>{const ms=freezeForRegion();if(ms!==null)createMoment({startMs:ms,endMs:ms},{x:0,y:0,width:COORD_MAX,height:COORD_MAX});}}>Mark this moment</button>
-        <p className="text-xs text-ink-500">Or click the picture. Drag to mark an area.</p>
-      </div>
       {notice && <p role="status" className="mt-2 text-xs text-ink-300">{notice}</p>}
 
       </div>
       <section aria-label="Moments" className="recording-moments">
         <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="text-lg font-medium text-ink-100">Moments <span className="text-sm font-normal text-ink-500">{moments.length} of {MAX_MOMENTS}</span></h2>
-          <button
-            type="button"
-            disabled={!dirty || busy !== null}
-            onClick={() => void save()}
-            className="rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {busy === 'save' ? 'Saving…' : dirty ? 'Save feedback' : 'Saved'}
-          </button>
+          <h2 className="text-lg font-medium text-ink-100">Moments <span className="text-sm font-normal text-ink-500">{moments.length} marked</span></h2>
+          {error&&dirty&&<button type="button" className="btn-outline" disabled={busy!==null} onClick={()=>void save()}>Retry saving</button>}
         </div>
         <p className="mb-4 text-xs text-ink-500">{embedded?'Mark a moment and tell your agent what matters.':MOMENTS_NEXT_NOTE}</p>
 
         {moments.length === 0 && (
-          <p className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-6 text-center text-sm text-ink-400">No moments yet.</p>
+          <p className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-6 text-center text-sm text-ink-400">No moments yet. Click a spot on the recording, or drag across the timeline.</p>
         )}
 
         <ol className="space-y-4">
@@ -657,23 +687,23 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                   <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => removeMoment(m.momentId)} className="text-xs text-ink-400 hover:text-state-fail">Delete</button>
                 </div>
                 {!isSel&&<button type="button" className="mt-2 block w-full text-left text-sm text-ink-300" onClick={()=>selectMoment(m)}>{m.card.whatToDo||'Add your feedback…'}</button>}
-                <div hidden={!isSel||drawing} className="recording-note" role="group" data-side={m.region&&m.region.x+m.region.width/2<COORD_MAX/2?'right':'left'} aria-label={`Edit moment ${i+1}`}
+                <div ref={isSel?noteRef:undefined} hidden={!isSel||drawing} className="recording-note" data-floating={isSel&&!!notePosition} style={isSel&&notePosition?notePosition:undefined} role="group" data-side={m.region&&m.region.x+m.region.width/2<COORD_MAX/2?'right':'left'} aria-label={`Edit moment ${i+1}`}
                   onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();cancelNote();}else if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)&&!event.repeat){event.preventDefault();event.stopPropagation();void doneNote();}}}>
-                <p className="mb-3 text-sm font-medium">Moment {i+1} · {formatMs(m.startMs)}</p>
+                <p className="mb-3 text-sm font-medium"><span className="recording-moment-number">{i+1}</span> <button type="button" onClick={()=>seek(m.startMs)}>{formatMs(m.startMs)}–{formatMs(m.endMs)}</button> <small>{seconds(m.endMs-m.startMs)}</small></p>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-400">
-                  <span>Region: {m.region ? regionLabel(m.region) : 'none'}</span>
+                  <span>{m.region?'Area marked':'Whole screen'}</span><details><summary>Area details</summary>{m.region?regionLabel(m.region):'Whole screen'}</details>
                   <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => { videoRef.current?.pause(); selectMoment(m); setRegionError(null); setDrawing(true); }} className="text-state-running hover:underline">Draw region</button>
                   {pointerBox && <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => setRegion(m.momentId, pointerBox)} className="text-state-running hover:underline">Use pointer box</button>}
                   {m.region && <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => setRegion(m.momentId, null)} className="text-ink-400 hover:underline">Clear region</button>}
                 </div>
-                <div className="mt-3"><label htmlFor={`${m.momentId}-feedback`} className="sr-only">What should change here?</label><textarea id={`${m.momentId}-feedback`} placeholder="What should change here?" rows={3} maxLength={CARD_FIELD_MAX} value={m.card.whatToDo} onFocus={()=>setSelectedId(m.momentId)} onChange={e=>setField(m.momentId,'whatToDo',e.target.value)} className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 focus:border-sky-500 focus:outline-none"/>
-                  {embedded&&<TrainerVoiceNote disabled={busy!==null} onDirtyChange={dirty=>setVoiceDirty(previous=>{const next=new Set(previous);if(dirty)next.add(m.momentId);else next.delete(m.momentId);return next.size===previous.size&&[...next].every(id=>previous.has(id))?previous:next;})} ownerId={ownerId} attach={{sourceKind:detail.origin==='recorded'?'recording':'upload',sourceRef:`${recordingId}:${m.momentId}`,mark:m.endMs>m.startMs?{startMs:m.startMs,endMs:m.endMs}:{frameMs:m.startMs,region:m.region||{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,CARD_FIELD_MAX-m.card.whatToDo.trim().length-(m.card.whatToDo.trim()?2:0))} onInsert={text=>patch(m.momentId,current=>({...current,card:{...current.card,whatToDo:[current.card.whatToDo.trim(),text].filter(Boolean).join('\n\n')}}))}/>}
+                <div className="mt-3 recording-comment-box"><label htmlFor={`${m.momentId}-feedback`} className="sr-only">What should change here?</label><textarea id={`${m.momentId}-feedback`} placeholder="What should change here?" rows={3} maxLength={CARD_FIELD_MAX} value={m.card.whatToDo} onFocus={()=>setSelectedId(m.momentId)} onChange={e=>setField(m.momentId,'whatToDo',e.target.value)} className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 focus:border-sky-500 focus:outline-none"/>
+                  {embedded&&isSel&&<TrainerVoiceNote compact disabled={busy!==null} onDirtyChange={dirty=>setVoiceDirty(previous=>{const next=new Set(previous);if(dirty)next.add(m.momentId);else next.delete(m.momentId);return next.size===previous.size&&[...next].every(id=>previous.has(id))?previous:next;})} ownerId={ownerId} attach={{sourceKind:detail.origin==='recorded'?'recording':'upload',sourceRef:`${recordingId}:${m.momentId}`,mark:m.endMs>m.startMs?{startMs:m.startMs,endMs:m.endMs}:{frameMs:m.startMs,region:m.region||{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,CARD_FIELD_MAX-m.card.whatToDo.trim().length-(m.card.whatToDo.trim()?2:0))} onInsert={text=>patch(m.momentId,current=>({...current,card:{...current.card,whatToDo:[current.card.whatToDo.trim(),text].filter(Boolean).join('\n\n')}}))}/>}
                   {warnings.whatToDo&&<p data-testid="card-warning" className="mt-1 text-xs text-state-needs">{warnings.whatToDo.join(' ')}</p>}
                 </div>
-                <p className="mt-3 text-xs text-ink-400">Done saves all pending feedback on this recording.</p>
+                <p className="mt-3 text-xs text-ink-400">Changes save automatically on this Mac.</p>
                 <div className="mt-4 flex justify-end gap-2 border-t border-ink-700 pt-3">
-                  <button type="button" className="btn-ghost" disabled={busy!==null||voiceDirty.size>0} onClick={cancelNote}>Cancel</button>
-                  <button type="button" className="btn-success" disabled={busy!==null||voiceDirty.size>0} onClick={()=>void doneNote()}>{busy==='save'?'Saving…':'Done'}</button>
+                  <button type="button" aria-label="Cancel changes" className="btn-ghost" disabled={voiceDirty.size>0} onClick={cancelNote}>Cancel changes <small>Esc</small></button>
+                  <button type="button" aria-label="Done" className="btn-success" disabled={busy!==null||voiceDirty.size>0} onClick={()=>void doneNote()}>{busy==='save'?'Saving…':<>Done <small>⌘↵</small></>}</button>
                 </div>
                 </div>
                 {onUseFeedback&&<button type="button" className="mt-3 text-xs text-ink-500 underline underline-offset-4" disabled={busy!==null||dirty||!CARD_FIELDS.some(field=>m.card[field].trim())} onClick={()=>onUseFeedback(recordingId,m)}>Turn into a learning</button>}
@@ -699,12 +729,8 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
       <section className="my-4 flex flex-wrap items-center gap-3 text-sm">
         {embedded&&trainingReview&&durationMs!==null&&<button type="button" className="btn-secondary" disabled={busy!==null||voiceDirty.size>0}
           onClick={()=>addTrainingMoment(playheadMs)}>Add a learning</button>}
-        {onDoneTeaching&&<button type="button" className="btn-primary" disabled={busy!==null||voiceDirty.size>0||(!moments.some(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()))&&(!onAnalyzeNarration||!!narrationUnavailable))} onClick={async()=>{
-          if(dirty&&!(await save()))return;
-          const notes=momentsRef.current.filter(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()));
-          if(notes.length)onDoneTeaching(recordingId,notes);else onAnalyzeNarration?.(recordingId,selectedId);
-        }}>Done teaching</button>}
-        <details className="text-xs text-ink-400"><summary className="cursor-pointer">More options</summary><div className="mt-3 flex flex-wrap items-center gap-3">{detail.origin==='imported'&&onTrainerNarrationChange&&<label className="flex w-full items-center gap-2"><input type="checkbox" checked={trainerNarration} onChange={event=>onTrainerNarrationChange(event.target.checked)}/>This is my narrated demonstration</label>}
+        {doneTeaching}
+        <details className="text-xs text-ink-400"><summary className="cursor-pointer">More options</summary><p className="mt-2">Up to {MAX_MOMENTS} moments, {MAX_MOMENT_MS/1000} seconds each.</p><div className="mt-3 flex flex-wrap items-center gap-3">{detail.origin==='imported'&&onTrainerNarrationChange&&<label className="flex w-full items-center gap-2"><input type="checkbox" checked={trainerNarration} onChange={event=>onTrainerNarrationChange(event.target.checked)}/>This is my narrated demonstration</label>}
         {onAnalyzeNarration?<button type="button" className="btn-primary" disabled={busy!==null||!!narrationUnavailable} onClick={async()=>{if(dirty&&!(await save()))return;onAnalyzeNarration(recordingId,selectedId);}}>Find learnings in my narration</button>:<>{trainingSlug?<button type="button" disabled={dirty||busy!==null} onClick={()=>router.push(`/training/${encodeURIComponent(trainingSlug)}?recordingId=${recordingId}${selectedId?`&momentId=${selectedId}`:''}`)}>Use in Training</button>:<Link href={`/training?recordingId=${recordingId}`}>Choose an agent for Training</Link>}</>}
         {onAnalyzeTool&&<button type="button" className="btn-secondary" disabled={busy!==null||!!narrationUnavailable} onClick={async()=>{if(dirty&&!(await save()))return;onAnalyzeTool(recordingId,selectedId);}}>Teach a tool or method</button>}
         {(onAnalyzeNarration||onAnalyzeTool)&&narrationUnavailable&&<p className="text-xs text-ink-400">{narrationUnavailable}</p>}
@@ -728,13 +754,13 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   );
 }
 
-function Shell({ back, title, children,embedded=false }: {embedded?:boolean; back: ReactNode; title: string; children: ReactNode }) {
-  if(embedded)return <section id="recording-annotation" tabIndex={-1} aria-label="Annotate your recording" className="space-y-4"><h2 className="text-lg font-medium">Annotate your recording</h2>{children}</section>;
+function Shell({ back, title, children,embedded=false,actions,description }: {embedded?:boolean; back: ReactNode; title: string; children: ReactNode;actions?:ReactNode;description?:ReactNode}) {
+  if(embedded)return <section id="recording-annotation" tabIndex={-1} aria-label="Annotate your recording" className="space-y-4"><header className="recording-header"><div><h2>Show the agent what to change</h2>{description&&<p>{description}</p>}</div><div>{actions}</div></header>{children}</section>;
   return (
     <div className="app-page">
       <div className="app-content">
         <div className="mb-4">{back}</div>
-        <header className="app-page-head"><div><h1>Show the agent what to change</h1><p className="app-page-description">{title}</p></div></header>
+        <PageHeader title="Show the agent what to change" actions={actions}><p className="app-page-description">{description||title}</p></PageHeader>
         {children}
       </div>
     </div>

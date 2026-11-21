@@ -7,15 +7,16 @@ import { formatMs } from '@/lib/review-anchor';
  * the picture/annotation surface; every transport control is its following sibling.
  * Neither preview contract supplies FPS: the small steps are labelled as time, not
  * presented as exact source frames. This never owns an artifact or preview token. */
-export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, children, timeline }: {
+export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, children, timeline, trailingAction }: {
   mediaRef: RefObject<HTMLMediaElement>;
   mediaKey: string;
   timeline?: ReactNode;
+  trailingAction?: ReactNode;
   onSeek: (ms: number) => void;
   children: ReactNode | ((revealOutside: (action: () => void) => void) => ReactNode);
 }) {
   const playerRef = useRef<HTMLDivElement>(null);
-  const [state, setState] = useState({ paused: true, time: 0, duration: 0, volume: 1, muted: false, seeking: false });
+  const [state, setState] = useState({ paused: true, time: 0, duration: 0, volume: 1, muted: false, seeking: false, rate:1 });
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [canFullscreen, setCanFullscreen] = useState(false);
@@ -55,9 +56,9 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
       paused: media.paused || media.ended,
       time: Number.isFinite(media.currentTime) ? media.currentTime : 0,
       duration: Number.isFinite(media.duration) && media.duration > 0 ? media.duration : 0,
-      volume: media.volume, muted: media.muted, seeking: media.seeking,
+      volume: media.volume, muted: media.muted, seeking: media.seeking, rate:media.playbackRate||1,
     });
-    const events = ['loadedmetadata', 'durationchange', 'timeupdate', 'play', 'pause', 'ended', 'volumechange', 'seeking', 'seeked', 'emptied'];
+    const events = ['loadedmetadata', 'durationchange', 'timeupdate', 'play', 'pause', 'ended', 'volumechange', 'seeking', 'seeked', 'emptied', 'ratechange'];
     for (const event of events) media.addEventListener(event, sync);
     const onFullscreen = () => {
       const ours = document.fullscreenElement === playerRef.current;
@@ -138,10 +139,12 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
           <button type="button" className={buttonClass} aria-label="Step back 1/30 second" title="Time step; exact source frame rate is unavailable" disabled={!state.duration} onClick={() => step(-1)}>−1/30 s</button>
           <button type="button" className={buttonClass} aria-label="Step forward 1/30 second" title="Time step; exact source frame rate is unavailable" disabled={!state.duration} onClick={() => step(1)}>+1/30 s</button>
           <span className="font-mono text-xs text-ink-400">{formatMs(Math.round(state.time * 1000))} / {formatMs(Math.round(state.duration * 1000))}</span>
+          <div className="playback-speeds" role="group" aria-label="Playback speed">{[.5,1,2].map(rate=><button key={rate} type="button" aria-pressed={state.rate===rate} onClick={()=>{const media=mediaRef.current;if(media){media.playbackRate=rate;setState(current=>({...current,rate}));}}}>{rate}×</button>)}</div>
           <button type="button" className={buttonClass} aria-label={state.muted ? 'Unmute' : 'Mute'} onClick={() => { const media = mediaRef.current; if (media) media.muted = !media.muted; }}>{state.muted ? 'Unmute' : 'Mute'}</button>
           <input type="range" aria-label="Volume" min={0} max={1} step={0.05} value={state.muted ? 0 : state.volume}
             className="w-20 accent-[var(--action-strong)]" onChange={(event) => { const media = mediaRef.current; if (media) { media.volume = Number(event.currentTarget.value); media.muted = false; } }} />
           <button type="button" className={buttonClass} disabled={!canFullscreen} aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} onClick={() => void toggleFullscreen()}>{fullscreen ? 'Exit fullscreen' : 'Fullscreen'}</button>
+          {trailingAction}
           {state.seeking && <span role="status" className="text-xs text-ink-400">Seeking…</span>}
         </div>
         {error && <p role="alert" className="text-xs text-state-fail">{error}</p>}
