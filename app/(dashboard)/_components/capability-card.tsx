@@ -344,7 +344,7 @@ export default function CapabilityCard({ card, onRetry }: {
             <>
               <button
                 type="button"
-                className="mt-1 text-xs text-brand-500 hover:underline"
+                className="mt-1 text-xs text-action-accent hover:underline"
                 onClick={() => setShowHelp((v) => !v)}
               >
                 {showHelp ? 'Hide' : 'Show me exactly where to click'}
@@ -400,7 +400,7 @@ export default function CapabilityCard({ card, onRetry }: {
                 return (
                   <div key={key} className="flex items-center gap-2 text-xs text-ink-300">
                     <span className="h-3 w-3 flex-none animate-spin rounded-full border-2 border-ink-400 border-t-transparent" aria-hidden />
-                    Waiting for you to save the key in the Implexa window…
+                    Waiting for you to save the key in the Tukido window…
                   </div>
                 );
               }
@@ -425,7 +425,7 @@ export default function CapabilityCard({ card, onRetry }: {
                   <>
                     <button
                       type="button"
-                      className="mt-1 text-xs text-brand-500 hover:underline"
+                      className="mt-1 text-xs text-action-accent hover:underline"
                       onClick={() => setShowHelp((v) => !v)}
                     >
                       {showHelp ? 'Hide' : 'Show me exactly where to click'}
@@ -438,7 +438,7 @@ export default function CapabilityCard({ card, onRetry }: {
           })}
         </div>
       )}
-      {err ? <div className="mt-2 text-xs text-red-700 dark:text-red-400">{err}</div> : null}
+      {err ? <div className="mt-2 text-xs text-state-fail">{err}</div> : null}
     </div>
   );
 }

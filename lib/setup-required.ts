@@ -108,7 +108,7 @@ export type VersionContractRefusal = {
 // backend owns the per-cause wording; this is the honest general case, never
 // a status code.
 const VERSION_CONTRACT_FALLBACK = 'This version of the agent cannot be checked against any computer. Its publisher needs to provide a complete version. Nothing was queued.';
-const VERSION_CONTRACT_RETRY_FALLBACK = 'Implexa could not read this agent version\u2019s requirements. Try again; nothing was queued.';
+const VERSION_CONTRACT_RETRY_FALLBACK = 'Tukido could not read this agent version\u2019s requirements. Try again; nothing was queued.';
 
 /** The typed version-contract refusal from a 409, or null for any other error.
  * Duck-typed on `{ status: 409, body }` for the same reason as parseSetupRequired. */
@@ -140,11 +140,11 @@ export function versionContractRefusalFromBody(body: unknown): VersionContractRe
 /** Why the card was raised, in the user's terms. Reason codes are the backend's closed set. */
 export function setupReasonCopy(card: SetupRequiredCard): string {
   switch (card.reason) {
-    case 'machine_offline': return 'This computer has not reported to Implexa in the last few minutes. Open the Implexa app on it, then Recheck.';
-    case 'machine_unavailable': return 'No computer has reported to Implexa yet. Open the Implexa app on the Mac that should run this agent.';
+    case 'machine_offline': return 'This computer has not reported to Tukido in the last few minutes. Open the Tukido app on it, then Recheck.';
+    case 'machine_unavailable': return 'No computer has reported to Tukido yet. Open the Tukido app on the Mac that should run this agent.';
     case 'execution_engine_unavailable': return 'This computer is online, but no supported execution engine is currently available. Open its setup to reconnect Claude or Codex.';
     case 'execution_engine_unauthenticated': return 'This computer is online, but its execution engine is not signed in. Sign in to Claude or Codex on that computer, then Recheck.';
-    case 'attestation_missing': return 'Implexa has not checked this computer’s setup yet. Recheck to run the check now.';
+    case 'attestation_missing': return 'Tukido has not checked this computer’s setup yet. Recheck to run the check now.';
     case 'attestation_stale': return 'The last setup check on this computer expired. Recheck to run it again.';
     case 'attestation_foreign_machine': return 'The setup check on file belongs to a different computer. Recheck on the selected one.';
     default: return 'Some requirements are not ready on the selected computer. Set them up, then Recheck to continue the same run.';
@@ -247,10 +247,10 @@ export function setupTargetFor(card: SetupRequiredCard, { slug = null, workflowV
 /** Customer-facing copy for each backend setup action (the closed set). The
  * page renders the backend's `instructions` verbatim next to these. */
 export const SETUP_ACTION_COPY: Record<string, { label: string; explicit: string }> = {
-  install_runtime: { label: 'Install the runtime', explicit: 'Installs the Implexa-managed Node runtime on this computer when you choose to.' },
+  install_runtime: { label: 'Install the runtime', explicit: 'Installs the Tukido-managed Node runtime on this computer when you choose to.' },
   install_cli: { label: 'Install', explicit: 'Opens the vendor’s install instructions; you run the install yourself.' },
-  install_media_tools: { label: 'Install media tools', explicit: 'Installs ffmpeg/ffprobe through Implexa’s tool registry when you choose to.' },
-  sign_in_cli: { label: 'Sign in', explicit: 'Sign in with the vendor’s own CLI in a terminal; Implexa only re-checks the account status afterwards and never sees the credential.' },
+  install_media_tools: { label: 'Install media tools', explicit: 'Installs ffmpeg/ffprobe through Tukido’s tool registry when you choose to.' },
+  sign_in_cli: { label: 'Sign in', explicit: 'Sign in with the vendor’s own CLI in a terminal; Tukido only re-checks the account status afterwards and never sees the credential.' },
   free_disk: { label: 'Free up space', explicit: 'Free space on this computer, then Recheck.' },
-  recheck: { label: 'Recheck', explicit: 'Re-checks this computer and asks Implexa to decide again.' },
+  recheck: { label: 'Recheck', explicit: 'Re-checks this computer and asks Tukido to decide again.' },
 };

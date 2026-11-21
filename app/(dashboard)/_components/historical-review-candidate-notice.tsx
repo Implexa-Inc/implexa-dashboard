@@ -3,10 +3,10 @@ import type { HistoricalReviewCandidate } from '@/lib/historical-review-candidat
 export default function HistoricalReviewCandidateNotice({ candidate, unavailable, carriedIssueCount = 0 }: {
   candidate: HistoricalReviewCandidate | null; unavailable: boolean; carriedIssueCount?: number;
 }) {
-  if (unavailable) return <p role="status" className="mb-4 rounded border border-amber-800 p-3 text-sm text-amber-200">Historical candidate provenance is unavailable. Completion has not been established.</p>;
+  if (unavailable) return <p role="status" className="mb-4 rounded border border-amber-800 p-3 text-sm text-state-needs">Historical candidate provenance is unavailable. Completion has not been established.</p>;
   if (!candidate) return null;
   const unverified = candidate.scope === 'historical_unverified_candidate';
-  return <section aria-label={unverified ? 'Historical technical-only candidate' : 'Historical partial candidate'} className="mb-4 rounded border border-amber-800 bg-amber-950/20 p-3 text-sm text-amber-100">
+  return <section aria-label={unverified ? 'Historical technical-only candidate' : 'Historical partial candidate'} className="mb-4 rounded border border-amber-800 bg-amber-950/20 p-3 text-sm text-state-needs">
     <h2 className="font-medium">{unverified ? 'Historical technical-only candidate' : 'Historical partial candidate'}</h2>
     {unverified ? (
       <p>Technical QA passed for the recovered video. The {candidate.unresolvedCount === 1 ? 'outcome' : 'outcomes'} of {candidate.unresolvedCount} correction{candidate.unresolvedCount === 1 ? '' : 's'} {candidate.unresolvedCount === 1 ? 'is' : 'are'} unknown.</p>

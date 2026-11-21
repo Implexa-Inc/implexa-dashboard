@@ -322,7 +322,7 @@ export default function RunMarkdown({
       if (/^https?:\/\//i.test(dest) || /^mailto:/i.test(dest)) {
         return (
           <a href={dest} target="_blank" rel="noopener noreferrer"
-            className="text-brand-500 hover:underline break-all">
+            className="text-action-accent hover:underline break-all">
             {children}
           </a>
         );
@@ -338,7 +338,7 @@ export default function RunMarkdown({
           />
         );
       }
-      return <a href={dest} className="text-brand-500 hover:underline break-all">{children}</a>;
+      return <a href={dest} className="text-action-accent hover:underline break-all">{children}</a>;
     },
     code(props) {
       const { className, children, ...rest } = props as {
@@ -357,7 +357,7 @@ export default function RunMarkdown({
         const href = `https://${raw.trim()}`;
         return (
           <a href={href} target="_blank" rel="noopener noreferrer"
-            className="text-brand-500 hover:underline break-all">
+            className="text-action-accent hover:underline break-all">
             {children}
           </a>
         );

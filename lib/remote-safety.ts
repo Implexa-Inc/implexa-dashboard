@@ -161,12 +161,12 @@ export const VERDICT_PRESENTATION: Record<
   safe: {
     label: 'Remote-safe',
     classes:
-      'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+      'bg-emerald-500/15 text-state-ok',
     dot: 'bg-emerald-500 dark:bg-emerald-400',
   },
   local: {
     label: 'Local-only',
-    classes: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+    classes: 'bg-amber-500/15 text-state-needs',
     dot: 'bg-amber-500 dark:bg-amber-400',
   },
   unknown: {

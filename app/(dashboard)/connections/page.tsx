@@ -27,8 +27,8 @@ export default async function NeedsYouPage() {
   const needsYou = await loadNeedsYou(supabase);
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-3xl mx-auto">
+    <main className="app-page">
+      <div className="app-content">
         <header className="mb-8">
           <h1 className="text-2xl font-semibold tracking-tight text-ink-50">Needs you</h1>
           <p className="text-sm text-ink-400 mt-2 max-w-2xl">
@@ -52,7 +52,7 @@ export default async function NeedsYouPage() {
         )}
 
         <p className="text-xs text-ink-500 mt-10">
-          Looking for the full account list? <Link href="/settings/connections" className="text-brand-500 hover:underline">All your accounts →</Link>
+          Looking for the full account list? <Link href="/settings/connections" className="text-action-accent hover:underline">All your accounts →</Link>
         </p>
       </div>
     </main>

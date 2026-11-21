@@ -126,14 +126,14 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
       moments: submitted,
     });
     if (!compiled) {
-      setError('Implexa compiled something this build could not verify against the timeline you submitted, so it refused to show it. Nothing was created.');
+      setError('Tukido compiled something this build could not verify against the timeline you submitted, so it refused to show it. Nothing was created.');
       return;
     }
     const reconciled = reconcileProposal(submitted, compiled);
     if (!reconciled.ok) {
       // FAIL CLOSED. Not "prefer the backend's number" — a disagreement means the
       // plan that was priced is not the plan that was sent.
-      setError(`Implexa's compiled plan does not match this timeline, so it cannot be used. ${reconciled.reason}`);
+      setError(`Tukido's compiled plan does not match this timeline, so it cannot be used. ${reconciled.reason}`);
       return;
     }
     setPreview(compiled);
@@ -164,7 +164,7 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
     if (!created) {
       createFlight.current = false;
       setPhase('editing');
-      setError('The proposal was created with an identity or plan this build could not verify, so Implexa refused to open it. Reload this run before trying again.');
+      setError('The proposal was created with an identity or plan this build could not verify, so Tukido refused to open it. Reload this run before trying again.');
       return;
     }
     router.push(`/generations/${encodeURIComponent(created.proposalId)}`);
@@ -219,10 +219,10 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
       ) : null}
 
       {unavailable && preview && (
-        <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+        <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-state-needs">
           <p className="font-medium">Professional generation is not available on your account yet.</p>
           <p className="mt-1 text-xs">
-            Implexa compiled this plan so you can see exactly what it would run, but it cannot be
+            Tukido compiled this plan so you can see exactly what it would run, but it cannot be
             approved and nothing will be generated. Missing:{' '}
             {preview.requiredMissingCapabilities.map(capabilityWords).join(', ')}.
           </p>
@@ -230,7 +230,7 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
       )}
 
       {error && (
-        <p role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">{error}</p>
+        <p role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">{error}</p>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -251,7 +251,7 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
           </button>
         )}
         {preview !== null && !previewIsCurrent && (
-          <p className="text-xs text-amber-300">
+          <p className="text-xs text-state-needs">
             The timeline changed since it was compiled. Compile it again before saving —
             the previous plan and its ceiling no longer describe what is on screen.
           </p>

@@ -217,23 +217,23 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
           <div className="flex items-center gap-2">
             <span className="text-sm text-ink-100">{item.label} API key{item.scope ? ` (${item.scope} only)` : ''}</span>
             {ready
-              ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">ready for this agent</span>
+              ? <span className="text-[11px] text-state-ok">ready for this agent</span>
               : verifyUnknown
-                ? <span className="text-[11px] text-amber-700 dark:text-amber-300">saved — couldn’t check this agent’s access</span>
+                ? <span className="text-[11px] text-state-needs">saved — couldn’t check this agent’s access</span>
                 : needsGrantOnly
-                  ? <span className="text-[11px] text-amber-700 dark:text-amber-300">saved — not allowed for this agent yet</span>
-                  : <span className="text-[11px] text-amber-700 dark:text-amber-300">not set</span>}
+                  ? <span className="text-[11px] text-state-needs">saved — not allowed for this agent yet</span>
+                  : <span className="text-[11px] text-state-needs">not set</span>}
           </div>
           {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
           {/* Never silently resolve an unverified state to "ready" — say we don't
               know, and make re-checking one click. */}
           {verifyUnknown && !awaiting && (
             <p className="text-xs text-ink-500 mt-0.5 leading-snug">
-              Couldn’t reach the Implexa app to check access.{' '}
-              <button type="button" onClick={checkGrant} className="text-brand-500 hover:underline">Check again</button>
+              Couldn’t reach the Tukido app to check access.{' '}
+              <button type="button" onClick={checkGrant} className="text-action-accent hover:underline">Check again</button>
             </p>
           )}
-          {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to confirm in the Implexa window — closed it? Hit Reopen.</p>}
+          {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to confirm in the Tukido window — closed it? Hit Reopen.</p>}
         </div>
         {/* Shown until this agent is actually READY (saved AND allowed) — not
             merely until a key exists somewhere. Gating on item.configured alone
@@ -263,7 +263,7 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
                   {awaiting ? 'Reopen' : ((needsGrantOnly || verifyUnknown) ? 'Use saved key' : 'Add key')}
                 </button>
               )
-              : <span className="text-[11px] text-ink-500">Add it in the Implexa app</span>}
+              : <span className="text-[11px] text-ink-500">Add it in the Tukido app</span>}
           </div>
         )}
       </div>
@@ -367,11 +367,11 @@ export function InlineAddKeyButton({ provider, slug }: { provider: string; slug:
   };
 
   if (saved && granted) {
-    return <span className="text-[11px] text-emerald-600 dark:text-emerald-400 whitespace-nowrap">key ready</span>;
+    return <span className="text-[11px] text-state-ok whitespace-nowrap">key ready</span>;
   }
   if (!bridge?.openKeySetup) {
     // Plain web / bridge not detected yet: never show a dead button.
-    return note ? <span className="text-[11px] text-amber-700 dark:text-amber-300">{note}</span> : null;
+    return note ? <span className="text-[11px] text-state-needs">{note}</span> : null;
   }
   // While awaiting, this stays a BUTTON (relabelled "reopen"), never a dead
   // <span> — closing the key window without saving previously left this row
@@ -384,9 +384,9 @@ export function InlineAddKeyButton({ provider, slug }: { provider: string; slug:
       type="button"
       onClick={openLocal}
       title={awaiting
-        ? 'Waiting for you to confirm in the Implexa window. Closed it? Click to reopen.'
+        ? 'Waiting for you to confirm in the Tukido window. Closed it? Click to reopen.'
         : (saved ? 'Your key is already saved — this only allows this agent to use it.' : undefined)}
-      className={`btn-outline flex-none text-xs whitespace-nowrap px-2.5 py-1 ${awaiting ? 'text-ink-500' : 'text-brand-500'}`}
+      className={`btn-outline flex-none text-xs whitespace-nowrap px-2.5 py-1 ${awaiting ? 'text-ink-500' : 'text-action-accent'}`}
     >
       {label}
     </button>

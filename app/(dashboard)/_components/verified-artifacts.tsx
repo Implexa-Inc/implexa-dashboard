@@ -92,7 +92,7 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
     if (!runId || typeof reconnect !== 'function') return;
     setReconnecting(true);
     sourceAuthorityGeneration.current += 1;
-    setMessage('Select the original file. Implexa will verify every byte before restoring access.');
+    setMessage('Select the original file. Tukido will verify every byte before restoring access.');
     try {
       const result = await reconnect(runId);
       if (result?.ok) {
@@ -152,7 +152,7 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
           <h2 className="text-sm font-semibold text-ink-50">Files &amp; artifacts</h2>
           <p className="mt-1 text-xs text-ink-400">
             {artifacts.length
-              ? `Checked on this Mac by Implexa · ${finalCount} final ${finalCount === 1 ? 'output' : 'outputs'} · ${artifacts.length} total`
+              ? `Checked on this Mac by Tukido · ${finalCount} final ${finalCount === 1 ? 'output' : 'outputs'} · ${artifacts.length} total`
               : 'No verified files yet. Refresh after this run creates or validates files.'}
           </p>
         </div>
@@ -171,7 +171,7 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
               onClick={() => setExpanded((value) => !value)}
               aria-expanded={expanded}
               aria-controls="run-artifact-list"
-              className="rounded border border-emerald-500/40 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
+              className="rounded border border-emerald-500/40 px-2.5 py-1 text-xs text-state-ok hover:bg-emerald-500/10 text-state-ok"
             >
               {expanded ? 'Hide files' : `View files (${artifacts.length})`}
             </button>
@@ -181,13 +181,13 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
       {sourceReconnect?.required && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5">
           <p className="min-w-0 flex-1 text-xs leading-relaxed text-ink-300">
-            Implexa forgot the private source path after restarting. Reconnect {sourceReconnect.label || 'the original source'} to verify its exact bytes; the file stays on this Mac.
+            Tukido forgot the private source path after restarting. Reconnect {sourceReconnect.label || 'the original source'} to verify its exact bytes; the file stays on this Mac.
           </p>
           <button
             type="button"
             onClick={() => void reconnectSource()}
             disabled={reconnecting}
-            className="rounded border border-amber-500/45 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-500/10 disabled:opacity-60 dark:text-amber-300"
+            className="rounded border border-amber-500/45 px-3 py-1.5 text-xs font-medium text-state-needs hover:bg-amber-500/10 disabled:opacity-60 text-state-needs"
           >
             {reconnecting ? 'Verifying source…' : 'Reconnect original source'}
           </button>
@@ -205,7 +205,7 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
                 <div className="mt-0.5 truncate font-mono text-[10px] text-ink-600" title={artifact.relativePath}>{artifact.relativePath}</div>
               </div>
               <div className="flex items-center gap-2 text-xs">
-                <button type="button" onClick={() => void open(artifact)} className="rounded border border-emerald-500/40 px-2.5 py-1 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300">Open</button>
+                <button type="button" onClick={() => void open(artifact)} className="rounded border border-emerald-500/40 px-2.5 py-1 text-state-ok hover:bg-emerald-500/10 text-state-ok">Open</button>
                 <button type="button" onClick={() => void reveal(artifact)} className="rounded border border-ink-700 px-2.5 py-1 text-ink-300 hover:bg-ink-800">Finder</button>
               </div>
             </li>

@@ -106,8 +106,8 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
   return (
     <main className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        <h1 className="text-3xl font-semibold tracking-tight mb-2">Welcome to Implexa</h1>
-        <p className="text-ink-500 text-sm mb-8">Your team already uses Implexa. Join them, or start your own workspace.</p>
+        <h1 className="text-3xl font-semibold tracking-tight mb-2">Welcome to Tukido</h1>
+        <p className="text-ink-500 text-sm mb-8">Your team already uses Tukido. Join them, or start your own workspace.</p>
 
         <OnboardingPicker
           jwt={session.access_token}

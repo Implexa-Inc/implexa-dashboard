@@ -42,6 +42,8 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const firstSentence=step.label.split(/(?<=[.!?])\s+/)[0]||step.label;
+  const displayLabel=firstSentence.length>140?`${firstSentence.slice(0,140).trim()}…`:firstSentence;
   const bound = step.ref && !step.gap;
   const isAgent = step.kind === 'workflow';
   const isOrg = bound && step.ref && step.ref.source === 'org';
@@ -57,18 +59,21 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
     <li className="flex gap-3 py-3">
       <div className="flex-none mt-0.5">
         <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold tabular-nums ${
-          bound ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-ink-800 text-ink-400'
+          bound ? 'bg-emerald-500/15 text-state-ok' : 'bg-ink-800 text-ink-400'
         }`}>
           {step.order}
         </span>
       </div>
       <div className="min-w-0">
+        <details className="agent-step-details">
+          <summary className="cursor-pointer text-sm text-ink-100">{displayLabel||`Step ${step.order}`}</summary>
+          <div className="mt-3">
         <div className="flex items-center gap-2 mb-0.5">
           {step.kind !== 'skill' && (
             <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">{step.kind}</span>
           )}
           {step.gap && (
-            <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/40 text-amber-700 dark:text-amber-300">gap</span>
+            <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/40 text-state-needs">gap</span>
           )}
         </div>
         <p className="text-sm text-ink-100">{step.label}</p>
@@ -86,7 +91,7 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
           <p className="mt-1.5 text-xs text-ink-500 leading-relaxed border-l border-ink-700 pl-3">{step.ref_summary.preview}</p>
         ) : null}
         {showBuildEvidence && pattern && patternEvidence && Number(patternEvidence.provenRuns || 0) > 0 ? (
-          <div className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
+          <div className="mt-1 text-xs text-state-ok">
             <p>
               Adapted from delivered agent “{pattern.workflow.name}” · {patternEvidence.provenRuns} delivered run{patternEvidence.provenRuns === 1 ? '' : 's'}
               {Number(patternEvidence.verifiedRuns || 0) > 0 ? ` · ${patternEvidence.verifiedRuns} verified` : ''}
@@ -96,7 +101,7 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
             ) : null}
           </div>
         ) : showBuildEvidence && bound && directEvidence ? (
-          <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
+          <p className="mt-1 text-xs text-state-ok">
             Proven by {directEvidence.provenRuns} delivered run{directEvidence.provenRuns === 1 ? '' : 's'}
             {Number(directEvidence.verifiedRuns || 0) > 0 ? ` · ${directEvidence.verifiedRuns} verified` : ''}
           </p>
@@ -109,7 +114,7 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="mt-1.5 inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 hover:underline"
+            className="mt-1.5 inline-flex items-center gap-1 text-xs text-state-ok hover:underline"
           >
             {isAgent ? `View agent: ${name}` : isOrg ? `Your skill: ${name}` : `View skill: ${name}`}
             <span aria-hidden="true">→</span>
@@ -129,6 +134,8 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
             ))}
           </ul>
         ) : null}
+          </div>
+        </details>
       </div>
 
       {bound && step.ref && (

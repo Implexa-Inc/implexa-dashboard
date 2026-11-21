@@ -33,7 +33,7 @@ export default async function BrowsePage() {
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Browse agents</h1>
           <p className="text-ink-300 text-sm mt-1">
             Proven agents the community runs — search, filter by category, and pick one to make your own.
-            Or <Link href="/create" className="text-brand-500 hover:underline">describe a new one</Link>.
+            Or <Link href="/create" className="text-action-accent hover:underline">describe a new one</Link>.
           </p>
         </header>
         <AgentDiscoveryCatalog

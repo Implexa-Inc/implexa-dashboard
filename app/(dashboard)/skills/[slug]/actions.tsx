@@ -226,7 +226,7 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
       </section>}
       {editNotice && <p role="status" className="text-xs">{editNotice}</p>}
 
-      {error && <p className="text-xs text-red-600 text-right">{error}</p>}
+      {error && <p className="text-xs text-state-fail text-right">{error}</p>}
 
       {/* Delete confirmation modal — overlays the whole page. Custom-built
         * because window.confirm() is too easy to dismiss accidentally, and
@@ -269,7 +269,7 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
                 type="button"
                 onClick={deleteSkill}
                 disabled={busy === 'delete'}
-                className="btn bg-red-600 text-white hover:bg-red-700"
+                className="btn bg-action-danger text-[var(--on-action-danger)] hover:bg-action-danger-hover"
               >
                 {busy === 'delete' ? 'Deleting…' : 'Delete permanently'}
               </button>
@@ -389,7 +389,7 @@ function MoreActionsMenu({
               role="menuitem"
               disabled={!!busy}
               onClick={() => { setOpen(false); onDelete(); }}
-              className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors flex items-center gap-2 disabled:opacity-50"
+              className="w-full text-left px-3 py-2 text-sm text-state-fail hover:bg-red-500/10 transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               <span aria-hidden="true" className="w-4 inline-block">🗑</span>
               <span>Delete permanently</span>
@@ -440,7 +440,7 @@ function SharePanel({
   return (
     <div className="card !p-3 !border-brand-500/40 w-full mt-2">
       <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
-        <div className="text-xs font-medium text-brand-500">
+        <div className="text-xs font-medium text-action-accent">
           {share.shareMode === 'team' ? '🔒 Team share' : '🌐 Public share'} active
         </div>
         <div className="text-[10px] text-ink-400 tabular-nums">
@@ -469,7 +469,7 @@ function SharePanel({
         <button
           onClick={onRevoke}
           disabled={revoking}
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 px-2 py-1 rounded transition-colors whitespace-nowrap disabled:opacity-50"
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-state-fail hover:text-state-fail hover:text-state-fail hover:bg-red-500/10 px-2 py-1 rounded transition-colors whitespace-nowrap disabled:opacity-50"
           aria-label={share.shareMode === 'public' ? 'Undo public share' : 'Revoke team share'}
         >
           {/* Trash icon — inline SVG, no external dep. 12px to sit balanced with the 11px text. */}

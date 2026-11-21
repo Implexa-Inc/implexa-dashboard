@@ -60,7 +60,7 @@ async function currentOwner(ctx: OwnerOperationContext, requireToken = false) {
 }
 
 export async function loadOwnerView(ctx: OwnerOperationContext, operation: 'declare' | 'revoke') {
-  if (!ctx.bridge.managedBrowserNoSpendContext) throw Error('Open this Agent in an updated Implexa app.');
+  if (!ctx.bridge.managedBrowserNoSpendContext) throw Error('Open this Agent in an updated Tukido app.');
   await currentOwner(ctx);
   const response = await ctx.bridge.managedBrowserNoSpendContext({ ...ctx.target, ...(operation === 'revoke' ? { operation: 'revoke' as const } : {}) });
   await currentOwner(ctx);
@@ -94,7 +94,7 @@ export async function ownerDecisionDigest(decision: OwnerDecision): Promise<stri
 }
 
 export async function confirmOwnerDecision(ctx: OwnerOperationContext, decision: OwnerDecision) {
-  if (!ctx.bridge.confirmManagedBrowserNoSpend) throw Error('Open this Agent in an updated Implexa app.');
+  if (!ctx.bridge.confirmManagedBrowserNoSpend) throw Error('Open this Agent in an updated Tukido app.');
   const decisionDigest = await ownerDecisionDigest(decision);
   let session: OwnerSession | null = await currentOwner(ctx, true);
   try {

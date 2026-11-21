@@ -37,7 +37,7 @@ export default async function RunEnvironmentPage() {
   } catch { /* none set yet */ }
 
   return (
-    <main className="min-h-screen px-4 py-12">
+    <main className="app-page">
       <div className="max-w-2xl mx-auto">
         <nav className="text-xs text-ink-500 mb-4">
           <Link href="/settings" className="hover:underline">← Settings</Link>
@@ -75,5 +75,5 @@ export default async function RunEnvironmentPage() {
 }
 
 export const metadata = {
-  title: 'Run environment — Implexa',
+  title: 'Run environment — Tukido',
 };

@@ -64,7 +64,7 @@ export default async function RunCardPage({ params }: { params: { token: string 
         {/* The outcome */}
         <div className="rounded-xl border border-ink-800 bg-ink-900/40 p-5">
           <div className="flex items-center gap-2 text-[11px] text-ink-500 mb-2">
-            <span className="text-emerald-400">●</span> Agent run
+            <span className="text-state-ok">●</span> Agent run
             {card.creatorName ? <span>· by {card.creatorName}</span> : null}
             {card.ranAt ? <span>· {new Date(card.ranAt).toLocaleDateString()}</span> : null}
           </div>
@@ -72,7 +72,7 @@ export default async function RunCardPage({ params }: { params: { token: string 
           <p className="text-sm text-ink-400 mt-1">
             from the <span className="font-mono text-ink-300">{agentName}</span> agent
             {pct !== null && card.grade ? (
-              <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/[0.07] px-2 py-0.5 text-[11px] text-emerald-300">
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/[0.07] px-2 py-0.5 text-[11px] text-state-ok">
                 ✓ delivered {pct}% · {card.grade.runs} real runs
               </span>
             ) : null}
@@ -83,7 +83,7 @@ export default async function RunCardPage({ params }: { params: { token: string 
             <ol className="mt-4 space-y-1.5 text-sm">
               {card.stepsState.map((s) => (
                 <li key={s.index} className="flex items-start gap-2 text-ink-300">
-                  <span className={s.status === 'done' ? 'text-emerald-400' : 'text-ink-600'}>
+                  <span className={s.status === 'done' ? 'text-state-ok' : 'text-ink-600'}>
                     {s.status === 'done' ? '✓' : '•'}
                   </span>
                   <span>{s.label}</span>
@@ -117,7 +117,7 @@ export default async function RunCardPage({ params }: { params: { token: string 
         </div>
 
         <p className="mt-6 text-center text-[11px] text-ink-600">
-          Built and graded on real runs by Implexa · {card.viewCount} view{card.viewCount === 1 ? '' : 's'}
+          Built and graded on real runs by Tukido · {card.viewCount} view{card.viewCount === 1 ? '' : 's'}
         </p>
       </div>
     </main>

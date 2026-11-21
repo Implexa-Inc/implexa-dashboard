@@ -221,9 +221,9 @@ export function describeSavedInputError(code: string | undefined, field: Workflo
     case 'no_saved_input':
       return '';
     case 'saved_inputs_unsupported':
-      return 'This copy of Implexa can’t reuse saved files yet. Choose the file for this run.';
+      return 'This copy of Tukido can’t reuse saved files yet. Choose the file for this run.';
     case 'saved_input_unavailable':
-      return 'Could not reach Implexa to check your saved file. Choose it for this run, or try again.';
+      return 'Could not reach Tukido to check your saved file. Choose it for this run, or try again.';
     case 'not_linked':
       return 'Implexa Desktop is not linked to your account yet. Sign in from the desktop app, then reopen this.';
     case 'source_changed_while_hashing':

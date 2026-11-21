@@ -100,7 +100,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
       // read and verifies the exact bytes before this UI may consume the grant.
       const bridge = localInputBridge();
       if (!bridge?.localInputReauthorizationState) {
-        setError('Open this run in Implexa on the source Mac before retrying. Nothing was queued.');
+        setError('Open this run in Tukido on the source Mac before retrying. Nothing was queued.');
         return;
       }
       const archiveRequestId = presentation.failureCode === 'paid_settled_batch_resume' ? requestId : undefined;
@@ -110,15 +110,15 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
         return;
       }
       if (state?.error === 'paid_action_settlement_recovery_pending') {
-        setError('Wait for Implexa to finish recovering and archiving the existing paid clip before resuming. Nothing was queued.');
+        setError('Wait for Tukido to finish recovering and archiving the existing paid clip before resuming. Nothing was queued.');
         return;
       }
       if (presentation.failureCode === 'paid_settled_batch_resume' && state?.paidSettlementArchiveChecked !== true) {
-        setError('This Implexa app cannot confirm that paid settlement recovery finished. Update the app before resuming; nothing was queued.');
+        setError('This Tukido app cannot confirm that paid settlement recovery finished. Update the app before resuming; nothing was queued.');
         return;
       }
       if (presentation.renderOnly && (state?.paidRenderReadinessChecked !== true || state?.paidRenderBindingVersion !== 1)) {
-        setError('This Implexa app cannot confirm render-only recovery readiness. Update the app before resuming; nothing was queued.');
+        setError('This Tukido app cannot confirm render-only recovery readiness. Update the app before resuming; nothing was queued.');
         return;
       }
       if (!state?.ok || typeof state.applicable !== 'boolean'
@@ -127,7 +127,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
       }
       if (state.applicable && state.required) {
         if (!bridge.reauthorizeRunInputs) {
-          setError('This Implexa app cannot reconnect the original file; nothing was queued.');
+          setError('This Tukido app cannot reconnect the original file; nothing was queued.');
           return;
         }
         const restored = await bridge.reauthorizeRunInputs(runId);
@@ -183,14 +183,14 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
         <li>{RUN_AGAIN_DISTINCTION}</li>
       </ul>}
       {presentation.state === 'disabled' && (
-        <p className="mt-2 text-xs text-amber-300">
+        <p className="mt-2 text-xs text-state-needs">
           {presentation.workMayHaveOccurred ? 'Retry safely is unavailable because work or an external action may have occurred: ' : 'Retry safely is unavailable: '}
           {presentation.explanation}
         </p>
       )}
       {presentation.state === 'available' && !confirming && (
         <button type="button" onClick={() => setConfirming(true)} disabled={busy}
-          className="mt-2 rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60">
+          className="mt-2 rounded-md bg-action-strong px-3 py-1.5 text-xs font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover disabled:cursor-not-allowed disabled:opacity-60">
           {judgeReview ? JUDGE_RETRY_LABEL : 'Retry safely'}
         </button>
       )}
@@ -198,7 +198,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span className="text-xs text-ink-300">{judgeReview ? 'Queue the same final review?' : presentation.ownerRecoveryIndex ? `Use owner recovery ${presentation.ownerRecoveryIndex} of ${presentation.ownerRecoveryLimit} for this closed attempt?` : presentation.failureCode === 'paid_owner_closed_prelaunch_recovery' ? 'Use the one additional recovery for this closed attempt?' : presentation.failureCode === 'paid_unacknowledged_lease_retirement' ? 'Retire the expired lease and use the one additional recovery?' : presentation.leaseRetirement ? 'Retire the expired lease and queue the same approved batch?' : 'Queue the same request with its frozen version and inputs?'}</span>
           <button type="button" onClick={() => void retry()} disabled={busy}
-            className="rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60">
+            className="rounded-md bg-action-strong px-3 py-1.5 text-xs font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover disabled:cursor-not-allowed disabled:opacity-60">
             {busy ? 'Queuing…' : judgeReview ? 'Queue final review' : 'Queue the same request'}
           </button>
           <button type="button" onClick={() => setConfirming(false)} disabled={busy}
@@ -207,7 +207,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
           </button>
         </div>
       )}
-      {error && <p role="alert" className="mt-2 text-xs text-rose-300">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-state-fail">{error}</p>}
     </div>
   );
 }

@@ -32,7 +32,7 @@ export default function RunInputVerificationProgress({ progress, canceling, onCa
     <div role="status" aria-label="Local input verification" className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/5 p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-sky-200">Reading locally to verify — not uploading</p>
+          <p className="text-xs font-medium text-state-running">Reading locally to verify — not uploading</p>
           <p className="mt-1 text-xs text-ink-400">
             {label} · {formatBytes(progress.bytesRead)}{totalKnown && <> of {formatBytes(totalBytes)} · {Math.round(percent)}%</>}
           </p>

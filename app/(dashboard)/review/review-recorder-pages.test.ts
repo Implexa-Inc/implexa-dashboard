@@ -767,3 +767,67 @@ test('reload restores active voice mode through owner-bound metadata without a n
   const read=b.calls.find(call=>call.operation==='getVoiceNote')!;assert.deepEqual(read.args,{recordingId:NEW,expectedOwnerId:ID});assert.equal(ops(b).some(op=>['start','startVoiceNote','transcribeVoiceNote'].includes(op)),false);
  }finally{page.cleanup();}
 });
+
+test('the picture note opens from a moment; Cancel restores the local note and Done saves explicitly', async()=>{
+ const original={momentId:M1,startMs:1000,endMs:4000,region:null,card:{...emptyCard(),whatToDo:'Keep the speaker clear'},createdAt:NOW};
+ const b=bridge((op,args)=>op==='get'?{ok:true,recording:detail({},[original])}:op==='preview'?previewOk:op==='saveMoments'?{ok:true,moments:args.moments}:{ok:true});
+ const page=await render(PLAYER,{recordingId:ID,ownerId:ID},{bridge:b.value});
+ try{
+  await page.act(()=>{});
+  const note=()=>page.document.querySelector('.recording-note') as HTMLElement;
+  assert.equal(note().hidden,true);
+  await page.click(page.document.querySelector('button[aria-label="Moment 1 at 00:01.000"]')!);
+  assert.equal(note().hidden,false);
+  await typeInto(page,page.document.querySelector('textarea')!,'Make the crop wider');
+  assert.equal(b.calls.filter(c=>c.operation==='saveMoments').length,0,'typing never autosaves');
+  await page.click(button(page,'Cancel')!);
+  assert.equal(note().hidden,true);
+  assert.equal(page.document.querySelector('textarea')!.value,original.card.whatToDo);
+  await page.click(page.document.querySelector('button[aria-label="Moment 1 at 00:01.000"]')!);
+  await typeInto(page,page.document.querySelector('textarea')!,'Make the crop wider');
+  await page.click(button(page,'Done')!);
+  assert.equal(note().hidden,true);
+  const sent=b.calls.find(c=>c.operation==='saveMoments')!.args as {moments:Array<typeof original>};
+  assert.equal(sent.moments[0].card.whatToDo,'Make the crop wider');
+  assert.equal(sent.moments[0].momentId,M1);
+ }finally{page.cleanup();}
+});
+
+test('moment endpoint keys adjust the range, preserve feedback and stay unsaved until Done',async()=>{
+ const original={momentId:M1,startMs:1000,endMs:4000,region:null,card:{...emptyCard(),whatToDo:'Use this example'},createdAt:NOW};
+ const b=bridge((op,args)=>op==='get'?{ok:true,recording:detail({},[original])}:op==='preview'?previewOk:op==='saveMoments'?{ok:true,moments:args.moments}:{ok:true});
+ const page=await render(PLAYER,{recordingId:ID,ownerId:ID},{bridge:b.value});
+ try{
+  await page.act(()=>{});
+  await key(page,page.document.querySelector('button[aria-label="End of moment 1"]')!,'ArrowRight');
+  assert.equal(b.calls.filter(c=>c.operation==='saveMoments').length,0);
+  await page.click(button(page,'Done')!);
+  const sent=b.calls.find(c=>c.operation==='saveMoments')!.args as {moments:Array<typeof original>};
+  assert.equal(sent.moments[0].endMs,4100);assert.equal(sent.moments[0].startMs,1000);
+  assert.equal(sent.moments[0].card.whatToDo,original.card.whatToDo);
+  assert.equal(page.document.querySelectorAll('input[aria-label="Seek video"]').length,1,'one accessible seek control');
+ }finally{page.cleanup();}
+});
+
+test('Mark this moment works on an uploaded recording without pointer samples',async()=>{
+ const b=bridge((op,args)=>op==='get'?{ok:true,recording:detail({origin:'imported'})}:op==='preview'?previewOk:op==='saveMoments'?{ok:true,moments:args.moments}:{ok:true});
+ const page=await render(PLAYER,{recordingId:ID,ownerId:ID},{bridge:b.value});
+ try{await page.act(()=>{});const video=page.document.querySelector('video')!;Object.defineProperty(video,'currentTime',{value:1250/1000,writable:true});
+  await page.click(button(page,'Mark this moment')!);
+  assert.equal(page.document.querySelectorAll('textarea').length,1);
+  await typeInto(page,page.document.querySelector('textarea')!,'Keep this example');await page.click(button(page,'Done')!);
+  const m=(b.calls.find(c=>c.operation==='saveMoments')!.args as {moments:Array<{startMs:number;endMs:number;region:unknown}>}).moments[0];
+  assert.equal(m.startMs,1250);assert.equal(m.endMs,1250);assert.deepEqual(m.region,{x:0,y:0,width:1000000,height:1000000});
+ }finally{page.cleanup();}
+});
+
+test('Cancel after Save feedback restores the saved note rather than undoing it',async()=>{
+ const original={momentId:M1,startMs:1000,endMs:4000,region:null,card:{...emptyCard(),whatToDo:'Original'},createdAt:NOW};
+ const b=bridge((op,args)=>op==='get'?{ok:true,recording:detail({},[original])}:op==='preview'?previewOk:op==='saveMoments'?{ok:true,moments:args.moments}:{ok:true});
+ const page=await render(PLAYER,{recordingId:ID,ownerId:ID},{bridge:b.value});
+ try{await page.act(()=>{});await page.click(page.document.querySelector('button[aria-label="Moment 1 at 00:01.000"]')!);
+  await typeInto(page,page.document.querySelector('textarea')!,'Saved change');await page.click(button(page,'Save feedback')!);
+  await typeInto(page,page.document.querySelector('textarea')!,'Unsaved change');await page.click(button(page,'Cancel')!);
+  assert.equal(page.document.querySelector('textarea')!.value,'Saved change');assert.equal(button(page,'Saved')!.disabled,true);
+ }finally{page.cleanup();}
+});

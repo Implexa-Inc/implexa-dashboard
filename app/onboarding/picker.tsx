@@ -82,7 +82,7 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
           We'll set up a fresh workspace for <strong>{email}</strong>. You can invite teammates anytime.
         </p>
         {error && (
-          <div className="rounded-lg border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-700 dark:text-red-400 leading-relaxed">
+          <div className="rounded-lg border border-red-500/40 bg-red-500/5 p-3 text-sm text-state-fail leading-relaxed">
             <p className="font-medium mb-0.5">Setup didn&apos;t go through</p>
             <p className="text-xs opacity-90">{error}</p>
             <p className="text-xs mt-1.5 opacity-70">Try again — most setup hiccups are transient and clear on retry.</p>
@@ -101,7 +101,7 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
         <h2 className="text-lg font-medium">Join your team?</h2>
         <p className="text-sm text-ink-500 mt-1">
           <strong>{suggestion.memberCount} member{suggestion.memberCount === 1 ? '' : 's'}</strong> from your domain
-          already use Implexa in the <strong>{suggestion.organizationName}</strong> workspace.
+          already use Tukido in the <strong>{suggestion.organizationName}</strong> workspace.
         </p>
       </div>
 
@@ -112,7 +112,7 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
         </p>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-state-fail">{error}</p>}
 
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => provision(suggestion.organizationId)} disabled={!!loading} className="btn-primary">

@@ -233,7 +233,7 @@ test('Desktop managed copies use the canonical wire value and render their local
   }) } });
   try {
     await rendered.click(rendered.getByText('Add verified artifact'));
-    assert.ok(rendered.queryByText('Copied into Implexa-managed storage for this run.'));
+    assert.ok(rendered.queryByText('Copied into Tukido-managed storage for this run.'));
     assert.equal(rendered.queryByText(/Kept on its current drive/), null);
   } finally { rendered.cleanup(); }
 });
@@ -247,7 +247,7 @@ test('an unknown Desktop storage mode is not assigned either storage authority',
     await rendered.click(rendered.getByText('Add verified artifact'));
     assert.ok(rendered.queryByText('future-video.mp4'));
     assert.equal(rendered.queryByText(/Kept on its current drive/), null);
-    assert.equal(rendered.queryByText(/Copied into Implexa-managed storage/), null);
+    assert.equal(rendered.queryByText(/Copied into Tukido-managed storage/), null);
   } finally { rendered.cleanup(); }
 });
 

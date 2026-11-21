@@ -97,12 +97,12 @@ export default function CliAuthApproval({
         <h1 className="text-2xl font-semibold text-ink-50 mb-3">You&apos;re signed in.</h1>
         <p className="text-ink-200 leading-relaxed mb-6">
           {isApp
-            ? 'All set — this window closes itself and Implexa picks up from here.'
+            ? 'All set — this window closes itself and Tukido picks up from here.'
             : 'Return to your terminal — the install will continue automatically. You can close this tab.'}
         </p>
         <div className="text-xs text-ink-400 border-t border-ink-700 pt-4 leading-relaxed">
           Signed in as <strong className="text-ink-200">{email}</strong>. We minted a fresh API key for this install — view or revoke it any time from{' '}
-          <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Settings → API keys</Link>.
+          <Link href="/settings/api-keys" className="text-action-accent hover:underline">Settings → API keys</Link>.
         </div>
       </div>
     );
@@ -135,7 +135,7 @@ export default function CliAuthApproval({
           curl -fsSL https://core.implexa.ai/install.sh | bash
         </code>
         <p className="text-xs text-ink-400">
-          Or visit <Link href="/install" className="text-brand-500 hover:underline">/install</Link> for the full guide.
+          Or visit <Link href="/install" className="text-action-accent hover:underline">/install</Link> for the full guide.
         </p>
       </div>
     );
@@ -146,10 +146,10 @@ export default function CliAuthApproval({
     return (
       <div className="card">
         <h1 className="text-xl font-semibold text-ink-50 mb-3">Couldn&apos;t complete approval.</h1>
-        <p className="text-red-600 dark:text-red-400 text-sm mb-4">{errorMsg}</p>
+        <p className="text-state-fail text-sm mb-4">{errorMsg}</p>
         <p className="text-ink-300 text-sm mb-4 leading-relaxed">
           If you just signed up, you may need to{' '}
-          <Link href="/onboarding" className="text-brand-500 hover:underline">finish onboarding</Link>{' '}
+          <Link href="/onboarding" className="text-action-accent hover:underline">finish onboarding</Link>{' '}
           first (create or join an organization). Then come back here and click Approve again.
         </p>
         <button
@@ -168,12 +168,12 @@ export default function CliAuthApproval({
     <div className="card">
       <h1 className="text-xl font-semibold text-ink-50 mb-2">Authorize CLI install</h1>
       <p className="text-sm text-ink-300 leading-relaxed mb-5">
-        Your terminal is asking permission to log in to Implexa as <strong className="text-ink-100">{email}</strong>.
+        Your terminal is asking permission to log in to Tukido as <strong className="text-ink-100">{email}</strong>.
       </p>
 
       <div className="rounded-lg border border-ink-700 bg-ink-900 px-4 py-5 mb-4 text-center">
         <p className="text-xs uppercase tracking-wider text-ink-400 mb-2">Verification code</p>
-        <p className="text-3xl font-mono font-bold tracking-widest text-brand-500 select-all">
+        <p className="text-3xl font-mono font-bold tracking-widest text-action-accent select-all">
           {verificationCode}
         </p>
         <p className="text-xs text-ink-400 mt-3 leading-relaxed">
@@ -202,7 +202,7 @@ export default function CliAuthApproval({
 
       <p className="text-xs text-ink-400 leading-relaxed">
         Approving will mint a fresh API key on your account — visible in{' '}
-        <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Settings → API keys</Link>{' '}
+        <Link href="/settings/api-keys" className="text-action-accent hover:underline">Settings → API keys</Link>{' '}
         as <em>&ldquo;Install ({new Date().toISOString().slice(0, 10)})&rdquo;</em>. You can revoke it any time.
       </p>
     </div>

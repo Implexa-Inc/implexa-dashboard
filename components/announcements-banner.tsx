@@ -122,7 +122,7 @@ function AnnouncementCard({ announcement, onDismiss }: { announcement: Announcem
             href={ctaUrl}
             target={ctaUrl.startsWith('http') ? '_blank' : undefined}
             rel={ctaUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
-            className="inline-block mt-2 text-xs font-medium text-brand-500 hover:underline"
+            className="inline-block mt-2 text-xs font-medium text-action-accent hover:underline"
           >
             {ctaText} →
           </a>

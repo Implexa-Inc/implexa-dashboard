@@ -13,10 +13,10 @@ import { creditsLine, deriveClipProgress, progressPresentation } from '@/lib/gen
 import { unavailableModeCopy, qualityModeLabel } from '@/lib/quality-mode';
 
 const TONE_CLASSES: Record<string, string> = {
-  ok: 'bg-emerald-500/15 text-emerald-300',
-  active: 'bg-sky-500/15 text-sky-300',
-  attention: 'bg-amber-500/15 text-amber-300',
-  bad: 'bg-red-500/15 text-red-300',
+  ok: 'bg-emerald-500/15 text-state-ok',
+  active: 'bg-sky-500/15 text-state-running',
+  attention: 'bg-amber-500/15 text-state-needs',
+  bad: 'bg-red-500/15 text-state-fail',
   muted: 'bg-ink-800 text-ink-400',
 };
 
@@ -35,13 +35,13 @@ export default function GenerationProgressCard({ vm }: { vm: GenerationProposalV
       <p className="mt-2 text-sm text-ink-200">{presentation.description}</p>
 
       {vm.progress === 'unavailable' && vm.unavailableReason && (
-        <p className="mt-2 text-xs text-amber-300">
+        <p className="mt-2 text-xs text-state-needs">
           {unavailableModeCopy(vm.qualityMode, vm.unavailableReason, vm.requiredMissingCapabilities)}
         </p>
       )}
 
       {presentation.doNotRetry && (
-        <p className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">
+        <p className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-state-needs">
           Because the outcome is unknown, no retry is offered here. A retry could
           pay for the same clips twice.
         </p>

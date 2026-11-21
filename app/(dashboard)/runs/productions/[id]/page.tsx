@@ -48,7 +48,7 @@ export default async function OutcomeProductionPage({ params }: { params: { id: 
 
         {load.status === 'unavailable' ? (
           <div role="status" aria-label="Production unavailable" className="card p-6 border-amber-500/40">
-            <p className="text-sm text-amber-300">
+            <p className="text-sm text-state-needs">
               We can’t show this production right now — this is not the same as it having stopped or finished.
             </p>
             <p className="text-xs text-ink-500 mt-2">{load.reason}</p>
@@ -120,7 +120,7 @@ export default async function OutcomeProductionPage({ params }: { params: { id: 
                 receipt route", and we cannot tell which. */}
             {load.receiptStatus === 'unavailable' && (
               <div role="status" aria-label="Receipt unavailable" className="card p-5 border-amber-500/40">
-                <p className="text-sm text-amber-300">
+                <p className="text-sm text-state-needs">
                   This production has settled, but we couldn’t read its receipt. Its costs and artifacts are unread — this is not a claim that none exist.
                 </p>
               </div>

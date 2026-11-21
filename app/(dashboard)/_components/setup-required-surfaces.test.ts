@@ -129,7 +129,7 @@ test('GAP 5 — setup remediation from a continuation with NO slug: "Open setup"
     await r.click(r.getByText('Finish this run'));
     await settle(r);
     assert.ok(r.queryByText(TITLE));
-    await r.click(r.getByText('Open setup in Implexa'));
+    await r.click(r.getByText('Open setup in Tukido'));
     await settle(r);
     assert.deepEqual(r.calls.push, [`/settings/machine-setup/visual-evidence-remotion-compositor/machine/mac-mini-a/version/${VERSION}`]);
     assert.equal(r.calls.push.some((p) => p.includes('this-agent')), false);
@@ -154,7 +154,7 @@ test('GAP 5 — a continuation whose card names no agent routes from the slug + 
     });
     await named.click(named.getByText('Continue & re-run'));
     await settle(named);
-    await named.click(named.getByText('Open setup in Implexa'));
+    await named.click(named.getByText('Open setup in Tukido'));
     await settle(named);
     assert.deepEqual(named.calls.push, ['/settings/machine-setup/visual-evidence-remotion-compositor/machine/mac-mini-a/version/44444444-4444-4444-8444-444444444444']);
   } finally { named.cleanup(); }
@@ -162,7 +162,7 @@ test('GAP 5 — a continuation whose card names no agent routes from the slug + 
   try {
     await bare.click(bare.getByText('Finish this run'));
     await settle(bare);
-    await bare.click(bare.getByText('Open setup in Implexa'));
+    await bare.click(bare.getByText('Open setup in Tukido'));
     await settle(bare);
     assert.deepEqual(bare.calls.push, [], 'no agent is known → no navigation at all');
     assert.match(bare.text(), /could not tell which agent this setup is for/);

@@ -112,10 +112,10 @@ export type RecorderChange = { ownerId:string; recordingId: string; state: strin
 
 export function recorderStartFailureMessage(failure: RecorderStartFailure): string {
   if (failure.reason === 'source_missing') return 'The selected screen or window disappeared before recording started. No recording was saved.';
-  if (failure.reason === 'source_binding_missing') return 'Implexa could not verify the selected capture source. No recording was saved.';
+  if (failure.reason === 'source_binding_missing') return 'Tukido could not verify the selected capture source. No recording was saved.';
   if (failure.phase === 'countdown_deadline') return 'Capture did not start in time. No recording was saved.';
   return failure.phase === 'display'
-    ? 'Implexa could not capture the selected screen or window. No recording was saved.'
+    ? 'Tukido could not capture the selected screen or window. No recording was saved.'
     : 'Video recording could not start. No recording was saved.';
 }
 

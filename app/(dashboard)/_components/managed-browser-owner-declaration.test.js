@@ -93,7 +93,7 @@ test('revoke uses retained real producer identities without a normal/browser pre
 
 test('failed read stays unavailable, missing bridge offers app path, and account switch clears confirmation', async () => {
   const missing = await ui({ noBridge: true });
-  try { assert.match(missing.text(), /updated Implexa app/); assert.equal(document.querySelector('button'), null); } finally { await missing.close(); }
+  try { assert.match(missing.text(), /updated Tukido app/); assert.equal(document.querySelector('button'), null); } finally { await missing.close(); }
   const failed = await ui({ read: async () => ({ ok: false }) });
   try { await failed.click('Review statement'); assert.match(failed.text(), /unavailable/); assert.equal(document.querySelector('form'), null); } finally { await failed.close(); }
   const switched = await ui();

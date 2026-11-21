@@ -97,12 +97,12 @@ export function resolveEditSeed(
 export const EDIT_SEED_COPY = {
   source_unverified: {
     title: "This plan's source video hasn't had its length verified yet.",
-    body: 'The plan you are editing was compiled against a specific video, and its moments are bounded by that video’s length — which Implexa Desktop has not verified yet. Open Implexa Desktop and it will verify the video; then reload this page to continue editing. Implexa will not silently rebuild this plan against a different file.',
+    body: 'The plan you are editing was compiled against a specific video, and its moments are bounded by that video’s length — which Implexa Desktop has not verified yet. Open Implexa Desktop and it will verify the video; then reload this page to continue editing. Tukido will not silently rebuild this plan against a different file.',
     action: 'Open Implexa Desktop to verify this video’s duration.',
   },
   source_missing: {
     title: "This plan's source video is no longer available on this run.",
-    body: 'The plan you are editing was compiled against a video that is no longer among this run’s validated final outputs — it may have been replaced or re-rendered. Implexa will not silently rebuild the plan against a different file: choose a source below to recompile these moments against it, deliberately.',
+    body: 'The plan you are editing was compiled against a video that is no longer among this run’s validated final outputs — it may have been replaced or re-rendered. Tukido will not silently rebuild the plan against a different file: choose a source below to recompile these moments against it, deliberately.',
     action: null,
   },
 } as const;

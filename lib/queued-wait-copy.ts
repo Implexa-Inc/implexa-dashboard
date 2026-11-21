@@ -76,7 +76,7 @@ export function queuedWaitNotice(input: QueuedWaitInput): QueuedWaitNotice | nul
   // run is auto-routed and the true statement is that Implexa is choosing.
   const headline = pin
     ? `Still queued. This agent is pinned to ${ENGINE_LABEL[pin]}, so it waits for ${ENGINE_LABEL[pin]} specifically.`
-    : 'Still queued. Implexa is picking an available engine on your Mac to run this.';
+    : 'Still queued. Tukido is picking an available engine on your Mac to run this.';
 
   const declared = typeof input.declaredBlock === 'string' && input.declaredBlock.trim()
     ? input.declaredBlock.trim()
@@ -85,8 +85,8 @@ export function queuedWaitNotice(input: QueuedWaitInput): QueuedWaitNotice | nul
   // NO CAUSE IS ASSERTED HERE. This says what is true of the queue itself (it is
   // still being routed, nothing is lost) and what the user can do — not why.
   const detail = pin
-    ? 'It starts as soon as that engine is free and the Implexa app is running. Nothing is lost. You can switch this agent to run on any available engine in its settings.'
-    : 'Any of your engines can take it — one being busy or at its usage limit does not block the others. It starts as soon as one picks it up, and nothing is lost. If it keeps waiting, check that the Implexa app is running and your Mac is awake.';
+    ? 'It starts as soon as that engine is free and the Tukido app is running. Nothing is lost. You can switch this agent to run on any available engine in its settings.'
+    : 'Any of your engines can take it — one being busy or at its usage limit does not block the others. It starts as soon as one picks it up, and nothing is lost. If it keeps waiting, check that the Tukido app is running and your Mac is awake.';
 
   return { headline, block: declared, detail };
 }

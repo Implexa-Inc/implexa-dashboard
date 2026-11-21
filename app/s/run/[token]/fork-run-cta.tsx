@@ -28,5 +28,5 @@ export default function ForkRunCta({skillSlug,versionId,source}:{skillSlug:strin
  </div>;
  return <div><button type="button" disabled={busy} onClick={fork} className="rounded border border-ink-600 px-3 py-2 text-sm disabled:opacity-60">{busy?'Creating private fork…':'Make a private fork'}</button>
   <p className="text-xs text-ink-400">A trainer reviewing the permission link can see your account ID and this fork’s name.</p>
-  {msg&&<p role="alert" className="text-sm text-amber-500">{msg}</p>}</div>;
+  {msg&&<p role="alert" className="text-sm text-state-needs">{msg}</p>}</div>;
 }

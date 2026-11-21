@@ -68,7 +68,7 @@ export default function CheckpointedContinuationHistoryCard({ history }:
           <span title={item.continuationAttemptId || undefined}>continuation {short(item.continuationAttemptId)}</span>
           {item.materializationDigest && <span title={item.materializationDigest}>materialization {short(item.materializationDigest)}</span>}
         </div>
-        {item.attemptExitClassification && <p className="mt-2 text-amber-700 dark:text-amber-300">Attempt exit: {item.attemptExitClassification}</p>}
+        {item.attemptExitClassification && <p className="mt-2 text-state-needs">Attempt exit: {item.attemptExitClassification}</p>}
       </li>)}
     </ol>
   </section>;

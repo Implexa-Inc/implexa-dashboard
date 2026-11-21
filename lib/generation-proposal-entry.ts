@@ -230,11 +230,11 @@ export function proposalEntryError(
 ): string {
   if (operation === 'create' && !responseOk
     && (responseStatus === null || responseStatus >= 500 || (object(body) && body.unavailable === true))) {
-    return "Implexa couldn't confirm whether the proposal was created. Reload this run before trying again; do not approve from this response.";
+    return "Tukido couldn't confirm whether the proposal was created. Reload this run before trying again; do not approve from this response.";
   }
   if (object(body) && body.unavailable === true) return 'The generation service did not give a reliable answer. Nothing should be approved from this response.';
   if (object(body) && typeof body.error === 'string' && body.error) return `The proposal was refused (${body.error}).`;
   return responseOk
-    ? 'The generation service answered in an unexpected form, so Implexa refused to use it.'
+    ? 'The generation service answered in an unexpected form, so Tukido refused to use it.'
     : 'The generation service could not prepare this proposal.';
 }

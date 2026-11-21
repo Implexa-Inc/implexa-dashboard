@@ -69,19 +69,19 @@ export default function GetStartedIntent({ connected = false }: { connected?: bo
       >
         ×
       </button>
-      <div className="text-xs uppercase tracking-wider text-brand-500 mb-2 font-mono">Your agent is ready to build</div>
+      <div className="text-xs uppercase tracking-wider text-action-accent mb-2 font-mono">Your agent is ready to build</div>
       <blockquote className="text-lg text-ink-50 font-medium leading-snug border-l-2 border-brand-500/50 pl-3 mb-3">
         “{intent}”
       </blockquote>
       <p className="text-sm text-ink-300 leading-relaxed mb-4">
         {queued
-          ? 'Saved. One step left: get the Implexa app. It connects your own Claude or Codex, then this agent builds itself and runs there, as you, free on the plan you already pay for.'
-          : 'We’ve got your idea. Get the Implexa app and it builds itself, runs as you on your own Claude or Codex, free.'}
+          ? 'Saved. One step left: get the Tukido app. It connects your own Claude or Codex, then this agent builds itself and runs there, as you, free on the plan you already pay for.'
+          : 'We’ve got your idea. Get the Tukido app and it builds itself, runs as you on your own Claude or Codex, free.'}
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
         <a href={macDownloadUrl()} className="btn-success text-sm px-5 py-2.5 inline-flex items-center gap-2">
-          ↓ Download the Implexa app
+          ↓ Download the Tukido app
         </a>
         <a href="/install" className="text-xs text-ink-400 hover:text-ink-200">
           Prefer the terminal? Connect with one command →

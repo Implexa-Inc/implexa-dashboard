@@ -99,7 +99,7 @@ export default function AgentBrowserConnect({
 
   if (phase === 'connected') {
     return (
-      <p className="text-sm text-emerald-600 dark:text-emerald-400">✓ Browser connected — this agent now runs hands-free.</p>
+      <p className="text-sm text-state-ok">✓ Browser connected — this agent now runs hands-free.</p>
     );
   }
 
@@ -123,7 +123,7 @@ export default function AgentBrowserConnect({
   if (phase === 'timeout') {
     return (
       <div className="flex flex-col gap-1.5">
-        <p className="text-xs text-amber-600 dark:text-amber-400 leading-snug">
+        <p className="text-xs text-state-needs leading-snug">
           Didn&apos;t detect the browser yet. Finish approving in Claude, then it&apos;ll update — or try again.
         </p>
         <button type="button" onClick={connect} className="btn-success text-xs px-3 py-1.5 self-start">

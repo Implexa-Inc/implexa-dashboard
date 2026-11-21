@@ -25,15 +25,18 @@ test('favorites float into their own top section and are removed from the lower 
   for (const s of ['scheduled', 'on_demand', 'not_activated', 'paused']) {
     assert.match(SRC, new RegExp(`a\\.section === '${s}' && !a\\.favorite`), `the ${s} section excludes favorites`);
   }
-  assert.match(SRC, /<Section title="★ Favorites"/, 'the Favorites section is rendered');
+  assert.match(SRC, /<Section title="Favorites"/, 'the Favorites section is rendered');
 });
 
-test('a running FAVORITE still appears in the live spotlight (not hidden by the exclusion)', () => {
-  // recentlyActive must be computed from `shown` (incl. favorites), not `activated`
-  // (favorites-excluded), or a starred agent that is running vanishes from the pulse.
-  const rc = SRC.slice(SRC.indexOf('const recentlyActive ='), SRC.indexOf('const setCat'));
-  assert.match(rc, /shown\s*\.filter\(\(a\) => a\.section === 'scheduled' \|\| a\.section === 'on_demand'\)/,
-    'the spotlight includes favorites by filtering `shown`, not the favorites-excluded roster');
+test('a running favorite has one roster row and keeps its live result link', async () => {
+  const {render}=await import('../../../lib/test/render.ts');
+  const page=await render('agents-list.tsx',{agents:[{slug:'test-agent',name:'Test agent',source:'generated',section:'on_demand',category:{key:'video',label:'Video',emoji:''},favorite:true,lastRun:{id:'run-1',runState:'running',status:'running',ranAt:new Date().toISOString()}}]});
+  try{
+    assert.equal(page.document.querySelectorAll('a[href="/workflows/test-agent?source=generated"]').length,1);
+    assert.equal(page.document.querySelectorAll('a[href="/runs/run-1"]').length,1);
+    assert.doesNotMatch(page.text(),/Running & recently ran/);
+    assert.match(page.text(),/Favorites/);assert.match(page.text(),/View live/);
+  }finally{page.cleanup();}
 });
 
 test('search filters the roster client-side by name or category', () => {

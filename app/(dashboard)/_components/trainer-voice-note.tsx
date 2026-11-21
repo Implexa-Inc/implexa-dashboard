@@ -25,7 +25,7 @@ export function sameVoiceAttach(value:unknown,expected:VoiceNoteAttach){
  return region.x===wanted.x&&region.y===wanted.y&&region.width===wanted.width&&region.height===wanted.height;
 }
 class VoiceError extends Error{constructor(public reason:string,message:string){super(message);}}
-const voiceMessage=(reason:string)=>reason==='asr_unavailable'?'Voice transcription is unavailable. You can retry this saved note or keep typing.':reason==='no_speech'?"We couldn’t hear anything in this note. Check the selected microphone and record again.":reason==='microphone_unavailable'?'The microphone is unavailable. Check Implexa’s microphone access, then try again.':reason==='transcript_invalid'?"We couldn’t turn this note into text. Record again, or type your feedback.":'The voice note could not be completed. Your typed feedback is unchanged.';
+const voiceMessage=(reason:string)=>reason==='asr_unavailable'?'Voice transcription is unavailable. You can retry this saved note or keep typing.':reason==='no_speech'?"We couldn’t hear anything in this note. Check the selected microphone and record again.":reason==='microphone_unavailable'?'The microphone is unavailable. Check Tukido’s microphone access, then try again.':reason==='transcript_invalid'?"We couldn’t turn this note into text. Record again, or type your feedback.":'The voice note could not be completed. Your typed feedback is unchanged.';
 
 /** The existing trusted recorder owns audio and deletion; only edited text enters feedback. */
 export default function TrainerVoiceNote({ownerId,attach,onInsert,maxLength=600,onDirtyChange,disabled=false}:{ownerId:string;attach:VoiceNoteAttach;onInsert:(text:string)=>void;maxLength?:number;onDirtyChange?:(dirty:boolean)=>void;disabled?:boolean}){
@@ -106,12 +106,12 @@ export default function TrainerVoiceNote({ownerId,attach,onInsert,maxLength=600,
   {!available&&<span className="ml-2 text-ink-500">Update Desktop for voice notes</span>}
   {!noteId&&recoverable.length>0&&<details className="text-ink-400"><summary className="cursor-pointer">Saved voice notes for this mark ({recoverable.length})</summary>{recoverable.map(note=><button key={note.voiceNoteId} type="button" disabled={disabled||starting} className="mt-2 block underline underline-offset-4" onClick={()=>{++sequence.current;transcribed.current.delete(note.voiceNoteId);setNoteId(note.voiceNoteId);setState('recovering');setError('');}}>Recover voice note{note.createdAt?` · ${new Date(note.createdAt).toLocaleString()}`:''}</button>)}</details>}
   {state==='ready'&&<div className="rounded-lg border border-ink-700 p-3"><label className="block text-ink-400">Your voice note<textarea aria-label="Voice note transcript" value={text} onChange={event=>setText(event.target.value)} rows={3} className="mt-2 w-full rounded-md border border-ink-700 bg-ink-950 p-2 text-sm text-ink-100"/></label>
-   {text.trim().length>maxLength&&<p className="mt-2 text-amber-300">Shorten this to {maxLength} characters to fit the note. Nothing has been cut.</p>}
-   <button type="button" disabled={disabled||!text.trim()||text.trim().length>maxLength} className="mt-2 text-brand-400 disabled:opacity-40" onClick={()=>finish(true)}>Add to this note</button>
+   {text.trim().length>maxLength&&<p className="mt-2 text-state-needs">Shorten this to {maxLength} characters to fit the note. Nothing has been cut.</p>}
+   <button type="button" disabled={disabled||!text.trim()||text.trim().length>maxLength} className="mt-2 text-action-accent disabled:opacity-40" onClick={()=>finish(true)}>Add to this note</button>
    <button type="button" className="ml-4 text-ink-500" onClick={()=>finish(false)}>Dismiss voice note</button>
   </div>}
   {saved&&<p className="text-ink-500">Audio stays saved on this Mac. <button type="button" disabled={deleting} className="underline underline-offset-4 disabled:opacity-40" onClick={()=>void removeSaved()}>{deleting?'Deleting…':'Delete saved voice note…'}</button></p>}
-  {error&&<p role="alert" className="text-amber-300">{error}</p>}
+  {error&&<p role="alert" className="text-state-needs">{error}</p>}
   {canRetryTranscription&&noteId&&state==='failed'&&<button type="button" disabled={disabled||starting} className="underline underline-offset-4" onClick={()=>{setCanRetryTranscription(false);setError('');setState('recovering');setTranscriptionAttempt(value=>value+1);}}>Retry saved voice note</button>}
  </div>;
 }

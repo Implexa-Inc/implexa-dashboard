@@ -27,7 +27,7 @@ function Item({ title, detail, href, cta, warn = false }: {
     <div className={`card flex items-center justify-between gap-3 ${warn ? 'border-amber-500/40' : ''}`}>
       <div className="min-w-0">
         <p className="text-sm font-medium text-ink-100 truncate">{title}</p>
-        <p className={`text-xs mt-0.5 ${warn ? 'text-amber-700 dark:text-amber-300' : 'text-ink-500'}`}>{detail}</p>
+        <p className={`text-xs mt-0.5 ${warn ? 'text-state-needs' : 'text-ink-500'}`}>{detail}</p>
       </div>
       <Link href={href} className="btn-outline text-xs px-3 py-1.5 flex-none">{cta}</Link>
     </div>
@@ -56,7 +56,7 @@ function AttentionCard({ item }: { item: AttentionItem }) {
     <div className="card flex items-center justify-between gap-3 border-amber-500/40">
       <div className="min-w-0">
         <p className="text-sm font-medium text-ink-100 truncate">{who}</p>
-        <p className="text-xs mt-0.5 text-amber-700 dark:text-amber-300">{item.whatHappened}</p>
+        <p className="text-xs mt-0.5 text-state-needs">{item.whatHappened}</p>
         {item.actionDetail && (
           <p className="text-[11px] mt-1 text-ink-400">{item.actionDetail}</p>
         )}
@@ -94,7 +94,7 @@ export default function NeedsYouStrip({
       {warning && (
         <p
           role="status"
-          className="text-xs text-amber-700 dark:text-amber-300 border border-amber-500/40 rounded-md px-3 py-2"
+          className="text-xs text-state-needs border border-amber-500/40 rounded-md px-3 py-2"
         >
           {warning}
         </p>
@@ -112,7 +112,7 @@ export default function NeedsYouStrip({
           key={`stalled-${r.id}`}
           warn
           title={`${r.name} — stopped mid-run`}
-          detail="It started and then stopped without finishing. Open the run to see what Implexa found and what it needs."
+          detail="It started and then stopped without finishing. Open the run to see what Tukido found and what it needs."
           href={`/runs/${r.id}`}
           cta="See what it needs"
         />
@@ -145,7 +145,7 @@ export default function NeedsYouStrip({
         <div key={`missed-${m.id}`} className="card flex items-center justify-between gap-3 border-amber-500/40">
           <div className="min-w-0">
             <p className="text-sm font-medium text-ink-100 truncate">{m.name}</p>
-            <p className="text-xs mt-0.5 text-amber-700 dark:text-amber-300">
+            <p className="text-xs mt-0.5 text-state-needs">
               {m.neverArmed
                 ? `Scheduled for ${m.when}, but it hasn't started running yet. Tap Start (keep the Claude app open) and it runs on its own from then on.`
                 : m.failed

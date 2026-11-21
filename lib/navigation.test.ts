@@ -17,7 +17,7 @@ import {
 } from './navigation.ts';   // explicit extension: node:test resolves ESM, not bundler-style
 
 test('primary navigation is exactly Agents, Work, Training — in that order', () => {
-  assert.deepEqual(PRIMARY_NAV.map((i) => i.label), ['Agents', 'Work', 'Training']);
+  assert.deepEqual(PRIMARY_NAV.map((i) => i.label), ['Agents', 'Work', 'Coach']);
   assert.deepEqual(SECONDARY_NAV.map((i) => i.label), ['Settings']);
 });
 
@@ -67,7 +67,7 @@ test('deep links light up the domain that owns them', () => {
   assert.equal(activeNavItem('/overview')?.label, 'Work');
   assert.equal(activeNavItem('/workflows/daily-brief')?.label, 'Agents');
   assert.equal(activeNavItem('/agents')?.label, 'Agents');
-  assert.equal(activeNavItem('/training')?.label, 'Training');
+  assert.equal(activeNavItem('/training')?.label, 'Coach');
   assert.equal(activeNavItem('/settings/api-keys')?.label, 'Settings');
   assert.equal(activeNavItem('/admin'), null, 'an unowned path claims no domain rather than guessing');
 });
@@ -205,17 +205,17 @@ test('countNewerThan ignores unparseable stamps and is timezone-format agnostic'
 });
 
 test('the global Create button stays out of review and contextual Training/creation surfaces', () => {
-  for (const p of ['/work', '/work?view=review', '/review', '/review/run-1', '/runs/abc','/training','/training/video-agent','/create']) {
+  for (const p of ['/work', '/work?view=review', '/review', '/review/run-1', '/runs/abc','/training','/training/video-agent','/create','/workflows','/workflows/x','/settings','/settings/account']) {
     assert.equal(isCreateFabSuppressed(p.split('?')[0]), true, `${p} should suppress Create`);
   }
-  for (const p of ['/workflows', '/workflows/x', '/settings', '/overview']) {
+  for (const p of ['/overview']) {
     assert.equal(isCreateFabSuppressed(p), false, `${p} should keep Create`);
   }
 });
 
-test('the pilot relabels exactly the existing domains; every deep link retains one owner',()=>{
+test('the redesign unifies exactly the existing domains; every deep link retains one owner',()=>{
  const nav=primaryNavigation(true);
- assert.deepEqual(nav.map(n=>n.label),['Rent/Build','Run','Edit/Train']);
+ assert.deepEqual(nav.map(n=>n.label),['Agents','Work','Coach']);
  assert.deepEqual(primaryNavigation(false),PRIMARY_NAV);
  for(const path of ['/workflows','/workflows/a','/create','/work','/runs/a','/review/a','/training','/training/a']){
   assert.equal(nav.filter(n=>isNavItemActive(n,path)).length,1,path);

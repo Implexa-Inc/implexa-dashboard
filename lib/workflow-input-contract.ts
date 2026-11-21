@@ -195,11 +195,11 @@ export function describeInputPickerError(code: string | undefined, field: Workfl
     case 'forbidden':
       return 'Implexa Desktop would not accept this page. Open the agent from the Implexa desktop app window and try again.';
     case 'registration_unavailable':
-      return 'Could not reach Implexa to verify this file. Check your connection, then choose it again.';
+      return 'Could not reach Tukido to verify this file. Check your connection, then choose it again.';
     case 'registration_rejected':
-      return 'Implexa rejected this file when verifying it. Choose it again, or pick a different file.';
+      return 'Tukido rejected this file when verifying it. Choose it again, or pick a different file.';
     case 'registration_identity_mismatch':
-      return 'This file’s verified identity did not match what Implexa recorded. Choose it again.';
+      return 'This file’s verified identity did not match what Tukido recorded. Choose it again.';
     case 'source_changed_while_hashing':
       return 'The file changed while it was being verified. Make sure nothing is still writing to it, then choose it again.';
     case 'not_a_regular_file':
@@ -216,14 +216,14 @@ export function describeInputPickerError(code: string | undefined, field: Workfl
     case 'directory_too_large':
       return 'That folder is too large to attach safely. Create a smaller project folder or ZIP, then try again.';
     case 'directory_changed_while_snapshotting':
-      return 'That folder changed while Implexa was packaging it. Stop any writes to it, then choose it again.';
+      return 'That folder changed while Tukido was packaging it. Stop any writes to it, then choose it again.';
     case 'directory_unreadable':
     case 'directory_unavailable':
-      return 'Implexa could not read that folder. Check its permissions and choose it again.';
+      return 'Tukido could not read that folder. Check its permissions and choose it again.';
     case 'directory_snapshot_failed':
     case 'directory_source_read_short':
     case 'directory_snapshot_write_stalled':
-      return 'Implexa could not create a verified ZIP snapshot of that folder. Check free disk space, then try again.';
+      return 'Tukido could not create a verified ZIP snapshot of that folder. Check free disk space, then try again.';
     case 'desktop_folder_support_missing':
       return `This version of Implexa Desktop cannot attach a folder for “${field.label}”. Update Implexa Desktop, or choose a ZIP of the folder instead.`;
     case 'invalid_input_registration':

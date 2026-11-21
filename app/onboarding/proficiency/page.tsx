@@ -48,4 +48,4 @@ export default async function ProficiencyPage({ searchParams }: { searchParams?:
   );
 }
 
-export const metadata = { title: 'Your experience — Implexa' };
+export const metadata = { title: 'Your experience — Tukido' };

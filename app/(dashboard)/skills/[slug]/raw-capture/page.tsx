@@ -55,8 +55,8 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
   } catch (err: any) {
     // Forbidden = current user is not the creator; treat as 404-style
     return (
-      <main className="min-h-screen px-4 py-12">
-        <div className="max-w-3xl mx-auto">
+      <main className="app-page">
+        <div className="app-content">
           <nav className="text-xs text-ink-500 mb-4">
             <Link href={`/skills/${params.slug}`} className="hover:underline">← Back to skill</Link>
           </nav>
@@ -71,8 +71,8 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
 
   if ('error' in data) {
     return (
-      <main className="min-h-screen px-4 py-12">
-        <div className="max-w-3xl mx-auto">
+      <main className="app-page">
+        <div className="app-content">
           <nav className="text-xs text-ink-500 mb-4">
             <Link href={`/skills/${params.slug}`} className="hover:underline">← Back to skill</Link>
           </nav>
@@ -85,8 +85,8 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
   // Skill exists but no demo (was captured via direct save)
   if (data.noDemo) {
     return (
-      <main className="min-h-screen px-4 py-12">
-        <div className="max-w-3xl mx-auto">
+      <main className="app-page">
+        <div className="app-content">
           <nav className="text-xs text-ink-500 mb-4">
             <Link href={`/skills/${params.slug}`} className="hover:underline">← Back to {data.skill.name}</Link>
           </nav>
@@ -106,8 +106,8 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
   const manualNotes = (demo.traceLog || []).filter((e: any) => e.source === 'note' || (e.noteText && !e.source));
 
   return (
-    <main className="min-h-screen px-4 py-10">
-      <div className="max-w-4xl mx-auto">
+    <main className="app-page">
+      <div className="app-content">
         <nav className="text-xs text-ink-500 mb-4">
           <Link href={`/skills/${params.slug}`} className="hover:underline">← Back to {skill.name}</Link>
         </nav>
@@ -302,7 +302,7 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
               <p className="text-xs text-ink-300 leading-relaxed mb-2">
                 Haiku turned all of the above into a structured, reusable skill. PII was scrubbed before saving.
               </p>
-              <Link href={`/skills/${params.slug}`} className="text-xs text-brand-600 hover:underline font-medium">
+              <Link href={`/skills/${params.slug}`} className="text-xs text-action-accent hover:underline font-medium">
                 View the synthesized skill →
               </Link>
             </div>
@@ -360,5 +360,5 @@ function formatDuration(sec: number | null): string {
 }
 
 export const metadata = {
-  title: 'Raw capture — Implexa',
+  title: 'Raw capture — Tukido',
 };

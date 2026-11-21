@@ -116,7 +116,7 @@ export default async function WorkflowDetailPage({
   if (searchParams.legacy !== '1'&&trainingTest.state!=='prepared') {
     const resume = await getAgentResume(params.slug, session.access_token);
     if (resume.status === 'found') return <AgentResume agent={resume.agent} />;
-    if (resume.status === 'unavailable') return <main className="min-h-screen px-4 py-10"><div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4"><h1 className="text-lg font-semibold text-ink-50">Agent unavailable</h1><p role="alert" className="mt-2 text-sm text-amber-200">{resume.reason} Marketplace readiness could not be verified, so running is disabled. Try again.</p></div></main>;
+    if (resume.status === 'unavailable') return <main className="app-page agent-resume-page"><div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4"><h1 className="text-lg font-semibold text-ink-50">Agent unavailable</h1><p role="alert" className="mt-2 text-sm text-state-needs">{resume.reason} Marketplace readiness could not be verified, so running is disabled. Try again.</p></div></main>;
   }
 
   const detailResult = await detailPromise;
@@ -129,10 +129,10 @@ export default async function WorkflowDetailPage({
   // case: a scheduled SKILL that genuinely is not in the workflow catalog.
   if (detailResult.status === 'unavailable') {
     return (
-      <main className="min-h-screen px-4 py-10">
+      <main className="app-page agent-resume-page">
         <div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4">
           <h1 className="text-lg font-semibold text-ink-50">Agent status unavailable</h1>
-          <p role="alert" className="mt-2 text-sm text-amber-200">
+          <p role="alert" className="mt-2 text-sm text-state-needs">
             We could not load <code className="font-mono">{params.slug}</code> right now. This does not mean the agent
             is gone — the read failed. Reload to try again.
           </p>
@@ -163,8 +163,8 @@ export default async function WorkflowDetailPage({
     const pausable = sched.find((r) => (r.status === 'active' || r.status === 'paused') && isPausableRoutine(r)) || null;
     const niceName = params.slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     return (
-      <main className="min-h-screen px-4 py-10">
-        <div className="max-w-4xl mx-auto">
+      <main className="app-page agent-resume-page">
+        <div className="app-content">
           <nav className="text-sm text-ink-500 mb-6"><BackLink fallback="/workflows" label="Back" /></nav>
           <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0">
@@ -185,10 +185,10 @@ export default async function WorkflowDetailPage({
                     <span className="text-ink-200">{r.schedule_nl}</span>
                     <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
                       r.status === 'active'
-                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                        ? 'bg-emerald-500/15 text-state-ok'
                         : r.status === 'paused'
-                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                          : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                          ? 'bg-amber-500/15 text-state-needs'
+                          : 'bg-rose-500/15 text-state-fail'
                     }`}>{r.status}</span>
                   </div>
                   <div className="text-xs text-ink-400 mt-0.5">
@@ -336,13 +336,82 @@ export default async function WorkflowDetailPage({
       />
 
       {/* Stat strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-3 gap-3 mb-6">
         <Stat label="Steps" value={`${workflow.steps.length}`} />
-        <Stat label="From skills" value={`${boundCount}`} />
-        <Stat label="Runs" value={`${workflow.activity.run_count}`} highlight={workflow.activity.run_count > 0} />
+        <Stat label="Runs recorded" value={`${workflow.activity.run_count}`} highlight={workflow.activity.run_count > 0} />
         <Stat label="Last run" value={rel(workflow.activity.last_run_at)} />
       </div>
 
+      {(workflow.input_contract?.fields.length||workflow.primary_outcome)&&<section className="agent-give-get mb-8" aria-label="Inputs and output">
+        <div className="card"><h2 className="mb-4 text-lg font-medium">You give</h2>
+          {workflow.input_contract?.fields.length?<ul className="space-y-3">{workflow.input_contract.fields.map(field=><li key={field.key} className="text-sm"><p className="font-medium text-ink-100">{field.label}<span className="ml-2 text-xs font-normal text-ink-400">{field.required?'Required':'Optional'}</span></p>{field.description&&<p className="mt-1 text-xs leading-relaxed text-ink-400">{field.description}</p>}</li>)}</ul>:<p className="text-sm text-ink-400">No run inputs declared.</p>}
+        </div>
+        <div className="card"><h2 className="mb-4 text-lg font-medium">You get</h2><p className="text-sm leading-relaxed text-ink-200">{workflow.primary_outcome||workflow.job||workflow.description}</p>
+          {workflow.signals.length>0&&<ul className="mt-4 space-y-2 text-xs text-ink-400">{workflow.signals.map(signal=><li key={signal}>{signal}</li>)}</ul>}
+        </div>
+      </section>}
+
+      {/* Steps */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">How it works</h2>
+          <span className="text-xs text-ink-500">
+            {workflow.steps.length} steps
+            {boundCount > 0 && (
+              <span className="text-state-ok">
+                {' '}· {Number(workflow.build_evidence?.provenSteps || 0) > 0
+                  ? `${workflow.build_evidence?.provenSteps} from proven runs`
+                  : `${boundCount} bound skills`}
+              </span>
+            )}
+          </span>
+        </div>
+        {workflow.steps.length === 0 ? (
+          <p className="text-sm text-ink-500 italic">No steps recorded.</p>
+        ) : (
+          <ul className="divide-y divide-ink-800">
+            {workflow.steps.map((s) => (
+              <StepRow
+                key={`${s.order}-${s.label.slice(0, 16)}`}
+                step={s}
+                showBuildEvidence={Boolean(workflow.build_evidence && workflow.build_evidence.status !== 'pending')}
+              />
+            ))}
+          </ul>
+        )}
+        {/* Extend this chain in place (cycle-checked) — append one of your other
+            agents as a new step, instead of building a duplicate chain. */}
+        {isChain && (
+          <div className="mt-3 pt-3 border-t border-ink-800">
+            <ExtendChain slug={workflow.slug} candidates={chainCandidates} />
+          </div>
+        )}
+      </div>
+
+      {/* Caveat */}
+      {workflow.caveat && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20 p-5 mb-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-state-needs mb-1">Keep in mind</h2>
+          <p className="text-sm text-state-needs">{workflow.caveat}</p>
+        </div>
+      )}
+
+      {/* Runs hands-free with */}
+      {workflow.capabilities.length > 0 && (
+        <div className="card mb-6">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-3">Runs hands-free with</h2>
+          <ul className="space-y-3">
+            {workflow.capabilities.map((cap) => (
+              <li key={cap.id} className="text-sm">
+                <div className="text-ink-100">{cap.name}</div>
+                <div className="text-xs text-ink-400 mt-0.5">{cap.why}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <details className="proof-disclosure mb-6"><summary><span>Run history and checks</span><span className="ml-3 inline-flex flex-wrap items-center gap-2 text-xs font-normal text-ink-300">{grade && <span>Delivered {Math.round(grade.rate * 100)}% across {grade.runs} real run{grade.runs === 1 ? '' : 's'}</span>}<RemoteSafetyBadge safety={safety} size="xs" /></span></summary><div className="mt-5">
       {/* Build evidence — whether this agent was assembled from parts that
           have actually delivered in real runs, not merely from semantic matches. */}
       {workflow.build_evidence && workflow.build_evidence.status !== 'pending' && (
@@ -352,16 +421,16 @@ export default async function WorkflowDetailPage({
             <p className="text-sm text-ink-200">
               Real-run evidence on <span className="font-semibold text-ink-50">{workflow.build_evidence.provenSteps}</span> step{workflow.build_evidence.provenSteps === 1 ? '' : 's'}
               {Number(workflow.build_evidence.verifiedSteps || 0) > 0 ? (
-                <> · <span className="text-emerald-600 dark:text-emerald-400">{workflow.build_evidence.verifiedSteps} verified</span></>
+                <> · <span className="text-state-ok">{workflow.build_evidence.verifiedSteps} verified</span></>
               ) : null}
               {Number(workflow.build_evidence.patternSteps || 0) > 0 ? (
-                <> · <span className="text-emerald-600 dark:text-emerald-400">{workflow.build_evidence.patternSteps} adapted from delivered agents</span></>
+                <> · <span className="text-state-ok">{workflow.build_evidence.patternSteps} adapted from delivered agents</span></>
               ) : null}
               <span className="text-ink-500">. Unproven matches can still inspire steps, but they do not count as proof.</span>
             </p>
           ) : (
             <p className="text-sm text-ink-400">
-              New agent — no proven run history yet. Implexa will learn from verified runs and feedback after this runs.
+              New agent — no proven run history yet. Tukido will learn from verified runs and feedback after this runs.
             </p>
           )}
         </div>
@@ -395,80 +464,7 @@ export default async function WorkflowDetailPage({
         )}
       </div>
 
-      {/* What you get */}
-      {workflow.primary_outcome && (
-        <div className="card mb-6">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-2">What you get</h2>
-          <p className="text-sm text-ink-200">{workflow.primary_outcome}</p>
-          {workflow.signals.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {workflow.signals.map((sig) => (
-                <span key={sig} className="text-[10px] px-2 py-1 rounded bg-ink-800 text-ink-300">{sig}</span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Steps */}
-      <div className="card mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">The steps</h2>
-          <span className="text-xs text-ink-500">
-            {workflow.steps.length} steps
-            {boundCount > 0 && (
-              <span className="text-emerald-600 dark:text-emerald-400">
-                {' '}· {Number(workflow.build_evidence?.provenSteps || 0) > 0
-                  ? `${workflow.build_evidence?.provenSteps} from proven runs`
-                  : `${boundCount} bound skills`}
-              </span>
-            )}
-          </span>
-        </div>
-        {workflow.steps.length === 0 ? (
-          <p className="text-sm text-ink-500 italic">No steps recorded.</p>
-        ) : (
-          <ul className="divide-y divide-ink-800">
-            {workflow.steps.map((s) => (
-              <StepRow
-                key={`${s.order}-${s.label.slice(0, 16)}`}
-                step={s}
-                showBuildEvidence={Boolean(workflow.build_evidence && workflow.build_evidence.status !== 'pending')}
-              />
-            ))}
-          </ul>
-        )}
-        {/* Extend this chain in place (cycle-checked) — append one of your other
-            agents as a new step, instead of building a duplicate chain. */}
-        {isChain && (
-          <div className="mt-3 pt-3 border-t border-ink-800">
-            <ExtendChain slug={workflow.slug} candidates={chainCandidates} />
-          </div>
-        )}
-      </div>
-
-      {/* Caveat */}
-      {workflow.caveat && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20 p-5 mb-6">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-200 mb-1">Keep in mind</h2>
-          <p className="text-sm text-amber-800 dark:text-amber-100/80">{workflow.caveat}</p>
-        </div>
-      )}
-
-      {/* Runs hands-free with */}
-      {workflow.capabilities.length > 0 && (
-        <div className="card mb-6">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-3">Runs hands-free with</h2>
-          <ul className="space-y-3">
-            {workflow.capabilities.map((cap) => (
-              <li key={cap.id} className="text-sm">
-                <div className="text-ink-100">{cap.name}</div>
-                <div className="text-xs text-ink-400 mt-0.5">{cap.why}</div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      </div></details>
 
       {/* Schedule — edit / pause / make-on-demand inline, no navigating away. */}
       <div className="card mb-6">
@@ -500,7 +496,7 @@ export default async function WorkflowDetailPage({
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Changelog</h2>
             {workflow.proposed_count > 0 && (
-              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/40 text-amber-700 dark:text-amber-300">
+              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/40 text-state-needs">
                 {workflow.proposed_count} proposed
               </span>
             )}
@@ -508,6 +504,7 @@ export default async function WorkflowDetailPage({
               <ProposedAgentUpdateGate key={`${workflow.slug}:${workflow.workflow_version_id}`} slug={workflow.slug} baseVersionId={workflow.workflow_version_id} />
             )}
           </div>
+          <details><summary className="cursor-pointer text-sm text-ink-400">Version history</summary>
           <ol className="space-y-2 text-sm">
             {workflow.versions.map((v) => (
               <li key={v.version} className="flex items-start gap-2">
@@ -519,6 +516,7 @@ export default async function WorkflowDetailPage({
               </li>
             ))}
           </ol>
+          </details>
         </div>
       )}
 
@@ -529,7 +527,7 @@ export default async function WorkflowDetailPage({
           <ul className="space-y-2">
             {workflow.sources.map((src) => (
               <li key={src}>
-                <a href={src} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-brand-500 hover:underline break-all">
+                <a href={src} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-action-accent hover:underline break-all">
                   {src}
                 </a>
               </li>
@@ -630,13 +628,13 @@ export default async function WorkflowDetailPage({
   ];
 
   return (
-    <main className="min-h-screen px-4 py-10">
-      <div className="max-w-4xl mx-auto">
+    <main className="app-page agent-resume-page">
+      <div className="app-content">
         <nav className="text-sm text-ink-500 mb-6">
           <BackLink fallback="/workflows" label="Back" />
         </nav>
 
-        {workflow.publisher_text_guidance_required&&<p className="mb-4 rounded-lg border border-amber-500/30 p-3 text-sm text-amber-700 dark:text-amber-300">The latest released training requires Codex and Implexa Desktop 0.4.160 or newer. Check this before installing or adopting it; Claude execution is not supported for this text guidance yet.</p>}
+        {workflow.publisher_text_guidance_required&&<p className="mb-4 rounded-lg border border-amber-500/30 p-3 text-sm text-state-needs">The latest released training requires Codex and Implexa Desktop 0.4.160 or newer. Check this before installing or adopting it; Claude execution is not supported for this text guidance yet.</p>}
 
         {/* Header */}
         <header className="mb-6">
@@ -647,12 +645,12 @@ export default async function WorkflowDetailPage({
               </span>
             )}
             {workflow.cadence && (
-              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-ink-700 text-amber-700 dark:text-amber-300">
+              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-ink-700 text-state-needs">
                 {workflow.cadence}
               </span>
             )}
             {workflow.unproven && (
-              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/40 text-amber-700 dark:text-amber-300">
+              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/40 text-state-needs">
                 auto-generated · unproven
               </span>
             )}
@@ -665,16 +663,16 @@ export default async function WorkflowDetailPage({
                 the one that spends money. */}
             {judgePolicy === 'observe' && (
               <span
-                className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-violet-500/40 text-violet-600 dark:text-violet-300"
-                title="Implexa Judge reviews every run of this agent and reports back. Nothing is changed or re-run."
+                className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-violet-500/40 text-state-review"
+                title="Tukido Judge reviews every run of this agent and reports back. Nothing is changed or re-run."
               >
                 Judge: on
               </span>
             )}
             {judgePolicy === 'every_run' && (
               <span
-                className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-violet-500/40 text-violet-600 dark:text-violet-300"
-                title="Implexa Judge reviews every run AND may automatically re-run this agent to repair what it safely can, on your own subscription."
+                className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-violet-500/40 text-state-review"
+                title="Tukido Judge reviews every run AND may automatically re-run this agent to repair what it safely can, on your own subscription."
               >
                 Judge: on · repair
               </span>
@@ -695,11 +693,11 @@ export default async function WorkflowDetailPage({
                 {workflow.run_input_version_source === 'installed' && <ForkRunCta skillSlug={workflow.slug} source={workflow.source} versionId={workflow.workflow_version_id} />}
                 <AgentDefinitionReview definition={workflow.revision_contract ?? null} versionSource={workflow.definition_version_source ?? null} updateAvailable={!!workflow.update_available} revisePending={revisePending} statusUnavailable={lifecycleUnavailable} slug={workflow.slug} />
               </div>
-              <code className="text-xs text-ink-500 font-mono block mt-2">{workflow.slug}</code>
+              <details className="mt-2 text-xs text-ink-400"><summary className="cursor-pointer">Agent details</summary><code className="mt-2 block font-mono">{workflow.slug}</code></details>
               {revisePending && (
                 <div className="mt-3 flex items-start gap-2 rounded-md border border-violet-500/30 bg-violet-500/5 px-3 py-2 max-w-xl">
                   <span className="mt-0.5 inline-block h-2 w-2 flex-none rounded-full bg-violet-500 animate-pulse" aria-hidden />
-                  <p className="text-xs text-violet-700 dark:text-violet-300 leading-snug">
+                  <p className="text-xs text-state-review leading-snug">
                     <span className="font-medium">Rewrite in progress.</span> Your Claude is updating this agent’s
                     steps with your edit. Running is paused until it lands. If its permissions or inputs changed,
                     you’ll review and activate the update before using it.
@@ -714,7 +712,7 @@ export default async function WorkflowDetailPage({
               <p className="text-ink-200 mt-3">{workflow.job || workflow.description}</p>
               <div className="mt-3 flex items-center gap-2 flex-wrap">
                 {/→|->/.test(workflow.name || '') && (
-                  <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-violet-600 dark:text-violet-300" title="A chain — runs several agents in sequence, each feeding the next">⛓ Chain</span>
+                  <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-state-review" title="A chain — runs several agents in sequence, each feeding the next">⛓ Chain</span>
                 )}
                 <RemoteSafetyBadge safety={safety} />
               </div>
@@ -740,38 +738,7 @@ export default async function WorkflowDetailPage({
                   Active version: v{workflow.version}
                 </p>
               )}
-              <AgentActions
-                trainingTest={trainingTest.state==='prepared'?trainingTest.binding:null}
-                slug={workflow.slug}
-                name={workflow.name}
-                isActive={isActive}
-                requiresLocal={checklist?.requiresLocal}
-                source={workflow.source}
-                nextRunAt={checklist?.nextRunAt}
-                pendingQuestions={checklist?.pendingQuestions}
-                blockingQuestions={checklist?.blockingQuestions}
-                claudeTaskId={pausableRoutine?.claude_task_id}
-                inFlight={inFlight}
-                revisePending={revisePending}
-                statusUnavailable={actionsBlocked}
-                workflowVersionId={workflow.workflow_version_id}
-                activeVersionNumber={workflow.version}
-                inputContract={workflow.input_contract}
-                inputContractDigest={workflow.input_contract_digest}
-                pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
-              />
-              {pausableRoutine && (
-                <AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status} />
-              )}
-              {/* Desktop-first: open this agent in the app (gated until the app
-                  ships; web actions above remain the fallback). */}
-              {desktopAppLive() && (
-                <NotInApp>
-                  <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-brand-500 hover:underline">
-                    Open in the Implexa app ↗
-                  </a>
-                </NotInApp>
-              )}
+
             </div>
           </div>
         </header>
@@ -816,6 +783,43 @@ export default async function WorkflowDetailPage({
           active={activeTab}
           panel={activeTab === 'runs' ? runsPanel() : activeTab === 'setup' ? setupPanel() : overviewPanel()}
         />
+        <div className="agent-action-bar" aria-label="Agent actions">
+          <div className="min-w-0"><p className="truncate text-sm font-medium text-ink-100">{workflow.name}</p>{typeof workflow.version==='number'&&<p className="text-xs text-ink-400">Version {workflow.version}</p>}</div>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+              <AgentActions
+                trainingTest={trainingTest.state==='prepared'?trainingTest.binding:null}
+                slug={workflow.slug}
+                name={workflow.name}
+                isActive={isActive}
+                requiresLocal={checklist?.requiresLocal}
+                source={workflow.source}
+                nextRunAt={checklist?.nextRunAt}
+                pendingQuestions={checklist?.pendingQuestions}
+                blockingQuestions={checklist?.blockingQuestions}
+                claudeTaskId={pausableRoutine?.claude_task_id}
+                inFlight={inFlight}
+                revisePending={revisePending}
+                statusUnavailable={actionsBlocked}
+                workflowVersionId={workflow.workflow_version_id}
+                activeVersionNumber={workflow.version}
+                inputContract={workflow.input_contract}
+                inputContractDigest={workflow.input_contract_digest}
+                pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
+              />
+              {pausableRoutine && (
+                <AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status} />
+              )}
+              {/* Desktop-first: open this agent in the app (gated until the app
+                  ships; web actions above remain the fallback). */}
+              {desktopAppLive() && (
+                <NotInApp>
+                  <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-action-accent hover:underline">
+                    Open in the Tukido app ↗
+                  </a>
+                </NotInApp>
+              )}
+          </div>
+        </div>
       </div>
     </main>
   );
@@ -825,7 +829,7 @@ function Stat({ label, value, highlight = false }: { label: string; value: strin
   return (
     <div className={`card !p-3 ${highlight ? '!border-success-400/40' : ''}`}>
       <div className={`text-xl font-semibold tabular-nums ${highlight ? 'text-success-600 dark:text-success-400' : 'text-ink-50'}`}>{value}</div>
-      <div className="text-xs text-ink-400 uppercase tracking-wide mt-0.5">{label}</div>
+      <div className="text-xs text-ink-400 mt-0.5">{label}</div>
     </div>
   );
 }

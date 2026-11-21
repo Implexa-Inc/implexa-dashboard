@@ -226,7 +226,7 @@ export default function RunContinueBox({
         <input type="checkbox" checked={preservePlannerIdentity}
           onChange={(e) => setPreservePlannerIdentity(e.target.checked)} />
         <span>Planner timing/layout revision: preserve the transcript, presenter, point and scene identities,
-          and existing media requests. Implexa verifies this against the original bundle; other agents do not support this option.</span>
+          and existing media requests. Tukido verifies this against the original bundle; other agents do not support this option.</span>
       </label>}
       {!pending && preservePlannerIdentity && <div className="mt-2 text-xs text-ink-400">
         <label className="flex items-start gap-2">
@@ -254,7 +254,7 @@ export default function RunContinueBox({
             : sourcePhase === 'reconnecting' ? 'Reconnect the original source…'
             : busy ? 'Queuing…' : 'Continue & re-run'}
         </button>
-        {msg && <span className="text-xs text-rose-600 dark:text-rose-400">{msg}</span>}
+        {msg && <span className="text-xs text-state-fail">{msg}</span>}
       </div>
       {/* The typed recovery surface. It renders only for a refusal that HAS a
           recovery path, and it never shows Queued unless the backend said so. */}

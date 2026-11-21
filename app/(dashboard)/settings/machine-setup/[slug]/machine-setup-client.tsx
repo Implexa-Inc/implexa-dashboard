@@ -110,12 +110,12 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
         const here = native.executionMachineId ? await native.executionMachineId().catch(() => null) : null;
         if (!target || !here || here === target) {
           const r = await native.recheckMachineCapabilities().catch(() => ({ ok: false, reason: 'recheck_failed' }));
-          if (!r.ok) setNote('The Implexa app could not re-check this computer. Make sure it is signed in.');
+          if (!r.ok) setNote('The Tukido app could not re-check this computer. Make sure it is signed in.');
         } else {
-          setNote('This page is checking a different computer than the one Implexa is running on. Open it inside Implexa on that computer to re-probe; its last report is shown here.');
+          setNote('This page is checking a different computer than the one Tukido is running on. Open it inside Tukido on that computer to re-probe; its last report is shown here.');
         }
       } else {
-        setNote('Open this page inside the Implexa app to re-check the computer it runs on.');
+        setNote('Open this page inside the Tukido app to re-check the computer it runs on.');
       }
       await load();
     } finally { setBusy(null); }
@@ -127,14 +127,14 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
     setBusy(`${req.id}:${action}`); setNote(null);
     try {
       if (action === 'install_runtime') {
-        if (!native?.requestInstallMediaRuntime) { setNote('Open this page inside the Implexa app to install the managed runtime on this computer.'); return; }
+        if (!native?.requestInstallMediaRuntime) { setNote('Open this page inside the Tukido app to install the managed runtime on this computer.'); return; }
         const r: RuntimeResult = await native.requestInstallMediaRuntime().catch(() => ({ ok: false, error: 'bridge_unavailable' }));
-        setNote(r.ok ? 'Runtime install started in Implexa. When it finishes, Recheck.' : (r.message || r.error || 'Implexa did not start the runtime install.'));
+        setNote(r.ok ? 'Runtime install started in Tukido. When it finishes, Recheck.' : (r.message || r.error || 'Tukido did not start the runtime install.'));
         return;
       }
       if (action === 'install_cli' || action === 'install_media_tools') {
         const key = TOOL_KEY[req.id] || (action === 'install_media_tools' ? 'ffmpeg' : null);
-        if (!key || !native?.installTool) { setNote('Open this page inside the Implexa app to install tools on this computer.'); return; }
+        if (!key || !native?.installTool) { setNote('Open this page inside the Tukido app to install tools on this computer.'); return; }
         const r: InstallResult = await native.installTool(key).catch(() => ({ ok: false, error: 'bridge_unavailable' }));
         if (r.ok) setNote(`${req.label} is installed. Recheck to confirm it is on the agent’s path.`);
         else if (r.installUrl) { window.open(r.installUrl, '_blank', 'noopener,noreferrer'); setNote(r.message || `${req.label} must be installed by you. Follow the vendor instructions, then Recheck.`); }
@@ -142,7 +142,7 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
         return;
       }
       if (action === 'sign_in_cli') {
-        setNote(`Sign in with the vendor’s CLI in a terminal on this computer (Implexa never captures the credential), then Recheck. ${(req.setup.instructions || []).join(' ')}`.trim());
+        setNote(`Sign in with the vendor’s CLI in a terminal on this computer (Tukido never captures the credential), then Recheck. ${(req.setup.instructions || []).join(' ')}`.trim());
         return;
       }
       if (action === 'free_disk') {
@@ -157,7 +157,7 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
   if (!read) {
     return (
       <div className="flex flex-col gap-3" data-testid="machine-setup">
-        <p className="text-sm text-rose-600 dark:text-rose-400" data-testid="machine-setup-stale">Setup status could not be loaded. {note}</p>
+        <p className="text-sm text-state-fail" data-testid="machine-setup-stale">Setup status could not be loaded. {note}</p>
         <button type="button" disabled={busy === 'recheck'} className="btn-primary text-xs px-3 py-1.5 w-fit disabled:opacity-60" onClick={recheck}>{busy === 'recheck' ? 'Rechecking…' : 'Recheck'}</button>
       </div>
     );
@@ -172,10 +172,10 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
       <div className="text-xs text-ink-400">Checking: <span className="text-ink-200" data-testid="machine-setup-machine">{machineLabel}</span>{read.machine && read.machine.online === false ? ' (offline)' : ''}
         {' · '}
         {stale
-          ? <span className="text-amber-600 dark:text-amber-400" data-testid="machine-setup-stale">Status could not be refreshed — shown state may be out of date</span>
+          ? <span className="text-state-needs" data-testid="machine-setup-stale">Status could not be refreshed — shown state may be out of date</span>
           : read.admitted
             ? <span className="text-success-600 dark:text-success-400" data-testid="machine-setup-ready">Ready to run</span>
-            : <span className="text-rose-600 dark:text-rose-400">Setup required</span>}
+            : <span className="text-state-fail">Setup required</span>}
       </div>
       <ul className="flex flex-col gap-2">
         {read.requirements.requirements.map((req) => {
@@ -205,7 +205,7 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
                   </div>
                 ) : null}
               </div>
-              <div className={`flex-none text-xs ${ready ? 'text-success-600 dark:text-success-400' : req.required ? 'text-rose-600 dark:text-rose-400' : 'text-ink-400'}`}>{req.label} — {label}</div>
+              <div className={`flex-none text-xs ${ready ? 'text-success-600 dark:text-success-400' : req.required ? 'text-state-fail' : 'text-ink-400'}`}>{req.label} — {label}</div>
             </li>
           );
         })}
@@ -214,7 +214,7 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
         <button type="button" disabled={busy === 'recheck'} className="btn-primary text-xs px-3 py-1.5 disabled:opacity-60" onClick={recheck}>{busy === 'recheck' ? 'Rechecking…' : 'Recheck'}</button>
         {note ? <span className="text-xs text-ink-400">{note}</span> : null}
       </div>
-      <p className="text-[11px] text-ink-500">Installation and sign-in happen only when you choose them here; Implexa never installs software or captures credentials on its own.</p>
+      <p className="text-[11px] text-ink-500">Installation and sign-in happen only when you choose them here; Tukido never installs software or captures credentials on its own.</p>
     </div>
   );
 }

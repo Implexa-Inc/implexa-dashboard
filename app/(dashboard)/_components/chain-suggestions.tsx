@@ -113,7 +113,7 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
                 <div key={key} className="card p-4 flex flex-col">
                   <div className="flex items-center gap-2 text-sm text-ink-100 flex-wrap">
                     <span className="font-medium">{s.fromName}</span>
-                    <span className="text-brand-500" aria-hidden="true">→</span>
+                    <span className="text-action-accent" aria-hidden="true">→</span>
                     <span className="font-medium">{s.toName}</span>
                   </div>
                   {s.rationale && <p className="text-xs text-ink-400 mt-1.5 leading-relaxed flex-1">{s.rationale}</p>}
@@ -121,7 +121,7 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
                     {existing ? (
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-success-600 dark:text-success-400">✓ Saved</span>
-                        <a href={`/workflows/${existing}`} className="text-xs font-medium text-brand-500 hover:underline">
+                        <a href={`/workflows/${existing}`} className="text-xs font-medium text-action-accent hover:underline">
                           Open it — run or schedule →
                         </a>
                       </div>
@@ -153,7 +153,7 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
         </button>
       )}
 
-      {err && <p className="text-xs text-rose-400 mt-2">{err}</p>}
+      {err && <p className="text-xs text-state-fail mt-2">{err}</p>}
 
       <Modal
         open={showCustom}
@@ -227,12 +227,12 @@ function CustomChainBuilder({
                 ))}
               </select>
               {slots.length > 2 && (
-                <button type="button" onClick={() => removeSlot(i)} aria-label="Remove" className="text-ink-500 hover:text-rose-400 text-sm px-1">×</button>
+                <button type="button" onClick={() => removeSlot(i)} aria-label="Remove" className="text-ink-500 hover:text-state-fail text-sm px-1">×</button>
               )}
             </div>
             {i < slots.length - 1 && (
               <div className="flex items-center gap-2 pl-6 my-0.5">
-                <span className="text-brand-500" aria-hidden="true">↓</span>
+                <span className="text-action-accent" aria-hidden="true">↓</span>
                 <span className="text-[11px] text-ink-500">output feeds into</span>
               </div>
             )}

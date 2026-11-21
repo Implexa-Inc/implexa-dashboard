@@ -38,7 +38,7 @@ export default function WelcomeBanner({ welcome, forked }: Props) {
             <p className="text-sm text-ink-200 mb-3 leading-relaxed">
               These are your starting point — fork, customize, run them in Claude.
               Then when you&apos;re ready, capture <em>your own</em> workflow once and
-              Implexa will save it as a sharable skill.
+              Tukido will save it as a sharable skill.
             </p>
             <div className="flex flex-wrap gap-3 items-baseline">
               <Link href="/install" className="btn-primary !py-1.5 !px-3 text-xs">

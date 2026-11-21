@@ -105,7 +105,7 @@ function ConnectionWarningRow({ w }: { w: ConnectionWarning }) {
               type="button"
               onClick={signIn}
               disabled={busy !== null}
-              className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-rose-700 dark:text-rose-200 hover:bg-rose-500/30 transition-colors whitespace-nowrap disabled:opacity-60"
+              className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap disabled:opacity-60"
             >
               {busy === 'signin' ? 'Opening…' : 'Sign in'}
             </button>
@@ -123,7 +123,7 @@ function ConnectionWarningRow({ w }: { w: ConnectionWarning }) {
           // works via the Implexa desktop's dedicated Chrome, so point at the app.
           <Link
             href={RECONNECT_HREF}
-            className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-rose-700 dark:text-rose-200 hover:bg-rose-500/30 transition-colors whitespace-nowrap"
+            className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap"
           >
             Open the app
           </Link>
@@ -161,7 +161,7 @@ export function ConnectionAttentionBanner({
         <h2 className="text-sm font-semibold text-ink-50">{heading}</h2>
       </div>
       <p className="text-xs text-ink-300 mt-1">
-        Your agents run as you in the Implexa browser. These accounts are signed out or unreachable, so anything that needs them cannot run. Sign in once to fix it.
+        Your agents run as you in the Tukido browser. These accounts are signed out or unreachable, so anything that needs them cannot run. Sign in once to fix it.
       </p>
       <ul className="mt-3 space-y-2">
         {warnings.map((w, i) => (
@@ -236,10 +236,10 @@ export function ConnectionAdvisoryNote({
           counts" described the wrong problem. */}
       <p className="text-xs text-ink-300 mt-1">
         {onlyStale
-          ? 'These were proven through an agents’ browser extension, but not the one currently selected. Run “Check agents’ connections” from the Implexa menu bar to re-confirm them in the browser your agents use now.'
+          ? 'These were proven through an agents’ browser extension, but not the one currently selected. Run “Check agents’ connections” from the Tukido menu bar to re-confirm them in the browser your agents use now.'
           : onlyWorkspace
-            ? 'These are signed in, but the proof did not come through the browser extension your agents use. Run “Check agents’ connections” from the Implexa menu bar to confirm them where it counts.'
-            : 'These are signed in, but their proof does not match the browser your agents currently use. Run “Check agents’ connections” from the Implexa menu bar to confirm them where it counts.'}
+            ? 'These are signed in, but the proof did not come through the browser extension your agents use. Run “Check agents’ connections” from the Tukido menu bar to confirm them where it counts.'
+            : 'These are signed in, but their proof does not match the browser your agents currently use. Run “Check agents’ connections” from the Tukido menu bar to confirm them where it counts.'}
       </p>
       <ul className="mt-3 space-y-2">
         {advisories.map((a, i) => (

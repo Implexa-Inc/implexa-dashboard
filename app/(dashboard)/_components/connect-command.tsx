@@ -67,7 +67,7 @@ export default function ConnectCommand() {
               onClick={() => { setSurface(s); setCopied(false); }}
               className={
                 'px-3 py-1 rounded-full text-xs font-medium transition-colors ' +
-                (active ? 'bg-brand-500/15 text-brand-500' : 'text-ink-400 hover:text-ink-100')
+                (active ? 'bg-brand-500/15 text-action-accent' : 'text-ink-400 hover:text-ink-100')
               }
             >
               {COMMANDS[s].label}
@@ -105,7 +105,7 @@ export default function ConnectCommand() {
       )}
 
       <p className="text-xs text-ink-500 mt-2 leading-relaxed">
-        Paste it in your terminal. It signs you in and installs Implexa into your {COMMANDS[surface].label}.
+        Paste it in your terminal. It signs you in and installs Tukido into your {COMMANDS[surface].label}.
         Then your agent builds itself, runs as you, free on the plan you already pay for.
       </p>
 

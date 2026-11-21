@@ -148,8 +148,8 @@ function appNameFromDomain(domain: string): string {
 
 function reasonFor(label: string, account: string | null): string {
   return account
-    ? `${label} is signed out or unreachable in your Implexa browser. Sign in as ${account} to let the agent run.`
-    : `${label} is not reachable in your Implexa browser. Sign in once to let the agent run as you.`;
+    ? `${label} is signed out or unreachable in your Tukido browser. Sign in as ${account} to let the agent run.`
+    : `${label} is not reachable in your Tukido browser. Sign in once to let the agent run as you.`;
 }
 
 function mapConnections(raw: unknown): ConnectionAccount[] {
@@ -321,12 +321,12 @@ export const REACH_PRESENTATION: Record<
   // explicit dark: variant so it reads right under forced dark mode.
   reachable: {
     label: 'Reachable',
-    classes: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+    classes: 'bg-emerald-500/15 text-state-ok',
     dot: 'bg-emerald-500 dark:bg-emerald-400',
   },
   unreachable: {
     label: 'Not reachable',
-    classes: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
+    classes: 'bg-rose-500/15 text-state-fail',
     dot: 'bg-rose-500 dark:bg-rose-400',
   },
   unknown: {

@@ -10,7 +10,7 @@ import RunInputVerificationProgress from './run-input-verification-progress';
 function NoEligiblePanel({ noEligible }: { noEligible: NoEligible }) {
   return (
     <section role="status" aria-label="No eligible agent" className="card p-5 border-amber-500/40">
-      <h3 className="text-sm font-semibold text-amber-300">No eligible agent for this outcome</h3>
+      <h3 className="text-sm font-semibold text-state-needs">No eligible agent for this outcome</h3>
       <p className="text-sm text-ink-300 mt-1">{noEligible.message}</p>
       {noEligible.exclusions.length > 0 && (
         <ul className="mt-3 space-y-1.5">
@@ -135,21 +135,21 @@ function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingIn
           placeholder="e.g. Keep the final video 16:9, use cinematic pacing, and cite sourced visuals."
           className="mt-2 w-full rounded-lg bg-ink-900 border border-ink-700 px-3 py-2.5 text-sm text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-ink-500 disabled:opacity-50"
         />
-        {instructionsError && <p role="status" className="mt-2 text-xs text-red-400">{instructionsError}</p>}
+        {instructionsError && <p role="status" className="mt-2 text-xs text-state-fail">{instructionsError}</p>}
         {!instructionsError && instructionsDirty && plan.unresolved_missing_assets.length > 0 && (
-          <p className="mt-2 text-xs text-amber-300">These instructions will be bound when you add the required input.</p>
+          <p className="mt-2 text-xs text-state-needs">These instructions will be bound when you add the required input.</p>
         )}
         {!instructionsError && instructionsDirty && plan.unresolved_missing_assets.length === 0 && (
           <button type="button" onClick={onApplyRunInstructions} className="mt-2 rounded-lg border border-ink-600 px-3 py-2 text-xs font-medium text-ink-200 hover:border-ink-400">
             Apply instructions to plan
           </button>
         )}
-        {!instructionsDirty && runInstructions.trim() && <p className="mt-2 text-xs text-emerald-300">Included in this plan.</p>}
+        {!instructionsDirty && runInstructions.trim() && <p className="mt-2 text-xs text-state-ok">Included in this plan.</p>}
       </div>
 
       {plan.unresolved_missing_assets.length > 0 && (
         <div role="status" aria-label="Missing inputs" className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
-          <p className="text-sm font-medium text-amber-300">What you’ll provide before starting</p>
+          <p className="text-sm font-medium text-state-needs">What you’ll provide before starting</p>
           <p className="text-xs text-ink-400 mt-1">The recommendation is complete; these inputs only gate execution.</p>
           {plan.unresolved_missing_assets.map((item) => (
             <div key={`${item.kind}-${item.description}`} className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -158,7 +158,7 @@ function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingIn
                 type="button"
                 onClick={() => onProvideInput(item.kind)}
                 disabled={providingInput || !!instructionsError}
-                className="rounded-lg border border-amber-500/50 px-3 py-2 text-xs font-medium text-amber-200 hover:border-amber-400 disabled:opacity-50"
+                className="rounded-lg border border-amber-500/50 px-3 py-2 text-xs font-medium text-state-needs hover:border-amber-400 disabled:opacity-50"
               >
                 {providingInput ? 'Verifying…' : `Add ${humanize(item.kind)}`}
               </button>
@@ -170,7 +170,7 @@ function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingIn
         </div>
       )}
 
-      {startError && <p role="status" className="mt-3 text-sm text-red-400">{startError}</p>}
+      {startError && <p role="status" className="mt-3 text-sm text-state-fail">{startError}</p>}
       {startable && (
         <div className="mt-4">
           <button type="button" onClick={onStart} disabled={starting} className="rounded-lg bg-brand-500 text-ink-950 px-6 py-3 text-sm font-medium hover:bg-brand-400 transition-colors disabled:opacity-50">
@@ -201,10 +201,10 @@ export default function OutcomePlanCard({ outcome, onStart, onProvideInput, star
 }) {
   if (outcome.kind === 'no_eligible') return <NoEligiblePanel noEligible={outcome.noEligible} />;
   if (outcome.kind === 'no_match') {
-    return <section role="status" aria-label="No matching outcome" className="card p-5 border-amber-500/40"><h3 className="text-sm font-semibold text-amber-300">No matching outcome</h3><p className="text-sm text-ink-300 mt-1">{outcome.message}</p></section>;
+    return <section role="status" aria-label="No matching outcome" className="card p-5 border-amber-500/40"><h3 className="text-sm font-semibold text-state-needs">No matching outcome</h3><p className="text-sm text-ink-300 mt-1">{outcome.message}</p></section>;
   }
   if (outcome.kind === 'needs_input') {
-    return <section role="status" aria-label="Input required" className="card p-5 border-amber-500/40"><h3 className="text-sm font-semibold text-amber-300">One input is still needed</h3><p className="text-sm text-ink-300 mt-1">{outcome.question}</p><p className="text-xs text-ink-500 mt-3">Add a verified artifact above and label it as {outcome.missingInputTypes.join(' or ')}. Nothing was started.</p></section>;
+    return <section role="status" aria-label="Input required" className="card p-5 border-amber-500/40"><h3 className="text-sm font-semibold text-state-needs">One input is still needed</h3><p className="text-sm text-ink-300 mt-1">{outcome.question}</p><p className="text-xs text-ink-500 mt-3">Add a verified artifact above and label it as {outcome.missingInputTypes.join(' or ')}. Nothing was started.</p></section>;
   }
   if (outcome.kind !== 'plan') return null;
   return <PlanBody intent={outcome.intent} plan={outcome.plan} onStart={onStart} onProvideInput={onProvideInput} starting={starting} providingInput={providingInput} startError={startError} verificationProgress={verificationProgress} cancelingVerification={cancelingVerification} onCancelVerification={onCancelVerification} runInstructions={runInstructions} onRunInstructionsChange={onRunInstructionsChange} instructionsDirty={instructionsDirty} instructionsError={instructionsError} onApplyRunInstructions={onApplyRunInstructions} />;

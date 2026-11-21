@@ -109,12 +109,12 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
   const isFirstTime = orgSkills.length === 0 && !hasApiKey;
 
   return (
-    <main className="min-h-screen px-4 py-12">
+    <main className="app-page">
       {/* Wider container (6xl = 72rem) gives the new 2-column layout
        * room — left filter sidebar (180px) + skill list content. Was
        * 5xl before. Still constrained on huge displays so reading
        * length stays comfortable. */}
-      <div className="max-w-6xl mx-auto">
+      <div className="app-content">
         <InstallToast installed={searchParams?.installed} />
         <WelcomeBanner welcome={searchParams?.welcome} forked={searchParams?.forked} />
         {/* Platform-wide announcements — controlled by the backend's
@@ -142,12 +142,12 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
               <div className="flex-1">
                 <h2 className="text-lg font-medium mb-1">Get started in 30 seconds</h2>
                 <p className="text-sm text-ink-200 mb-4">
-                  You're set up on the web. Next: connect Claude to Implexa so your skills are usable in Claude Code, Claude Desktop, or Claude.ai web. Three options — pick the easiest.
+                  You're set up on the web. Next: connect Claude to Tukido so your skills are usable in Claude Code, Claude Desktop, or Claude.ai web. Three options — pick the easiest.
                 </p>
 
                 <div className="flex flex-wrap gap-3 items-center">
                   <Link href="/install" className="btn-primary">Connect Claude →</Link>
-                  <Link href="/settings/api-keys" className="text-sm text-brand-600 hover:underline">Or generate an API key first →</Link>
+                  <Link href="/settings/api-keys" className="text-sm text-action-accent hover:underline">Or generate an API key first →</Link>
                 </div>
 
                 <div className="mt-4 text-xs text-ink-500">

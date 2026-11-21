@@ -57,7 +57,7 @@ export default async function BillingPage() {
   const isFoundingCreator = !!profile?.founding_creator_unlocked_at;
 
   return (
-    <main className="min-h-screen px-4 py-12">
+    <main className="app-page">
       <div className="max-w-2xl mx-auto">
         <nav className="text-xs text-ink-500 mb-4">
           <Link href="/settings" className="hover:underline">← Settings</Link>
@@ -94,7 +94,7 @@ export default async function BillingPage() {
             <div>
               <div className="text-xs text-ink-500 uppercase tracking-wide">Members</div>
               <div className="text-xl font-semibold mt-1 tabular-nums text-ink-50">{seatCount}</div>
-              <Link href="/settings/team" className="text-[10px] text-brand-600 hover:underline mt-0.5 inline-block">
+              <Link href="/settings/team" className="text-[10px] text-action-accent hover:underline mt-0.5 inline-block">
                 Manage team →
               </Link>
             </div>

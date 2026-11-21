@@ -68,5 +68,5 @@ export default async function SignupPage({
 }
 
 export const metadata = {
-  title: 'Create your account — Implexa',
+  title: 'Create your account — Tukido',
 };

@@ -50,7 +50,7 @@ export default async function ApiKeysPage({
   const cameFromInstall = next === '/install';
 
   return (
-    <main className="min-h-screen px-4 py-12">
+    <main className="app-page">
       <div className="max-w-2xl mx-auto">
         <nav className="text-xs text-ink-500 mb-4">
           {cameFromInstall ? (
@@ -63,7 +63,7 @@ export default async function ApiKeysPage({
         <header className="mb-8">
           <h1 className="text-3xl font-semibold tracking-tight">Connected installs</h1>
           <p className="text-ink-300 text-sm mt-2 leading-relaxed">
-            Every device or session connected to your Implexa account.
+            Every device or session connected to your Tukido account.
             Revoke any you don&apos;t recognize. New installs created automatically
             when you run the install script — you don&apos;t need to generate
             keys manually anymore.
@@ -75,7 +75,7 @@ export default async function ApiKeysPage({
             <span>🪜</span>
             <span>
               You probably don&apos;t need to be here. Go back to{' '}
-              <Link href="/install" className="text-brand-500 hover:underline">/install</Link>{' '}
+              <Link href="/install" className="text-action-accent hover:underline">/install</Link>{' '}
               and paste the one-line install command — it auto-creates a key for you.
               This page is for revoking old installs or generating keys manually (advanced).
             </span>

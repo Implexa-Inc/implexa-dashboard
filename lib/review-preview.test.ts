@@ -143,7 +143,7 @@ test('REPRO: an old desktop build says "Update Implexa", not a broken player', (
   // In the app, but this build predates the preview bridge.
   const d = decidePreview({ artifact: validated('a.mp4'), inDesktop: true, bridgeSupported: false });
   assert.equal(d.state, 'update_required');
-  assert.match(d.message, /Update Implexa to preview local files/i);
+  assert.match(d.message, /Update Tukido to preview local files/i);
   assert.equal(d.offerOpenInDesktop, false, 'already in the app — sending them there again is nonsense');
 });
 

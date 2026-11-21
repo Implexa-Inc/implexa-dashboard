@@ -923,7 +923,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           setMsg('');
         }
         if (!(admission?.ok === true && admission?.admitted === true)) {
-          throw new Error(admission?.reason ? `Implexa could not verify this computer’s readiness (${admission.reason}). Nothing was queued.` : 'Implexa could not verify this computer’s readiness. Nothing was queued.');
+          throw new Error(admission?.reason ? `Tukido could not verify this computer’s readiness (${admission.reason}). Nothing was queued.` : 'Tukido could not verify this computer’s readiness. Nothing was queued.');
         }
       }
       // Freeze the complete request before its first birth attempt. If that
@@ -1011,7 +1011,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         const selectionIds = Object.values(deferredSelections).map((value) => value.selectionId);
         try {
           if (!bridge?.startRunInputPreparation || !selectionIds.length) {
-            throw new Error('This Desktop cannot prepare the selected file in the background. Update Implexa and try again.');
+            throw new Error('This Desktop cannot prepare the selected file in the background. Update Tukido and try again.');
           }
           const started = await bridge.startRunInputPreparation({ preparationId, selectionIds });
           if (!started.ok) throw new Error(started.error || 'Desktop could not start input preparation.');
@@ -1063,7 +1063,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // Other mounted surfaces (the second <AgentActions/>, Home) should see
       // this run promptly — snap the shared live-feed cadence back to base.
       notifyRunActivity();
-      setMsg('Queued. It runs hands-off on your computer (Claude open / Mac awake) — the result lands in your Implexa inbox, usually within a few minutes.');
+      setMsg('Queued. It runs hands-off on your computer (Claude open / Mac awake) — the result lands in your Tukido inbox, usually within a few minutes.');
       // Land the user where the run actually shows itself starting — the Active
       // Agents loader on /workflows (founder ask: "redirect to agent home so I can
       // see the loader starting"). EXCEPTION: on the very first queued run ever,
@@ -1238,7 +1238,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <button
           type="button"
           onClick={surfaceQuestions}
-          className="text-sm px-4 py-2 rounded-md border border-amber-500/60 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-medium"
+          className="text-sm px-4 py-2 rounded-md border border-amber-500/60 text-state-needs hover:bg-amber-500/10 font-medium"
         >
           Answer {blocking} question{blocking === 1 ? '' : 's'} to run ↑
         </button>
@@ -1309,12 +1309,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           the decision server-side regardless). */}
       <Modal open={!!bundleRefusal} title={bundleRefusal?.title || 'Project bundle needs an updated Planner export'}
       onClose={() => { if (!bundleRechecking) { setBundleRefusal(null); setShowSetupModal(true); } }}>
-      <p className="text-sm text-slate-300">Nothing was queued. Your selected inputs are preserved. Ask the Planner for a corrected export that retains the approved timeline.</p>
+      <p className="text-sm text-ink-300">Nothing was queued. Your selected inputs are preserved. Ask the Planner for a corrected export that retains the approved timeline.</p>
       <ul className="my-4 list-disc pl-5 text-sm">{bundleRefusal?.details.map((detail, index) => <li key={index}>{detail}</li>)}</ul>
-      <button className="mr-2 rounded-lg border border-slate-600 px-3 py-2 text-sm disabled:opacity-50" type="button" disabled={bundleRechecking} onClick={() => void recheckProjectBundle()}>
+      <button className="mr-2 rounded-lg border border-ink-600 px-3 py-2 text-sm disabled:opacity-50" type="button" disabled={bundleRechecking} onClick={() => void recheckProjectBundle()}>
         {bundleRechecking ? 'Rechecking…' : 'Recheck and run'}
       </button>
-      <button className="mr-2 rounded-lg border border-slate-600 px-3 py-2 text-sm disabled:opacity-50" type="button" disabled={bundleRechecking} onClick={() => { setBundleRefusal(null); setShowSetupModal(true); }}>Choose updated export</button>
+      <button className="mr-2 rounded-lg border border-ink-600 px-3 py-2 text-sm disabled:opacity-50" type="button" disabled={bundleRechecking} onClick={() => { setBundleRefusal(null); setShowSetupModal(true); }}>Choose updated export</button>
     </Modal>
     <Modal open={!!trialReview} title="Confirm one beta browser trial" onClose={() => { trialReply.current?.(false); }}>
       {trialReview && <div className="space-y-3">
@@ -1351,12 +1351,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             )}
             <div className="flex flex-wrap gap-2">
               {versionRefusal.retrySafe && (
-                <button type="button" className="rounded-lg border border-slate-600 px-3 py-2 text-sm"
+                <button type="button" className="rounded-lg border border-ink-600 px-3 py-2 text-sm"
                   onClick={() => { setVersionRefusal(null); void doQueue(lastNote.current, { fingerprint: lastFingerprint.current }); }}>
                   Try again
                 </button>
               )}
-              <button type="button" className="rounded-lg border border-slate-600 px-3 py-2 text-sm" onClick={() => setVersionRefusal(null)}>
+              <button type="button" className="rounded-lg border border-ink-600 px-3 py-2 text-sm" onClick={() => setVersionRefusal(null)}>
                 Close
               </button>
             </div>
@@ -1399,7 +1399,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 <p>
                   {trainingGate.successorAdoption.contractVersion === 'manager-training-successor-adoption-preview.v2'
                     ? <>Your training from earlier versions is available for this version. Carry {trainingGate.successorAdoption.newlyAdoptableRecordCount} saved lesson{trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'} with their original examples. Earlier versions and runs stay unchanged.</>
-                    : <>Implexa verified the same Agent task identity and unchanged Manager policy between these consecutive versions. You can carry {trainingGate.successorAdoption.newlyAdoptableRecordCount} accepted decision{trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'} spanning {trainingGate.successorAdoption.eligibleRouteCount} compatible reference route{trainingGate.successorAdoption.eligibleRouteCount === 1 ? '' : 's'}.</>}
+                    : <>Tukido verified the same Agent task identity and unchanged Manager policy between these consecutive versions. You can carry {trainingGate.successorAdoption.newlyAdoptableRecordCount} accepted decision{trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'} spanning {trainingGate.successorAdoption.eligibleRouteCount} compatible reference route{trainingGate.successorAdoption.eligibleRouteCount === 1 ? '' : 's'}.</>}
                 </p>
                 {trainingGate.successorAdoption.contractVersion === 'manager-training-successor-adoption-preview.v2' && (
                   <details className="text-xs text-ink-400">
@@ -1414,7 +1414,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 </button>
               </section>
             )}
-            {adoptionError && <div role="alert" className="space-y-2 text-rose-300"><p>{adoptionError}</p>
+            {adoptionError && <div role="alert" className="space-y-2 text-state-fail"><p>{adoptionError}</p>
               <button type="button" className="btn-outline" disabled={trainingChecking}
                 onClick={() => { setTrainingGate(null); void openPreRun(preRunMode); }}>Refresh training</button>
             </div>}
@@ -1437,7 +1437,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             {trainingGate?.state==='unavailable'&&trainingGate.reason==='training_served_snapshot_version_mismatch'?<>
               <p>This working definition differs from the version with your served training. Test the current private update in Training, then activate it when it delivers.</p>
               <Link href={`/training/${encodeURIComponent(slug)}`} className="btn-primary" onClick={()=>setTrainingGate(null)}>Test this working update in Training</Link>
-            </>:<><p>Implexa could not verify Manager reference-training readiness for this exact active version. No run inputs were selected, verified, or prepared.</p>
+            </>:<><p>Tukido could not verify Manager reference-training readiness for this exact active version. No run inputs were selected, verified, or prepared.</p>
             <p>Reload and try again after Dashboard and the backend are updated. Run creation remains blocked on an unverifiable basis.</p>
             {trainingTest&&<Link href={`/training/${encodeURIComponent(slug)}`} className="btn-primary" onClick={()=>setTrainingGate(null)}>Return to Training to prepare the current test</Link>}</>}
             <div className="flex justify-end gap-3">
@@ -1456,7 +1456,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       {presentation!=='training' && (state === 'queued' || state === 'running') && (
         <Link
           href={AGENTS_RUNNING_HREF}
-          className={`text-[11px] text-brand-500 hover:underline ${align === 'end' ? 'text-right' : 'text-left'}`}
+          className={`text-[11px] text-action-accent hover:underline ${align === 'end' ? 'text-right' : 'text-left'}`}
         >
           Track it under Active Agents →
         </Link>
@@ -1480,8 +1480,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       <p className="text-sm text-ink-200 leading-relaxed">
         Your agent’s run is queued. It fires the next time <strong>Claude Code is open</strong> on this
         computer to pick it up (usually a minute or two), and the result lands in your{' '}
-        <Link href="/inbox" className="text-brand-500 hover:underline" onClick={() => setShowRunModal(false)}>
-          Implexa results
+        <Link href="/inbox" className="text-action-accent hover:underline" onClick={() => setShowRunModal(false)}>
+          Tukido results
         </Link>
         {' '}like any scheduled run. Keep Claude open and you’ll see it come through.
       </p>
@@ -1519,7 +1519,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         Running it again will redo that work — and spend whatever it costs again.
       </p>
       {dupe?.runId && (
-        <Link href={`/runs/${dupe.runId}`} className="inline-block text-sm text-brand-500 hover:underline mt-2">
+        <Link href={`/runs/${dupe.runId}`} className="inline-block text-sm text-action-accent hover:underline mt-2">
           See what that run produced →
         </Link>
       )}
@@ -1552,7 +1552,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       maxWidth="max-w-2xl"
     >
       {observingOpenRun && preRunMode === 'queue' && (
-        <p className="text-sm text-amber-700 dark:text-amber-300 mb-4">
+        <p className="text-sm text-state-needs mb-4">
           Another run of this agent is still open. Starting another runs separately;
           it does not stop, retry or change that run.{' '}
           <Link href={`/workflows/${encodeURIComponent(slug)}?tab=runs`} className="underline">View existing runs</Link>
@@ -1579,7 +1579,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             <span className="text-xs font-semibold uppercase tracking-wide text-ink-400">
               Saved preferences
               {blankRequired.length > 0 && (
-                <span className="ml-2 normal-case text-[11px] text-amber-700 dark:text-amber-300">
+                <span className="ml-2 normal-case text-[11px] text-state-needs">
                   {blankRequired.length} needed
                 </span>
               )}
@@ -1598,7 +1598,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <label className="flex items-start gap-2 text-xs text-ink-300"><input type="checkbox" checked={betaTrial} onChange={event => setBetaTrial(event.target.checked)} />Review a one-run Codex beta browser trial (unqualified)</label>
         {betaTrial && <>
           <label className="mt-2 block text-xs text-ink-400">Authorization expires (local time, within 24 hours)<input type="datetime-local" required value={betaTrialExpiry} onChange={event => setBetaTrialExpiry(event.target.value)} className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 p-2" /></label>
-          {Object.keys(deferredSelections).length > 0 && <p className="mt-2 text-xs text-amber-300">Select the pending file again to register it before reviewing the trial. No request will be created during preparation.</p>}
+          {Object.keys(deferredSelections).length > 0 && <p className="mt-2 text-xs text-state-needs">Select the pending file again to register it before reviewing the trial. No request will be created during preparation.</p>}
           <p className="mt-2 text-xs text-ink-400">First confirm the free-account statement in Setup. You will review this trial separately before it starts.</p>
         </>}
       </details>}
@@ -1608,7 +1608,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             <div key={f.key}>
               <label className="block text-sm text-ink-200 mb-1.5">
                 {f.question}
-                <span className={isOptionalField(f) ? 'ml-1.5 text-[11px] text-ink-500' : 'ml-1.5 text-[11px] text-amber-700 dark:text-amber-300'}>
+                <span className={isOptionalField(f) ? 'ml-1.5 text-[11px] text-ink-500' : 'ml-1.5 text-[11px] text-state-needs'}>
                   {isOptionalField(f) ? 'optional' : 'required'}
                 </span>
               </label>
@@ -1642,7 +1642,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                     <button
                       type="button"
                       onClick={() => setSetupValues((v) => ({ ...v, [f.key]: String(f.default) }))}
-                      className="text-xs text-brand-500 hover:underline"
+                      className="text-xs text-action-accent hover:underline"
                     >
                       Use default ({f.default})
                     </button>
@@ -1693,7 +1693,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
               <div key={field.key} className="rounded-md border border-ink-800 p-4">
                 <div className="min-w-0">
                   <label className="text-sm font-medium text-ink-100">{field.label}</label>
-                  <span className={field.required ? 'ml-2 text-[11px] text-amber-300' : 'ml-2 text-[11px] text-ink-500'}>
+                  <span className={field.required ? 'ml-2 text-[11px] text-state-needs' : 'ml-2 text-[11px] text-ink-500'}>
                     {field.required ? 'required' : 'optional'}
                   </span>
                   {/* WHICH LAYER this value came from. Without it, "kept from
@@ -1703,17 +1703,19 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                     <span className="ml-2 text-[11px] text-ink-400 border border-ink-700 rounded px-1.5 py-0.5">from your setup</span>
                   )}
                   {origin === 'override' && (
-                    <span className="ml-2 text-[11px] text-brand-500 border border-brand-500/40 rounded px-1.5 py-0.5">this run only</span>
+                    <span className="ml-2 text-[11px] text-action-accent border border-brand-500/40 rounded px-1.5 py-0.5">this run only</span>
                   )}
                   {origin === 'cleared' && savedPath && (
                     <span className="ml-2 text-[11px] text-ink-400 border border-ink-700 rounded px-1.5 py-0.5">cleared for this run</span>
                   )}
+                  {field.kind==='choice'&&!brollBudget&&field.description.length>180?<details className="mt-1 text-xs leading-relaxed text-ink-400"><summary className="cursor-pointer">About {field.label.toLowerCase()}</summary><p className="mt-2">{field.description}</p></details>:(
                   <p className="text-xs text-ink-400 mt-1 leading-relaxed">{brollBudget
                     ? brollEstimate
                       ? `Aim for ${brollEstimate.minClips === brollEstimate.maxClips ? brollEstimate.minClips : `${brollEstimate.minClips}–${brollEstimate.maxClips}`} B-roll clips at 2–3 per minute. Budget roughly ${brollEstimate.estimatedCredits} credits if generating them all. Actual costs vary by model and clip length.`
                       : presenterFileId ? 'Aim for 2–3 B-roll clips per minute. Enter the video length for a credit estimate.'
                       : 'Aim for 2–3 B-roll clips per minute. Choose a presenter video to estimate a credit cap.'
                     : field.description}</p>
+                  )}
                   {brollBudget && presenterFileId && !durationHintMs && (
                     <label className="mt-2 flex items-center gap-2 text-xs text-ink-400">
                       Video length (minutes)
@@ -1751,7 +1753,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                         : field.cardinality === 'many' ? 'Add folder' : artifacts.length ? 'Replace with folder' : 'Choose folder'}
                     </button>}
                   </div>}
-                  {preparing && <p className="text-[11px] text-amber-300 mt-2" role="status" aria-live="polite">
+                  {preparing && <p className="text-[11px] text-state-needs mt-2" role="status" aria-live="polite">
                     {preparing === 'directory'
                       ? 'Preparing and verifying a ZIP from this folder… Large folders can take a moment.'
                       : 'Opening the file picker…'}
@@ -1759,6 +1761,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 </div>
                 {field.kind === 'text' ? (
                   <input
+                    aria-label={field.label}
                     value={field.cardinality === 'many' ? scalarMany.join(', ') : scalar}
                     onChange={(event) => override(field.cardinality === 'many'
                       ? event.target.value.split(',').map((entry) => entry.trim()).filter(Boolean)
@@ -1783,18 +1786,18 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 ) : deferred ? (
                   <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-300">
                     <span className="truncate min-w-0" title={deferred.displayName}>
-                      <span className="text-emerald-400">✓</span> {deferred.displayName}
+                      <span className="text-state-ok">✓</span> {deferred.displayName}
                       {' '}<span className="text-ink-500">— selected; verification starts after you press Run</span>
                     </span>
                     <button type="button" onClick={() => setDeferredSelections((previous) => {
                       const next = { ...previous }; delete next[field.key]; return next;
-                    })} className="text-ink-500 hover:text-rose-400 shrink-0">Remove</button>
+                    })} className="text-ink-500 hover:text-state-fail shrink-0">Remove</button>
                   </div>
                 ) : artifacts.length ? (
                   <div className="mt-2 space-y-1">
                     {artifacts.map((item) => <div key={item.artifactId} className="flex items-center justify-between gap-2 text-xs text-ink-300">
                       <span className="truncate min-w-0" title={item.displayName}>
-                        <span className="text-emerald-400">✓</span> {item.displayName}
+                        <span className="text-state-ok">✓</span> {item.displayName}
                         {' '}<span className="text-ink-500">
                           {/* WHERE IT CAME FROM. Without this, a folder the user
                               chose reads back as a .zip they never picked, and
@@ -1812,7 +1815,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                             [field.key]: artifacts.filter((candidate) => candidate.artifactId !== item.artifactId),
                           }));
                         } else override('');
-                      }} className="text-ink-500 hover:text-rose-400 shrink-0">Remove</button>
+                      }} className="text-ink-500 hover:text-state-fail shrink-0">Remove</button>
                     </div>)}
                   </div>
                 ) : verifying ? (
@@ -1825,10 +1828,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                   // happen for the run to use it.
                   <p className="text-[11px] text-ink-400 mt-2">
                     Saved source: <span className="font-mono text-ink-300">{fileName(savedPath)}</span>
-                    {' '}<span className="text-amber-300">— open this agent in the Implexa desktop app to use it for a run.</span>
+                    {' '}<span className="text-state-needs">— open this agent in the Implexa desktop app to use it for a run.</span>
                   </p>
                 ) : field.kind === 'file' && !desktopBridge()?.pickRunInput ? (
-                  <p className="text-[11px] text-amber-300 mt-2">Open this agent in the Implexa desktop app to choose a local file.</p>
+                  <p className="text-[11px] text-state-needs mt-2">Open this agent in the Implexa desktop app to choose a local file.</p>
                 ) : null}
                 {/* The way BACK, and the explicit way OUT. Without a route to the
                     saved value an override is a one-way door and a clear looks
@@ -1845,20 +1848,20 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                         Clear for this run
                       </button>
                     ) : (
-                      <button type="button" onClick={useSaved} className="text-[11px] text-brand-500 hover:underline">
+                      <button type="button" onClick={useSaved} className="text-[11px] text-action-accent hover:underline">
                         Use saved {field.kind === 'file' ? 'file' : 'value'} ({savedInputLabel(field, savedPath)})
                       </button>
                     )}
                   </div>
                 )}
                 {inputErrors[field.key] && (
-                  <p role="alert" className="text-[11px] text-rose-300 mt-2">{inputErrors[field.key]}</p>
+                  <p role="alert" className="text-[11px] text-state-fail mt-2">{inputErrors[field.key]}</p>
                 )}
               </div>
             );
           })}
           {revisionIssue && (
-            <p role="alert" className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+            <p role="alert" className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-state-needs">
               {revisionIssue.message}
             </p>
           )}
@@ -1873,6 +1876,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <label className="block text-sm text-ink-200 mb-1">Notes for this agent <span className="text-ink-500 font-normal">(every run)</span></label>
         <p className="text-[11px] text-ink-500 mb-1.5">Standing instructions the agent follows on every run. Editing here updates them for good.</p>
         <textarea
+          aria-label="Standing instructions for every run"
           value={standingNote}
           onChange={(e) => setStandingNote(e.target.value)}
           rows={3}
@@ -1887,6 +1891,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <label className="block text-sm text-ink-200 mb-1">Anything to add for this run? <span className="text-ink-500 font-normal">(just this run)</span></label>
         <p className="text-[11px] text-ink-500 mb-1.5">Steers this one run only — it doesn’t change the agent. To change it for every run, use “Change how this agent works” in Setup.</p>
         <textarea
+          aria-label="Instructions for this run"
           value={runNote}
           onChange={(e) => setRunNote(e.target.value)}
           rows={3}
@@ -1917,7 +1922,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
 
       {pendingUpdate && (
         <div className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2">
-          <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+          <p className="text-xs font-medium text-state-needs">
             Agent update v{pendingUpdate.version} is waiting for activation
           </p>
           <p className="mt-1 text-[11px] text-ink-400">

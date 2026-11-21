@@ -50,7 +50,7 @@ export default function ConnectTelegram() {
       <p className="text-xs text-ink-300 mb-4 leading-relaxed">
         Link a Telegram chat and you can text <span className="font-mono text-ink-100">run &lt;agent&gt;</span> or{' '}
         <span className="font-mono text-ink-100">build an agent that …</span> from anywhere. It runs on this
-        machine under your own accounts; the result comes back in the chat. Implexa never holds your keys.
+        machine under your own accounts; the result comes back in the chat. Tukido never holds your keys.
       </p>
 
       {/* Not yet connected */}
@@ -63,7 +63,7 @@ export default function ConnectTelegram() {
       {/* Bot not configured server-side */}
       {info && !info.enabled && (
         <p className="text-sm text-ink-300">
-          Telegram isn&apos;t switched on for Implexa yet — it&apos;s coming soon. Nothing to do here for now.
+          Telegram isn&apos;t switched on for Tukido yet — it&apos;s coming soon. Nothing to do here for now.
         </p>
       )}
 
@@ -73,7 +73,7 @@ export default function ConnectTelegram() {
           <div className="flex items-center gap-2">
             <span className="text-xs text-ink-400">Your link code:</span>
             <code className="text-sm font-mono text-ink-50 bg-ink-900/60 border border-ink-700 rounded px-2 py-1 tracking-widest">{info.code}</code>
-            <button type="button" onClick={copyCode} className="text-xs text-brand-500 hover:underline">
+            <button type="button" onClick={copyCode} className="text-xs text-action-accent hover:underline">
               {copied ? 'Copied ✓' : 'Copy'}
             </button>
           </div>
@@ -84,7 +84,7 @@ export default function ConnectTelegram() {
             </a>
           ) : (
             <p className="text-xs text-ink-400 leading-relaxed">
-              Open your Implexa bot in Telegram and send <span className="font-mono text-ink-100">/link {info.code}</span> to bind this chat.
+              Open your Tukido bot in Telegram and send <span className="font-mono text-ink-100">/link {info.code}</span> to bind this chat.
             </p>
           )}
 
@@ -95,7 +95,7 @@ export default function ConnectTelegram() {
         </div>
       )}
 
-      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+      {error && <p className="text-xs text-state-fail mt-2">{error}</p>}
     </section>
   );
 }

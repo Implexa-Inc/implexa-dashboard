@@ -23,9 +23,9 @@ import type { GenerationProposalViewModel } from '@/lib/generation-proposal';
 import { clipActions, clipReviewHref, clipRows } from '@/lib/generation-clips';
 
 const STATUS_CLASSES: Record<string, string> = {
-  succeeded: 'bg-emerald-500/15 text-emerald-300',
-  failed: 'bg-red-500/15 text-red-300',
-  unknown: 'bg-amber-500/15 text-amber-300',
+  succeeded: 'bg-emerald-500/15 text-state-ok',
+  failed: 'bg-red-500/15 text-state-fail',
+  unknown: 'bg-amber-500/15 text-state-needs',
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -48,7 +48,7 @@ export default function GenerationClipResults({ vm, artifacts, artifactsLive }: 
       <h2 className="text-sm font-medium text-ink-200">Generated clips</h2>
 
       {result.state === 'artifacts_unavailable' && (
-        <p role="status" className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">
+        <p role="status" className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-state-needs">
           We couldn&apos;t load this run&apos;s files just now, so these clips can&apos;t be
           opened from here yet. The clips themselves are listed from the durable
           generation receipt.

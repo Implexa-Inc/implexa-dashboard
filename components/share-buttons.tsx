@@ -50,13 +50,13 @@ const redditIntent = (url: string, title: string) =>
 
 function buildTweetText(title: string, description: string): string {
   const desc = description.length > 140 ? description.slice(0, 137).trimEnd() + '…' : description;
-  return `🎯 ${title}\n\n${desc}\n\nBuilt with Implexa — agentskills.io compatible.`;
+  return `🎯 ${title}\n\n${desc}\n\nBuilt with Tukido — agentskills.io compatible.`;
 }
 
 function buildHnTitle(title: string): string {
   // HN is strict about title format — avoid emoji, keep under 80 chars.
   const clean = title.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').trim();
-  const suffix = ' — built with Implexa';
+  const suffix = ' — built with Tukido';
   const maxNameLen = 80 - suffix.length;
   return (clean.length > maxNameLen ? clean.slice(0, maxNameLen - 1) + '…' : clean) + suffix;
 }
@@ -68,7 +68,7 @@ function buildRedditTitle(title: string, description: string): string {
 }
 
 function buildDiscordMessage(title: string, description: string, url: string): string {
-  return `🎯 **${title}**\n${description}\n${url}\n\n_Built with Implexa — agentskills.io compatible. Runs in Claude Code, Cursor, Hermes, and 30+ more._`;
+  return `🎯 **${title}**\n${description}\n${url}\n\n_Built with Tukido — agentskills.io compatible. Runs in Claude Code, Cursor, Hermes, and 30+ more._`;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────
@@ -135,7 +135,7 @@ export function ShareButtons({ url, title, description, variant = 'compact' }: P
         className={btnBase}
         aria-label="Submit to Hacker News"
       >
-        <span className="font-bold text-[10px] leading-none bg-brand-500/15 text-brand-500 px-1 rounded">Y</span>
+        <span className="font-bold text-[10px] leading-none bg-brand-500/15 text-action-accent px-1 rounded">Y</span>
         <span>HN</span>
       </a>
 

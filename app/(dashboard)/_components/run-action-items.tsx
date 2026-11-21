@@ -129,7 +129,7 @@ function ActionRow({
   if (serverDone && !actedLine) {
     return (
       <div className="flex items-center gap-2 py-2.5">
-        <span className="text-sm text-emerald-700 dark:text-emerald-300">✓ {a.label} — done</span>
+        <span className="text-sm text-state-ok">✓ {a.label} — done</span>
       </div>
     );
   }
@@ -157,16 +157,16 @@ function ActionRow({
             </span>
           )}
           {!ready && !confirmation && (
-            <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-medium">
+            <span className="text-[10px] uppercase tracking-wide text-state-needs font-medium">
               needs setup
             </span>
           )}
         </div>
         {confirmation ? (
           <div className="mt-1.5">
-            <p className="text-xs text-emerald-700 dark:text-emerald-300">{confirmation}</p>
+            <p className="text-xs text-state-ok">{confirmation}</p>
             {!human && (
-              <Link href={AGENTS_RUNNING_HREF} className="mt-1 inline-block text-[11px] text-sky-600 dark:text-sky-400 hover:underline">
+              <Link href={AGENTS_RUNNING_HREF} className="mt-1 inline-block text-[11px] text-state-running hover:underline">
                 Watch in Active Agents →
               </Link>
             )}
@@ -174,11 +174,11 @@ function ActionRow({
         ) : (
           <>
             {retryableApproval ? (
-              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400 leading-snug">
+              <p className="mt-1 text-xs text-state-needs leading-snug">
                 The previous continuation stopped safely before completing. Retry this approval through the protected recovery path.
               </p>
             ) : a.summary ? <p className="mt-1 text-xs text-ink-400 leading-snug">{a.summary}</p> : null}
-            {!ready && a.blocker && <p className="mt-0.5 text-[11px] text-amber-600/90 dark:text-amber-400/80">{a.blocker}</p>}
+            {!ready && a.blocker && <p className="mt-0.5 text-[11px] text-state-needs">{a.blocker}</p>}
 
             {/* needs_setup panel — collect the missing info / confirm setup BEFORE
                 queuing, so a blocked action never fires blind. */}
@@ -333,7 +333,7 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
           More actions ({moreCount}) ▾
         </button>
       )}
-      {err && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{err}</p>}
+      {err && <p className="mt-2 text-xs text-state-fail">{err}</p>}
     </section>
   );
 }

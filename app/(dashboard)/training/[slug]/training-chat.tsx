@@ -107,7 +107,7 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
     {t.status==='pending'&&<p>{t.sourceKind==='creation_notes'?'Private note imported from the AI-prepared creation draft. No chat reply was requested.':'Reply not yet confirmed. Refresh reads the saved turn without calling Claude again.'}</p>}
     {t.status==='failed'&&<p role="status">This reply could not be completed: {t.reason?.replaceAll('_',' ')}. Your message is preserved; no automatic retry was made.</p>}
     {t.status==='stale'&&<p>This reply belongs to an earlier agent version. Its proposed action is unavailable.</p>}
-    {t.canProposeEdit===true&&guided&&matches&&t.status==='answered'&&canSend&&<button type="button" className="rounded-xl border border-ink-700 px-4 py-3 text-sm text-brand-400" disabled={disabled||sending||editUnavailable} onClick={()=>setEditTurn(t)}>Review agent change →</button>}
+    {t.canProposeEdit===true&&guided&&matches&&t.status==='answered'&&canSend&&<button type="button" className="rounded-xl border border-ink-700 px-4 py-3 text-sm text-action-accent" disabled={disabled||sending||editUnavailable} onClick={()=>setEditTurn(t)}>Review agent change →</button>}
     {t.action!=='none'&&(t.action==='test_agent'?actionable?guided?<button type="button" disabled={sending} onClick={()=>onAction(t.action,{versionId:t.versionId,sourceId:t.sourceId,sourceSha256:t.sourceSha256})}>Review the private update’s test</button>:<a href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>{names[t.action]}</a>:<span>Test entry unavailable for this earlier context.</span>:
      <button type="button" disabled={!actionable||sending} onClick={()=>onAction(t.action,{versionId:t.versionId,sourceId:t.sourceId,sourceSha256:t.sourceSha256})}>{names[t.action]}</button>)}
    </li>;
@@ -115,6 +115,6 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
   {!canSend&&sessionId&&!loading&&<p>Sending is unavailable until this session matches the active agent version.</p>}
   {target&&<div className="rounded-lg border border-ink-700 p-3 text-xs">{target.kind==='feedback'?'Preparing a learning from the selected original feedback.':'Editing the selected teaching as a new private version.'} Nothing is sent until Send.<button type="button" disabled={sending} onClick={()=>{setTarget(null);pending.current=null;}}>Cancel selected target</button></div>}
 
-  {error&&<p role="alert" className="text-sm text-amber-300">{error.replaceAll('_',' ')}</p>}
+  {error&&<p role="alert" className="text-sm text-state-needs">{error.replaceAll('_',' ')}</p>}
  </ChatFrame><Modal open={!!editTurn} onClose={()=>setEditTurn(null)} title="Review agent change">{editTurn&&<ImproveAgent key={editTurn.turnId} slug={slug} bare initialNote={editTurn.message} statusUnavailable={disabled||editUnavailable||!canSend||editTurn.versionId!==versionId} trainingChatBinding={{sessionId,turnId:editTurn.turnId,expectedActiveVersionId:editTurn.versionId}}/>}</Modal></>;
 }

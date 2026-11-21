@@ -3,7 +3,7 @@ import { parseSetupScope } from '@/lib/setup-required';
 import MachineSetupPage from '../machine-setup-page';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Machine setup — Implexa' };
+export const metadata = { title: 'Machine setup — Tukido' };
 
 /**
  * /settings/machine-setup/:slug[/machine/:machineId][/version/:workflowVersionId]

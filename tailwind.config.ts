@@ -20,8 +20,8 @@ import type { Config } from 'tailwindcss';
  *   ink-900  → card / surface
  *   ink-950  → body bg
  *
- * `brand` (warm orange), `accent` (golden yellow), `success` (emerald) are
- * saturated mid-tones that work in both modes — no flip needed.
+ * `brand` (shu vermilion), `accent` (ochre), `success` (matcha) come from the
+ * Tukido design system (Implexa/tukido-app-design). They don't flip.
  *
  * Color semantics:
  *   🟠 brand    → ACTION   (CTAs, primary buttons, clickable accents)
@@ -29,16 +29,35 @@ import type { Config } from 'tailwindcss';
  *   🌿 success  → OUTCOMES  (attributed value, ✓ confirmations, active state, ROI)
  */
 
+// Existing utility names resolve through the same semantic tokens as new
+// components. This keeps older forms, dialogs and their selectors consistent
+// without a second palette or a behaviour rewrite across every route.
+const statePalette = (state: string) => Object.fromEntries(
+  [50,100,200,300,400,500,600,700,800,900,950].map(shade => [shade,
+    `rgb(var(--state-${state}-${shade < 300 ? 'bg' : 'dot'}-rgb) / <alpha-value>)`]),
+);
+
 const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}', './lib/**/*.{ts,tsx}'],
-  // Class-based dark mode. The root layout forces a `dark` class on <html> so
-  // every user lands in the (good) dark theme regardless of OS preference.
+  // Class-based dark mode. app/layout.tsx decides who gets the `dark` class
+  // (THEME_MODE: everyone, or by local clock 7pm–6am) before first paint.
   // Light mode is reachable only when that class is absent (e.g. a future
   // theme toggle); the `:root` tokens below keep it professional for that case.
   darkMode: 'class',
   theme: {
     extend: {
       colors: {
+        emerald: statePalette('ok'), green: statePalette('ok'), teal: statePalette('ok'), lime: statePalette('ok'),
+        amber: statePalette('needs'), yellow: statePalette('needs'), orange: statePalette('needs'),
+        sky: statePalette('running'), blue: statePalette('running'), cyan: statePalette('running'),
+        violet: statePalette('review'), purple: statePalette('review'), indigo: statePalette('review'), fuchsia: statePalette('review'),
+        red: statePalette('fail'), rose: statePalette('fail'), pink: statePalette('fail'),
+        state: {
+          needs: 'var(--state-needs-fg)', running: 'var(--state-running-fg)',
+          review: 'var(--state-review-fg)', ok: 'var(--state-ok-fg)',
+          fail: 'var(--state-fail-fg)', idle: 'var(--state-idle-fg)',
+        },
+        action: { accent: 'var(--text-accent)', strong: 'var(--action-strong)', 'strong-hover': 'var(--action-strong-hover)', danger: 'var(--action-danger)', 'danger-hover':'var(--action-danger-hover)' },
         ink: {
           50:  'rgb(var(--ink-50) / <alpha-value>)',
           100: 'rgb(var(--ink-100) / <alpha-value>)',
@@ -53,44 +72,45 @@ const config: Config = {
           950: 'rgb(var(--ink-950) / <alpha-value>)',
         },
         brand: {
-          50:  '#FFF2EC',
-          100: '#FFDCCB',
-          200: '#FFB594',
-          300: '#FF8E5D',
-          400: '#FF6F33',
-          500: '#FF5722',                                                              // PRIMARY — vermilion / flame red-orange. Distinct from Claude's amber.
-          600: '#E64A19',
-          700: '#BF360C',
-          800: '#8C2700',
-          900: '#4D1500',
+          50:   '#FDEEEB',
+          100:  '#F9D5CE',
+          200:  '#F2AB9E',
+          300:  '#EC806E',
+          400:  'rgb(var(--action-primary-hover-rgb) / <alpha-value>)',  // brighter vermilion for links/accents on dark
+          500:  'rgb(var(--action-primary-rgb) / <alpha-value>)',  // PRIMARY: shu vermilion (Tukido). White label = 5.2:1.
+          600:  '#A92918',
+          700:  '#862013',
+          800:  '#5F170D',
+          900:  '#3A0E08',
         },
         accent: {
-          50:  '#FFFAE5',
-          100: '#FFF3BF',
-          200: '#FFE989',
-          300: '#FFE05B',
-          400: '#FFD93D',                                                              // golden yellow — attention
-          500: '#F0C419',
-          600: '#D9B82E',
-          700: '#A88A23',
-          800: '#6B5816',
-          900: '#3D310C',
+          50:   '#FDF6E3',
+          100:  '#F9E8BD',
+          200:  '#F2D27F',
+          300:  '#EBBD4F',
+          400:  '#E0A630',
+          500:  '#C98A12',  // ATTENTION: ochre (Needs you)
+          600:  '#A5700C',
+          700:  '#80540A',  // ochre text on light paper (5.4:1)
+          800:  '#5A3B08',
+          900:  '#352305',
         },
         success: {
-          50:  '#ECFDF5',
-          100: '#D1FAE5',
-          200: '#A7F3D0',
-          300: '#6EE7B7',
-          400: '#34D399',                                                              // PRIMARY — emerald (outcomes/success)
-          500: '#10B981',
-          600: '#059669',
-          700: '#047857',
-          800: '#065F46',
-          900: '#064E3B',
+          50:   '#EDF5EE',
+          100:  '#D4E8D7',
+          200:  '#A9D1B0',
+          300:  '#86C99A',
+          400:  '#5FAE78',  // OUTCOMES: matcha green
+          500:  '#46925E',
+          600:  '#3F7A4D',
+          700:  '#2F5D3A',  // matcha text on light paper
+          800:  '#22442A',
+          900:  '#15291A',
         },
       },
       fontFamily: {
-        sans: ['var(--font-inter)', 'Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        sans:    ['var(--font-ui)', 'Zen Kaku Gothic New', 'Hiragino Sans', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['var(--font-display)', 'Shippori Mincho', 'Georgia', 'serif'],
         mono: ['var(--font-mono)', 'JetBrains Mono', 'ui-monospace', 'Menlo', 'Monaco', 'monospace'],
       },
       typography: ({ theme }: any) => ({
@@ -129,9 +149,9 @@ const config: Config = {
         },
       }),
       boxShadow: {
-        glow:           '0 0 24px rgba(255, 87, 34, 0.25)',
-        'glow-strong':  '0 0 36px rgba(255, 87, 34, 0.4)',
-        'glow-emerald': '0 0 24px rgba(52, 211, 153, 0.25)',
+        glow:           '0 0 24px rgba(200, 50, 31, 0.22)',
+        'glow-strong':  '0 0 36px rgba(200, 50, 31, 0.35)',
+        'glow-emerald': '0 0 24px rgba(95, 174, 120, 0.25)',
       },
     },
   },

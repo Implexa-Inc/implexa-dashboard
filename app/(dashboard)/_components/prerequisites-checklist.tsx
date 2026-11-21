@@ -51,27 +51,27 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
 
   const steps = [
     {
-      title: 'Get the Implexa app',
-      body: 'One click, and it does the rest: it connects Implexa to your own Claude or Codex and sets up the browser extension for you, so steps 2 and 3 below happen automatically. Signed and notarized by Apple.',
+      title: 'Get the Tukido app',
+      body: 'One click, and it does the rest: it connects Tukido to your own Claude or Codex and sets up the browser extension for you, so steps 2 and 3 below happen automatically. Signed and notarized by Apple.',
       links: [
         { label: '↓ Download for Mac', href: macDownloadUrl() },
       ] as Link[],
       done: det?.inApp ?? false,
-      doneNote: "You're using the Implexa app.",
+      doneNote: "You're using the Tukido app.",
     },
     {
       title: 'Have Claude or Codex installed',
-      body: 'Your agents run inside your own Claude Code or Codex (not the web chat). The Implexa app installs Implexa into them for you. If you do not have Claude or Codex yet, grab one:',
+      body: 'Your agents run inside your own Claude Code or Codex (not the web chat). The Tukido app installs Tukido into them for you. If you do not have Claude or Codex yet, grab one:',
       links: [
         { label: 'Get Claude', href: 'https://claude.ai/download' },
         { label: 'Get Codex', href: 'https://openai.com/codex' },
       ] as Link[],
       done: det?.agents ?? connected,
-      doneNote: 'Detected — your Claude or Codex is connected to Implexa.',
+      doneNote: 'Detected — your Claude or Codex is connected to Tukido.',
     },
     {
       title: 'Browser extension (only for browser agents)',
-      body: 'Some agents drive a real browser (sign into a site, post a reel, scrape a page). The Implexa app sets this up for you; install manually only if you prefer. Optional until you build an agent that needs it.',
+      body: 'Some agents drive a real browser (sign into a site, post a reel, scrape a page). The Tukido app sets this up for you; install manually only if you prefer. Optional until you build an agent that needs it.',
       links: [
         { label: 'Claude for Chrome', href: 'https://chromewebstore.google.com/detail/claude/fcoeoabgfenejglbffodgkkbkcdhcgfn?hl=en-US' },
         { label: 'Codex for Chrome', href: 'https://chromewebstore.google.com/detail/codex/hehggadaopoacecdllhhajmbjkdcmajg?hl=en-US' },
@@ -121,7 +121,7 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
                   {s.links && s.links.length > 0 && (
                     <div className="mt-1.5 flex items-center gap-4 flex-wrap">
                       {s.links.map((l) => (
-                        <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" className="inline-block text-xs text-brand-500 hover:underline">
+                        <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" className="inline-block text-xs text-action-accent hover:underline">
                           {l.label} ↗
                         </a>
                       ))}

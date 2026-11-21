@@ -50,7 +50,7 @@ claude`;
 
         <ol className="text-sm space-y-2 text-ink-200 list-decimal pl-4 mb-5">
           <li>In Claude: <strong>Settings → Connectors → Add custom connector</strong></li>
-          <li>Name it <strong>Implexa</strong>, paste the URL below (replace the key placeholder with your real key)</li>
+          <li>Name it <strong>Tukido</strong>, paste the URL below (replace the key placeholder with your real key)</li>
           <li>Leave OAuth Client ID / Secret empty. Save.</li>
           <li>28 tools appear in your tool picker.</li>
         </ol>
@@ -58,7 +58,7 @@ claude`;
         <CopyBlock label="Connector URL" content={connectorUrl} />
 
         <p className="text-xs text-ink-500 mt-4">
-          Don't have a key yet? <a href="/settings/api-keys" className="text-brand-600 hover:underline">Get one →</a>
+          Don't have a key yet? <a href="/settings/api-keys" className="text-action-accent hover:underline">Get one →</a>
         </p>
       </Card>
 
@@ -77,7 +77,7 @@ claude`;
           For <strong>Cursor</strong>: Settings → MCP → Add Server
         </p>
 
-        <a href="https://www.npmjs.com/package/@implexa/mcp-server" target="_blank" rel="noreferrer" className="text-xs text-brand-600 hover:underline mt-3 inline-block">npm package →</a>
+        <a href="https://www.npmjs.com/package/@implexa/mcp-server" target="_blank" rel="noreferrer" className="text-xs text-action-accent hover:underline mt-3 inline-block">npm package →</a>
       </Card>
 
       {/* Option 3 — Claude Code plugin */}
@@ -89,7 +89,7 @@ claude`;
 
         <CopyBlock content={claudeCodeCmd} multiline />
 
-        <a href="https://github.com/Implexa-Inc/implexa-claude-plugin" target="_blank" rel="noreferrer" className="text-xs text-brand-600 hover:underline mt-3 inline-block">View on GitHub →</a>
+        <a href="https://github.com/Implexa-Inc/implexa-claude-plugin" target="_blank" rel="noreferrer" className="text-xs text-action-accent hover:underline mt-3 inline-block">View on GitHub →</a>
       </Card>
     </div>
   );

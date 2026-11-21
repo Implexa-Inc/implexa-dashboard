@@ -61,7 +61,7 @@ export default function RolePickerClient({ jwt, roles }: { jwt: string; roles: R
               <div className="text-[11px] text-ink-300 leading-relaxed">
                 {role.rationale}
               </div>
-              <div className="mt-3 text-[11px] text-brand-500 font-medium">
+              <div className="mt-3 text-[11px] text-action-accent font-medium">
                 {isSelecting ? 'Setting up your agents…' : `→ Add ${role.starterPlaybooks.length} agents`}
               </div>
             </button>
@@ -70,7 +70,7 @@ export default function RolePickerClient({ jwt, roles }: { jwt: string; roles: R
       </div>
 
       {error && (
-        <div className="card !p-3 border-red-500/40 text-sm text-red-500 mb-4">
+        <div className="card !p-3 border-red-500/40 text-sm text-state-fail mb-4">
           {error}
         </div>
       )}

@@ -104,7 +104,7 @@ function RowMenu({ onArchive, onDeactivate, canDeactivate, busy }: { onArchive: 
             role="menuitem"
             disabled={busy}
             onClick={() => { setOpen(false); onArchive(); }}
-            className="w-full text-left px-3 py-1.5 text-sm text-ink-300 hover:bg-ink-800 hover:text-rose-500 dark:hover:text-rose-300 disabled:opacity-50"
+            className="w-full text-left px-3 py-1.5 text-sm text-ink-300 hover:bg-ink-800 hover:text-state-fail hover:text-state-fail disabled:opacity-50"
           >
             <span className="block">{busy ? 'Archiving…' : 'Archive'}</span>
             <span className="block text-[11px] text-ink-500">
@@ -137,7 +137,7 @@ export type ListAgent = {
     model?: string | null;
   } | null;
   grade?: { hasGrade: boolean; rate: number; label: 'reliable' | 'mixed' | 'unproven'; runs: number; confidence: number } | null;
-  /** True when this agent chains other agents (its name reads "A → B"). Shown as a ⛓ Chain tag. */
+  /** True when this agent chains other agents (its name reads "A → B"). Shown as a Chain tag. */
   isChain?: boolean;
   /** Starred by the user — floats to a "Favorites" section at the top. */
   favorite?: boolean;
@@ -178,11 +178,11 @@ function nextRunLabel(iso: string): string {
 function stateBadge(a: ListAgent): { label: string; cls: string } | null {
   const rs = a.lastRun?.runState;
   const st = a.lastRun?.status;
-  if (rs === 'stalled') return { label: 'Stalled', cls: 'border-amber-500/50 text-amber-700 dark:text-amber-300' };
-  if (st === 'failed' || rs === 'failed') return { label: 'Failed', cls: 'border-rose-500/50 text-rose-700 dark:text-rose-300' };
-  if (st === 'partial') return { label: 'Partial', cls: 'border-amber-500/50 text-amber-700 dark:text-amber-300' };
-  if (st === 'completed' || rs === 'completed') return { label: 'Ran ok', cls: 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300' };
-  if (rs === 'running') return { label: 'Running', cls: 'border-sky-500/40 text-sky-700 dark:text-sky-300' };
+  if (rs === 'stalled') return { label: 'Progress interrupted', cls: 'border-amber-500/50 text-state-needs' };
+  if (st === 'failed' || rs === 'failed') return { label: 'Last run failed', cls: 'border-rose-500/50 text-state-fail' };
+  if (st === 'partial') return { label: 'Partly finished', cls: 'border-amber-500/50 text-state-needs' };
+  if (st === 'completed' || rs === 'completed') return { label: 'Finished', cls: 'border-emerald-500/40 text-state-ok' };
+  if (rs === 'running') return { label: 'Running', cls: 'border-sky-500/40 text-state-running' };
   return null;
 }
 
@@ -194,11 +194,9 @@ function engineLabel(lastRun: ListAgent['lastRun']): string | null {
   return model ? `${name} · ${model}` : name;
 }
 
-function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spotlight = false }: { a: ListAgent; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busy: boolean; spotlight?: boolean }) {
+function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy }: { a: ListAgent; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busy: boolean }) {
   const detail = `/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`;
-  // In the activity spotlight the row title opens the RUN status/live page; in the
-  // roster it opens the agent's detail/setup page. Same agent, two doors.
-  const titleHref = spotlight && a.lastRun?.id ? `/runs/${a.lastRun.id}` : detail;
+  const titleHref = detail;
   const badge = a.section !== 'not_activated' ? stateBadge(a) : null;
   const engine = engineLabel(a.lastRun);
   const [editing, setEditing] = useState(false);
@@ -214,7 +212,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
   }
 
   return (
-    <li className="card">
+    <li className="card agent-roster-row">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap group">
@@ -225,7 +223,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
               aria-label={a.favorite ? `Unfavorite ${a.name}` : `Add ${a.name} to favorites`}
               aria-pressed={!!a.favorite}
               title={a.favorite ? 'Favorited — click to remove' : 'Add as favorite'}
-              className={`text-base leading-none transition-colors ${a.favorite ? 'text-amber-400 hover:text-amber-300' : 'text-ink-600 hover:text-amber-400'}`}
+              className={`text-base leading-none transition-colors ${a.favorite ? 'text-state-needs hover:text-state-needs' : 'text-ink-600 hover:text-state-needs'}`}
             >
               {a.favorite ? '★' : '☆'}
             </button>
@@ -242,7 +240,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
               />
             ) : (
               <Link href={titleHref} className="text-base font-medium text-ink-50 hover:underline">
-                <span aria-hidden className="mr-1.5">{a.category.emoji}</span>{a.name}
+                {a.name}
               </Link>
             )}
             {!editing && (
@@ -256,34 +254,31 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
                 ✎
               </button>
             )}
-            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">{a.category.label}</span>
+
             {a.section === 'scheduled' && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-700 dark:text-emerald-300" title="Runs automatically on a schedule">⏰ Scheduled</span>
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/40 text-state-ok" title="Runs automatically on a schedule">Scheduled</span>
             )}
             {(a.isChain ?? looksLikeChain(a.name)) && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-violet-600 dark:text-violet-300" title="This agent runs several agents in sequence">⛓ Chain</span>
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-state-review" title="This agent runs several agents in sequence">Chain</span>
             )}
             {a.section === 'not_activated' && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/40 text-sky-700 dark:text-sky-300">Draft</span>
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/40 text-state-running">Draft</span>
             )}
             {badge && <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>}
-            {engine && (
-              <span
-                className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/30 text-sky-700 dark:text-sky-300"
-                title={`Last run used ${engine}`}
-              >
-                {engine}
-              </span>
-            )}
             <GradeBadge grade={a.grade} />
           </div>
+          {engine && (
+            <details title={`Last run used ${engine}`} className="mt-1 text-xs text-ink-400"><summary className="cursor-pointer">Run details</summary><p className="mt-2">{a.category.label} · {engine}</p></details>
+          )}
+          {/* Category remains visible even before the first run. */}
+          <p className="mt-1 text-xs text-ink-400">{a.category.label}</p>
           {/* status line */}
           <p className="text-xs text-ink-500 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
             {a.needsIntervention && (
-              <span className="text-amber-600 dark:text-amber-400">Needs you · {a.interventionReason || 'one quick step'}</span>
+              <span className="text-state-needs">Needs you · {a.interventionReason || 'one quick step'}</span>
             )}
             {(a.pendingQuestions ?? 0) > 0 && (
-              <span className="text-amber-600 dark:text-amber-400">{a.pendingQuestions} question{a.pendingQuestions === 1 ? '' : 's'} to answer</span>
+              <span className="text-state-needs">{a.pendingQuestions} question{a.pendingQuestions === 1 ? '' : 's'} to answer</span>
             )}
             {a.section === 'scheduled' && a.nextRunAt && !a.needsIntervention && (
               <span>Next run: {nextRunLabel(a.nextRunAt)}</span>
@@ -299,7 +294,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
               Review
             </Link>
           ) : a.needsIntervention ? (
-            <Link href={detail} className="text-xs px-3 py-1.5 rounded-md border border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 transition-colors whitespace-nowrap font-medium">
+            <Link href={detail} className="text-xs px-3 py-1.5 rounded-md border border-amber-500/50 text-state-needs hover:bg-amber-500/10 transition-colors whitespace-nowrap font-medium">
               Fix
             </Link>
           ) : a.lastRun?.id ? (
@@ -331,15 +326,16 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
   );
 }
 
-function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFavorite, busySlug, spotlight = false, subtitle }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busySlug: string | null; spotlight?: boolean; subtitle?: string }) {
+function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFavorite, busySlug, subtitle, collapsible = false }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busySlug: string | null; subtitle?: string; collapsible?: boolean }) {
   if (agents.length === 0) return null;
-  return (
+  const rows=<ul className="agent-roster-list">{agents.map((a) => <Row key={a.slug} a={a} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug === a.slug} />)}</ul>;
+  return collapsible?<details className="mb-8 border-t border-ink-700 pt-5"><summary className="cursor-pointer text-sm text-ink-300">{title} ({agents.length})</summary><div className="mt-4">{rows}</div></details>:(
     <section className="mb-8">
-      <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">
+      <h2 className="text-lg font-medium text-ink-100 mb-3">
         {title} <span className="text-ink-500">({agents.length})</span>
         {subtitle && <span className="ml-2 normal-case tracking-normal text-ink-500 font-normal">{subtitle}</span>}
       </h2>
-      <ul className="space-y-3">{agents.map((a) => <Row key={`${spotlight ? 'act' : 'row'}-${a.slug}`} a={a} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug === a.slug} spotlight={spotlight} />)}</ul>
+      {rows}
     </section>
   );
 }
@@ -530,22 +526,6 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
   // The full activated roster (scheduled + on-demand together, scheduler-tagged) —
   // favorites are pulled into their own section above, so exclude them here.
   const activated = [...scheduled, ...onDemand];
-  // Activity spotlight: agents running right now OR that ran in the last 24h.
-  // This OVERLAPS the roster on purpose — it's a live-pulse lens on the same
-  // agents (its rows open the RUN status page, not the agent page). Includes
-  // FAVORITES too (a running favorite still belongs in the live pulse). Running
-  // first, then most-recent.
-  const RECENT_MS = 24 * 60 * 60 * 1000;
-  const recentlyActive = shown
-    .filter((a) => a.section === 'scheduled' || a.section === 'on_demand')
-    .filter((a) => a.lastRun && (a.lastRun.runState === 'running' || (!!a.lastRun.ranAt && Date.now() - new Date(a.lastRun.ranAt).getTime() < RECENT_MS)))
-    .sort((x, y) => {
-      const xr = x.lastRun?.runState === 'running' ? 1 : 0;
-      const yr = y.lastRun?.runState === 'running' ? 1 : 0;
-      if (xr !== yr) return yr - xr;
-      return new Date(y.lastRun?.ranAt || 0).getTime() - new Date(x.lastRun?.ranAt || 0).getTime();
-    });
-
   const setCat = (key: string) => {
     const p = new URLSearchParams(params.toString());
     if (key) p.set('cat', key); else p.delete('cat');
@@ -554,7 +534,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
 
   return (
     <>
-      {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">{error}</p>}
+      {error && <p className="text-xs text-state-fail mb-3">{error}</p>}
 
       {/* One outcome-first query spans owned/hired and eligible available agents. */}
       <div className="relative mb-4">
@@ -594,7 +574,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
             </select>
           </label>
           {(readinessFilter || engineFilter) && (
-            <button type="button" onClick={() => { setReadinessFilter(''); setEngineFilter(''); }} className="text-xs text-brand-500 hover:underline">
+            <button type="button" onClick={() => { setReadinessFilter(''); setEngineFilter(''); }} className="text-xs text-action-accent hover:underline">
               Clear filters
             </button>
           )}
@@ -602,14 +582,14 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
       )}
 
       {discoveryUnavailable && (
-        <div role="status" className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+        <div role="status" className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-state-needs">
           Available agents could not be checked. Your hired and owned agents are still shown below.
         </div>
       )}
 
       {(q || availableShown.length > 0) && (
         <section className="mb-8" aria-labelledby="available-agent-results">
-          <h2 id="available-agent-results" className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">Agent results</h2>
+          <h2 id="available-agent-results" className="text-lg font-medium text-ink-100 mb-3">Agent results</h2>
           <ul className="space-y-3">
             {q && (
               <li className="card flex items-start justify-between gap-4">
@@ -626,7 +606,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
                   <div className="flex flex-wrap items-center gap-2">
                     <Link href={`/workflows/${encodeURIComponent(agent.slug)}`} className="text-base font-medium text-ink-50 hover:underline">{agent.name}</Link>
                     <span className="text-[10px] uppercase tracking-wider rounded border border-ink-700 px-1.5 py-0.5 text-ink-300">{agent.ownership}</span>
-                    <span className="text-[10px] uppercase tracking-wider rounded border border-sky-500/40 px-1.5 py-0.5 text-sky-300">{agent.readiness.state}</span>
+                    <span className="text-[10px] uppercase tracking-wider rounded border border-sky-500/40 px-1.5 py-0.5 text-state-running">{agent.readiness.state}</span>
                   </div>
                   <p className="mt-1 text-sm text-ink-300">{agent.job}</p>
                   <p className="mt-1 text-xs text-ink-500">Built by {agent.builder.name} · v{agent.version.number}</p>
@@ -646,7 +626,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
           <button
             type="button"
             onClick={() => setCat('')}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${!activeCat ? 'border-brand-500/50 bg-brand-500/10 text-brand-600 dark:text-brand-300' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${!activeCat ? 'border-brand-500/50 bg-brand-500/10 text-action-accent' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
           >
             All
           </button>
@@ -655,23 +635,19 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
               key={c.key}
               type="button"
               onClick={() => setCat(activeCat === c.key ? '' : c.key)}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${activeCat === c.key ? 'border-brand-500/50 bg-brand-500/10 text-brand-600 dark:text-brand-300' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${activeCat === c.key ? 'border-brand-500/50 bg-brand-500/10 text-action-accent' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
             >
-              <span aria-hidden className="mr-1">{c.emoji}</span>{c.label} <span className="text-ink-600">{c.n}</span>
+              {c.label} <span className="text-ink-600">{c.n}</span>
             </button>
           ))}
         </div>
       )}
 
-      {/* Roster model: an ACTIVITY spotlight (what's running / just ran — rows open
-          the run status page) on top of the full ROSTER (all activated agents,
-          scheduled + on-demand, scheduler-tagged — rows open the agent page). The
-          two overlap on purpose: same agents, two doors. Then Need activation, then
-          Paused. Scheduling is surfaced as a per-row ⏰ tag, not a list split. */}
-      <Section title="★ Favorites" subtitle="your starred agents" agents={favorites} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
-      <Section title="Running & recently ran" subtitle="live activity · opens the run" agents={recentlyActive} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} spotlight />
+      {/* One row per agent. Live execution belongs in Work. */}
+      <div className="mb-5 text-sm"><Link href="/workflows?tab=rent" className="text-action-accent hover:underline">Find a trained agent →</Link></div>
+      <Section title="Favorites" subtitle="your starred agents" agents={favorites} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
       <Section title="Active agents" agents={activated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
-      <Section title="Need activation" agents={notActivated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
+      <Section title="Drafts" agents={notActivated} collapsible onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
 
       {shown.length === 0 && (
         <div className="card text-center py-10">
@@ -680,10 +656,10 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
           </p>
           <p className="text-xs text-ink-500 mt-1">
             {q
-              ? <button type="button" onClick={() => setQuery('')} className="text-brand-500 hover:underline">Clear search</button>
+              ? <button type="button" onClick={() => setQuery('')} className="text-action-accent hover:underline">Clear search</button>
               : activeCat
-                ? <button type="button" onClick={() => setCat('')} className="text-brand-500 hover:underline">Clear filter</button>
-                : <>Describe one in <Link href="/create" className="text-brand-500 hover:underline">Create</Link> and Implexa builds it.</>}
+                ? <button type="button" onClick={() => setCat('')} className="text-action-accent hover:underline">Clear filter</button>
+                : <>Describe one in <Link href="/create" className="text-action-accent hover:underline">Create</Link> and Tukido builds it.</>}
           </p>
         </div>
       )}
@@ -693,7 +669,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
           opens the agent page, where Resume lives. */}
       {paused.length > 0 && (
         <section className="mt-10 pt-6 border-t border-ink-800">
-          <h2 className="text-xs uppercase tracking-wider text-ink-500 mb-3">Paused ({paused.length})</h2>
+          <h2 className="text-sm text-ink-400 mb-3">Paused ({paused.length})</h2>
           <ul className="space-y-2">
             {(showPaused ? paused : paused.slice(0, 3)).map((a) => (
               <li key={a.slug} className="card flex items-center justify-between gap-3 py-2.5">
@@ -736,12 +712,12 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
           <button
             type="button"
             onClick={() => setShowArchived((v) => !v)}
-            className="text-xs uppercase tracking-wider text-ink-500 hover:text-ink-300 flex items-center gap-1.5"
+            className="text-sm text-ink-400 hover:text-ink-300 flex items-center gap-1.5"
           >
             <span className={`inline-block transition-transform ${showArchived ? 'rotate-90' : ''}`}>▸</span>
             Archived ({arch.length})
             {liveArchived > 0 && (
-              <span className="normal-case tracking-normal text-amber-600 dark:text-amber-400">
+              <span className="normal-case tracking-normal text-state-needs">
                 · {liveArchived} still running
               </span>
             )}
@@ -756,10 +732,10 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
                       <span className="text-sm text-ink-300 truncate">{a.name}</span>
                       {a.isLive && (
                         <span
-                          className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-700 dark:text-amber-300 whitespace-nowrap"
+                          className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/50 text-state-needs whitespace-nowrap"
                           title="Hidden from your list, but still running on its schedule."
                         >
-                          ⏰ Still live
+                          Still live
                         </span>
                       )}
                     </span>
@@ -769,7 +745,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
                           type="button"
                           onClick={() => deactivateArchived(a.slug)}
                           disabled={busySlug === a.slug}
-                          className="text-xs px-3 py-1 rounded-md border border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 transition-colors disabled:opacity-50 whitespace-nowrap"
+                          className="text-xs px-3 py-1 rounded-md border border-amber-500/50 text-state-needs hover:bg-amber-500/10 transition-colors disabled:opacity-50 whitespace-nowrap"
                         >
                           {busySlug === a.slug ? 'Stopping…' : 'Stop it'}
                         </button>

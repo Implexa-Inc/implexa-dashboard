@@ -3,7 +3,7 @@
  *
  * DESIGN.md §4.1 locks primary navigation to three product domains:
  *
- *     Agents · Work · Training          (Settings is secondary)
+ *     Agents · Work · Coach             (Settings is secondary)
  *
  * and locks out two entries that used to exist here:
  *
@@ -73,16 +73,14 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     owns: ['/work', '/review', '/inbox', '/runs', '/overview', '/connections', '/scheduled', '/generations'],
   },
   {
-    id: 'training', href: '/training', label: 'Training', icon: 'trending',
+    id: 'training', href: '/training', label: 'Coach', icon: 'trending',
     owns: ['/training'],
   },
 ];
 
-/** The two-account marketplace pilot changes labels, never route ownership. */
-export function primaryNavigation(marketplacePilot = false): readonly NavItem[] {
-  if (!marketplacePilot) return PRIMARY_NAV;
-  const labels = { agents: 'Rent/Build', work: 'Run', training: 'Edit/Train' };
-  return PRIMARY_NAV.map(item => ({ ...item, label: labels[item.id as keyof typeof labels] || item.label }));
+/** The same three product domains in the web app and Desktop, including the pilot. */
+export function primaryNavigation(_marketplacePilot = false): readonly NavItem[] {
+  return PRIMARY_NAV;
 }
 
 export const SECONDARY_NAV: readonly NavItem[] = [
@@ -360,9 +358,10 @@ export const MAIN_CONTENT_ID = 'main-content';
  * review surfaces"). Creating an agent is not a plausible next action while
  * you are judging a delivered artifact, and the control overlaps the review
  * action area. Training and Create also own their contextual conversation;
- * a second floating creator covers the chat/retention controls there.
+ * a second floating creator covers the chat/retention controls there. Agents
+ * already owns Build; agent and Settings pages own their action/forms.
  */
-export const CREATE_FAB_SUPPRESSED_PREFIXES: readonly string[] = ['/work', '/review', '/runs', '/training', '/create'];
+export const CREATE_FAB_SUPPRESSED_PREFIXES: readonly string[] = ['/work', '/review', '/runs', '/training', '/create', '/workflows', '/settings'];
 
 export function isCreateFabSuppressed(pathname: string): boolean {
   return CREATE_FAB_SUPPRESSED_PREFIXES.some((p) => ownsPath(p, pathname));

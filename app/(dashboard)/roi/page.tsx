@@ -35,7 +35,7 @@ export default async function RoiPage() {
   const totalValueUsd    = (skills || []).reduce((a, s: any) => a + (s.outcome_stats?.attributedValueUsd || 0), 0);
 
   return (
-    <main className="min-h-screen px-4 py-12">
+    <main className="app-page">
       <div className="max-w-5xl mx-auto">
         <nav className="text-sm text-ink-500 mb-6">
           <Link href="/skills" className="hover:underline">← Skills</Link>
@@ -115,13 +115,13 @@ export default async function RoiPage() {
           <h2 className="text-lg font-medium mb-3">How attribution works</h2>
           <div className="card">
             <p className="text-sm text-ink-200 mb-3">
-              When you invoke a skill via <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded">/implexa:apply</code> or via natural language, Implexa logs the invocation with attribution keys (account ID, opportunity ID, candidate ID, thread ID).
+              When you invoke a skill via <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded">/implexa:apply</code> or via natural language, Tukido logs the invocation with attribution keys (account ID, opportunity ID, candidate ID, thread ID).
             </p>
             <p className="text-sm text-ink-200 mb-3">
-              When a downstream event fires from your CRM, ATS, calendar, or data warehouse — a deal closes, a meeting books, a candidate places, a feature ships — Implexa attempts last-touch attribution within a 30-day window. If the attribution keys overlap, the outcome attributes to the skill.
+              When a downstream event fires from your CRM, ATS, calendar, or data warehouse — a deal closes, a meeting books, a candidate places, a feature ships — Tukido attempts last-touch attribution within a 30-day window. If the attribution keys overlap, the outcome attributes to the skill.
             </p>
             <p className="text-sm text-ink-200">
-              You can also manually attribute outcomes — say <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded">"the Acme deal closed yesterday because of my account-research skill"</code> in Claude Code, and Implexa records it.
+              You can also manually attribute outcomes — say <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded">"the Acme deal closed yesterday because of my account-research skill"</code> in Claude Code, and Tukido records it.
             </p>
           </div>
         </section>

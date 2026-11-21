@@ -46,9 +46,9 @@ export default function CustomerTrainingInbox({slug,ownerId,sessionId,versionId,
   {(items.length>0||error)&&<h3 className="text-lg font-medium">Suggestions from customers</h3>}
   {items.map(c=><article key={c.id} className="space-y-3 rounded-xl border border-ink-700 p-4">
    <p className="text-xs text-ink-500">Customer feedback · Reference only <TrainingInfo label="About customer suggestions">Drafting sends this shared note and frame to Claude Haiku 5.5. You review the proposed guidance before applying it. The frame stays a reference, not output footage.</TrainingInfo></p><p className="text-sm leading-6">{c.excerpt}</p>{c.teaching&&<p className="text-xs text-ink-400">Teaching suggestion saved · Original customer reference</p>}
-   {opened!==c.id?<button type="button" className="text-sm text-brand-400" disabled={busy||disabled} onClick={()=>void review(c)}>Review suggestion →</button>:<>
+   {opened!==c.id?<button type="button" className="text-sm text-action-accent" disabled={busy||disabled} onClick={()=>void review(c)}>Review suggestion →</button>:<>
     {image&&<img src={image} alt="Customer-shared reference frame, not approved training" className="max-h-56 rounded-lg object-contain"/>}
-    {c.teaching?<button type="button" className="text-sm text-brand-400" onClick={onSaved}>Review saved training →</button>:!draft?<button type="button" disabled={busy||!image} className="text-sm text-brand-400" onClick={()=>void suggest(c)}>Suggest a reusable lesson</button>:draft.status==='suggested'&&draft.fields&&draft.scopeSuggestion?<>
+    {c.teaching?<button type="button" className="text-sm text-action-accent" onClick={onSaved}>Review saved training →</button>:!draft?<button type="button" disabled={busy||!image} className="text-sm text-action-accent" onClick={()=>void suggest(c)}>Suggest a reusable lesson</button>:draft.status==='suggested'&&draft.fields&&draft.scopeSuggestion?<>
      <p className="text-xs text-ink-500">Review and adapt the guidance. The customer’s original note and frame stay separate.</p>
      <textarea aria-label="Reusable guidance from this customer suggestion" maxLength={2000} value={instruction} disabled={busy||!!pending.current} onChange={e=>setInstruction(e.target.value)} className="min-h-24 w-full rounded-lg border border-ink-700 bg-ink-950 p-3 text-sm"/>
      <button type="button" className="btn-primary" disabled={busy||disabled||!instruction.trim()} onClick={()=>void save(c)}>{sessionId?'Review as training':'Continue to training'}</button>
@@ -57,6 +57,6 @@ export default function CustomerTrainingInbox({slug,ownerId,sessionId,versionId,
      <button type="button" disabled={busy||!!pending.current} className="text-xs text-ink-500" onClick={()=>void work(async expected=>{await contributionRequest({action:'dismiss',id:c.id,shareDigest:c.shareDigest});if(live.current===expected)setItems(xs=>xs.filter(x=>x.id!==c.id));})}>{c.teaching?'Hide reference':'Dismiss'}</button></div>
    </>}
   </article>)}
-  {busy&&<p role="status" className="text-xs text-ink-400">Working…</p>}{error&&<div role="alert" className="text-sm text-amber-300"><p>{error}</p>{!loaded&&<button type="button" disabled={busy} className="text-xs underline" onClick={()=>setRefresh(v=>v+1)}>Retry customer suggestions</button>}</div>}
+  {busy&&<p role="status" className="text-xs text-ink-400">Working…</p>}{error&&<div role="alert" className="text-sm text-state-needs"><p>{error}</p>{!loaded&&<button type="button" disabled={busy} className="text-xs underline" onClick={()=>setRefresh(v=>v+1)}>Retry customer suggestions</button>}</div>}
  </section>;
 }

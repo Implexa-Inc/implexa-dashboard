@@ -51,8 +51,8 @@ export default function TrainingIntakePlan({plan,disabled,onQueue,onClose}:{
       <h3 className="font-medium">Suggested agent changes</h3>
       <button type="button" className="text-sm underline" disabled={pending} onClick={onClose}>Close</button>
     </div>
-    {queued?<p role="status">Update requested. The current version stays active while Implexa prepares the revision.</p>:<>
-      <p className="text-sm text-ink-300">Select the changes you want Implexa to prepare for this agent.</p>
+    {queued?<p role="status">Update requested. The current version stays active while Tukido prepares the revision.</p>:<>
+      <p className="text-sm text-ink-300">Select the changes you want Tukido to prepare for this agent.</p>
       {plan.changes.map((change,index)=>{
         const needsSetup=change.kind==='tool_addition'&&!change.toolId;
         const method=change.method;
@@ -73,7 +73,7 @@ export default function TrainingIntakePlan({plan,disabled,onQueue,onClose}:{
           </div>}
         </div>;
       })}
-      {error&&<p role="alert" className="text-sm text-amber-300">{error}</p>}
+      {error&&<p role="alert" className="text-sm text-state-needs">{error}</p>}
       <button type="button" className="btn-primary" disabled={disabled||pending||!selected.length} onClick={()=>void queue()}>
         {pending?'Requesting update…':'Request selected changes'}
       </button>

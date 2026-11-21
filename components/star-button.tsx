@@ -101,7 +101,7 @@ export function StarButton({ skillId, initialStarred, initialCount, jwt, size = 
         'inline-flex items-center gap-1.5 rounded-md border tabular-nums',
         'border-ink-700 bg-ink-900/40 hover:bg-ink-800 active:bg-ink-800',
         'disabled:cursor-not-allowed disabled:opacity-80',
-        starred ? 'text-amber-500' : 'text-ink-200',
+        starred ? 'text-state-needs' : 'text-ink-200',
         padding, textSize,
         'transition-colors',
       ].join(' ')}

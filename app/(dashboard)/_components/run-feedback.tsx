@@ -173,7 +173,7 @@ export default function RunFeedback({
                   aria-hidden
                   className={`flex-none inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold tabular-nums mt-0.5 transition-colors ${
                     qDone
-                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                      ? 'bg-emerald-500/20 text-state-ok'
                       : 'bg-ink-800 text-ink-400'
                   }`}
                 >
@@ -200,7 +200,7 @@ export default function RunFeedback({
                             aria-pressed={val === o}
                             className={`text-[13px] px-3.5 py-1.5 rounded-full border transition-colors ${
                               val === o
-                                ? 'border-brand-500 bg-brand-500/15 text-brand-600 dark:text-brand-300 font-medium'
+                                ? 'border-brand-500 bg-brand-500/15 text-action-accent font-medium'
                                 : 'border-ink-700 text-ink-300 hover:border-ink-400 hover:text-ink-100'
                             }`}
                           >
@@ -223,7 +223,7 @@ export default function RunFeedback({
               aria-hidden
               className={`flex-none inline-flex items-center justify-center w-6 h-6 rounded-full text-[12px] font-semibold mt-0.5 transition-colors ${
                 hasFreeform
-                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                  ? 'bg-emerald-500/20 text-state-ok'
                   : 'bg-ink-800 text-ink-400'
               }`}
             >
@@ -280,7 +280,7 @@ export default function RunFeedback({
         </button>
         <span className="text-xs text-ink-500">
           {error ? (
-            <span className="text-rose-600 dark:text-rose-400">{error}</span>
+            <span className="text-state-fail">{error}</span>
           ) : answeredCount === 0 && !hasFreeform ? (
             'Answer any one, or just write a comment, to send.'
           ) : (

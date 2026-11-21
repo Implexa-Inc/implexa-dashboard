@@ -212,6 +212,6 @@ export async function getActivationChecklist(slug: string): Promise<ActivationCh
 // Presentation helpers shared by the card.
 export const TIER_PRESENTATION: Record<PermissionTier, { label: string; classes: string }> = {
   0: { label: 'Auto', classes: 'border-ink-700 text-ink-400' },
-  1: { label: 'Heads-up', classes: 'border-sky-500/40 text-sky-700 dark:text-sky-300' },
-  2: { label: 'Your call', classes: 'border-amber-500/50 text-amber-700 dark:text-amber-300' },
+  1: { label: 'Heads-up', classes: 'border-sky-500/40 text-state-running' },
+  2: { label: 'Your call', classes: 'border-amber-500/50 text-state-needs' },
 };

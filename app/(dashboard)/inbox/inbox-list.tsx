@@ -106,8 +106,8 @@ const LIGHT_LABEL: Record<Light, string> = {
   green: 'Done',
 };
 const LIGHT_TEXT: Record<Light, string> = {
-  red:   'text-rose-600 dark:text-rose-400',
-  amber: 'text-amber-700 dark:text-amber-300',
+  red:   'text-state-fail',
+  amber: 'text-state-needs',
   green: 'text-ink-500',
 };
 
@@ -240,7 +240,7 @@ export default function InboxList({
         return (
           <Link
             href={`/workflows/${encodeURIComponent(it.slug)}/activate`}
-            className={`${base} border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10`}
+            className={`${base} border-rose-500/40 text-state-fail hover:bg-rose-500/10`}
           >
             {dot} Fix
           </Link>
@@ -250,7 +250,7 @@ export default function InboxList({
         <button
           type="button"
           onClick={() => open(it.id)}
-          className={`${base} border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10`}
+          className={`${base} border-rose-500/40 text-state-fail hover:bg-rose-500/10`}
         >
           {dot} View
         </button>
@@ -262,7 +262,7 @@ export default function InboxList({
         <button
           type="button"
           onClick={() => open(it.id)}
-          className={`${base} border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10`}
+          className={`${base} border-amber-500/40 text-state-needs hover:bg-amber-500/10`}
         >
           {dot} Review
         </button>
@@ -364,7 +364,7 @@ export default function InboxList({
                   Ran {group.length} times today
                 </span>
                 {needN > 0 && (
-                  <span className="text-[10px] text-amber-700 dark:text-amber-300">{needN} need you</span>
+                  <span className="text-[10px] text-state-needs">{needN} need you</span>
                 )}
               </div>
               {line && <p className="text-sm text-ink-400 mt-1 line-clamp-1">latest: {line}</p>}
@@ -400,7 +400,7 @@ export default function InboxList({
         <div className="mb-5 flex items-baseline gap-2">
           <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{heading} ({items.length})</h2>
           {needYou > 0 && (
-            <span className="text-xs text-amber-600 dark:text-amber-400">{needYou} need you</span>
+            <span className="text-xs text-state-needs">{needYou} need you</span>
           )}
         </div>
       )}
@@ -415,7 +415,7 @@ export default function InboxList({
                 <h2 className="text-sm font-semibold text-ink-200">{day.label}</h2>
                 <span className="text-xs text-ink-500">
                   {day.items.length} run{day.items.length === 1 ? '' : 's'} · {delivered} delivered
-                  {needYouDay > 0 && <span className="text-amber-600 dark:text-amber-400"> · {needYouDay} need you</span>}
+                  {needYouDay > 0 && <span className="text-state-needs"> · {needYouDay} need you</span>}
                 </span>
               </div>
               <ul className="space-y-2 mt-2">
@@ -490,11 +490,11 @@ export default function InboxList({
                 : openItem.judgment.verdict === 'repair' ? 'border-amber-500/35 bg-amber-500/5'
                 : 'border-ink-700 bg-ink-900/40'}`}>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] uppercase tracking-wide text-ink-500">Implexa Judge</span>
+                  <span className="text-[10px] uppercase tracking-wide text-ink-500">Tukido Judge</span>
                   <span className={`text-xs font-medium ${
-                    openItem.judgment.verdict === 'pass' ? 'text-emerald-300'
-                    : openItem.judgment.verdict === 'blocked' ? 'text-orange-300'
-                    : openItem.judgment.verdict === 'repair' ? 'text-amber-300' : 'text-ink-300'}`}>
+                    openItem.judgment.verdict === 'pass' ? 'text-state-ok'
+                    : openItem.judgment.verdict === 'blocked' ? 'text-state-needs'
+                    : openItem.judgment.verdict === 'repair' ? 'text-state-needs' : 'text-ink-300'}`}>
                     {openItem.judgment.verdict === 'pass' ? 'Passed review'
                       : openItem.judgment.verdict === 'blocked' ? 'Blocked — needs you'
                       : openItem.judgment.verdict === 'repair' ? 'Repair suggested' : 'Couldn’t confirm'}
@@ -507,7 +507,7 @@ export default function InboxList({
                 {openItem.judgment.next_action && openItem.judgment.verdict !== 'pass' && (
                   <p className="text-[11px] text-ink-400 mt-1">{openItem.judgment.next_action}</p>
                 )}
-                <a href={`/runs/${openItem.id}`} className="text-[11px] text-brand-500 hover:underline mt-1.5 inline-block">
+                <a href={`/runs/${openItem.id}`} className="text-[11px] text-action-accent hover:underline mt-1.5 inline-block">
                   Full review, evidence &amp; accuracy feedback →
                 </a>
               </div>
@@ -518,7 +518,7 @@ export default function InboxList({
             <a href={`/runs/${openItem.id}`} className="text-[11px] text-ink-500 hover:text-ink-300 underline mt-2 inline-block">
               Open full run
             </a>
-            <a href={`/review/${encodeURIComponent(openItem.id)}`} className="ml-4 text-[11px] text-brand-500 hover:underline mt-2 inline-block">
+            <a href={`/review/${encodeURIComponent(openItem.id)}`} className="ml-4 text-[11px] text-action-accent hover:underline mt-2 inline-block">
               Review and annotate
             </a>
 
@@ -555,7 +555,7 @@ export default function InboxList({
               ) : classifyHeldApprovalSurface({ held: openItem.pending, pending: openItem.pending, holdKind: openItem.holdKind }) === 'unavailable' ? (
                 <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-4" role="alert">
                   <p className="text-sm font-medium text-ink-100">Approval details unavailable</p>
-                  <p className="mt-1 text-xs text-amber-200">Open the full run to reload and verify exactly what this approval authorizes.</p>
+                  <p className="mt-1 text-xs text-state-needs">Open the full run to reload and verify exactly what this approval authorizes.</p>
                   <a href={`/runs/${encodeURIComponent(openItem.id)}`} className="btn-outline mt-3 inline-flex px-4 py-2 text-sm">Reload approval details</a>
                 </div>
               ) : openItem.pending ? (

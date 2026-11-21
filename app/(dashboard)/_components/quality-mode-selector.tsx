@@ -83,7 +83,7 @@ export default function QualityModeSelector({ value, onChange, compiledByMode, d
                 <span aria-hidden className={`h-3 w-3 shrink-0 rounded-full border ${selected ? 'border-ink-100 bg-ink-100' : 'border-ink-600'}`} />
                 <span className="text-sm font-medium text-ink-100">{option.label}</span>
                 {markedUnavailable && (
-                  <span className="ml-auto rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-300">
+                  <span className="ml-auto rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-state-needs">
                     Not available yet
                   </span>
                 )}
@@ -94,7 +94,7 @@ export default function QualityModeSelector({ value, onChange, compiledByMode, d
                   reason. Its compiled differences (Professional keeps its graph
                   for preview) still render beneath — described, not promised. */}
               {markedUnavailable && (
-                <span className="mt-2 text-[11px] leading-snug text-amber-300/90">
+                <span className="mt-2 text-[11px] leading-snug text-state-needs">
                   {unavailableModeCopy(
                     mode,
                     compiled?.unavailableReason ?? null,

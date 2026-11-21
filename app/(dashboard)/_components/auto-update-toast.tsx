@@ -69,7 +69,7 @@ export default function AutoUpdateToast() {
           <span aria-hidden="true" className="mt-0.5 text-base leading-none">⬆️</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-ink-100">
-              {version ? `Implexa v${version} is ready` : 'An Implexa update is ready'}
+              {version ? `Tukido v${version} is ready` : 'An Tukido update is ready'}
             </p>
             <p className="mt-0.5 text-xs text-ink-300">Restart to update.</p>
             <div className="mt-2.5 flex items-center gap-2">

@@ -69,7 +69,7 @@ export default function RunStopControl({ runId, runState, cancelRequestedAt }: {
           <button type="button" className="ml-3 text-sm" disabled={busy} onClick={() => setConfirm(false)}>Keep open</button>
         </div>
       ))}
-      {error && <p role="alert" className="mt-2 text-sm text-red-400">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-sm text-state-fail">{error}</p>}
     </section>
   );
 }

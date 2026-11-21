@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import EnginesClient, { type EngineReport } from './engines-client';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'AI engines — Implexa' };
+export const metadata = { title: 'AI engines — Tukido' };
 
 export default async function EnginesPage() {
   const supabase = createClient();
@@ -19,13 +19,13 @@ export default async function EnginesPage() {
   } catch { /* migration may not be applied yet; cards still render as disconnected */ }
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-4xl mx-auto">
-        <Link href="/settings" className="text-xs text-brand-500 hover:underline">← Settings</Link>
+    <main className="app-page">
+      <div className="app-content">
+        <Link href="/settings" className="text-xs text-action-accent hover:underline">← Settings</Link>
         <header className="mt-2 mb-8">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">AI engines</h1>
           <p className="text-sm text-ink-300 mt-1 max-w-2xl leading-relaxed">
-            Claude and Codex are independent execution engines. Implexa can use either automatically, while each agent can be pinned to one in its Setup tab.
+            Claude and Codex are independent execution engines. Tukido can use either automatically, while each agent can be pinned to one in its Setup tab.
           </p>
         </header>
         <EnginesClient reports={reports} />

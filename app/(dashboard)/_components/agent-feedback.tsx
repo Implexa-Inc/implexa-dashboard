@@ -134,12 +134,12 @@ export default function AgentFeedback({ slug, statusUnavailable = false, reviseP
         To steer just one run, use the note in “Run now” instead.
       </p>
       {statusUnavailable && (
-        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+        <p className="mt-2 text-xs text-state-needs">
           Run and edit status is unavailable. Reload before queueing another permanent change.
         </p>
       )}
       {!statusUnavailable && revisePending && (
-        <p className="mt-2 text-xs text-violet-600 dark:text-violet-400">
+        <p className="mt-2 text-xs text-state-review">
           An edit is already queued. Wait for it to create a new version before adding another.
         </p>
       )}

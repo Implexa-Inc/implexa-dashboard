@@ -38,16 +38,16 @@ export default function ReadyForReviewList({
       {/* Entry to /review/new (record or upload a video to review). A link only:
           the queue below is unchanged. */}
       {!training&&<div className="mb-3 flex justify-end">
-        <Link href="/review/new" className="text-sm text-sky-400 hover:underline">New review</Link>
+        <Link href="/review/new" className="text-sm text-state-running hover:underline">New review</Link>
       </div>}
       {warning && (
         <div
           role="status"
-          className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+          className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-state-needs"
         >
           <p>{warning}</p>
           {broken.length > 0 && (
-            <p className="mt-1 text-xs text-amber-200/70">
+            <p className="mt-1 text-xs text-state-needs">
               Could not read: {broken.join(', ')}.
             </p>
           )}
@@ -89,10 +89,10 @@ export default function ReadyForReviewList({
                     <span
                       className={
                         isApproval
-                          ? 'rounded bg-violet-500/15 px-1.5 py-0.5 text-violet-300'
+                          ? 'rounded bg-violet-500/15 px-1.5 py-0.5 text-state-review'
                           : item.reason.startsWith('judge')
-                            ? 'rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-300'
-                            : 'rounded bg-sky-500/15 px-1.5 py-0.5 text-sky-300'
+                            ? 'rounded bg-amber-500/15 px-1.5 py-0.5 text-state-needs'
+                            : 'rounded bg-sky-500/15 px-1.5 py-0.5 text-state-running'
                       }
                     >
                       {reasonLabel(item.reason)}

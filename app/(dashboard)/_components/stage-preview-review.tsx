@@ -92,7 +92,7 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
               </p>)}
             </>}
         </section>}
-        {mediaFailure && <p role="alert" className="mb-3 text-sm text-amber-200">A Preview file could not be verified for display. Close and reopen this view to check the retained evidence again; this does not mean its files are gone.</p>}
+        {mediaFailure && <p role="alert" className="mb-3 text-sm text-state-needs">A Preview file could not be verified for display. Close and reopen this view to check the retained evidence again; this does not mean its files are gone.</p>}
         {view.criteria.map(c => <section key={c.id} className="mb-3 text-sm">
           <h3 className="font-semibold text-ink-100">{c.statement}</h3>
           {view.judgments.filter(j => j.criterionId === c.id).map((j, i) => <p key={i} className="text-ink-300">

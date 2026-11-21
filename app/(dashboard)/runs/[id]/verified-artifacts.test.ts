@@ -49,7 +49,7 @@ test('verified file actions use the validator-produced absolute path, while hidi
   assert.match(component, /artifact\.validatedPath/, 'Open/Finder must use the validated path, not worker prose');
   assert.match(component, /artifact\.relativePath\.split\('\/'\)\.at\(-1\)/,
     'the visible label should be a portable filename, not a home-directory path');
-  assert.match(component, /Checked on this Mac by Implexa/, 'trust status must be explained to the user');
+  assert.match(component, /Checked on this Mac by Tukido/, 'trust status must be explained to the user');
 });
 
 test('every run exposes refresh and an expandable bounded artifact list', () => {

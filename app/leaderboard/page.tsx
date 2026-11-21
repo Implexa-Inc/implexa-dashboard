@@ -84,7 +84,7 @@ export default async function LeaderboardPage({
             Dashboard →
           </Link>
         ) : (
-          <Link href="/signup" className="text-sm text-brand-500 hover:underline">
+          <Link href="/signup" className="text-sm text-action-accent hover:underline">
             Sign in / Sign up
           </Link>
         )}
@@ -96,7 +96,7 @@ export default async function LeaderboardPage({
             Creator leaderboard
           </h1>
           <p className="text-ink-300 text-sm mt-2 leading-relaxed max-w-xl">
-            The Implexa creators whose shared skills are getting the most engagement.
+            The Tukido creators whose shared skills are getting the most engagement.
             Karma rises when others install, fork, or amplify your skills.
           </p>
         </header>
@@ -194,7 +194,7 @@ function LeaderRow({ rank, leader }: { rank: number; leader: Leader }) {
         <div className="text-sm font-medium text-ink-50 truncate">{name}</div>
       </div>
       <div className="shrink-0 text-right">
-        <div className="text-lg font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+        <div className="text-lg font-semibold tabular-nums text-state-needs">
           <span aria-hidden="true">✨ </span>{leader.karma.toLocaleString()}
         </div>
         <div className="text-[10px] uppercase tracking-wide text-ink-500">karma</div>
@@ -223,13 +223,13 @@ function EmptyState({ period }: { period: 'alltime' | 'month' }) {
 }
 
 export const metadata = {
-  title: 'Creator leaderboard — Implexa',
+  title: 'Creator leaderboard — Tukido',
   description:
-    'The Implexa creators whose shared skills earn the most karma. Install one, fork another, or share yours to join the board.',
+    'The Tukido creators whose shared skills earn the most karma. Install one, fork another, or share yours to join the board.',
   openGraph: {
-    title: 'Creator leaderboard — Implexa',
+    title: 'Creator leaderboard — Tukido',
     description:
-      'The Implexa creators whose shared skills earn the most karma. Install one, fork another, or share yours to join the board.',
+      'The Tukido creators whose shared skills earn the most karma. Install one, fork another, or share yours to join the board.',
     type: 'website',
   },
 };

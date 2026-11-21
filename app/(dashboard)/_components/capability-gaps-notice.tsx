@@ -21,13 +21,13 @@ export default function CapabilityGapsNotice({ gaps }: { gaps?: CapabilityGap[] 
 
   return (
     <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
-      <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+      <p className="text-sm font-medium text-state-needs">
         {required.length
           ? 'This agent needs a tool it doesn’t have yet'
           : 'Optional capability without a tool'}
       </p>
       {required.length > 0 && (
-        <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400 leading-snug">
+        <p className="mt-0.5 text-xs text-state-needs leading-snug">
           It can’t produce part of its result until you pick a tool for{' '}
           {required.map((g) => g.capabilityLabel).join(', ')}. It won’t show as ready to run until then.
         </p>
@@ -37,7 +37,7 @@ export default function CapabilityGapsNotice({ gaps }: { gaps?: CapabilityGap[] 
           <li key={`${g.capability}-${g.requiredness}`} className="text-xs leading-snug">
             <span className="font-medium text-ink-100">{g.capabilityLabel}</span>
             {g.requiredness === 'required_to_deliver' ? (
-              <span className="ml-1.5 text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300">required</span>
+              <span className="ml-1.5 text-[10px] uppercase tracking-wide text-state-needs">required</span>
             ) : (
               <span className="ml-1.5 text-[10px] uppercase tracking-wide text-ink-500">optional</span>
             )}

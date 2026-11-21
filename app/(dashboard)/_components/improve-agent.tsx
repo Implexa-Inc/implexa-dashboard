@@ -60,7 +60,7 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
   if (state === 'queued') {
     const body = (
       <>
-        <div className="text-sm font-medium text-emerald-600 dark:text-emerald-400">✓ Edit request queued</div>
+        <div className="text-sm font-medium text-state-ok">✓ Edit request queued</div>
         <p className="text-xs text-ink-400 mt-1">
           The request is saved. A new agent version does not exist yet; your execution engine must process the edit
           and save it first. The original stays active until that succeeds.
@@ -109,7 +109,7 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
             disabled={statusUnavailable || revisePending}
             className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
           />
-          {error && <p className="text-xs text-rose-500 mt-1.5">{error}</p>}
+          {error && <p className="text-xs text-state-fail mt-1.5">{error}</p>}
           <div className="flex items-center justify-between mt-2.5">
             <span className="text-[11px] text-ink-500">Proposes updated steps · ⌘↵</span>
             <div className="flex items-center gap-2">
@@ -128,12 +128,12 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
         </div>
       )}
       {statusUnavailable && !annotationBinding && (
-        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+        <p className="mt-2 text-xs text-state-needs">
           Edit status is unavailable. Reload before queueing another permanent change.
         </p>
       )}
       {!statusUnavailable && revisePending && (
-        <p className="mt-2 text-xs text-violet-600 dark:text-violet-400">
+        <p className="mt-2 text-xs text-state-review">
           An edit is already queued. Wait for it to create a new version before adding another.
         </p>
       )}

@@ -3,93 +3,190 @@
 @tailwind utilities;
 
 /* ───────────────────────────────────────────────────────────────────────
- * Implexa dashboard — day/night theme.
+ * Tukido dashboard theme: washi paper by day, sumi ink by night.
  *
- * Dark mode is the enforced default (the root layout puts `.dark` on <html>),
- * so the `.dark` token block below is what every user actually sees.
+ * Source of truth: Implexa/tukido-app-design/tokens.css + DESIGN_SYSTEM.md
+ * (step 2 of the app redesign: a TOKEN-ONLY change, no component edits).
  *
- * Dark mode:
- *   - Near-black warm body, light text, warm + emerald accents
+ * The `ink` scale FLIPS between the two blocks below. Components keep using
+ * the same semantic names (text-ink-100, bg-ink-900, …) and adapt.
  *
- * Light mode (reachable only when the `.dark` class is removed, e.g. a future
- * toggle) is tuned to a Vercel / Wispr Flow / Linear grade: a soft off-white
- * page, raised white cards, hairline borders, and crisp near-black text.
+ *   ink-50  primary text      ink-500 subtle labels (non-text, AA large only)
+ *   ink-100 body text         ink-600 prominent borders
+ *   ink-200 emphasized body   ink-700 hairlines / card borders
+ *   ink-300 muted text        ink-800 hover surfaces
+ *   ink-400 captions          ink-900 cards       ink-950 page
  *
- * The `ink` scale FLIPS via these variables. Components use semantic
- * names (text-ink-100, bg-ink-900, etc.) and the underlying color
- * adapts automatically.
+ * Which theme a user sees is decided in app/layout.tsx (THEME_MODE): "clock"
+ * by default (light by day, dark 7pm–6am), with a temporary dark rollback. `?theme=light`
+ * / `?theme=dark` / `?theme=auto` previews and remembers a per-browser choice.
+ *
+ * Contrast (checked): ink-300/400 ≥ 4.8:1 on cards and page in both themes.
  * ─────────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Light mode: ink-50 is darkest text, ink-950 is the off-white body bg.
-   *
-   * Warm-neutral (stone) scale, calibrated for a calm, professional light UI:
-   *   - Page (ink-950) is a soft off-white (#FAFAF9), NOT pure white, so it
-   *     never reads harsh. Cards (ink-900) are pure white and sit RAISED above
-   *     the page with a hairline border plus subtle shadow (the Vercel look).
-   *   - Borders (ink-700/600) are low-contrast hairlines, not heavy grays.
-   *   - Text runs near-black (ink-50) down to muted stone (ink-300/400).
-   *
-   * WCAG AA against the white card / off-white page:
-   *   ink-300 -> ~7.4:1  (muted text, comfortable for body copy)
-   *   ink-400 -> ~4.8:1  (captions / secondary, passes AA normal)
-   *   ink-500 -> ~2.9:1  (subtle UI labels, AA Large / non-text only)
-   * Don't use ink-500 for body-sized text; reserve for badges/labels/borders.
-   */
-  --ink-50:  28 25 23;                                                               /* near-black headings (#1C1917) */
-  --ink-100: 41 37 36;                                                               /* body text (#292524) */
-  --ink-200: 68 64 60;                                                               /* emphasized body (#44403C) */
-  --ink-300: 87 83 78;                                                               /* muted text, ~7.4:1 (#57534E) */
-  --ink-400: 120 113 108;                                                            /* captions, ~4.8:1 (#78716C) */
-  --ink-500: 168 162 158;                                                            /* subtle UI labels, AA Large only (#A8A29E) */
-  --ink-600: 214 211 209;                                                            /* prominent borders (#D6D3D1) */
-  --ink-700: 231 229 228;                                                            /* hairline dividers / card borders (#E7E5E4) */
-  --ink-800: 245 245 244;                                                            /* hover surfaces (#F5F5F4) */
-  --ink-900: 255 255 255;                                                            /* card / surface, raised white (#FFFFFF) */
-  --ink-950: 250 250 249;                                                            /* body bg, soft off-white (#FAFAF9) */
+  /* ---- Raw palette: washi paper, aizome indigo, shu vermilion ------------- */
+  --washi-50:#faf9f5; --washi-100:#f3f1ea; --washi-200:#ece9e0; --washi-300:#e7e4da; --washi-400:#d8d5ca;
+  --aizome-900:#141c2e; --aizome-800:#1e2b45; --aizome-700:#44506a; --aizome-600:#5b6479; --aizome-400:#8a90a0;
+  --sumi-950:#0c0f15; --sumi-900:#0f131b; --sumi-850:#12161f; --sumi-800:#191e2a; --sumi-700:#1f2533; --sumi-600:#272e3d; --sumi-500:#66708a;
+  --shu-600:#a92918; --shu-500:#c8321f; --shu-400:#d23c27; --shu-300:#e8604a; --shu-200:#f07a66;
+
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px; --sp-10:40px; --sp-12:48px; --sp-16:64px;
+  --r-xs:3px; --r-sm:6px; --r-md:10px; --r-lg:14px; --r-pill:999px;
+  --sidebar-w:232px; --content-max:1120px; --control-h:36px; --control-h-sm:30px;
+  --ease:cubic-bezier(.2,.7,.2,1); --dur-fast:120ms; --dur:200ms;
+
+  /* ---- Semantic: LIGHT (default) --------------------------------------------- */
+  --bg-canvas:var(--washi-100);      /* app background */
+  --bg-surface:var(--washi-50);      /* cards, panels, inputs */
+  --bg-sunken:var(--washi-300);      /* wells, selected rows, segmented track */
+  --bg-sidebar:var(--washi-200);
+  --bg-hover:rgba(30,43,69,.05);
+  --bg-selected:rgba(30,43,69,.08);
+  --bg-inverse:var(--aizome-900);    /* dark band, tooltips, toasts */
+  --text-strong:var(--aizome-800);   /* headings, primary text */
+  --text-body:var(--aizome-700);     /* body copy */
+  --text-muted:var(--aizome-600);    /* captions, meta (4.9:1 on sidebar) */
+  --text-inverse:#eeebe3;
+  --text-accent:var(--shu-500);      /* links-as-accent, flourishes */
+  --border-subtle:var(--washi-400);  /* card + divider hairlines */
+  --border-control:var(--aizome-400);/* inputs, secondary buttons (3:1) */
+  --border-strong:var(--aizome-800);
+  --focus-ring:var(--aizome-800);
+  --action-primary-rgb:200 50 31; --action-primary-hover-rgb:169 41 24;
+  --action-primary:var(--shu-500);  --action-primary-hover:var(--shu-600); --on-action-primary:#ffffff;
+  --action-strong:var(--aizome-800);--action-strong-hover:var(--aizome-900);--on-action-strong:var(--washi-100);
+  --action-danger:#9a2a26; --action-danger-hover:#7c211e; --on-action-danger:#ffffff;
+  --shadow-1:0 1px 2px rgba(30,43,69,.06);
+  --shadow-2:0 1px 2px rgba(30,43,69,.05),0 10px 30px -14px rgba(30,43,69,.22);
+  --shadow-pop:0 16px 48px -12px rgba(20,28,46,.35);
+  --overlay:rgba(20,28,46,.42);
+  --media-filter:none;
+  --logo:url(/brand/tukido-logo.svg);
+
+  /* Work states (DESIGN.md §13.1). Never use the color without the text label. */
+  --state-needs-fg:#80540a;   --state-needs-bg:#f5e7c6;   --state-needs-dot:#c98a12;   /* Needs input */
+  --state-running-fg:#2c4a7c; --state-running-bg:#dfe6f1; --state-running-dot:#3d5f99; /* Running, Revising */
+  --state-review-fg:#5b3f86;  --state-review-bg:#e9e2f2;  --state-review-dot:#7a59ad;  /* Ready for review */
+  --state-ok-fg:#2f5d3a;      --state-ok-bg:#dce8da;      --state-ok-dot:#3f7a4d;      /* Accepted, Delivered, Ready */
+  --state-fail-fg:#9a2a26;    --state-fail-bg:#f5dcd7;    --state-fail-dot:#b8392f;    /* Failed */
+  /* RGB channels keep opacity utilities compatible with older browsers. */
+  --state-needs-fg-rgb:128 84 10;
+  --state-needs-bg-rgb:245 231 198;
+  --state-needs-dot-rgb:201 138 18;
+  --state-running-fg-rgb:44 74 124;
+  --state-running-bg-rgb:223 230 241;
+  --state-running-dot-rgb:61 95 153;
+  --state-review-fg-rgb:91 63 134;
+  --state-review-bg-rgb:233 226 242;
+  --state-review-dot-rgb:122 89 173;
+  --state-ok-fg-rgb:47 93 58;
+  --state-ok-bg-rgb:220 232 218;
+  --state-ok-dot-rgb:63 122 77;
+  --state-fail-fg-rgb:154 42 38;
+  --state-fail-bg-rgb:245 220 215;
+  --state-fail-dot-rgb:184 57 47;
+  --state-idle-fg:var(--aizome-700); --state-idle-bg:var(--washi-300); --state-idle-dot:var(--aizome-400); /* Paused, Draft */
+
+  /* Trust channels (DESIGN.md §13.3) — four signals, four distinct looks. */
+  --trust-verified:#2f5d3a;   /* deterministic checks passed */
+  --trust-judge:#2c4a7c;      /* Judge's bounded opinion */
+  --trust-accepted:var(--aizome-800); /* the human decision */
+  --trust-certified:var(--shu-500);   /* marketplace certification = the red hanko seal */
+
+
+  /* Light: washi paper, aizome indigo text. */
+  --ink-50:  30 43 69;     /* #1E2B45 aizome — headings, primary text */
+  --ink-100: 47 59 85;     /* #2F3B55 body text */
+  --ink-200: 68 80 106;    /* #44506A emphasized body */
+  --ink-300: 91 100 121;   /* #5B6479 muted text */
+  --ink-400: 91 100 121;   /* #5B6479 captions (kept ≥4.5:1, so same as 300) */
+  --ink-500: 91 100 121;   /* readable secondary labels; controls use --border-control */
+  --ink-600: 201 197 184;  /* #C9C5B8 prominent borders */
+  --ink-700: 216 213 202;  /* #D8D5CA hairlines */
+  --ink-800: 231 228 218;  /* #E7E4DA hover surfaces */
+  --ink-900: 250 249 245;  /* #FAF9F5 cards (raised paper) */
+  --ink-950: 243 241 234;  /* #F3F1EA page (washi) */
 }
 
 .dark {
-  /* Dark mode: ink-50 is brightest text, ink-950 is near-black body bg.
-   * Forced on by the root layout; this is the default experience. */
-  --ink-50:  250 250 248;
-  --ink-100: 229 225 216;
-  --ink-200: 201 194 183;
-  --ink-300: 161 153 146;
-  --ink-400: 124 116 108;
-  --ink-500: 110 102 94;
-  --ink-600: 74 67 57;
-  --ink-700: 42 36 30;
-  --ink-800: 31 26 20;
-  --ink-900: 21 17 12;
-  --ink-950: 10 8 5;
+
+  --bg-canvas:var(--sumi-850);
+  --bg-surface:var(--sumi-800);
+  --bg-sunken:var(--sumi-950);
+  --bg-sidebar:var(--sumi-900);
+  --bg-hover:rgba(236,232,222,.05);
+  --bg-selected:rgba(236,232,222,.09);
+  --bg-inverse:#ece8de;
+  --text-strong:#ece8de;
+  --text-body:#bcc1cc;
+  --text-muted:#959cac;
+  --text-inverse:var(--aizome-900);
+  --text-accent:var(--shu-300);      /* brighter vermilion for TEXT on dark */
+  --border-subtle:var(--sumi-600);
+  --border-control:var(--sumi-500);
+  --border-strong:#ece8de;
+  --focus-ring:#ece8de;
+  --action-primary-rgb:210 60 39; --action-primary-hover-rgb:184 50 31;
+  --action-primary:var(--shu-400);  --action-primary-hover:#b8321f; --on-action-primary:#ffffff; /* deeper FILL keeps white label crisp */
+  --action-strong:#e6e1d4;          --action-strong-hover:#ffffff;  --on-action-strong:var(--aizome-900);
+  --action-danger:#b8321f; --action-danger-hover:#9a2a26; --on-action-danger:#ffffff;
+  --shadow-1:none;
+  --shadow-2:0 0 0 1px rgba(236,232,222,.02),0 12px 32px -16px rgba(0,0,0,.6);
+  --shadow-pop:0 20px 60px -12px rgba(0,0,0,.7);
+  --overlay:rgba(5,7,11,.62);
+  --media-filter:brightness(.88) saturate(.95);
+  --logo:url(/brand/tukido-logo-on-dark.svg);
+
+  --state-needs-fg:#e8b94f;   --state-needs-bg:#33291a;   --state-needs-dot:#e0a630;
+  --state-running-fg:#a3bce8; --state-running-bg:#1c2840; --state-running-dot:#7d9fd9;
+  --state-review-fg:#c9b0ee;  --state-review-bg:#2a2240;  --state-review-dot:#a885d9;
+  --state-ok-fg:#86c99a;      --state-ok-bg:#1a2e21;      --state-ok-dot:#5fae78;
+  --state-fail-fg:#f2907f;    --state-fail-bg:#3a1e1c;    --state-fail-dot:#e5604d;
+  /* RGB channels keep opacity utilities compatible with older browsers. */
+  --state-needs-fg-rgb:232 185 79;
+  --state-needs-bg-rgb:51 41 26;
+  --state-needs-dot-rgb:224 166 48;
+  --state-running-fg-rgb:163 188 232;
+  --state-running-bg-rgb:28 40 64;
+  --state-running-dot-rgb:125 159 217;
+  --state-review-fg-rgb:201 176 238;
+  --state-review-bg-rgb:42 34 64;
+  --state-review-dot-rgb:168 133 217;
+  --state-ok-fg-rgb:134 201 154;
+  --state-ok-bg-rgb:26 46 33;
+  --state-ok-dot-rgb:95 174 120;
+  --state-fail-fg-rgb:242 144 127;
+  --state-fail-bg-rgb:58 30 28;
+  --state-fail-dot-rgb:229 96 77;
+  --state-idle-fg:#bcc1cc;    --state-idle-bg:var(--sumi-700); --state-idle-dot:var(--sumi-500);
+
+  --trust-verified:#86c99a; --trust-judge:#a3bce8; --trust-accepted:#ece8de; --trust-certified:var(--shu-300);
+
+
+  /* Dark: sumi ink paper, washi text. */
+  --ink-50:  236 232 222;  /* #ECE8DE */
+  --ink-100: 214 210 200;  /* #D6D2C8 */
+  --ink-200: 188 193 204;  /* #BCC1CC */
+  --ink-300: 163 169 183;  /* #A3A9B7 */
+  --ink-400: 149 156 172;  /* #959CAC */
+  --ink-500: 149 156 172;  /* readable secondary labels */
+  --ink-600: 74 83 103;    /* #4A5367 */
+  --ink-700: 39 46 61;     /* #272E3D */
+  --ink-800: 31 37 51;     /* #1F2533 */
+  --ink-900: 25 30 42;     /* #191E2A */
+  --ink-950: 18 22 31;     /* #12161F */
 }
 
 html, body {
   background: rgb(var(--ink-950));
   color:      rgb(var(--ink-50));
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';                             /* Inter stylistic alternates */
 }
 
-/* Subtle warm glow behind the body — only visible in dark mode where it
- * reads as "campfire light." In light mode the glow is invisible so it
- * doesn't muddy the white. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 60% 40% at 50% -10%, rgba(255, 87, 34, 0.00) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 30% at 90% 100%, rgba(255, 87, 34, 0.00) 0%, transparent 70%);
-  z-index: -1;
-  transition: opacity 200ms;
-}
-
-.dark body::before {
-  background:
-    radial-gradient(ellipse 60% 40% at 50% -10%, rgba(255, 87, 34, 0.06) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 30% at 90% 100%, rgba(52, 211, 153, 0.04) 0%, transparent 70%);
+/* Page titles use the display serif (Shippori Mincho); everything else is the
+ * UI sans. A utility class on an h1 (e.g. font-mono) still wins. */
+@layer base {
+  h1 { font-family: var(--font-display), Georgia, serif; font-weight: 500; letter-spacing: -0.01em; }
 }
 
 /* highlight.js — code blocks. Always dark (looks great on both modes for code). */
@@ -114,19 +211,24 @@ body::before {
 
 @layer components {
   /* ── Buttons ────────────────────────────────────────────────────── */
-  .btn          { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all; }
-  .btn-primary  { @apply btn bg-brand-500 text-ink-950 hover:bg-brand-400 hover:shadow-glow active:bg-brand-600; }
-  .btn-success  { @apply btn bg-success-400 text-ink-950 hover:bg-success-300 hover:shadow-glow-emerald active:bg-success-500; }
+  .btn          { @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors; min-height: var(--control-h); }
+  .btn-primary  { @apply btn; background: var(--action-primary); color: var(--on-action-primary); }
+  .btn-primary:hover { background: var(--action-primary-hover); }
+  .btn-success  { @apply btn; background: var(--action-strong); color: var(--on-action-strong); }
+  .btn-success:hover { background: var(--action-strong-hover); }
+  .btn-danger { @apply btn; background: var(--action-danger); color: var(--on-action-danger); }
+  .btn-danger:hover { background: var(--action-danger-hover); }
   .btn-ghost    { @apply btn text-ink-100 hover:bg-ink-800 active:bg-ink-700; }
   .btn-outline  { @apply btn border border-ink-600 text-ink-100 hover:bg-ink-800 hover:border-ink-500; }
 
   /* ── Surfaces ───────────────────────────────────────────────────── */
-  .card         { @apply rounded-xl border border-ink-700 bg-ink-900 shadow-sm p-6; }
+  .card         { @apply rounded-xl border border-ink-700 bg-ink-900 p-6; box-shadow: var(--shadow-1); }
   .card-glow    { @apply card border-brand-500/40 bg-gradient-to-b from-ink-900 to-ink-950; }
   .card-success { @apply card border-success-400/40 bg-gradient-to-b from-ink-900 to-success-50/10; }
 
   /* ── Inputs ─────────────────────────────────────────────────────── */
-  .input        { @apply w-full rounded-lg border border-ink-700 bg-ink-900 text-ink-100 placeholder:text-ink-400 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20; }
+  .input        { @apply w-full rounded-md bg-ink-900 text-ink-100 placeholder:text-ink-400 px-3 py-2 text-sm focus:outline-none; border: 1px solid var(--border-control); }
+  .input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
   /* ── Brand mark — DEPRECATED ──────────────────────────────────────
    * Replaced by <Logo /> component (components/logo.tsx) which uses
@@ -143,6 +245,18 @@ body::before {
   .value-attention   { @apply text-accent-700 dark:text-accent-400 font-semibold; }
 }
 
+/* Shared shell and controls replace the old per-screen chrome. */
+.app-sidebar { width: var(--sidebar-w); background: var(--bg-sidebar); }
+.app-nav-link { min-height: 40px; border: 1px solid transparent; border-radius: var(--r-sm); }
+.app-nav-link[aria-current="page"] { background: var(--bg-selected); color: var(--text-strong); }
+.app-nav-link:hover { background: var(--bg-hover); }
+.theme-switch { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); background: var(--bg-sunken); }
+.theme-switch button { min-height: 28px; padding: 3px 12px; border-radius: 3px; font-size: 12px; color: var(--text-muted); }
+.theme-switch button[aria-pressed="true"] { background: var(--bg-surface); color: var(--text-strong); box-shadow: var(--shadow-1); }
+.theme-switch button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+
 /* Custom scrollbar — adapts to mode via ink vars */
 ::-webkit-scrollbar              { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track        { background: rgb(var(--ink-950)); }
@@ -156,8 +270,8 @@ body::before {
 .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 
-/* Selection — warm orange tint */
-::selection { background: rgba(255, 87, 34, 0.3); color: rgb(var(--ink-50)); }
+/* Selection: vermilion tint */
+::selection { background: rgba(200, 50, 31, 0.22); color: rgb(var(--ink-50)); }
 
 /* Implexa logo i-dot pulse — defined globally (not via styled-jsx) so the
  * <Logo /> component stays server-component compatible. Matches the
@@ -167,3 +281,85 @@ body::before {
   50%      { opacity: 0.6; }
 }
 .animate-implexa-pulse { animation: implexaPulse 2.4s ease-in-out infinite; }
+
+.app-page { min-height: 100vh; padding: 40px 40px 80px; }
+.app-content { max-width: var(--content-max); margin: 0 auto; }
+.app-page-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 28px; }
+.app-page-head h1 { font-size: 36px; line-height: 1.25; }
+.app-page-description { margin-top: 8px; max-width: 48rem; font-size: 14px; color: var(--text-body); line-height: 1.65; }
+.app-tabs { display: flex; gap: 28px; margin-bottom: 28px; border-bottom: 1px solid var(--border-subtle); }
+.app-tabs a { padding: 12px 0; font-size: 14px; color: var(--text-muted); border-bottom: 2px solid transparent; }
+.app-tabs a[aria-current="page"] { color: var(--text-strong); border-color: var(--action-strong); }
+.coach-agent-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,340px),1fr)); gap: 16px; }
+@media (max-width: 767px) { .app-page { padding: 24px 16px 64px; } .app-page-head h1 { font-size: 28px; } }
+
+.agent-roster-list { border: 1px solid var(--border-subtle); border-radius: var(--r-md); overflow: hidden; background: var(--bg-surface); }
+.agent-roster-row { padding: 16px; border: 0; border-radius: 0; box-shadow: none; }
+.agent-roster-row + .agent-roster-row { border-top: 1px solid var(--border-subtle); }
+.agent-roster-row:hover { background: var(--bg-hover); }
+.training-companion { border: 1px solid var(--border-subtle); }
+
+.listing-layout { display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: 32px; align-items: start; }
+.listing-preview { position: sticky; top: 24px; }
+@media (max-width: 1100px) { .listing-layout { grid-template-columns: minmax(0,1fr); } .listing-preview { position: static; } }
+
+@media (max-width: 1535px) { .training-companion { width: min(420px,calc(100vw - 24px)); left: auto; right: 12px; } }
+
+/* Recorded teaching: one player, a quiet moments rail, and the selected note
+   on the picture. Narrow screens keep the editor in the reading order. */
+.recording-workspace { position: relative; display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 24px; align-items: start; }
+.recording-stage { min-width: 0; }
+.recording-moments { min-width: 0; }
+.recording-moment { background: var(--bg-surface); border-color: var(--border-subtle); }
+.recording-moment.is-selected { border-color: var(--action-primary); }
+.recording-note { position: absolute; z-index: 12; left: 20px; top: 20px; width: min(340px,calc(100% - 364px)); max-height: min(500px,55vh); overflow: auto; padding: 20px; background: var(--bg-surface); border: 1px solid var(--border-control); border-radius: var(--r-md); box-shadow: var(--shadow-pop); }
+.recording-note[hidden] { display: none; }
+.recording-timeline { touch-action: none; }
+.recording-moment-bar { border: 1px solid var(--state-running-dot); background: var(--state-running-bg); color: var(--state-running-fg); font-size: 12px; }
+.recording-moment-bar.is-selected { border-color: var(--action-primary); background: var(--action-primary); color: var(--on-action-primary); }
+.recording-playhead { background: var(--text-strong); }
+.timeline-hover { pointer-events: none; position: absolute; z-index: 2; bottom: calc(100% + 6px); transform: translateX(-50%); border-radius: var(--r-xs); padding: 4px 8px; white-space: nowrap; background: var(--bg-inverse); color: var(--text-inverse); font: 12px var(--font-mono),monospace; }
+@media (max-width: 1279px) { .recording-workspace { grid-template-columns: minmax(0,1fr); } .recording-note { position: static; width: auto; max-height: none; padding: 16px 0 0; border: 0; box-shadow: none; } }
+.moment-resize { position: absolute; top: -1px; bottom: -1px; width: 12px; cursor: ew-resize; touch-action: none; }
+.moment-resize.start { left: -5px; } .moment-resize.end { right: -5px; }
+.moment-resize::after { content: ''; display: block; width: 3px; height: 50%; margin: auto; border-radius: 3px; background: currentColor; opacity: .7; }
+.playback-button[aria-label="Play"], .playback-button[aria-label="Pause"] { min-width: 92px; border-radius: var(--r-pill); background: var(--action-strong); color: var(--on-action-strong); padding: 10px 20px; border-color: transparent; }
+.agent-action-bar { position: sticky; z-index: 25; bottom: 0; margin-top: 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border: 1px solid var(--border-subtle); border-radius: var(--r-md); background: var(--bg-surface); box-shadow: var(--shadow-2); }
+.proof-disclosure { border: 1px solid var(--border-subtle); border-radius: var(--r-md); padding: 16px 20px; background: var(--bg-surface); }
+.proof-disclosure > summary { cursor: pointer; font-size: 14px; color: var(--text-strong); }
+.activation-page { max-width: 880px; }
+.enso-progress { width: 100px; height: 100px; flex: none; overflow: visible; }
+.enso-track { stroke: var(--border-subtle); }
+.enso-arc { stroke: var(--state-running-dot); transition: stroke-dasharray 250ms var(--ease); }
+.enso-progress.has-failure .enso-arc { stroke: var(--state-fail-dot); }
+.enso-progress text { fill: var(--text-strong); font: 24px var(--font-display),Georgia,serif; }
+
+.settings-frame { display: grid; grid-template-columns: 200px minmax(0,1fr); gap: 48px; align-items: start; }
+.settings-nav { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 20px; }
+.settings-nav a { display: block; padding: 8px 12px; border-radius: var(--r-sm); color: var(--text-body); font-size: 14px; }
+.settings-nav a:hover { background: var(--bg-hover); }
+.settings-nav a[aria-current="page"] { background: var(--bg-selected); color: var(--text-strong); font-weight: 500; }
+.settings-nav .settings-overview { font: 24px var(--font-display),Georgia,serif; color: var(--text-strong); }
+.settings-nav-group > p { margin: 0 12px 4px; font-size: 12px; color: var(--text-muted); }
+.settings-main { min-width: 0; }
+.settings-main > main { min-height: 0; padding: 0; }
+.settings-main > main > div { max-width: none; margin: 0; }
+.settings-main h1 { font-size: 32px; line-height: 1.3; }
+@media (max-width: 1023px) { .settings-frame { grid-template-columns: minmax(0,1fr); gap: 28px; } .settings-nav { position: static; flex-direction: row; gap: 12px; overflow-x: auto; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle); } .settings-nav a { white-space: nowrap; } .settings-nav-group { display: flex; gap: 4px; } .settings-nav-group > p { display: none; } .settings-nav .settings-overview { font: inherit; padding-top: 8px; } }
+.app-dialog-backdrop { background: var(--overlay); }
+[role="dialog"] h2 { font-family: var(--font-display),Georgia,serif; font-weight: 500; }
+@media (min-width: 1280px) { .recording-note[data-side="right"] { left: auto; right: 344px; } }
+[placeholder]::placeholder { color: var(--text-muted); opacity: 1; }
+.app-page h1 { font-weight: 500; }
+.enso-progress.is-complete .enso-arc { stroke: var(--state-ok-dot); }
+.app-dialog-backdrop { z-index: 100; }
+.agent-give-get { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 20px; }
+.agent-resume-page h2 { text-transform: none; letter-spacing: 0; color: var(--text-strong); font-size: 20px; font-weight: 500; }
+.agent-step-details > summary { line-height: 1.7; }
+.agent-action-bar .btn-success { background: var(--action-primary); color: var(--on-action-primary); }
+.agent-action-bar .btn-success:hover { background: var(--action-primary-hover); }
+@media (max-width: 767px) { .agent-give-get { grid-template-columns: minmax(0,1fr); } .agent-action-bar { padding: 12px; gap: 12px; } }
+.agent-action-bar { z-index: 60; }
+@media (max-width: 767px) { .agent-resume-page header > .flex.items-start { flex-direction: column; align-items: stretch; } .agent-resume-page header > .flex.items-start > .flex-none { align-items: flex-start; } }
+@media (max-width: 767px) { .agent-action-bar > div:first-child:not(:last-child) { display: none; } .agent-action-bar > .flex { width: 100%; } }
+@layer components { .btn-secondary { @apply btn-outline; } }

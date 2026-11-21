@@ -62,7 +62,7 @@ export default function OnboardingProgress({ steps }: { steps: OnboardingStep[] 
             {s.done ? (
               <span className="text-ink-400 line-through decoration-ink-700">{s.label}</span>
             ) : (
-              <Link href={s.href} className="text-ink-100 hover:text-brand-400 hover:underline">
+              <Link href={s.href} className="text-ink-100 hover:text-action-accent hover:underline">
                 {s.label}
               </Link>
             )}

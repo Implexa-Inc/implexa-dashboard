@@ -45,11 +45,11 @@ export default function PendingInviteRow({ invite, jwt }: { invite: Invite; jwt:
       <button
         onClick={revoke}
         disabled={busy === 'revoke'}
-        className="text-xs text-ink-500 hover:text-red-600 disabled:opacity-50"
+        className="text-xs text-ink-500 hover:text-state-fail disabled:opacity-50"
       >
         {busy === 'revoke' ? 'Revoking…' : 'Revoke'}
       </button>
-      {error && <p className="text-xs text-red-600 w-full">{error}</p>}
+      {error && <p className="text-xs text-state-fail w-full">{error}</p>}
     </div>
   );
 }

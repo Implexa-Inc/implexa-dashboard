@@ -12,9 +12,9 @@
 import type { ProductionReceipt } from '@/lib/outcome-production';
 
 const OUTCOME_COPY: Record<ProductionReceipt['outcome']['type'], { label: string; className: string }> = {
-  success: { label: 'Delivered', className: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
-  partial: { label: 'Partially delivered', className: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
-  failure: { label: 'Not delivered', className: 'bg-red-500/15 text-red-300 border-red-500/30' },
+  success: { label: 'Delivered', className: 'bg-emerald-500/15 text-state-ok border-emerald-500/30' },
+  partial: { label: 'Partially delivered', className: 'bg-amber-500/15 text-state-needs border-amber-500/30' },
+  failure: { label: 'Not delivered', className: 'bg-red-500/15 text-state-fail border-red-500/30' },
 };
 
 export default function OutcomeWorkItem({ receipt }: { receipt: ProductionReceipt }) {

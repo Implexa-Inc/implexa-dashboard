@@ -7,8 +7,6 @@ import {categorizeAgent} from '@/lib/agent-category';
 import {listAgentDiscovery} from '@/lib/agent-discovery';
 import {listChainOfferings} from '@/lib/agent-chain-offerings';
 import AgentsList,{type ArchivedAgent} from './agents-list';
-import RunningAgents from './running-agents';
-import ManageTips from './manage-tips';
 import RetryButton from './retry-button';
 import ChainSuggestions from './chain-suggestions';
 import ChainOfferingsSection from './chain-offerings-section';
@@ -60,10 +58,10 @@ export default async function InstalledAgents({jwt,pilot,insideRun=false}:{jwt:s
         {feed.status !== 'ready' && (
           <div
             role="status"
-            className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+            className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-state-needs"
           >
             <p className="font-medium">Couldn&apos;t load agent status</p>
-            <p className="mt-1 text-amber-200/80">
+            <p className="mt-1 text-state-needs">
               {feed.reason === 'timeout'
                 ? 'The status check took too long to respond.'
                 : feed.reason === 'no_session'
@@ -75,14 +73,6 @@ export default async function InstalledAgents({jwt,pilot,insideRun=false}:{jwt:s
             <RetryButton />
           </div>
         )}
-
-        {/* Quiet, dismissible tips on getting hands-off agents (keep Claude
-            running, schedule browser agents, run from your phone). */}
-        {!insideRun&&<ManageTips />}
-
-        {/* Live "Running" section — polls /scheduled-skills/live, renders the
-            5-status pulsing-dot cards. Invisible when nothing is running. */}
-        {!insideRun&&<RunningAgents />}
 
         <AgentsList
           agents={list.map((a) => ({ ...a, favorite: favSet.has(a.slug) }))}
@@ -103,9 +93,9 @@ export default async function InstalledAgents({jwt,pilot,insideRun=false}:{jwt:s
             sounded like a separate product. ChainSuggestions already renders
             nothing without enough agents to chain, so this is a no-op for a
             new user and appears naturally once there's something to chain. */}
-        {!insideRun&&<div className="mt-10">
+        {!insideRun&&list.length>1&&<details className="mt-10 border-t border-ink-700 pt-5"><summary className="cursor-pointer text-sm text-ink-400">Connect agents into a sequence</summary><div className="mt-4">
           <ChainSuggestions agents={list.map((a) => ({ slug: a.slug, source: a.source, name: a.name }))} />
-        </div>}
+        </div></details>}
       </div></Frame>
   );
 }

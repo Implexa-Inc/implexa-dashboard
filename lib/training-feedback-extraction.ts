@@ -23,7 +23,7 @@ export function extractionProgressFor(storage:Pick<Storage,'getItem'|'setItem'>,
 export function checkpointExtraction(storage:Pick<Storage,'setItem'>,scope:string,progress:FeedbackExtractionProgress){
   const value=JSON.stringify({version:1,progress});
   if(value.length>20000)throw Error('This extraction is too large to save for recovery.');
-  try{storage.setItem(`${JOURNAL_PREFIX}${scope}:${progress.fingerprint||progress.key}`,value);}catch{throw Error('Implexa could not save this draft for recovery. Free browser storage and retry; your original note stays saved.');}
+  try{storage.setItem(`${JOURNAL_PREFIX}${scope}:${progress.fingerprint||progress.key}`,value);}catch{throw Error('Tukido could not save this draft for recovery. Free browser storage and retry; your original note stays saved.');}
 }
 export type SavedDirectFeedback={fingerprint:string;annotation:DemoAnnotation;feedback:string;spatial:DraftSpatial|null};
 export function savedFeedbackMatches(note:SavedDirectFeedback|null,source:Pick<Source,'sourceId'|'metadata'>|null|undefined,timeMs:number,versionId:string|null):boolean{

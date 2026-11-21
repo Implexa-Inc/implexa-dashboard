@@ -46,7 +46,6 @@ import {marketplacePilotEnabled} from '@/lib/agent-marketplace-samples';
 import {selectRuns,type RunRow} from '@/lib/run-state';
 import LiveRunActivity from '../_components/live-run-activity';
 import RunActivity from '../_components/run-activity';
-import InstalledAgents from '../_components/installed-agents';
 import {CompactRunAlerts,CompactActiveProductions} from '../_components/compact-run-attention';
 import { listOutcomeProductions } from '@/lib/outcome-production-load';
 
@@ -71,15 +70,16 @@ export default async function WorkPage({
 
   // The pilot list does not need review payloads or the installed catalog.
   // Stream slower attention/production reads after the shell is visible.
-  if (pilot && (view === 'activity' || view === 'agents')) {
-    return <div className="min-h-screen px-6 lg:px-12 py-10"><div className="max-w-4xl mx-auto">
-      <header className="flex items-center justify-between gap-4 mb-7"><h1 className="text-3xl font-semibold text-ink-50">Run</h1><Link href="/work?view=needs" prefetch={false} className="text-sm text-ink-300 hover:text-brand-400">Needs you →</Link></header>
-      <nav aria-label="Run views" className="flex gap-7 border-b border-ink-800 mb-7">{(['activity','agents'] as const).map(tab => <Link key={tab} href={tab==='activity'?'/work':'/work?view=agents'} prefetch={false} aria-current={view===tab?'page':undefined} className={`pb-3 text-sm border-b-2 ${view===tab?'text-ink-50 border-brand-500':'text-ink-400 border-transparent hover:text-ink-100'}`}>{tab==='activity'?'Active agent runs':'All agents'}</Link>)}</nav>
-      {view==='agents' ? <Suspense fallback={<p role="status" className="text-sm text-ink-500">Loading agents…</p>}><InstalledAgents jwt={session.access_token} pilot insideRun/></Suspense> : <>
+  if (pilot && view === 'agents') redirect(AGENTS_MANAGE_HREF);
+  if (pilot && view === 'activity') {
+    return <div className="app-page"><div className="app-content">
+      <header className="flex items-center justify-between gap-4 mb-7"><h1 className="text-3xl font-semibold text-ink-50">Work</h1><Link href="/work?view=needs" prefetch={false} className="text-sm text-ink-300 hover:text-action-accent">Needs you →</Link></header>
+      <WorkFilterTabs current={view} reviewCount={null} activity />
+      <>
         <Suspense fallback={<p role="status" className="text-xs text-ink-500 mb-3">Checking decisions…</p>}><CompactRunAttention/></Suspense>
         <Suspense fallback={<p role="status" className="text-xs text-ink-500 mb-3">Checking other active work…</p>}><CompactProductionList jwt={session.access_token}/></Suspense>
         <LiveRunActivity compact/>
-      </>}
+      </>
     </div></div>;
   }
 
@@ -93,10 +93,10 @@ export default async function WorkPage({
   const reviewCount = reviewQueueWarning(queue) === null ? queue.items.length : null;
 
   return (
-    <div className="min-h-screen px-6 lg:px-12 py-14">
-      <div className="max-w-3xl mx-auto">
+    <div className="app-page">
+      <div className="app-content">
         <header className="mb-6">
-          <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-semibold tracking-tight text-ink-50">{pilot?'Run':'Work'}</h1>{pilot&&<Link href={AGENTS_MANAGE_HREF} className="text-xs text-ink-400 hover:text-ink-100">Manage installed agents →</Link>}</div>
+          <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-semibold tracking-tight text-ink-50">Work</h1>{pilot&&<Link href={AGENTS_MANAGE_HREF} className="text-xs text-ink-400 hover:text-ink-100">Manage installed agents →</Link>}</div>
           <p className="text-ink-300 text-sm mt-1">
             What your agents are producing, what needs you, and what they delivered.
           </p>
@@ -176,7 +176,7 @@ async function DeliveredView() {
         <p className="text-ink-100 font-medium">No results yet.</p>
         <p className="text-ink-400 text-sm mt-1">
           When your agents run, the work they produce shows up here.{' '}
-          <Link href="/workflows" className="text-brand-500 hover:underline">Build an agent</Link>.
+          <Link href="/workflows" className="text-action-accent hover:underline">Build an agent</Link>.
         </p>
       </section>
     );

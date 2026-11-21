@@ -118,6 +118,7 @@ function ResetPasswordInner() {
               type="password"
               required
               minLength={8}
+              aria-label="New password"
               placeholder="New password (8+ chars)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -128,12 +129,13 @@ function ResetPasswordInner() {
               type="password"
               required
               minLength={8}
+              aria-label="Confirm new password"
               placeholder="Confirm new password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               className="input"
             />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-state-fail">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? 'Updating…' : 'Update password'}
             </button>

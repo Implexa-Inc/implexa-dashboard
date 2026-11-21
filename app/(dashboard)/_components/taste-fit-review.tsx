@@ -7,7 +7,7 @@ export default function TasteFitReviewCard({ review }: { review?: TasteFitReview
     <h2 className="text-sm font-semibold text-ink-100">Taste fit: {f?.status === 'assessed' ? f.fit : 'unavailable'}</h2>
     <p className="text-xs text-ink-400">An independent comparison with this stage’s selected training examples. Separate from technical checks and the general quality grade.</p>
     <p className="text-sm text-ink-200">{f?.explanation ?? 'The selected output’s taste assessment could not be verified.'}</p>
-    {f?.status === 'unavailable' && <p className="text-xs text-amber-300">Not assessed: {f.reason?.replaceAll('_', ' ')}</p>}
+    {f?.status === 'unavailable' && <p className="text-xs text-state-needs">Not assessed: {f.reason?.replaceAll('_', ' ')}</p>}
     {!!f?.gaps.length && <ul className="list-disc pl-5 text-sm text-ink-300 space-y-1">{f.gaps.map((g, i) =>
       <li key={i}>{(g.timestampMs / 1000).toFixed(1)}s — {g.observation} {g.suggestion}</li>)}</ul>}
     {review.selection && <p className="text-xs text-ink-300">Selection: {review.selection.reason === 'pairwise_preferred_revision'

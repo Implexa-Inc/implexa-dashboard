@@ -1,10 +1,10 @@
 import { managerVerificationLabel, type StageManagerProof } from '@/lib/run-manager-proof';
 
 function tone(status: StageManagerProof['verificationStatus']): string {
-  if (status === 'passed') return 'border-emerald-500/30 bg-emerald-500/[0.07] text-emerald-300';
-  if (status === 'failed') return 'border-rose-500/30 bg-rose-500/[0.07] text-rose-300';
-  if (status === 'needs_you') return 'border-amber-500/40 bg-amber-500/[0.09] text-amber-300';
-  if (status === 'incomplete' || status === 'unavailable') return 'border-amber-500/30 bg-amber-500/[0.07] text-amber-300';
+  if (status === 'passed') return 'border-emerald-500/30 bg-emerald-500/[0.07] text-state-ok';
+  if (status === 'failed') return 'border-rose-500/30 bg-rose-500/[0.07] text-state-fail';
+  if (status === 'needs_you') return 'border-amber-500/40 bg-amber-500/[0.09] text-state-needs';
+  if (status === 'incomplete' || status === 'unavailable') return 'border-amber-500/30 bg-amber-500/[0.07] text-state-needs';
   return 'border-ink-700 bg-ink-900/50 text-ink-400';
 }
 
@@ -35,7 +35,7 @@ export default function StageManagerProof({ proof }: { proof: StageManagerProof 
       )}
 
       {proof.status === 'unavailable' ? (
-        <p className="mt-2 text-xs text-amber-300">Manager verification could not be loaded. No result is inferred.</p>
+        <p className="mt-2 text-xs text-state-needs">Manager verification could not be loaded. No result is inferred.</p>
       ) : proof.status === 'none' ? (
         <p className="mt-2 text-xs text-ink-500">No Manager stage context was recorded for this run.</p>
       ) : (
@@ -60,7 +60,7 @@ export default function StageManagerProof({ proof }: { proof: StageManagerProof 
                 {stage.refusedCount ? ` · ${stage.refusedCount} refused` : ''}
               </p>
               {stage.handlingStatus === 'not_recorded' && (
-                <p className="mt-1 text-xs text-amber-300">Executor handling was not recorded; application is not inferred.</p>
+                <p className="mt-1 text-xs text-state-needs">Executor handling was not recorded; application is not inferred.</p>
               )}
             </li>
           ))}
@@ -68,12 +68,12 @@ export default function StageManagerProof({ proof }: { proof: StageManagerProof 
       )}
 
       {proof.status === 'ready' && proof.verificationStatus === 'passed' && (
-        <p className="mt-3 text-xs text-emerald-300">
+        <p className="mt-3 text-xs text-state-ok">
           The complete frozen Manager criteria are verified. Earlier failed attempts and model judgments remain preserved as history.
         </p>
       )}
       {proof.status === 'ready' && proof.verificationStatus === 'needs_you' && (
-        <p role="alert" className="mt-3 text-xs text-amber-300">
+        <p role="alert" className="mt-3 text-xs text-state-needs">
           A selected Manager decision with required evidence was not applied. Independent verification did not
           start for that stage, and no Judge result or successful Manager proof is inferred for that decision.
           Review the stage handling above.

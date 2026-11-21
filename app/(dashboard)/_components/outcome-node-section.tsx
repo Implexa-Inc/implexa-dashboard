@@ -30,9 +30,9 @@ import VerifiedArtifacts, { type VerifiedArtifact } from './verified-artifacts';
 import { NODE_STATE_LABELS, nodeNeedsAttention, type ProductionNode } from '@/lib/outcome-production-detail';
 
 function stateTone(state: string): string {
-  if (state === 'succeeded') return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
-  if (state === 'running' || state === 'dispatched' || state === 'completing') return 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30';
-  if (state === 'failed' || state === 'stalled' || state === 'partial') return 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30';
+  if (state === 'succeeded') return 'bg-emerald-500/15 text-state-ok border-emerald-500/30';
+  if (state === 'running' || state === 'dispatched' || state === 'completing') return 'bg-sky-500/15 text-state-running border-sky-500/30';
+  if (state === 'failed' || state === 'stalled' || state === 'partial') return 'bg-amber-500/15 text-state-needs border-amber-500/30';
   return 'bg-ink-800 text-ink-300 border-ink-700';
 }
 
@@ -136,7 +136,7 @@ export default function OutcomeNodeSection({ node }: { node: ProductionNode }) {
       </dl>
 
       {execution.failureReason && (
-        <p role="status" className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/[0.06] px-3 py-2 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+        <p role="status" className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/[0.06] px-3 py-2 text-xs text-state-needs leading-relaxed">
           {execution.failureReason}
         </p>
       )}

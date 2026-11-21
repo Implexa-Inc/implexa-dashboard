@@ -60,7 +60,7 @@ const PROFILE_TAG: Record<NonNullable<ConnectionAccount['profile']>, { label: st
   },
   dedicated: {
     label: 'workspace',
-    title: 'Signed in to Implexa’s workspace browser over CDP. Useful, but this proof did not come through the browser extension your agents drive — even if it is the same application.',
+    title: 'Signed in to Tukido’s workspace browser over CDP. Useful, but this proof did not come through the browser extension your agents drive — even if it is the same application.',
   },
   main: {
     label: 'main · backup',
@@ -102,8 +102,8 @@ function AccountRow({ conn }: { conn: ConnectionAccount }) {
         {broken && (
           <Link
             href={RECONNECT_HREF}
-            title="Connect this account in the Implexa desktop app — you sign in once in the Implexa browser, no API keys."
-            className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-rose-700 dark:text-rose-200 hover:bg-rose-500/30 transition-colors whitespace-nowrap"
+            title="Connect this account in the Implexa desktop app — you sign in once in the Tukido browser, no API keys."
+            className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap"
           >
             Set up
           </Link>
@@ -122,9 +122,9 @@ function AgentNeedsCard({ agent }: { agent: AgentConnections }) {
           {agent.name}
         </Link>
         {anyBroken ? (
-          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-rose-500/40 text-rose-700 dark:text-rose-300">needs a sign-in</span>
+          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-rose-500/40 text-state-fail">needs a sign-in</span>
         ) : (
-          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/30 text-emerald-700 dark:text-emerald-300">ready</span>
+          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/30 text-state-ok">ready</span>
         )}
       </div>
       {agent.needs.length === 0 ? (
@@ -140,8 +140,8 @@ function AgentNeedsCard({ agent }: { agent: AgentConnections }) {
                   <span className="text-sm text-ink-200 truncate">{n.label}</span>
                 </span>
                 <span className={`text-[11px] font-medium flex-none ${
-                  n.status === 'reachable' ? 'text-emerald-600 dark:text-emerald-400'
-                  : n.status === 'unreachable' ? 'text-rose-600 dark:text-rose-400'
+                  n.status === 'reachable' ? 'text-state-ok'
+                  : n.status === 'unreachable' ? 'text-state-fail'
                   : 'text-ink-500'
                 }`}>{spec.label}</span>
               </li>
@@ -167,13 +167,13 @@ export default async function AllConnectionsPage() {
   const broken = status?.connections.filter((c) => c.status === 'unreachable').length ?? 0;
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-3xl mx-auto">
+    <main className="app-page">
+      <div className="app-content">
         <BackLink fallback="/settings" label="Settings" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5 mb-4" />
         <header className="mb-8">
           <h1 className="text-2xl font-semibold tracking-tight text-ink-50">Your accounts</h1>
           <p className="text-sm text-ink-400 mt-2 max-w-2xl">
-            Every account your agents drive in the Implexa browser, and which agents need what.
+            Every account your agents drive in the Tukido browser, and which agents need what.
             You sign in once; agents use what you can, no API keys. Set-up happens on each agent&apos;s activation card.
           </p>
         </header>
@@ -195,7 +195,7 @@ export default async function AllConnectionsPage() {
             </p>
             <Link
               href={AGENTS_MANAGE_HREF}
-              className="inline-flex items-center mt-4 text-sm font-medium rounded-md px-3.5 py-2 bg-brand-500/15 text-brand-600 dark:text-brand-400 hover:bg-brand-500/25 transition-colors"
+              className="inline-flex items-center mt-4 text-sm font-medium rounded-md px-3.5 py-2 bg-brand-500/15 text-action-accent hover:bg-brand-500/25 transition-colors"
             >
               See your agents
             </Link>
@@ -203,8 +203,8 @@ export default async function AllConnectionsPage() {
         ) : (
           <>
             <div className="flex items-center gap-x-6 gap-y-2 flex-wrap text-sm mb-8">
-              <span className="text-ink-300"><span className="text-emerald-600 dark:text-emerald-400 font-semibold tabular-nums">{reachable}</span> reachable</span>
-              {broken > 0 && <span className="text-ink-300"><span className="text-rose-600 dark:text-rose-400 font-semibold tabular-nums">{broken}</span> need a sign-in</span>}
+              <span className="text-ink-300"><span className="text-state-ok font-semibold tabular-nums">{reachable}</span> reachable</span>
+              {broken > 0 && <span className="text-ink-300"><span className="text-state-fail font-semibold tabular-nums">{broken}</span> need a sign-in</span>}
               <span className="text-ink-500">{status!.connections.length} account{status!.connections.length === 1 ? '' : 's'} total</span>
             </div>
 

@@ -146,7 +146,7 @@ export default function RunsCalendar({ runs }: { runs: CalRun[] }) {
                   <span className={`h-2 w-2 rounded-full shrink-0 ${DOT[t]}`} aria-hidden="true" />
                   <span className="text-sm text-ink-100 truncate flex-1">{r.skillSlug.replace(/[-_]+/g, ' ')}</span>
                   {r.reviewStatus === 'pending' && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">held</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-state-needs">held</span>
                   )}
                   <span className="text-xs text-ink-500 shrink-0">{timeOf(r.ranAt)}</span>
                 </Link>

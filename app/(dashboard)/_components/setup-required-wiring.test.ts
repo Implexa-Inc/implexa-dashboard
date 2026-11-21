@@ -75,11 +75,11 @@ test('the typed 409 becomes the modal, not an error sentence; Recheck continues 
 });
 
 test('the modal offers exactly Open setup in Implexa / Recheck / Cancel, shows the computer, and promises no silent install or credential capture', () => {
-  assert.match(card, />Open setup in Implexa</);
+  assert.match(card, />Open setup in Tukido</);
   assert.match(card, /\{checking \? 'Rechecking…' : 'Recheck'\}/);
   assert.match(card, /onClick=\{onCancel\}>Cancel</);
   assert.match(card, /data-testid="setup-required-machine"/);
-  assert.match(card, /Implexa never installs software or captures credentials on its own/);
+  assert.match(card, /Tukido never installs software or captures credentials on its own/);
   assert.doesNotMatch(card, /installTool|npm install|brew install/, 'the modal never installs; the setup page does, on an explicit click');
 });
 
@@ -95,7 +95,7 @@ test('the browser never decides readiness: recheck asks the Desktop to re-probe,
 test('the setup page’s install/sign-in are explicit clicks through the Desktop tool registry; the vendor CLI is opened, never scripted', () => {
   assert.match(setupPage, /native\.installTool\(key\)/);
   assert.match(setupPage, /higgsfield_cli: 'higgsfield'/);
-  assert.match(setupPage, /Sign in with the vendor’s CLI in a terminal on this computer \(Implexa never captures the credential\)/);
+  assert.match(setupPage, /Sign in with the vendor’s CLI in a terminal on this computer \(Tukido never captures the credential\)/);
   assert.match(setupPage, /if \(r\.installUrl\) \{ window\.open\(r\.installUrl, '_blank', 'noopener,noreferrer'\)/);
 });
 
@@ -147,7 +147,7 @@ test('BLOCKER 15/16/17: the setup page routes every backend action, renders the 
   assert.match(setupPage, /if \(!target \|\| !here \|\| here === target\) \{/, 'the bridge re-probes only when it IS the selected machine');
   assert.match(setupPage, /setStale\(true\);/);
   assert.match(setupPage, /\{stale\n\s+\? <span[^>]*data-testid="machine-setup-stale"/, 'a failed refresh never shows Ready');
-  assert.match(read('modal.tsx'), /first\?\.focus\(\);/, 'focus enters the dialog');
+  assert.match(read('modal.tsx'), /focus\(\{preventScroll:true\}\)/, 'focus enters without scrolling the heading out of view');
   assert.match(read('modal.tsx'), /if \(e\.key !== 'Tab' \|\| !dialog\) return;/, 'Tab is contained');
   assert.match(read('modal.tsx'), /if \(back && typeof back\.focus === 'function' && back\.isConnected\) back\.focus\(\);/, 'focus is restored on close');
   const route = read('../settings/machine-setup/[slug]/[[...scope]]/page.tsx');

@@ -59,7 +59,7 @@ export default function InviteForm({ jwt }: { jwt: string }) {
         </button>
       </form>
 
-      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+      {error && <p className="text-xs text-state-fail mt-2">{error}</p>}
 
       {created && (
         <div className="card !p-3 !border-success-400/40 mt-3 bg-gradient-to-b from-ink-900 to-success-50/10">

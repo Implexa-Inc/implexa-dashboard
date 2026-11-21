@@ -14,5 +14,5 @@ test('home branching keeps every non-pilot read on the ordinary page for every t
  for(const read of reads)for(const tab of [undefined,'rent','running','training','manage','unknown'])assert.equal(agentHomeView(read as any,tab),'ordinary');
  const sample=parseMarketplaceSample({slug:'beta-video',listing})!;
  const enabled={status:'ready',listings:[sample]} as const;
- assert.equal(agentHomeView(enabled as any),'rent');assert.equal(agentHomeView(enabled as any,'rent'),'rent');assert.equal(agentHomeView(enabled as any,'running'),'running');assert.equal(agentHomeView(enabled as any,'training'),'training');assert.equal(agentHomeView(enabled as any,'manage'),'manage');
+ assert.equal(agentHomeView(enabled as any),'manage');assert.equal(agentHomeView(enabled as any,'rent'),'rent');assert.equal(agentHomeView(enabled as any,'running'),'running');assert.equal(agentHomeView(enabled as any,'training'),'training');assert.equal(agentHomeView(enabled as any,'manage'),'manage');
 });

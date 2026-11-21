@@ -25,7 +25,7 @@ type BuildState = 'idle' | 'queuing' | 'queued' | 'error';
 const CLAUDE_CODE_MAX = 13000;
 
 function buildHandoffPrompt(intent: string) {
-  return `Build my new Implexa agent. Use Implexa's get_pending_run_requests tool to find the request I just queued ("${intent}"), then call generate_workflow to build the agent, then resolve_run_request to clear it. Then tell me what you built.`;
+  return `Build my new Tukido agent. Use Tukido's get_pending_run_requests tool to find the request I just queued ("${intent}"), then call generate_workflow to build the agent, then resolve_run_request to clear it. Then tell me what you built.`;
 }
 
 function BuildButton({ intent }: { intent: string }) {
@@ -72,7 +72,7 @@ function BuildButton({ intent }: { intent: string }) {
         disabled={state === 'queuing' || state === 'queued'}
         className={`text-xs font-medium rounded-md px-3 py-1.5 transition-colors ${
           state === 'queued'
-            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+            ? 'bg-emerald-500/15 text-state-ok'
             : 'btn-success'
         } disabled:opacity-70`}
       >
@@ -98,7 +98,7 @@ export default function SuggestedShelf({ suggestions }: { suggestions: Suggested
       <div className="mb-4">
         <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider">Suggested for you</h2>
         <p className="text-xs text-ink-500 mt-1">
-          One tap each: Implexa builds it, you activate it, it runs in your Claude Code.
+          One tap each: Tukido builds it, you activate it, it runs in your Claude Code.
         </p>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">

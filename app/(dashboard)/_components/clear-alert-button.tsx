@@ -65,7 +65,7 @@ export default function ClearAlertButton({ runId, pending }: { runId: string; pe
           type="button"
           onClick={dismissApproval}
           disabled={busy !== null}
-          className="font-medium text-rose-600 dark:text-rose-300 hover:underline disabled:opacity-50"
+          className="font-medium text-state-fail hover:underline disabled:opacity-50"
         >
           {busy === 'dismiss' ? 'Dismissing…' : 'Yes, dismiss'}
         </button>
@@ -97,7 +97,7 @@ export default function ClearAlertButton({ runId, pending }: { runId: string; pe
           type="button"
           onClick={() => setConfirming(true)}
           title="Resolve the gate so it stops asking. The held step will not run."
-          className="text-ink-400 hover:text-rose-600 dark:hover:text-rose-300 transition-colors"
+          className="text-ink-400 hover:text-state-fail hover:text-state-fail transition-colors"
         >
           Dismiss approval
         </button>

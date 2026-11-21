@@ -58,7 +58,7 @@ export default function AgentExecutorPreference({ slug }: { slug: string }) {
           </button>
         ))}
       </div>
-      {error && <p className="text-xs text-rose-400 mt-3">{error}</p>}
+      {error && <p className="text-xs text-state-fail mt-3">{error}</p>}
     </section>
   );
 }

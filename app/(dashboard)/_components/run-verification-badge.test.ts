@@ -17,7 +17,7 @@ test('the delivery badge says "Delivered", never plain "Verified"', () => {
 });
 
 test('the tooltip explicitly disambiguates this badge from Judge review', () => {
-  assert.match(src, /separate from Implexa Judge review/i);
+  assert.match(src, /separate from Tukido Judge review/i);
 });
 
 test('the other two verdicts (incomplete/unverified) are unchanged by the rename', () => {

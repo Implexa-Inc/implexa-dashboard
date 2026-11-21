@@ -69,7 +69,7 @@ export function FinalizeRecoveredButton({ runId, looksComplete }: { runId: strin
           and it won&apos;t invent a result — the run is saved as <span className="text-ink-100">recovered</span>,
           not delivered.
         </p>
-        {note && <p className="text-xs text-rose-500 mt-2">{note}</p>}
+        {note && <p className="text-xs text-state-fail mt-2">{note}</p>}
         <div className="flex items-center gap-2 mt-3">
           <button
             onClick={finalize}

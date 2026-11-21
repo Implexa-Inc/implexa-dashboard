@@ -25,12 +25,12 @@ export default async function TrainingPage({searchParams}:{searchParams?:{view?:
   const feedback=queue?reviewQueueForArea(queue,feed,'training'):null;
 
   return (
-    <div className="min-h-screen px-6 lg:px-12 py-14">
-      <div className="max-w-4xl mx-auto">
+    <div className="app-page">
+      <div className="app-content">
         <header className="mb-8">
-          {!pilot&&<p className="mb-3 text-[10px] font-medium uppercase tracking-[.18em] text-ink-500">Your trainer workspace</p>}<h1 className="text-3xl font-medium tracking-tight text-ink-50">{pilot?'Edit/Train':'What would you like to train?'}</h1>
+          {!pilot&&<p className="mb-3 text-[10px] font-medium uppercase tracking-[.18em] text-ink-500">Your trainer workspace</p>}<h1 className="text-3xl font-medium tracking-tight text-ink-50">Coach</h1>
           <p className="text-ink-300 text-sm mt-1">
-            Change how an agent works, or teach it through examples and feedback.
+            Teach your agents through examples, feedback, or a conversation.
           </p>
         </header>
 

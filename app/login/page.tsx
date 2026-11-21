@@ -50,5 +50,5 @@ export default async function LoginPage({
 }
 
 export const metadata = {
-  title: 'Sign in — Implexa',
+  title: 'Sign in — Tukido',
 };

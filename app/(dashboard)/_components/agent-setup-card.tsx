@@ -192,8 +192,8 @@ export default function AgentSetupCard({
       <div className="flex items-start justify-between gap-3 mb-1">
         <h2 className="text-base font-semibold text-ink-50">Questions this agent needs answered</h2>
         {setup.needs_setup
-          ? <span className="flex-none text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-700 dark:text-amber-300">{setup.missing.length} to answer</span>
-          : <span className="flex-none text-[11px] text-emerald-600 dark:text-emerald-400">✓ all set</span>}
+          ? <span className="flex-none text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-amber-500/50 text-state-needs">{setup.missing.length} to answer</span>
+          : <span className="flex-none text-[11px] text-state-ok">✓ all set</span>}
       </div>
       <p className="text-xs text-ink-400 mb-4 leading-snug">
         Answer once here and the agent runs on its own — it won’t stop to ask in Claude Code.
@@ -221,7 +221,7 @@ export default function AgentSetupCard({
               {f.question}
               <span className={isOptional(f)
                 ? 'ml-1.5 text-[11px] text-ink-500'
-                : 'ml-1.5 text-[11px] text-amber-700 dark:text-amber-300'}
+                : 'ml-1.5 text-[11px] text-state-needs'}
               >
                 {isOptional(f) ? 'optional' : 'required'}
               </span>
@@ -298,7 +298,7 @@ export default function AgentSetupCard({
                   <button
                     type="button"
                     onClick={() => setValues((v) => ({ ...v, [f.key]: String(f.default) }))}
-                    className="text-xs text-brand-500 hover:underline"
+                    className="text-xs text-action-accent hover:underline"
                   >
                     Use default ({f.default})
                   </button>
@@ -340,8 +340,8 @@ export default function AgentSetupCard({
         >
           {saving ? 'Saving…' : 'Save answers'}
         </button>
-        {saved && <span className="text-xs text-emerald-600 dark:text-emerald-400">✓ Saved. The agent will use these on its next run.</span>}
-        {error && <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>}
+        {saved && <span className="text-xs text-state-ok">✓ Saved. The agent will use these on its next run.</span>}
+        {error && <span className="text-xs text-state-fail">{error}</span>}
       </div>
     </div>
   );

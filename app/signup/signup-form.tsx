@@ -158,13 +158,13 @@ export default function SignupForm({
           </div>
 
           <form onSubmit={handleSignup} className="space-y-3">
-            <input type="text" required placeholder="Your name" value={name}
+            <input type="text" aria-label="Full name" required placeholder="Your name" value={name}
                    onChange={(e) => setName(e.target.value)} className="input" />
-            <input type="email" required placeholder="you@work.com" value={email}
+            <input type="email" aria-label="Email address" required placeholder="you@work.com" value={email}
                    onChange={(e) => setEmail(e.target.value)} className="input" />
-            <PasswordInput required minLength={8} placeholder="password (8+ chars)" value={password}
+            <PasswordInput aria-label="Password" required minLength={8} placeholder="password (8+ chars)" value={password}
                    onChange={(e) => setPassword(e.target.value)} className="input" />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-state-fail">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? 'Creating account…' : 'Create account'}
             </button>
@@ -175,13 +175,13 @@ export default function SignupForm({
              * the signup → login pivot. Mirrors the login → signup link. */}
             Already have an account? <Link
               href={initialNext ? `/login?next=${encodeURIComponent(initialNext)}` : '/login'}
-              className="text-brand-600 hover:underline"
+              className="text-action-accent hover:underline"
             >Sign in</Link>
           </p>
         </div>
 
         <p className="text-xs text-ink-300 text-center mt-6 px-4">
-          By signing up you agree to our terms of service and privacy policy. Work email recommended — Implexa offers team-based features (skill sharing, org-shared library) that require a verified business domain.
+          By signing up you agree to our terms of service and privacy policy. Work email recommended — Tukido offers team-based features (skill sharing, org-shared library) that require a verified business domain.
         </p>
       </div>
     </main>

@@ -26,7 +26,7 @@ export default function CheckoutButton({ jwt, plan }: { jwt: string; plan: strin
       <button onClick={go} disabled={loading} className="btn-primary w-full">
         {loading ? 'Redirecting…' : 'Upgrade'}
       </button>
-      {error && <p className="text-xs text-red-600 mt-2 text-center">{error}</p>}
+      {error && <p className="text-xs text-state-fail mt-2 text-center">{error}</p>}
     </>
   );
 }

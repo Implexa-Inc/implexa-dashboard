@@ -119,18 +119,18 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
   const welcomeBanner = renderWelcomeBanner({ welcomeRaw, fromSkillName, fromSkillSlug, forkedCount });
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-3xl mx-auto">
+    <main className="app-page">
+      <div className="app-content">
         {showWelcome && welcomeBanner}
 
         <header className="mb-8 text-center">
           <div className="mb-4 flex justify-center"><Logo height={18} /></div>
           <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Run your agents</h1>
           <p className="text-ink-300 mt-3 leading-relaxed max-w-xl mx-auto">
-            One download. The app connects Implexa to your own Claude or Codex and runs your agents there, as you, free. That&apos;s it.
+            One download. The app connects Tukido to your own Claude or Codex and runs your agents there, as you, free. That&apos;s it.
           </p>
           <p className="text-ink-500 text-sm mt-3 leading-relaxed max-w-xl mx-auto">
-            Claude Code runs in the background, so you don&apos;t work there. Build, run, and approve every agent right here in Implexa.
+            Claude Code runs in the background, so you don&apos;t work there. Build, run, and approve every agent right here in Tukido.
           </p>
         </header>
 
@@ -143,7 +143,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
               href={macDownloadUrl()}
               className="btn-success text-base px-7 py-3.5 inline-flex items-center gap-2"
             >
-              ↓ Download the Implexa app for Mac
+              ↓ Download Implexa for Mac
             </a>
             <span className="text-[11px] text-ink-500">Universal · macOS 11+ · signed &amp; notarized · free · connects your Claude or Codex for you</span>
           </div>
@@ -204,7 +204,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
             <details className="card !p-0 group">
               <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
                 <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
-                How do I fully uninstall or reset Implexa on this machine?
+                How do I fully uninstall or reset Tukido on this machine?
               </summary>
               <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-3 border-t border-ink-700/60">
                 <p>
@@ -215,7 +215,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
                   Idempotent — safe to re-run anytime. After it finishes, opening a fresh Terminal and running the install command gives you a true fresh-install experience (browser auth runs, no env vars leak through).
                 </p>
                 <p className="text-xs text-ink-400">
-                  <strong className="text-ink-200">What&apos;s NOT removed:</strong> your API keys in the cloud (revoke at <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Connected installs</Link> if you want a fully clean slate), your Implexa account, and your agents and library.
+                  <strong className="text-ink-200">What&apos;s NOT removed:</strong> your API keys in the cloud (revoke at <Link href="/settings/api-keys" className="text-action-accent hover:underline">Connected installs</Link> if you want a fully clean slate), your Tukido account, and your agents and library.
                 </p>
               </div>
             </details>
@@ -262,7 +262,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
             <details className="card !p-0 group">
               <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
                 <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
-                Do I need to install Implexa on every Claude surface?
+                Do I need to install Tukido on every Claude surface?
               </summary>
               <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
                 <p>
@@ -299,7 +299,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
               </summary>
               <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed border-t border-ink-700/60">
                 <p>
-                  <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Settings → API keys</Link>. You can list, copy, rotate, or revoke from there.
+                  <Link href="/settings/api-keys" className="text-action-accent hover:underline">Settings → API keys</Link>. You can list, copy, rotate, or revoke from there.
                 </p>
               </div>
             </details>
@@ -336,9 +336,9 @@ function renderWelcomeBanner({
   fromSkillSlug:  string;
   forkedCount:    number;
 }) {
-  let headline: React.ReactNode = 'Welcome to Implexa.';
+  let headline: React.ReactNode = 'Welcome to Tukido.';
   let body: React.ReactNode = (
-    <>One more step to use it: connect Implexa to Claude below.</>
+    <>One more step to use it: connect Tukido to Claude below.</>
   );
 
   if (welcomeRaw === '1') {
@@ -348,22 +348,22 @@ function renderWelcomeBanner({
       : <>Your first agent is ready in your library.</>;
     body = (
       <>
-        One more step to actually run it: connect Implexa to your own Claude or Codex below. Takes about 2 minutes. Once done, just say{' '}
+        One more step to actually run it: connect Tukido to your own Claude or Codex below. Takes about 2 minutes. Once done, just say{' '}
         <em className="text-ink-100">&ldquo;Implexa, run {fromSkillSlug || 'this agent'}&rdquo;</em> inside Claude and you&apos;re off.
       </>
     );
   } else if (welcomeRaw === 'joined') {
-    headline = <>You joined your team on Implexa.</>;
+    headline = <>You joined your team on Tukido.</>;
     body = (
       <>
-        Your team&apos;s shared agents are below — but you can&apos;t run them yet. Connect Implexa to your own Claude or Codex (below) so they actually fire in your sessions. Takes about 2 minutes.
+        Your team&apos;s shared agents are below — but you can&apos;t run them yet. Connect Tukido to your own Claude or Codex (below) so they actually fire in your sessions. Takes about 2 minutes.
       </>
     );
   } else if (welcomeRaw === 'invited') {
     headline = <>You accepted the invite.</>;
     body = (
       <>
-        Welcome to the team. One more step before you can run your teammates&apos; shared agents: connect Implexa to your own Claude or Codex below. Takes about 2 minutes.
+        Welcome to the team. One more step before you can run your teammates&apos; shared agents: connect Tukido to your own Claude or Codex below. Takes about 2 minutes.
       </>
     );
   } else if (welcomeRaw.startsWith('role-')) {
@@ -372,7 +372,7 @@ function renderWelcomeBanner({
       : <>Your starter agents are ready.</>;
     body = (
       <>
-        Connect Implexa to your own Claude or Codex below so those agents actually run when you turn them on. Takes about 2 minutes — same surface every Implexa user goes through.
+        Connect Tukido to your own Claude or Codex below so those agents actually run when you turn them on. Takes about 2 minutes — same surface every Tukido user goes through.
       </>
     );
   } else if (welcomeRaw === 'building') {
@@ -380,14 +380,14 @@ function renderWelcomeBanner({
     headline = <>Your agent is queued to build.</>;
     body = (
       <>
-        One step left: connect Implexa to your own Claude or Codex below. The moment you connect, the agent you described builds itself and runs there, as you, free on the plan you already pay for. Takes about 2 minutes.
+        One step left: connect Tukido to your own Claude or Codex below. The moment you connect, the agent you described builds itself and runs there, as you, free on the plan you already pay for. Takes about 2 minutes.
       </>
     );
   } else if (welcomeRaw === 'skipped') {
-    headline = <>Welcome to Implexa.</>;
+    headline = <>Welcome to Tukido.</>;
     body = (
       <>
-        One step before your agents can run: connect Implexa to your own Claude Code or Codex below. Takes about 2 minutes. After that, try <code className="bg-ink-800 px-1 rounded text-xs">/implexa:run draft a cold outreach email</code> to see one run for yourself.
+        One step before your agents can run: connect Tukido to your own Claude Code or Codex below. Takes about 2 minutes. After that, try <code className="bg-ink-800 px-1 rounded text-xs">/implexa:run draft a cold outreach email</code> to see one run for yourself.
       </>
     );
   }
@@ -406,5 +406,5 @@ function renderWelcomeBanner({
 }
 
 export const metadata = {
-  title: 'Connect Claude — Implexa',
+  title: 'Connect Claude — Tukido',
 };

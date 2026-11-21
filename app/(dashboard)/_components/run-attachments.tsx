@@ -288,7 +288,7 @@ export function AttachFiles({
         {(canAttach || canAttachFolder) && <span className="text-[11px] text-ink-500">{hint}</span>}
       </div>
 
-      {error && <p role="alert" className="mt-1.5 text-[11px] text-rose-300">{error}</p>}
+      {error && <p role="alert" className="mt-1.5 text-[11px] text-state-fail">{error}</p>}
 
       {files.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
@@ -307,7 +307,7 @@ export function AttachFiles({
                 type="button"
                 onClick={() => onRemove(i)}
                 aria-label={`Remove ${fileName(p)}`}
-                className="text-ink-500 hover:text-rose-400 leading-none"
+                className="text-ink-500 hover:text-state-fail leading-none"
               >
                 ×
               </button>

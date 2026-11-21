@@ -68,7 +68,7 @@ export default function ProductionLineageBanner({ lineage }: { lineage: Producti
           {lineage.authoritativeRunId && (
             <Link
               href={`/runs/${lineage.authoritativeRunId}`}
-              className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+              className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-state-ok hover:underline"
             >
               Open the run that actually ran this step <span aria-hidden="true">→</span>
             </Link>
@@ -86,7 +86,7 @@ export default function ProductionLineageBanner({ lineage }: { lineage: Producti
         </p>
         <Link
           href={productionHref}
-          className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
+          className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-action-accent hover:underline"
         >
           Open the production <span aria-hidden="true">→</span>
         </Link>

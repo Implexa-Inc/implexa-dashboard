@@ -9,8 +9,8 @@ const list = readFileSync(join(import.meta.dirname, 'agents-list.tsx'), 'utf8');
 const resume = readFileSync(join(import.meta.dirname, 'agent-resume.tsx'), 'utf8');
 const service = readFileSync(join(root, 'lib', 'agent-discovery.ts'), 'utf8');
 
-test('authenticated primary navigation is exactly Agents, Work, Training', () => {
-  assert.deepEqual(PRIMARY_NAV.map((item) => item.label), ['Agents', 'Work', 'Training']);
+test('authenticated primary navigation is exactly Agents, Work, Coach', () => {
+  assert.deepEqual(PRIMARY_NAV.map((item) => item.label), ['Agents', 'Work', 'Coach']);
   assert.equal(PRIMARY_NAV.some((item) => /Marketplace|Discover|Review|Home/.test(item.label)), false);
   assert.equal(existsSync(join(root, 'app', '(dashboard)', 'marketplace', 'page.tsx')), false);
 });
@@ -47,7 +47,7 @@ test('evidence keeps two axes: four provenance channels, four evidence types ins
   assert.doesNotMatch(resume, /trust score|reliability score|star rating|leaderboard/i);
 });
 
-const DISCLAIMER = 'Implexa does not combine them into a score, rating, or rank.';
+const DISCLAIMER = 'Tukido does not combine them into a score, rating, or rank.';
 
 test('nothing in the resume blends channels into a single number', () => {
   const parser = readFileSync(join(root, 'lib', 'agent-evidence-channels.ts'), 'utf8');

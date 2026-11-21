@@ -47,13 +47,13 @@ export default async function ChainsPage() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-4xl mx-auto">
+    <main className="app-page">
+      <div className="app-content">
         <header className="mb-7">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Agent Chains</h1>
           <p className="text-ink-300 text-sm mt-1">
             Chain your agents — one agent&apos;s output feeds the next. One tap builds the pipeline.
-            Build the agents on <Link href="/workflows" className="text-brand-500 hover:underline">Agents</Link>.
+            Build the agents on <Link href="/workflows" className="text-action-accent hover:underline">Agents</Link>.
           </p>
         </header>
 
@@ -62,7 +62,7 @@ export default async function ChainsPage() {
         ) : (
           <div className="card text-sm text-ink-300">
             <p className="font-medium text-ink-100 mb-1">You need at least two agents to chain.</p>
-            <p>Build a couple on <Link href="/workflows" className="text-brand-500 hover:underline">Agents</Link>, then come back to wire them into a pipeline.</p>
+            <p>Build a couple on <Link href="/workflows" className="text-action-accent hover:underline">Agents</Link>, then come back to wire them into a pipeline.</p>
           </div>
         )}
       </div>
@@ -70,4 +70,4 @@ export default async function ChainsPage() {
   );
 }
 
-export const metadata = { title: 'Agent Chains — Implexa' };
+export const metadata = { title: 'Agent Chains — Tukido' };

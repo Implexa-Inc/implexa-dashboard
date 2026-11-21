@@ -20,7 +20,7 @@ import PluginUpdateStatus from './plugin-update-status';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Updates — Implexa',
+  title: 'Updates — Tukido',
 };
 
 export default async function UpdatesPage() {
@@ -40,10 +40,10 @@ export default async function UpdatesPage() {
   const desktop = versions?.desktop ?? { latest: '', download_url: null, notes: null };
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-3xl mx-auto">
+    <main className="app-page">
+      <div className="app-content">
         <header className="mb-8">
-          <Link href="/settings" className="text-xs text-brand-500 hover:underline">← Settings</Link>
+          <Link href="/settings" className="text-xs text-action-accent hover:underline">← Settings</Link>
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50 mt-2">Updates</h1>
           <p className="text-ink-300 text-sm mt-1">
             Keep your Implexa plugin and desktop app current. Updates ship new workflows, better recommendations, and fixes.
@@ -84,7 +84,7 @@ export default async function UpdatesPage() {
             {desktop.download_url ? (
               <a
                 href={desktop.download_url}
-                className="inline-flex items-center gap-2 rounded-lg border border-brand-500/40 bg-brand-500/10 px-4 py-2 text-sm font-medium text-brand-500 hover:bg-brand-500/15 transition-colors"
+                className="inline-flex items-center gap-2 rounded-lg border border-brand-500/40 bg-brand-500/10 px-4 py-2 text-sm font-medium text-action-accent hover:bg-brand-500/15 transition-colors"
               >
                 Download for macOS →
               </a>

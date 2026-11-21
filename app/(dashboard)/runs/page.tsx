@@ -39,8 +39,8 @@ export default async function RunsPage() {
   }));
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-3xl mx-auto">
+    <main className="app-page">
+      <div className="app-content">
         <header className="mb-8">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Runs</h1>
           <p className="text-ink-300 text-sm mt-1">
@@ -52,7 +52,7 @@ export default async function RunsPage() {
           <section className="card text-sm text-ink-300">
             <p className="mb-3">No runs yet.</p>
             <p>
-              Build an agent in <Link href="/workflows" className="text-brand-500 hover:underline">Agents</Link> and run it —
+              Build an agent in <Link href="/workflows" className="text-action-accent hover:underline">Agents</Link> and run it —
               its work shows up here.
             </p>
           </section>

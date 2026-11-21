@@ -108,14 +108,14 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
         return;
       }
       if (read.outcome === 'refused') {
-        setError(`Implexa refused this approval (${read.code}). Nothing was authorized.`);
+        setError(`Tukido refused this approval (${read.code}). Nothing was authorized.`);
         router.refresh();
         return;
       }
       setError('We could not confirm whether this approval went through. Reload to see the current state — retrying from this card cannot authorize it twice.');
       router.refresh();
     } catch {
-      setError('We could not reach Implexa to approve this. Nothing is known to have been authorized — try again.');
+      setError('We could not reach Tukido to approve this. Nothing is known to have been authorized — try again.');
     } finally {
       setInFlight(false);
     }
@@ -137,11 +137,11 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
       const outcome = await requestCancel();
       if (outcome === 'cancelled') { setNotice('Plan cancelled. Nothing was authorized.'); router.refresh(); return; }
       setError(outcome === 'refused'
-        ? 'Implexa refused to cancel this plan. Reload to see the current state.'
+        ? 'Tukido refused to cancel this plan. Reload to see the current state.'
         : 'We could not confirm whether this cancellation went through. Reload to see the current state.');
       router.refresh();
     } catch {
-      setError('We could not reach Implexa to cancel this.');
+      setError('We could not reach Tukido to cancel this.');
     } finally { setCancelBusy(false); }
   }, [requestCancel, router]);
 
@@ -177,7 +177,7 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
         // approvable, so the identity is left intact rather than hidden behind
         // copy claiming an edit that did not happen.
         setError(outcome === 'refused'
-          ? 'Implexa refused to retire this plan, so it has not been opened for editing. It is still approvable — reload to see the current state.'
+          ? 'Tukido refused to retire this plan, so it has not been opened for editing. It is still approvable — reload to see the current state.'
           : 'We could not confirm this plan was retired, so it has not been opened for editing. It may still be approvable — reload before doing anything else.');
         router.refresh();
         return;
@@ -186,7 +186,7 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
       setConfirmedCeiling(false);
       router.push(editHref);
     } catch {
-      setError('We could not reach Implexa to retire this plan, so it has not been opened for editing.');
+      setError('We could not reach Tukido to retire this plan, so it has not been opened for editing.');
     } finally {
       setEditBusy(false);
     }
@@ -274,18 +274,18 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
         final rendered file{compiled.finalRenderAuthorized ? '' : ' — assembly stays a projection'}.
       </p>
 
-      {error && <p role="alert" className="mt-3 text-xs text-red-300">{error}</p>}
-      {notice && <p role="status" className="mt-3 text-xs text-emerald-300">{notice}</p>}
+      {error && <p role="alert" className="mt-3 text-xs text-state-fail">{error}</p>}
+      {notice && <p role="status" className="mt-3 text-xs text-state-ok">{notice}</p>}
 
       {previewOnly && (
-        <p className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">
+        <p className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-state-needs">
           Professional generation is not available on your account yet, so this plan cannot be
           approved or run. Missing: {compiled.requiredMissingCapabilities.map(capabilityWords).join(', ')}.
         </p>
       )}
 
       {edited && (
-        <p className="mt-3 text-xs text-amber-300">
+        <p className="mt-3 text-xs text-state-needs">
           You chose to edit this plan. This card can no longer approve it — the edit produces a
           new plan with its own approval.
         </p>
@@ -325,14 +325,14 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
             {!edited && vm.lifecycle === 'awaiting_approval' && (
               <button
                 type="button" onClick={onCancel} disabled={inFlight || cancelBusy}
-                className="rounded-md border border-ink-800 px-3 py-2 text-sm text-ink-400 hover:text-red-300 disabled:opacity-40"
+                className="rounded-md border border-ink-800 px-3 py-2 text-sm text-ink-400 hover:text-state-fail disabled:opacity-40"
               >
                 Cancel
               </button>
             )}
           </div>
           {!decision.ok && !inFlight && !settled && (
-            <p className="mt-2 text-[11px] text-amber-300">{decision.message}</p>
+            <p className="mt-2 text-[11px] text-state-needs">{decision.message}</p>
           )}
           <p className="mt-2 text-[11px] leading-snug text-ink-500">
             Approving authorizes this exact timeline and nothing else. It is not a payment —

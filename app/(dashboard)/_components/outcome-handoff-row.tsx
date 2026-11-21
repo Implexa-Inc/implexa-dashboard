@@ -58,7 +58,7 @@ export default function OutcomeHandoffRow({ handoff }: { handoff: ProductionHand
         </li>
 
         <li aria-hidden="true" className="text-ink-600">→</li>
-        <li className={validated ? 'text-emerald-700 dark:text-emerald-300' : 'text-ink-400'}>
+        <li className={validated ? 'text-state-ok' : 'text-ink-400'}>
           {validated ? 'digest verified' : handoff.validationStatus === 'not_reached' ? 'never produced' : 'not validated'}
         </li>
 
@@ -84,7 +84,7 @@ export default function OutcomeHandoffRow({ handoff }: { handoff: ProductionHand
       {/* The typed reason a handoff did not happen. Rendered verbatim — the
           parent already decided what went wrong and why. */}
       {handoff.failureReason && (
-        <p role="status" className="mt-2 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+        <p role="status" className="mt-2 text-xs text-state-needs leading-relaxed">
           {handoff.failureReason}
         </p>
       )}

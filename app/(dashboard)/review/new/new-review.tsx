@@ -24,11 +24,11 @@ import {
 
 
 const STATE_BADGE: Record<RecordingSummary['state'], string> = {
-  recording: 'bg-rose-500/15 text-rose-300',
-  finalizing: 'bg-sky-500/15 text-sky-300',
-  ready: 'bg-emerald-500/15 text-emerald-300',
-  interrupted: 'bg-amber-500/15 text-amber-300',
-  failed: 'bg-rose-500/15 text-rose-300',
+  recording: 'bg-rose-500/15 text-state-fail',
+  finalizing: 'bg-sky-500/15 text-state-running',
+  ready: 'bg-emerald-500/15 text-state-ok',
+  interrupted: 'bg-amber-500/15 text-state-needs',
+  failed: 'bg-rose-500/15 text-state-fail',
 };
 
 export default function NewReview({ownerId,trainingSlug,presentation='review',onTrainingUpload,uploadDisabled=false,uploadStatus,onRecordingReady}:{ownerId:string;trainingSlug?:string;presentation?:'review'|'training';onTrainingUpload?:()=>void;onRecordingReady?:(recordingId:string)=>void;uploadDisabled?:boolean;uploadStatus?:string}) {
@@ -148,12 +148,12 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
     {startFailureDialog}
     <button type="button" disabled={!ready||!ownerId||busy('record')||(recorderBusy&&(active?.origin==='voice_note'||active?.state!=='permission_required'))} onClick={()=>void record()} className="inline-flex items-center gap-2 rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 disabled:opacity-40">{busy('record')?'Opening recorder…':active?.state==='permission_required'?'Open permission setup':'◉ Record'}</button>
     <button type="button" disabled={uploadDisabled||!!uploadStatus||busy('upload')||(!onTrainingUpload&&!ready)} onClick={()=>onTrainingUpload?onTrainingUpload():void upload()} className="inline-flex items-center gap-2 rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 disabled:opacity-40">{uploadStatus?`${uploadStatus}…`:busy('upload')?'Opening your example…':'↑ Upload'}</button>
-    <details className="relative text-sm text-ink-400"><summary className="cursor-pointer rounded-lg border border-ink-700 px-4 py-2.5 hover:border-ink-500">Saved recordings</summary><div className="absolute left-0 top-full z-20 mt-2 w-72 max-w-[80vw] rounded-xl border border-ink-700 bg-ink-950 p-3 shadow-xl"><ul className="max-h-64 space-y-1 overflow-y-auto">{recordings?.map(r=><li key={r.recordingId}><button type="button" className="w-full rounded-lg px-3 py-2 text-left hover:bg-ink-800/50" onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');if(onRecordingReady)onRecordingReady(r.recordingId);else router.push(recordingHref(r.recordingId));}}><span className="block text-ink-200">{r.title||'Recording'}</span><span className="text-xs text-ink-500">{formatRecordingDuration(r.durationMs)} · {r.state}</span></button></li>)}</ul>{recordings?.length===0&&<p className="px-3 py-2 text-xs">No recordings yet.</p>}{loadError&&<p role="status" className="px-3 py-2 text-xs text-amber-300">{loadError}</p>}</div></details>
+    <details className="relative text-sm text-ink-400"><summary className="cursor-pointer rounded-lg border border-ink-700 px-4 py-2.5 hover:border-ink-500">Saved recordings</summary><div className="absolute left-0 top-full z-20 mt-2 w-72 max-w-[80vw] rounded-xl border border-ink-700 bg-ink-950 p-3 shadow-xl"><ul className="max-h-64 space-y-1 overflow-y-auto">{recordings?.map(r=><li key={r.recordingId}><button type="button" className="w-full rounded-lg px-3 py-2 text-left hover:bg-ink-800/50" onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');if(onRecordingReady)onRecordingReady(r.recordingId);else router.push(recordingHref(r.recordingId));}}><span className="block text-ink-200">{r.title||'Recording'}</span><span className="text-xs text-ink-500">{formatRecordingDuration(r.durationMs)} · {r.state}</span></button></li>)}</ul>{recordings?.length===0&&<p className="px-3 py-2 text-xs">No recordings yet.</p>}{loadError&&<p role="status" className="px-3 py-2 text-xs text-state-needs">{loadError}</p>}</div></details>
     <TrainingInfo label="About recording and uploads"><span data-testid="record-notice">{RECORD_NOTICE}</span> Recording includes your microphone. The source stays on this Mac; selected feedback and evidence are used to propose training for your review.</TrainingInfo>
     {availability&&availability.state!=='ready'&&<p className="basis-full text-xs text-ink-400">{availability.message}</p>}
     {trainingRecording&&<div role="status" className="basis-full text-sm text-ink-300"><p>{trainingRecording.state==='ready'?'Your recording is ready to annotate.':trainingRecording.state==='failed'?failureMessage(trainingRecording.failureReason):'Recording interrupted. Open it to recover the saved portion.'}</p><Link href={recordingHref(trainingRecording.recordingId)} className="mt-2 inline-block underline underline-offset-4">{trainingRecording.state==='ready'?'Annotate recording':'Open recording'}</Link></div>}
     {active&&<p role="status" className="basis-full text-xs text-ink-400">{activeLabel}</p>}
-    {error&&<p role="alert" className="basis-full text-sm text-rose-300">{error}</p>}
+    {error&&<p role="alert" className="basis-full text-sm text-state-fail">{error}</p>}
   </section>;
 
   return (
@@ -166,16 +166,16 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
         </header>
 
         {availability && availability.state !== 'ready' && (
-          <div role="status" className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          <div role="status" className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-state-needs">
             <p>{availability.message}</p>
             {availability.state === 'desktop_update_required' && (
-              <a href="/get-app" className="mt-2 inline-block text-xs text-amber-100 underline">Get the update</a>
+              <a href="/get-app" className="mt-2 inline-block text-xs text-state-needs underline">Get the update</a>
             )}
           </div>
         )}
 
         {error && (
-          <p role="alert" className="mb-5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</p>
+          <p role="alert" className="mb-5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-state-fail">{error}</p>
         )}
 
         <div className={`grid gap-3 ${trainingSlug?'sm:grid-cols-2':'sm:grid-cols-3'}`}>
@@ -211,7 +211,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
               type="button"
               disabled={!ready || busy('record') || (recorderBusy && (active?.origin==='voice_note'||active?.state !== 'permission_required'))}
               onClick={() => void record()}
-              className="mt-3 rounded-md bg-rose-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40"
+              className="mt-3 rounded-md bg-action-danger px-3 py-1.5 text-sm font-medium text-[var(--on-action-danger)] hover:bg-action-danger-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy('record') ? 'Opening recorder…' : active?.state === 'permission_required' ? 'Open permission setup' : 'Record'}
             </button>
@@ -220,7 +220,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
         </div>
 
         {active && (
-          <p role="status" className="mt-4 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-200">
+          <p role="status" className="mt-4 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-state-running">
             {activeLabel}
           </p>
         )}
@@ -239,9 +239,9 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
               </div>
             )}
 
-            {loadError && <p role="status" className="mb-3 text-sm text-amber-300">{loadError}</p>}
+            {loadError && <p role="status" className="mb-3 text-sm text-state-needs">{loadError}</p>}
             {unreadable > 0 && (
-              <p role="status" className="mb-3 text-sm text-amber-300">
+              <p role="status" className="mb-3 text-sm text-state-needs">
                 {unreadable === 1 ? '1 recording could not be read.' : `${unreadable} recordings could not be read.`} Updating Implexa Desktop may fix this.
               </p>
             )}
@@ -278,8 +278,8 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
                         <span aria-hidden>·</span>
                         <span>{r.momentCount === 1 ? '1 moment' : `${r.momentCount} moments`}</span>
                       </p>
-                      {r.state === 'failed' && <p className="mt-1 text-xs text-rose-300">{failureMessage(r.failureReason)}</p>}
-                      {r.state === 'interrupted' && <p className="mt-1 text-xs text-amber-300">This recording stopped unexpectedly. Recover keeps what was saved before it stopped.</p>}
+                      {r.state === 'failed' && <p className="mt-1 text-xs text-state-fail">{failureMessage(r.failureReason)}</p>}
+                      {r.state === 'interrupted' && <p className="mt-1 text-xs text-state-needs">This recording stopped unexpectedly. Recover keeps what was saved before it stopped.</p>}
                     </div>
                     <div className="flex shrink-0 gap-2">
                       {r.state === 'ready' && (
@@ -287,13 +287,13 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
                       )}
                       {recovery && (
                         <button type="button" disabled={rowBusy} onClick={() => void recover(r.recordingId)}
-                          className="rounded-md border border-amber-500/40 px-3 py-1.5 text-sm text-amber-200 disabled:opacity-40">
+                          className="rounded-md border border-amber-500/40 px-3 py-1.5 text-sm text-state-needs disabled:opacity-40">
                           {busy(`recover:${r.recordingId}`) ? 'Working…' : recovery.label}
                         </button>
                       )}
                       {!isActive && r.state !== 'recording' && r.state !== 'finalizing' && (
                         <button type="button" disabled={rowBusy} onClick={() => void remove(r.recordingId)}
-                          className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-300 hover:border-rose-500/50 hover:text-rose-200 disabled:opacity-40">
+                          className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-300 hover:border-rose-500/50 hover:text-state-fail disabled:opacity-40">
                           {busy(`delete:${r.recordingId}`) ? 'Deleting…' : 'Delete'}
                         </button>
                       )}

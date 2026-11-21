@@ -20,44 +20,44 @@ async function input(r:Rendered,el:HTMLInputElement|HTMLSelectElement,value:stri
  await r.act(()=>{const proto=el.tagName==='SELECT'?r.window.HTMLSelectElement.prototype:r.window.HTMLInputElement.prototype;
  Object.getOwnPropertyDescriptor(proto,'value')!.set!.call(el,value);el.dispatchEvent(new r.window.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));});
 }
-test('the Training card loads nothing and opening pre-fills a private draft without writes',async t=>{
- const {r,calls}=await setup(t);assert.equal(calls.length,0);await r.click(r.getByText('Prepare marketplace listing'));
+test('the listing page pre-fills a private draft without writes',async t=>{
+ const {r,calls}=await setup(t);
  assert.equal(calls.length,1);assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'Video studio');
  assert.equal((r.getByText('Submit for review') as HTMLButtonElement).disabled,true);assert.equal(calls.some(c=>c.init.method==='POST'),false);
 });
 test('included tool calculator shows 100 credits plus 20 percent as 1.20, separately from service price',async t=>{
- const {r,calls}=await setup(t);await r.click(r.getByText('Prepare marketplace listing'));
+ const {r,calls}=await setup(t);
  await input(r,r.document.querySelector('[aria-label="Runway access"]') as HTMLSelectElement,'included');
- const numbers=r.document.querySelectorAll('input[type="number"]');await input(r,numbers[1] as HTMLInputElement,'100');await input(r,numbers[2] as HTMLInputElement,'20');
+ await input(r,r.document.querySelector('[aria-label="Runway credits per run"]') as HTMLInputElement,'100');await input(r,r.document.querySelector('[aria-label="Runway markup percent"]') as HTMLInputElement,'20');
  assert.match(r.text(),/\$1\.20/);assert.match(r.text(),/Funding setup required/);await r.click(r.getByText('Preview listing'));assert.match(r.text(),/\$50\.00/);assert.match(r.text(),/\$1\.20 per run/);
  assert.equal(calls.some(c=>c.init.method==='POST'),false);
 });
 test('sample consent gates a single version-pinned review submission, not publication',async t=>{
- const {r,calls}=await setup(t);await r.click(r.getByText('Prepare marketplace listing'));
+ const {r,calls}=await setup(t);
  const checks=Array.from(r.document.querySelectorAll('input[type="checkbox"]'));await r.click(checks[0]);await r.click(checks.at(-1)!);
  await r.click(r.getByText('Submit for review'));const posts=calls.filter(c=>c.init.method==='POST');assert.equal(posts.length,1);
  const b=JSON.parse(posts[0].init.body);assert.equal(b.action,'submit');assert.equal(b.expectedRevision,0);assert.equal(b.bindingDigest,'b'.repeat(64));assert.equal(b.listing.sampleReleaseConsent,true);
  assert.match(r.text(),/Publication is a separate step/);assert.equal(calls.some(c=>/publication|sponsored|generate|credential/.test(c.url)),false);
 });
 test('an untested version can save a draft but cannot submit',async t=>{
- const {r,calls}=await setup(t,{canSubmit:false});await r.click(r.getByText('Prepare marketplace listing'));assert.match(r.text(),/Test and publish this version/);
+ const {r,calls}=await setup(t,{canSubmit:false});assert.match(r.text(),/Test and publish this version/);
  await r.click(r.getByText('Save draft'));assert.equal(JSON.parse(calls.find(c=>c.init.method==='POST').init.body).action,'save');
 });
 test('conflict retains edits and switching versions closes the prior offer',async t=>{
- const {r,props}=await setup(t,{postFailure:true});await r.click(r.getByText('Prepare marketplace listing'));
+ const {r,props}=await setup(t,{postFailure:true});
  await r.click(r.getByText('Save draft'));assert.match(r.text(),/saved elsewhere/);assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'Video studio');
  await r.rerender({...props,versionId:'12000000-0000-4000-8000-000000000002'});assert.equal(r.document.querySelector('[role="dialog"]'),null);
 });
 test('AI suggests editable wording without saving, changing price or granting a tool',async t=>{
- const {r,calls}=await setup(t);await r.click(r.getByText('Prepare marketplace listing'));await r.click(r.getByText('✨ Suggest wording with AI'));
- assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'AI video wording');assert.equal((r.document.querySelector('input[type="number"]') as HTMLInputElement).value,'50');
+ const {r,calls}=await setup(t);await r.click(r.getByText('✦ Suggest wording with AI'));
+ assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'AI video wording');assert.equal((r.document.querySelector('[aria-label="Service price (USD)"]') as HTMLInputElement).value,'50');
  assert.equal((r.document.querySelector('[aria-label="Runway access"]') as HTMLSelectElement).value,'customer_connects');
  assert.deepEqual(calls.filter(c=>c.init.method==='POST').map(c=>JSON.parse(c.init.body)),[{action:'suggest',bindingDigest:'b'.repeat(64)}]);
  assert.match(r.text(),/Review it before saving/);
 });
 test('invalid tool prices stay unavailable in both editor and preview',async t=>{
- const {r}=await setup(t);await r.click(r.getByText('Prepare marketplace listing'));await input(r,r.document.querySelector('[aria-label="Runway access"]') as HTMLSelectElement,'included');
- const number=r.document.querySelectorAll('input[type="number"]')[1] as HTMLInputElement;await input(r,number,'0');assert.match(r.text(),/Unavailable/);
+ const {r}=await setup(t);await input(r,r.document.querySelector('[aria-label="Runway access"]') as HTMLSelectElement,'included');
+ const number=r.document.querySelector('[aria-label="Runway credits per run"]') as HTMLInputElement;await input(r,number,'0');assert.match(r.text(),/Unavailable/);
  await r.click(r.getByText('Preview listing'));assert.match(r.text(),/price unavailable/);assert.doesNotMatch(r.text(),/\$0\.00 per run|NaN/);
 });
 
@@ -67,7 +67,7 @@ test('actual published producer exposes historical funding separately and requir
  actual.draft={id:'draft',revision:2,state:'draft',version_id:actual.agent.versionId,payload:{listing:saved,bindingDigest:actual.bindingDigest}};
  actual.submission={id:'submitted',revision:1,state:'submitted',version_id:actual.agent.versionId};
  const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'fixture',versionId:actual.agent.versionId},{fetch:(async(url:string,init:any={})=>{calls.push({url,init});return {ok:true,json:async()=>actual};}) as typeof fetch});t.after(()=>r.cleanup());
- await r.click(r.getByText('Prepare marketplace listing'));assert.match(r.text(),/Revision 1 is submitted/);assert.match(r.text(),/Later edits are drafts/);
+ assert.match(r.text(),/Revision 1 is submitted/);assert.match(r.text(),/Later edits are drafts/);
  const funded=actual.tools.find((t:any)=>t.origin==='funded_pilot_reference');const select=r.document.querySelector(`[aria-label="${funded.name} access"]`) as HTMLSelectElement;
  assert.equal(select.value,'not_offered');assert.equal(Array.from(select.options).some(o=>o.value==='customer_connects'),false);
  const consent=Array.from(r.document.querySelectorAll('input[type="checkbox"]')).at(-1) as HTMLInputElement;assert.equal(consent.checked,false);
@@ -78,13 +78,13 @@ test('actual published producer exposes historical funding separately and requir
 
 test('listing metadata works in the web app without a local recording bridge or version prop',async t=>{
  const c=fixture();const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:null},{fetch:(async()=>({ok:true,json:async()=>c})) as typeof fetch});t.after(()=>r.cleanup());
- const open=r.getByText('Prepare marketplace listing') as HTMLButtonElement;assert.equal(open.disabled,false);await r.click(open);assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'Video studio');
+ assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'Video studio');
 });
 
 test('owner can retract the approved beta listing without changing publication, training or sample consent',async()=>{
  const c:any=fixture();c.submission={id:'submission',revision:5};c.submissionReview={status:'ready',decision:'approved'};c.review={status:'ready',id:'review',submissionId:'submission',decision:'approved',visibility:'visible'};
  const calls:any[]=[];const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{fetch:(async(url:string,init:any={})=>{calls.push({url,init});return {ok:true,json:async()=>init.method==='POST'?{ok:true,reviewId:'retracted',decision:'owner_retracted'}:c};}) as typeof fetch});
- try{await r.click(r.getByText('Prepare marketplace listing'));assert.match(r.text(),/approved for the beta marketplace/);await r.click(r.getByText('Remove beta listing'));
+ try{assert.match(r.text(),/approved for the beta marketplace/);await r.click(r.getByText('Remove beta listing'));
   const posts=calls.filter(x=>x.init.method==='POST');assert.equal(posts.length,1);assert.deepEqual(JSON.parse(posts[0].init.body),{action:'retract',submissionId:'submission',expectedReviewId:'review'});assert.match(r.text(),/Removed from the beta marketplace/);assert.equal(calls.some(x=>/publication|generate|training-changes/.test(x.url)),false);
  }finally{r.cleanup();}
 });
@@ -97,13 +97,33 @@ for(const [visibility,hiddenReason,message] of [
  const c:any=fixture();c.submission={id:'submission',revision:5};c.submissionReview={status:'ready',decision:'approved'};
  c.review={status:'ready',id:'review',submissionId:'submission',decision:'approved',visibility,hiddenReason};
  const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{fetch:(async()=>({ok:true,json:async()=>c})) as typeof fetch});t.after(()=>r.cleanup());
- await r.click(r.getByText('Prepare marketplace listing'));assert.match(r.text(),new RegExp(message));assert.doesNotMatch(r.text(),/is approved for the beta marketplace/);
+ assert.match(r.text(),new RegExp(message));assert.doesNotMatch(r.text(),/is approved for the beta marketplace/);
 });
 
 test('owner may remove an earlier approved listing while a newer proposal is rejected',async t=>{
  const c:any=fixture();c.submission={id:'new',revision:6};c.submissionReview={status:'ready',decision:'rejected'};
  c.review={status:'ready',id:'approval',submissionId:'old',decision:'approved',visibility:'visible'};const posts:any[]=[];
  const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{fetch:(async(url:string,init:any={})=>{if(init.method==='POST')posts.push(JSON.parse(init.body));return {ok:true,json:async()=>init.method==='POST'?{ok:true,reviewId:'retraction',decision:'owner_retracted'}:c};}) as typeof fetch});t.after(()=>r.cleanup());
- await r.click(r.getByText('Prepare marketplace listing'));assert.match(r.text(),/Revision 6 is kept off/);assert.match(r.text(),/earlier approved listing remains visible/);
+ assert.match(r.text(),/Revision 6 is kept off/);assert.match(r.text(),/earlier approved listing remains visible/);
  await r.click(r.getByText('Remove beta listing'));assert.equal(posts[0].submissionId,'old');assert.equal(posts[0].expectedReviewId,'approval');
+});
+
+test('the Coach entry opens the listing page without loading private draft data',async t=>{
+ const calls:string[]=[];
+ const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio'},{exportName:'MarketplaceSubmissionEntry',fetch:(async(url:string)=>{calls.push(url);throw Error('entry must not load');}) as typeof fetch});t.after(()=>r.cleanup());
+ const link=r.getByText('Prepare marketplace listing');
+ assert.equal(link.tagName,'A');assert.equal(link.getAttribute('href'),'/training/studio/listing');
+ assert.deepEqual(calls,[]);assert.equal(r.document.querySelector('[role="dialog"]'),null);
+});
+
+test('an unreadable initial draft has an explicit read-only retry',async t=>{
+ let attempts=0;const posts:any[]=[];
+ const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{fetch:(async(_url:string,init:any={})=>{if(init.method==='POST')posts.push(init);attempts++;return attempts===1?{ok:false,json:async()=>({reason:'marketplace_submission_unavailable'})}:{ok:true,json:async()=>fixture()};}) as typeof fetch});t.after(()=>r.cleanup());
+ assert.ok(r.getByText('Try again'));assert.equal(r.document.querySelector('fieldset'),null);
+ await r.click(r.getByText('Try again'));assert.equal(attempts,2);assert.equal(posts.length,0);
+ assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'Video studio');
+});
+test('the Coach entry preserves the trainer’s expected version in its link',async t=>{
+ const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{exportName:'MarketplaceSubmissionEntry'});t.after(()=>r.cleanup());
+ assert.equal(r.getByText('Prepare marketplace listing').getAttribute('href'),`/training/studio/listing?versionId=${V}`);
 });

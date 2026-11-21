@@ -89,7 +89,7 @@ export default function JudgeReviewCard({ item }: { item: AttentionItem }) {
     <div className="card flex items-center justify-between gap-3 border-amber-500/40">
       <div className="min-w-0">
         <p className="text-sm font-medium text-ink-100 truncate">{who}</p>
-        <p className="text-xs mt-0.5 text-amber-700 dark:text-amber-300">{item.whatHappened}</p>
+        <p className="text-xs mt-0.5 text-state-needs">{item.whatHappened}</p>
         {item.actionDetail && <p className="text-[11px] mt-1 text-ink-400">{item.actionDetail}</p>}
       </div>
       <button ref={triggerRef} type="button" onClick={() => setOpen(true)} className="btn-outline text-xs px-3 py-1.5 flex-none">
@@ -207,9 +207,9 @@ function JudgeReviewModal({
           <div>
             <div className="flex items-center gap-2">
               <h2 id="judge-review-title" className="text-sm font-semibold text-ink-50">{who}</h2>
-              <span className="text-[10px] uppercase tracking-wide rounded border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-orange-300">Implexa Judge</span>
+              <span className="text-[10px] uppercase tracking-wide rounded border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-state-needs">Tukido Judge</span>
             </div>
-            <p className="text-xs text-ink-400 mt-0.5">Implexa Judge found something that needs your attention.</p>
+            <p className="text-xs text-ink-400 mt-0.5">Tukido Judge found something that needs your attention.</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="text-ink-500 hover:text-ink-300 text-lg leading-none flex-none">×</button>
         </div>
@@ -239,7 +239,7 @@ function JudgeReviewModal({
           />
         </label>
 
-        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+        {error && <p className="mt-2 text-xs text-state-fail">{error}</p>}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button

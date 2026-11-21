@@ -43,7 +43,7 @@ function ForgotPasswordInner() {
             If <strong>{email}</strong> matches an account, we sent a reset link.
             Click it to set a new password.
           </p>
-          <Link href="/login" className="text-xs text-brand-600 hover:underline">← Back to sign in</Link>
+          <Link href="/login" className="text-xs text-action-accent hover:underline">← Back to sign in</Link>
         </div>
       </main>
     );
@@ -62,6 +62,7 @@ function ForgotPasswordInner() {
           <form onSubmit={handleSubmit} className="space-y-3">
             <input
               type="email"
+              aria-label="Email address"
               required
               placeholder="you@work.com"
               value={email}
@@ -69,14 +70,14 @@ function ForgotPasswordInner() {
               className="input"
               autoFocus
             />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-state-fail">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? 'Sending…' : 'Send reset link'}
             </button>
           </form>
 
           <p className="text-center text-sm text-ink-500 pt-4 mt-4 border-t border-ink-700">
-            Remembered it? <Link href="/login" className="text-brand-600 hover:underline">Back to sign in</Link>
+            Remembered it? <Link href="/login" className="text-action-accent hover:underline">Back to sign in</Link>
           </p>
         </div>
       </div>

@@ -70,7 +70,7 @@ test('required CLI missing: the modal is shown at the click, names the computer,
     assert.ok(r.queryByText('Setup required before this agent can run.'), 'the modal title');
     assert.match(r.text(), /Checking: Mac mini \(studio\)/, 'which computer is being checked');
     assert.match(r.text(), /Higgsfield CLI — Not installed/);
-    assert.match(r.text(), /Open setup in Implexa/);
+    assert.match(r.text(), /Open setup in Tukido/);
     assert.ok(r.queryByText('Recheck'));
     assert.ok(r.queryByText('Cancel'));
     assert.equal(state.admissionCalls, 1);

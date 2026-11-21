@@ -48,14 +48,14 @@ test('unknown and none-yet are different claims, and neither is a score', async 
     // Neutral benchmark has no authority at all: not measured, not "zero".
     const benchmark = card(rendered, 'Neutral benchmark');
     assert.match(benchmark, /Not measured/);
-    assert.match(benchmark, /Implexa has not established a benchmark authority/);
+    assert.match(benchmark, /Tukido has not established a benchmark authority/);
     assert.doesNotMatch(benchmark, /\d+ exact-version run/);
     // Customer field WAS measured and is genuinely empty.
     const customerField = card(rendered, 'Customer field');
     assert.match(customerField, /0 exact-version runs/);
     assert.match(customerField, /Deterministic verificationnone yet/);
-    const disclaimer = 'Implexa does not combine them into a score, rating, or rank.';
-    assert.match(rendered.text(), /Implexa does not combine them into a score, rating, or rank/);
+    const disclaimer = 'Tukido does not combine them into a score, rating, or rank.';
+    assert.match(rendered.text(), /Tukido does not combine them into a score, rating, or rank/);
     // The disclaimer names the forbidden things, so remove it before looking.
     assert.doesNotMatch(rendered.text().replace(disclaimer, ''), /\d+%|\bout of 5\b|★|\brank(ed)?\b|\bscore\b|\brating\b/i);
   } finally { rendered.cleanup(); }

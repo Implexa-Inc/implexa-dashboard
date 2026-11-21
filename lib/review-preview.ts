@@ -173,7 +173,7 @@ export function decidePreview(args: {
     // In the app, but this build predates the preview protocol.
     return {
       state: 'update_required', kind, offerOpenInDesktop: false, offerExternal: false,
-      message: 'Update Implexa to preview local files.',
+      message: 'Update Tukido to preview local files.',
     };
   }
 
@@ -215,7 +215,7 @@ export function interpretPreviewResult(result: unknown, kind: PreviewKind): Prev
   return {
     state: 'unavailable', kind, offerOpenInDesktop: false, offerExternal: true,
     // Deliberately does not say "missing" or "deleted" — we do not know that.
-    message: 'Implexa could not open this file for review just now. That does not mean the file is gone.',
+    message: 'Tukido could not open this file for review just now. That does not mean the file is gone.',
   };
 }
 
