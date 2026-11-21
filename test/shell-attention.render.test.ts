@@ -3,20 +3,23 @@ import assert from 'node:assert/strict';
 import './support/tsx-register.mjs';
 const { workAttentionBadge, primaryNavigation } = await import('../lib/navigation.ts');
 
-const empty = { needGrant: [], missed: [], signIns: [], stalled: [], attentionItems: [] };
+const empty = { needGrant: [], missed: [], signIns: [], homeAttention: [] };
 
-test('Work badge deduplicates held/stalled/review aliases but counts separate setup actions', () => {
+test('Work badge counts the page actions, deduplicates Judge/live aliases and excludes historical/non-actionable rows', () => {
   const badge = workAttentionBadge({
     needGrant: [{ slug: 'agent-a' }], missed: [{ id: 'schedule-a' }], signIns: [{ domain: 'example.com' }],
-    stalled: [{ id: 'v2' }],
-    attentionItems: [{ attentionId: 'hold-v1', runId: 'v1' }, { attentionId: 'hold-v2', runId: 'v2' }],
-  }, [{ rootRunId: 'v1', latestRunId: 'v2' }], true);
+    homeAttention: [{ attentionId: 'judge', runId: 'v2' }],
+  }, [{ runId: 'v2', requestId: 'request', status: 'needs_attention' },
+      { runId: 'v2', requestId: 'request', status: 'needs_attention' },
+      { runId: 'queued', status: 'queued' }, { runId: 'done', status: 'finished' }], true);
   assert.deepEqual(badge, { count: 4, complete: true });
+  const broadFeed = { ...empty, attentionItems: Array.from({ length: 70 }, (_, i) => ({ runId: `old-${i}`, attentionId: `old-${i}` })), stalled: [{ id: 'old-stall' }] };
+  assert.equal(workAttentionBadge(broadFeed, [], true).count, 0, 'historical holds/stalls absent from the Work view do not inflate its badge');
 });
 
 test('partial/unavailable sources never become an exact zero or an exact known total', () => {
   assert.deepEqual(workAttentionBadge(empty, [], false), { count: 0, complete: false });
-  assert.deepEqual(workAttentionBadge(empty, [{ rootRunId: 'one', latestRunId: 'one' }], false), { count: 1, complete: false });
+  assert.deepEqual(workAttentionBadge(empty, [{ runId: 'one', status: 'waiting_approval' }], false), { count: 1, complete: false });
   assert.deepEqual(workAttentionBadge(empty, [], true), { count: 0, complete: true });
 });
 
@@ -50,8 +53,9 @@ test('both real shell surfaces retain attention on visiting Work, refresh after 
   Date.now = () => now;
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
   let response: unknown = { ok: true, canTrain: true, work: { count: 3, complete: true } };
+  let heldRead: Promise<Response> | null = null;
   let calls = 0;
-  globalThis.fetch = (async () => { calls++; return Response.json(response); }) as typeof fetch;
+  globalThis.fetch = (async () => { calls++; return heldRead ?? Response.json(response); }) as typeof fetch;
   const root = createRoot(document.getElementById('root')!);
   const user = { displayName: 'Ada', email: 'ada@example.com', plan: 'free', isFoundingCreator: false };
   const render = (key = 'initial', userId = 'account-one') => React.createElement(ShellNavigationProvider, { key, userId, children: React.createElement(React.Fragment, null,
@@ -92,7 +96,13 @@ test('both real shell surfaces retain attention on visiting Work, refresh after 
     now += 15_001;
     await React.act(async () => { window.dispatchEvent(new dom.window.Event('focus')); });
     response = { ok: false };
+    let settleRead!: (response: Response) => void;
+    heldRead = new Promise((resolve) => { settleRead = resolve; });
     await React.act(async () => { root.render(render('fresh-load')); });
+    assert.equal(document.querySelectorAll('.app-nav-count').length, 0, 'loading is not an unavailable question-mark badge');
+    assert.equal(document.querySelectorAll('a[href="/training"]').length, 2, 'remembered trainer is available while the first read is pending');
+    await React.act(async () => { settleRead(Response.json(response)); });
+    heldRead = null;
     assert.equal(document.querySelectorAll('a[href="/training"]').length, 2, 'confirmed trainer survives a failed first refresh on a fresh load');
 
     response = { ok: true, canTrain: false, work: { count: 0, complete: true } };

@@ -26,7 +26,7 @@ const BACKEND = (
 ).replace(/\/$/, '');
 
 /** Only the field the landing rule reads. The full card shape lives in the UI. */
-export type LiveCardStatus = { status?: string | null };
+export type LiveCardStatus = { status?: string | null; runId?: string | null; requestId?: string | null };
 
 export type LiveFeed =
   | { status: 'ready'; items: LiveCardStatus[] }

@@ -32,6 +32,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { workAttentionBadge } from '@/lib/navigation';
 // TYPE-ONLY imports on purpose: lib/attention and lib/needs-you both reach
 // lib/supabase/server (next/headers), which cannot be pulled into a client
 // bundle. Types are erased at compile time; the `warning` VALUE is computed on
@@ -70,9 +71,7 @@ function JudgeRow({ item }: { item: AttentionItem }) {
  * could appear while a decision is still on screen.
  */
 function countBlockingNeeds(data: NeedsYou): number {
-  const blockingCount =
-    data.needGrant.length + data.signIns.length + data.missed.length + data.homeAttention.length;
-  return blockingCount;
+  return workAttentionBadge(data, [], true).count;
 }
 
 /** A pointer to pending decisions, not a second action list or live poller. */

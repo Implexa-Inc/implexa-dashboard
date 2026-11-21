@@ -206,17 +206,11 @@ test('responsive: exactly one shell surface is visible at any width', () => {
 
 // ── Badge ────────────────────────────────────────────────────────────────────
 
-test('the Work badge does not render in server markup (hydration-safe)', () => {
-  // The count is derived from a localStorage "last opened" marker, which does
-  // not exist on the server. Rendering a number here would either mismatch on
-  // hydration or show a stale count to every user; the component returns 0
-  // until the marker is read. The counting rule itself is tested in
-  // lib/navigation.test.ts (countNewerThan).
-  const fresh = new Date(Date.now() + 60_000).toISOString();
-  const html = renderShell('desktop', '/workflows', { resultRunsAt: [fresh], needsItemsAt: [fresh] });
+test('the Work badge waits for an authenticated background read (hydration-safe)', () => {
+  const html = renderShell('desktop', '/workflows');
   const work = anchors(html).find((a) => a.href === '/work');
   assert.ok(work);
-  assert.equal(work.label, 'Work', 'no count is rendered server-side');
+  assert.equal(work.label, 'Work', 'server markup does not invent a count before the read');
 });
 
 // Owner-requested beta behavior: same routes, labels moved to the actual shell.

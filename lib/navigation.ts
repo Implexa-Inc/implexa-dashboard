@@ -1,3 +1,5 @@
+import { LIVE_ATTENTION_STATUSES } from './live-feed.ts';
+import { continuityKey } from './live-lifecycle-continuity.ts';
 /**
  * lib/navigation.ts — the ONE canonical description of the dashboard shell.
  *
@@ -86,39 +88,34 @@ export function primaryNavigation(_marketplacePilot = false, canTrain = true): r
 export type WorkAttentionBadge = { count: number; complete: boolean };
 export type ShellNavigationState = {
   canTrain: boolean | null;
-  work: WorkAttentionBadge | null;
+  work?: WorkAttentionBadge | null;
 };
 
 /**
- * Count the existing Work attention/read models, not "new since visited".
- * Review roots and their latest revisions are aliases for ONE piece of work;
- * a held/stalled run may also be in that queue. Setup actions have their own
- * stable identities. Partial reads are lower bounds, never an all-clear.
+ * Work's actionable sources: setup rows and Judge cards from TodayFeed, plus
+ * the same human-needed live statuses rendered by RunningAgents. The broader
+ * needs-you endpoint also contains historical holds/stalls that this page does
+ * not render; counting those produced a misleading 73+ badge for six actions.
+ * Partial reads are lower bounds, never an all-clear.
  */
 export function workAttentionBadge(
   needs: {
     needGrant: ReadonlyArray<{ slug: string }>;
     missed: ReadonlyArray<{ id: string }>;
     signIns: ReadonlyArray<{ domain: string }>;
-    stalled: ReadonlyArray<{ id: string }>;
-    attentionItems: ReadonlyArray<{ runId: string | null; attentionId: string }>;
+    homeAttention: ReadonlyArray<{ runId: string | null; attentionId: string }>;
   },
-  reviews: ReadonlyArray<{ rootRunId: string; latestRunId: string }>,
+  live: ReadonlyArray<{ runId?: string | null; requestId?: string | null; status?: string | null }>,
   complete: boolean,
 ): WorkAttentionBadge {
-  const roots = new Map<string, string>();
-  for (const review of reviews) {
-    roots.set(review.rootRunId, review.rootRunId);
-    roots.set(review.latestRunId, review.rootRunId);
-  }
-  const runKey = (id: string) => `run:${roots.get(id) ?? id}`;
+  const actionable = live.filter((item) => LIVE_ATTENTION_STATUSES.has(String(item.status)));
+  const runAliases = new Map(actionable.filter((item) => item.runId).map((item) => [item.runId!, continuityKey({ runId: item.runId, requestId: item.requestId })!]));
   const keys = new Set([
     ...needs.needGrant.map((item) => `grant:${item.slug}`),
     ...needs.missed.map((item) => `schedule:${item.id}`),
     ...needs.signIns.map((item) => `signin:${item.domain}`),
-    ...needs.stalled.map((item) => runKey(item.id)),
-    ...needs.attentionItems.map((item) => item.runId ? runKey(item.runId) : `attention:${item.attentionId}`),
-    ...reviews.map((item) => runKey(item.rootRunId)),
+    ...needs.homeAttention.map((item) => item.runId ? `run:${runAliases.get(item.runId) ?? item.runId}` : `attention:${item.attentionId}`),
+    ...actionable.map((item, index) => `run:${continuityKey({ runId: item.runId, requestId: item.requestId }) ?? `untracked:${index}`}`),
   ]);
   return { count: keys.size, complete };
 }
@@ -265,34 +262,6 @@ export function legacyDestination(
   return qs ? `${path}?${qs}` : path;
 }
 
-/**
- * Merge per-source timestamp lists into one deduplicated list.
- *
- * Work's badge spans two server-fed lists that are read from the SAME table
- * with different filters — every run in the window, and the subset that stalled
- * or is awaiting a decision. The second is largely contained in the first, so
- * concatenating them counts those rows twice and the badge reads roughly double.
- */
-export function mergeTimestamps(...lists: readonly (readonly string[])[]): string[] {
-  return Array.from(new Set(lists.flat()));
-}
-
-/**
- * How many of `timestamps` are newer than a "last opened" marker.
- *
- * ISO strings are compared as epoch millis so a timezone-suffix difference
- * ("+00:00" vs "Z") cannot skew the result, and an unparseable timestamp is
- * skipped rather than counted.
- */
-export function countNewerThan(timestamps: readonly string[], seenMs: number): number {
-  let n = 0;
-  for (const t of timestamps) {
-    const ms = Date.parse(t);
-    if (Number.isFinite(ms) && ms > seenMs) n++;
-  }
-  return n;
-}
-
 // ── State-aware default landing ──────────────────────────────────────────────
 
 /**
@@ -368,23 +337,6 @@ export function postAuthDestination(o: {
   if (o.adoptSlug) return `/workflows/${o.adoptSlug}`;
   if (o.intent) return `/overview?intent=${encodeURIComponent(o.intent)}`;
   return o.next || DEFAULT_LANDING_ROUTE;
-}
-
-/**
- * The per-device "last opened Work" marker, SCOPED TO THE ACCOUNT.
- *
- * An unscoped key leaks across accounts on a shared device: signing out of one
- * account and into another hands the second account the first one's marker, so
- * work that arrived before the switch is silently already-seen and the badge
- * never shows it. The same device genuinely runs two Implexa accounts here —
- * that is why "Switch account" existed at all.
- *
- * Returns null when there is no account id to scope by; the caller renders no
- * badge rather than falling back to a shared key.
- */
-export function workSeenKey(userId: string | null | undefined): string | null {
-  const id = (userId ?? '').trim();
-  return id ? `implexa.seen.work:${id}` : null;
 }
 
 // ── Shell chrome ─────────────────────────────────────────────────────────────

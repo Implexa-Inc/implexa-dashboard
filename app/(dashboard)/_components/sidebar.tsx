@@ -54,21 +54,27 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
     const roleKey = `tukido.coach-navigation:${userId}`;
     try {
       const known = window.localStorage.getItem(roleKey);
-      if (known === 'true' || known === 'false') setState((previous) => ({ canTrain: known === 'true', work: previous?.work ?? null }));
+      const checkedAt = Number(window.localStorage.getItem(`${roleKey}:checked-at`));
+      if (known === 'true' || (known === 'false' && Date.now() - checkedAt < 30_000)) {
+        setState((previous) => ({ canTrain: known === 'true', work: previous?.work }));
+      }
     } catch { /* A blocked storage area does not block navigation. */ }
     async function refresh() {
       if (inFlight || document.visibilityState === 'hidden' || Date.now() - lastRead < 15_000) return;
       lastRead = Date.now();
       inFlight = true;
       try {
-        const res = await fetch('/api/shell-navigation', { cache: 'no-store', signal: controller.signal });
+        const res = await fetch('/api/shell-navigation', { cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12_000)]) });
         const body = res.ok ? await res.json() : null;
         const work = body?.work;
         const valid = body?.ok === true && [true, false, null].includes(body.canTrain)
           && (work === null || (Number.isSafeInteger(work?.count) && work.count >= 0 && typeof work.complete === 'boolean'));
         if (active) {
           if (valid && typeof body.canTrain === 'boolean') {
-            try { window.localStorage.setItem(roleKey, String(body.canTrain)); } catch { /* UI hint only, never authorization */ }
+            try {
+              window.localStorage.setItem(roleKey, String(body.canTrain));
+              window.localStorage.setItem(`${roleKey}:checked-at`, String(Date.now()));
+            } catch { /* UI hint only, never authorization */ }
           }
           setState((previous) => valid
             ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work }
