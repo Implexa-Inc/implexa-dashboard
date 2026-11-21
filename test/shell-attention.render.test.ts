@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/tsx-register.mjs';
-const { workAttentionBadge, primaryNavigation } = await import('../lib/navigation.ts');
+const { workAttentionBadge, primaryNavigation, mergeWorkCount } = await import('../lib/navigation.ts');
 
 const empty = { needGrant: [], missed: [], signIns: [], homeAttention: [] };
 
@@ -89,7 +89,7 @@ test('both real shell surfaces retain attention on visiting Work, refresh after 
     response = { ok: false };
     now += 15_001;
     await React.act(async () => { window.dispatchEvent(new dom.window.Event('focus')); });
-    assert.equal(document.querySelectorAll('[aria-label="Needs-you status unavailable"]').length, 2);
+    assert.equal(document.querySelectorAll('[aria-label="At least 2 need you"]').length, 2,'an unavailable refresh retains the known lower bound');
 
     response = { ok: true, canTrain: true, work: { count: 0, complete: true } };
     now += 15_001;
@@ -104,8 +104,16 @@ test('both real shell surfaces retain attention on visiting Work, refresh after 
     heldRead = null;
     assert.equal(document.querySelectorAll('a[href="/training"]').length, 2, 'confirmed trainer survives a failed first refresh on a fresh load');
 
+    response = {ok:true,canTrain:true,work:{count:20,complete:false}};
+    now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));
+    response = {ok:true,canTrain:true,work:{count:2,complete:false}};
+    now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));
+    assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2,'a weaker partial read cannot shrink the session lower bound');
+    await React.act(async()=>root.render(render('restored-account','account-one')));
+    assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2,'a remount restores the account-scoped session lower bound');
     response = { ok: true, canTrain: false, work: { count: 0, complete: true } };
     await React.act(async () => { root.render(render('other-account', 'account-two')); });
+    assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,0,'another account cannot inherit the count');
     assert.equal(document.querySelectorAll('a[href="/training"]').length, 0, 'a verified new account cannot inherit the trainer hint');
     __setPathname('/training/my-agent');
     await React.act(async () => { root.render(render('other-account', 'account-two')); });
@@ -117,4 +125,13 @@ test('both real shell surfaces retain attention on visiting Work, refresh after 
     Date.now = realNow;
     delete (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT;
   }
+});
+
+
+test('only a complete Work count can reduce a previously known lower bound',()=>{
+ assert.deepEqual(mergeWorkCount({count:20,complete:true},{count:2,complete:false}),{count:20,complete:false});
+ assert.deepEqual(mergeWorkCount({count:20,complete:false},null),{count:20,complete:false});
+ assert.deepEqual(mergeWorkCount({count:20,complete:false},{count:23,complete:false}),{count:23,complete:false});
+ assert.deepEqual(mergeWorkCount({count:20,complete:false},{count:0,complete:true}),{count:0,complete:true});
+ assert.equal(mergeWorkCount(undefined,null),null);
 });

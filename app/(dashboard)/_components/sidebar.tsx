@@ -8,7 +8,7 @@ import { usePathname } from 'next/navigation';
 import { Logo } from '@/components/logo';
 import { STATUS_PRESENTATION, relativeFromNow, type SetupStatus } from '@/lib/setup-status';
 import {
-  primaryNavigation, SECONDARY_NAV, isNavItemActive,
+  primaryNavigation, SECONDARY_NAV, isNavItemActive, mergeWorkCount,
   type NavItem, type ShellNavigationState, type WorkAttentionBadge,
 } from '@/lib/navigation';
 
@@ -42,6 +42,7 @@ const FOCUS_RING =
   'focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900';
 
 const ShellState = createContext<ShellNavigationState | undefined>(undefined);
+export function useWorkAttentionBadge(){return useContext(ShellState)?.work;}
 
 /** One read for both surfaces after paint, with throttled focus/periodic refresh. */
 export function ShellNavigationProvider({ userId, children }: { userId: string; children: ReactNode }) {
@@ -52,6 +53,11 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
     let inFlight = false;
     let lastRead = 0;
     const roleKey = `tukido.coach-navigation:${userId}`;
+    // Per-account, per-tab UI hint. It carries no permissions or authentication.
+    try {
+      const cached=JSON.parse(window.sessionStorage.getItem(`tukido.work-attention:${userId}`)||'null');
+      if(Number.isSafeInteger(cached)&&cached>0)setState(previous=>({canTrain:previous?.canTrain??null,work:mergeWorkCount(previous?.work,{count:cached,complete:false})}));
+    } catch { /* Storage is optional; unreadable is never a zero. */ }
     try {
       const known = window.localStorage.getItem(roleKey);
       const checkedAt = Number(window.localStorage.getItem(`${roleKey}:checked-at`));
@@ -77,11 +83,11 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
             } catch { /* UI hint only, never authorization */ }
           }
           setState((previous) => valid
-            ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work }
-            : { canTrain: previous?.canTrain ?? null, work: null });
+            ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work:mergeWorkCount(previous?.work,work) }
+            : { canTrain: previous?.canTrain ?? null, work:mergeWorkCount(previous?.work,null) });
         }
       } catch {
-        if (active) setState((previous) => ({ canTrain: previous?.canTrain ?? null, work: null }));
+        if (active) setState((previous) => ({ canTrain: previous?.canTrain ?? null, work:mergeWorkCount(previous?.work,null) }));
       } finally { inFlight = false; }
     }
     void refresh();
@@ -97,6 +103,15 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
       document.removeEventListener('visibilitychange', onFocus);
     };
   }, [userId]);
+  useEffect(()=>{
+    const value=state?.work;
+    if(!value)return;
+    try {
+      const key=`tukido.work-attention:${userId}`;
+      if(value.count>0)window.sessionStorage.setItem(key,JSON.stringify(value.count));
+      else if(value.complete)window.sessionStorage.removeItem(key);
+    } catch { /* UI continuity only; never authorization. */ }
+  },[userId,state?.work?.count,state?.work?.complete]);
   // Navigation remounts do not create another read; the provider belongs to the
   // persistent layout. Focus/periodic checks refresh decisions with a minimum gap.
   return <ShellState.Provider value={state}>{children}</ShellState.Provider>;

@@ -85,6 +85,12 @@ export function primaryNavigation(_marketplacePilot = false, canTrain = true): r
 }
 
 export type WorkAttentionBadge = { count: number; complete: boolean };
+/** A partial or failed refresh cannot disprove an already-known lower bound. */
+export function mergeWorkCount(previous:WorkAttentionBadge|null|undefined,incoming:WorkAttentionBadge|null|undefined):WorkAttentionBadge|null{
+  if(incoming?.complete)return incoming;
+  if(!previous)return incoming??null;
+  return {count:Math.max(previous.count,incoming?.count??0),complete:false};
+}
 export type ShellNavigationState = {
   canTrain: boolean | null;
   work?: WorkAttentionBadge | null;

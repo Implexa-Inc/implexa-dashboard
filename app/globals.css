@@ -386,5 +386,6 @@ html, body {
 @layer components { .btn-secondary { @apply btn-outline; } }
 
 .app-page-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+@media(max-width:767px){.app-page-head{flex-direction:column;align-items:flex-start;gap:16px;}.app-page-actions{margin-left:0;}}
 .app-breadcrumb { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; color: var(--text-muted); font-size: 13px; }
 .app-breadcrumb a:hover { color: var(--text-strong); text-decoration: underline; }
