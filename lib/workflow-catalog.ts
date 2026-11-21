@@ -307,6 +307,8 @@ export type MyWorkflowCard = {
   scheduled_count: number;
   is_scheduled: boolean;
   last_run_at: string | null;
+  /** Existing owner-roster timestamp, not a lesson publication date. */
+  updated_at?: string | null;
   shared: boolean;
   unproven: boolean;
 };

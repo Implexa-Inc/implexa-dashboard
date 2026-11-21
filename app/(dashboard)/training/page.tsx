@@ -1,45 +1,35 @@
+import {Suspense} from 'react';
 import Link from 'next/link';
-import {getMarketplaceSamples} from '@/lib/agent-marketplace-samples-server';
-import {marketplacePilotEnabled} from '@/lib/agent-marketplace-samples';
-import RetryButton from '../_components/retry-button';
-import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import { readMyWorkflows, type MyWorkflowsRead } from '@/lib/workflow-catalog';
+import {redirect} from 'next/navigation';
+import PageHeader from '@/components/page-header';
+import {createClient} from '@/lib/supabase/server';
+import {readTrainingCoach} from '@/lib/training-coach-server';
+import {readMyWorkflows} from '@/lib/workflow-catalog';
 import {reviewQueueForArea} from '@/lib/training-review-routing';
 import {getReviewQueue} from '@/lib/review';
+import RetryButton from '../_components/retry-button';
 import ReadyForReviewList from '../work/_components/ready-for-review-list';
-import TrainingAgentPicker,{TrainingFeedUnavailable as FeedUnavailable} from '../_components/training-agent-picker';
+import TrainingAgentPicker,{TrainingFeedUnavailable} from '../_components/training-agent-picker';
 
-export const dynamic = 'force-dynamic';
-
-export default async function TrainingPage({searchParams}:{searchParams?:{view?:string;recordingId?:string}}) {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) redirect('/login');
-
-  const [feed,samples] = await Promise.all([readMyWorkflows(session.access_token),getMarketplaceSamples()]);
-  const pilot=marketplacePilotEnabled(samples);
-  const recordingId=searchParams?.recordingId&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(searchParams.recordingId)?searchParams.recordingId:undefined;
-  const queue=searchParams?.view==='review'&&feed.status==='ready'?await getReviewQueue():null;
-  const owned=feed.status==='ready'?feed.workflows.filter(a=>a.source==='generated'):[];
-  const feedback=queue?reviewQueueForArea(queue,feed,'training'):null;
-
-  return (
-    <div className="app-page">
-      <div className="app-content">
-        <header className="mb-8">
-          {!pilot&&<p className="mb-3 text-[10px] font-medium uppercase tracking-[.18em] text-ink-500">Your trainer workspace</p>}<h1 className="text-3xl font-medium tracking-tight text-ink-50">Coach</h1>
-          <p className="text-ink-300 text-sm mt-1">
-            Teach your agents through examples, feedback, or a conversation.
-          </p>
-        </header>
-
-        {feed.status !== 'ready' ? <FeedUnavailable reason={feed.reason} /> : <>
-          {!!feed.unavailableEntries && <p role="status" className="mb-4 text-sm text-ink-400">Some agent entries could not be read. The available agents are shown below.<RetryButton /></p>}
-          {feedback?<><Link href="/training" className="mb-5 inline-block text-sm text-ink-400">← Your agents</Link><h2 className="mb-5 text-xl">Feedback from runs</h2><ReadyForReviewList queue={feedback} nameBySlug={new Map(owned.map(a=>[a.slug,a.name]))} training/></>:<><Link href="/training?view=review" className="mb-6 inline-block text-sm text-ink-400">Feedback from runs →</Link><TrainingAgentPicker owned={feed.workflows} recordingId={recordingId} /></>}
-        </>}
-      </div>
-    </div>
-  );
+export const dynamic='force-dynamic';
+export default async function TrainingPage({searchParams}:{searchParams?:{view?:string;recordingId?:string}}){
+ const supabase=createClient();const {data:{session}}=await supabase.auth.getSession();
+ if(!session?.user)redirect('/login');
+ const recordingId=searchParams?.recordingId&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(searchParams.recordingId)?searchParams.recordingId:undefined;
+ return <main className="app-page"><div className="app-content">
+  <PageHeader title="Coach" actions={<Link href="/create?from=training" className="btn-primary"><svg width="16" height="16" aria-hidden="true"><use href="/brand/tukido-icons.svg#plus"/></svg>Train a new agent</Link>}><p className="app-page-description">Teach your agents, decide what they learn, and list them for others to rent.</p></PageHeader>
+  <Suspense fallback={<p role="status" className="mt-6 text-sm text-ink-400">Loading the agents you train…</p>}><CoachContents jwt={session.access_token} review={searchParams?.view==='review'} recordingId={recordingId}/></Suspense>
+ </div></main>;
 }
-
+async function CoachContents({jwt,review,recordingId}:{jwt:string;review:boolean;recordingId?:string}){
+ if(!review){const summary=await readTrainingCoach(jwt);if(summary.status!=='ready')return <TrainingFeedUnavailable reason="http_error"/>;const owned=summary.page.agents.map(agent=>({slug:agent.slug,name:agent.name,source:'generated',description:agent.description||'',updated_at:agent.lastTaughtAt}));return <TrainingAgentPicker owned={owned} recordingId={recordingId} partial={!summary.page.complete} summary={summary.page}/>;}
+ const feed=await readMyWorkflows(jwt);
+ if(feed.status!=='ready')return <TrainingFeedUnavailable reason={feed.reason}/>;
+ const owned=feed.workflows.filter(agent=>agent.source==='generated');
+ const queue=review?reviewQueueForArea(await getReviewQueue(),feed,'training'):null;
+ return <>
+  {!!feed.unavailableEntries&&<p role="status" className="mb-5 text-sm text-ink-400">Some agent details couldn’t be loaded. Known agents are shown below. <RetryButton/></p>}
+  {queue?<><Link href="/training" className="mb-5 inline-block text-sm text-ink-400">← All agents you train</Link><h2 className="mb-5 text-xl">Feedback from runs</h2><ReadyForReviewList queue={queue} nameBySlug={new Map(owned.map(agent=>[agent.slug,agent.name]))} training/></>:
+   <TrainingAgentPicker owned={owned} recordingId={recordingId} partial={!!feed.unavailableEntries}/>}
+ </>;
+}
