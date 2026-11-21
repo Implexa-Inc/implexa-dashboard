@@ -165,7 +165,7 @@ class TrainingError extends Error {
   constructor(readonly reason: string, message?: string, readonly existingSourceId: string | null = null) { super(message || reason); }
 }
 
-const bridge = () => (window as unknown as { implexaDesktop?: Bridge }).implexaDesktop;
+const bridge = () => typeof window === 'undefined' ? undefined : (window as unknown as { implexaDesktop?: Bridge }).implexaDesktop;
 const shortId = (value: string | null | undefined) => value ? value.slice(0, 8) : 'none';
 const relationLabel = (relation: TrainingRelation) => ({ accepted: 'Positive example', rejected: 'Negative example', contrast: 'Contrastive example', exception: 'Exception' })[relation];
 const reasonLabel = (reason: string) => reason.replaceAll('_', ' ');
@@ -248,7 +248,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
   const observedVersion=useRef<string|null>(null);
   const reportRunPending=useCallback((count:number)=>{const identity=`${session}:${currentVersion}`;setRunPending(previous=>previous.identity===identity&&previous.count===count?previous:{identity,count});},[session,currentVersion]);
-  const [agentName, setAgentName] = useState(slug);
+  const [agentName, setAgentName] = useState(runContext?.name || slug);
   const [versionChanged, setVersionChanged] = useState(false);
   const [activeTraining, setActiveTraining] = useState<{requirements:ManagerTrainingRequirements;adoption:unknown}|null>(null);
   const [trainingStatusRefresh,setTrainingStatusRefresh] = useState(0);
@@ -581,8 +581,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [agentChange,setAgentChange] = useState<{requestId:string;status:string;sourceLinkRecorded?:boolean;warning?:string}|null>(null);
   const [method,setMethod] = useState<{id:string;slug:string;name:string;content:string;contentDigest:string;status:string;scope:string;model:string|null}|null>(null);
   const [recordingSupported,setRecordingSupported] = useState(false);
+  const [separateIntake,setSeparateIntake] = useState(false);
   const [toolFramesSupported,setToolFramesSupported]=useState(false);
-  useEffect(()=>{setRecordingSupported(bridge()?.trainingRecordingContractVersion==='1');setToolFramesSupported(bridge()?.trainingToolFrameContractVersion==='1');},[]);
+  useEffect(()=>{setRecordingSupported(bridge()?.trainingRecordingContractVersion==='1');setToolFramesSupported(bridge()?.trainingToolFrameContractVersion==='1');setSeparateIntake(bridge()?.trainingIntakeScopeContractVersion==='1');},[]);
   const [recording,setRecording] = useState<{excerptId:string;excerptDigest:string;excerpt:RecordingExcerpt;frames:RecordingFrame[];suggestion:RecordingSuggestion|null;purpose?:'taste'|'agent';frameRecipeDigest?:string;capability?:RecordingAgentCapability}|null>(null);
   const [pendingRecordingLink,setPendingRecordingLink] = useState<{body:Record<string,unknown>;sessionId:string;key:string}|null>(null);
   useEffect(()=>{setRecording(null);setRecordingConsent(false);},[selected?.sourceId,session,currentVersion]);
@@ -1930,7 +1931,6 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         <p>{!session?'Add an example to start a training session first.':!sources.some(source=>source.decisions.some(d=>['draft','accepted'].includes(d.state)))?'No saved lessons are available in this training session yet.':''}</p><p>Linking preserves the existing teaching; it does not edit its text or evidence. This also resumes a draft saved before an interrupted answer link.</p>
         <button disabled={!!busy || !linkRecordId || sessionVersion !== questionAnswer.expectedActiveVersionId} onClick={linkExistingTeaching}>Link answer to selected teaching</button></TrainingDetails>
       </div>:null;
-  const separateIntake=bridge()?.trainingIntakeScopeContractVersion==='1';
   const reviewedIntake=intakeReview?.sessionId===session&&intakeReview.plan.versionId===currentVersion
     &&(!intakeReview.recordingId||intakeReview.recordingId===activeRecordingId)&&!versionChanged?intakeReview:null;
   async function sendIntakeRequest(body:object) {
@@ -2019,7 +2019,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     <div hidden={!installationId&&trainingStep!==1} className="space-y-7">
     {!installationId&&<>{questionsError&&<div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-ink-400"><p>Training suggestions couldn’t load.</p><button type="button" disabled={questionsBusy||!!busy} onClick={()=>void loadQuestions()} className="underline">Retry training suggestions</button></div>}<CustomerTrainingInbox slug={slug} ownerId={ownerId||''} sessionId={sessionVersion===currentVersion?session:null} versionId={currentVersion} disabled={!!busy||changesBusy||versionChanged} onStart={()=>startPrivateTraining(false)} onSaved={()=>{void loadChanges();selectTrainingStep(2);}} onOwnExample={()=>{selectTrainingStep(1);setView('teach');}}/><TrainingOpportunities key={`${ownerId}:${slug}`} runs={recentRuns} pendingCount={unappliedCount} onReview={()=>selectTrainingStep(2)} questions={questions} sessionId={sessionVersion===currentVersion?session:null} versionId={currentVersion} disabled={!!busy||changesBusy||versionChanged} onStart={()=>startPrivateTraining(false)} onSaved={()=>{void loadChanges();void loadQuestions();selectTrainingStep(2);}}/>
     <section className="space-y-2 border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Say it</h3><p className="text-sm text-ink-400">Teach a preference, ask a question or change how your agent works.</p><button id="training-chat-toggle" type="button" aria-expanded={chatExpanded} aria-controls="training-companion" disabled={!!busy} onClick={()=>chatExpanded?setChatExpanded(false):focusChat()} className="rounded-lg border border-ink-700 px-4 py-2 text-sm text-ink-200 hover:border-ink-500">✦ {chatExpanded?'Close chat':'Chat with Tukido'}</button></section></>}
-    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onSelectRun={openRun} selectedRunId={activeRunId} sourceActive={!!activeRunId||!!activeRecordingId||directSource} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={requestTrainingUpload} uploadDisabled={!!busy||changesBusy||versionChanged||(!currentVersion&&bridge()?.trainingIntakeScopeContractVersion!=='1')} uploadStatus={[UPLOAD_PICKING,UPLOAD_CHECKING,UPLOAD_IMPORTING,UPLOAD_LEGACY].includes(busy)?busy:undefined}/>}/>}
+    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onSelectRun={openRun} selectedRunId={activeRunId} sourceActive={!!activeRunId||!!activeRecordingId||directSource} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={requestTrainingUpload} uploadDisabled={!!busy||changesBusy||versionChanged||(!currentVersion&&!separateIntake)} uploadStatus={[UPLOAD_PICKING,UPLOAD_CHECKING,UPLOAD_IMPORTING,UPLOAD_LEGACY].includes(busy)?busy:undefined}/>}/>}
     {!installationId&&!directSource&&!activeRecordingId&&!activeRunId&&(savedFeedback.length>0||savedFeedbackUnreadable>0)&&<section aria-label="Saved feedback to finish" className="space-y-3 rounded-xl border border-ink-800 p-4"><h3 className="text-lg font-medium">Continue your saved feedback</h3>{savedFeedbackUnreadable>0&&<p role="status" className="text-sm text-state-needs">Some saved feedback could not be reopened. Your saved notes have not been changed.</p>}{savedFeedback.map(note=><div key={note.fingerprint} className="space-y-2"><p className="line-clamp-2 text-sm text-ink-400">{note.feedback}</p><button type="button" className="text-sm text-state-needs underline" disabled={!!busy||changesBusy||versionChanged||directVoiceDirty||runDirty||recordingDirty||!!runFeedbackRequest} onClick={()=>void reopenSavedFeedback(note)}>Continue saved feedback</button></div>)}</section>}
     {!installationId&&pendingRecordingId&&<div role="status" className="text-sm text-ink-300">Another recording is ready. Your current feedback is preserved. <button type="button" className="underline" onClick={()=>{if(recordingDirty){setClosingRecording(false);setReplaceRecordingOpen(true);}else if(pendingRecordingId)openRecording(pendingRecordingId);}}>Annotate new recording</button></div>}
     {!installationId&&directSource&&!activeRunId&&!activeRecordingId&&selected?.token&&previewIsCurrent&&preview?.image&&<>
