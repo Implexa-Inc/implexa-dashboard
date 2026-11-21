@@ -698,3 +698,31 @@ test('Done teaching sends only exact active current-run visual pairs and waits f
   state.currentTime=9;await media(video(),'timeupdate');assert.equal(batches[0].find((pair:any)=>pair.issue.id===ISSUE_ID).issue.anchor.temporal.startMs,3000,'saved note pairs retain their own anchors');
  }finally{await act(async()=>release({ok:false,reason:'recording_not_found'}));for(const key of Object.keys(native))delete native[key];Object.assign(native,saved);}
 });
+
+test('finished result reuses the trusted viewer and session acceptance without making a revision',async()=>{
+ await mount({finishedView:{reviewHref:`/review/${RUN_ID}`,changes:React.createElement('div',null,'Existing change request')}});
+ assert.ok(video());assert.equal(overlay(),null,'pinning remains in the dedicated Review Room');
+ assert.equal(container.querySelector('select[aria-label="Result file"]')?.children.length,2);
+ assert.equal(container.querySelector('.finished-markup')?.getAttribute('href'),`/review/${RUN_ID}`);
+ assert.equal(calls.some(c=>c.body.action==='accept'||c.body.action==='submit'),false,'opening the page is read-only');
+ await clickButton(/^Accept$/);
+ assert.deepEqual(calls.filter(c=>c.body.action==='accept').map(c=>c.body),[{action:'accept',sessionId:SESSION_ID,discardOpenIssues:false}]);
+ assert.equal(calls.some(c=>c.body.action==='submit'),false);
+ assert.match(text(),/Free up local storage/,'the same post-acceptance cleanup remains available');
+});
+
+test('finished acceptance stays unavailable when review authority or existing notes need attention',async()=>{
+ const finishedView={reviewHref:`/review/${RUN_ID}`,changes:null};
+ for(const over of [{issues:[storedSpatialIssue]},{sources:{issues:'unavailable',artifacts:'ready',session:'ready',reviewer_resolutions:'ready',review_artifacts:'ready'}},{sources:{issues:'ready',artifacts:'ready',session:'ready',reviewer_resolutions:'unavailable',review_artifacts:'ready'}}]){
+  await mount({finishedView,...over});assert.equal(buttons().some(b=>b.textContent==='Accept'),false);
+ }
+ assert.equal(calls.some(c=>c.body.action==='accept'||c.body.action==='submit'),false);
+});
+
+test('finished file choice switches the same artifact-bound viewer without editing feedback',async()=>{
+ await mount({finishedView:{reviewHref:`/review/${RUN_ID}`,changes:null}});
+ await act(async()=>{const select=container.querySelector('select[aria-label="Result file"]')! as HTMLSelectElement;Object.getOwnPropertyDescriptor(dom.window.HTMLSelectElement.prototype,'value')!.set!.call(select,IMG);select.dispatchEvent(new dom.window.Event('change',{bubbles:true}));});
+ await act(async()=>{await Promise.resolve();});
+ assert.ok(container.querySelector('img[alt]'));
+ assert.equal(calls.some(c=>['accept','submit','create_issue'].includes(String(c.body.action))),false);
+});

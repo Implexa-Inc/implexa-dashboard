@@ -49,7 +49,7 @@ function roleLabel(role: string | null): string {
   return 'Verified file';
 }
 
-export default function VerifiedArtifacts({ artifacts, runId, progress=false }: { artifacts: VerifiedArtifact[]; runId?: string; progress?: boolean }) {
+export default function VerifiedArtifacts({ artifacts, runId, progress=false, finished=false }: { artifacts: VerifiedArtifact[]; runId?: string; progress?: boolean; finished?:boolean }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(progress);
   const [refreshing, refresh] = useTransition();
@@ -146,10 +146,10 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false }: 
 
   const finalCount = artifacts.filter((artifact) => artifact.role === 'final_output').length;
   return (
-    <section className={progress?'run-files-progress':'mb-6 rounded-lg border border-emerald-500/35 bg-emerald-500/[0.06] p-4'} aria-label={progress?'Files so far':'Files and artifacts'}>
+    <section className={progress||finished?'run-files-progress':'mb-6 rounded-lg border border-emerald-500/35 bg-emerald-500/[0.06] p-4'} aria-label={progress?'Files so far':'Files and artifacts'}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink-50">{progress?'Files so far':<>Files &amp; artifacts</>}</h2>
+          <h2 className="text-sm font-semibold text-ink-50">{finished?'Result files':progress?'Files so far':<>Files &amp; artifacts</>}</h2>
           <p className="mt-1 text-xs text-ink-400">
             {artifacts.length
               ? `Checked on this Mac by Tukido · ${finalCount} final ${finalCount === 1 ? 'output' : 'outputs'} · ${artifacts.length} total`
@@ -193,16 +193,16 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false }: 
           </button>
         </div>
       )}
-      {expanded && artifacts.length > 0 && (
+      {(expanded||finished) && artifacts.length > 0 && (
         <ul id="run-artifact-list" className="mt-3 max-h-[28rem] overflow-y-auto divide-y divide-emerald-500/15 rounded-md border border-emerald-500/20 bg-ink-950/30">
-          {artifacts.map((artifact) => (
+          {artifacts.filter(artifact=>expanded||!finished||artifact.role==='final_output').map((artifact) => (
             <li key={artifact.validatedPath} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm text-ink-100" title={artifact.relativePath}>{artifact.relativePath.split('/').at(-1)}</div>
                 <div className="mt-0.5 truncate text-xs text-ink-500" title={artifact.relativePath}>
                   {roleLabel(artifact.role)}{size(artifact.sizeBytes) ? ` · ${size(artifact.sizeBytes)}` : ''}
                 </div>
-                {progress?<details className="mt-1 text-xs text-ink-500"><summary>File details</summary><p className="break-all font-mono">{artifact.relativePath}</p></details>:<div className="mt-0.5 truncate font-mono text-[10px] text-ink-600" title={artifact.relativePath}>{artifact.relativePath}</div>}
+                {progress||finished?<details className="mt-1 text-xs text-ink-500"><summary>File details</summary><p className="break-all font-mono">{artifact.relativePath}</p></details>:<div className="mt-0.5 truncate font-mono text-[10px] text-ink-600" title={artifact.relativePath}>{artifact.relativePath}</div>}
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <button type="button" onClick={() => void open(artifact)} className="rounded border border-emerald-500/40 px-2.5 py-1 text-state-ok hover:bg-emerald-500/10 text-state-ok">Open</button>

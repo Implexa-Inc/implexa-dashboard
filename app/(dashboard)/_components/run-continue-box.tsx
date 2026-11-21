@@ -36,8 +36,9 @@ import { localInputRecoveryMessage, verifyContinuationSource } from '@/lib/conti
 
 export default function RunContinueBox({
   runId, agentName, pending = false, initialNote = '', slug = null, workflowVersionId = null,
-  audioEdits = false, higgsfieldCreditChoices = [],
+  audioEdits = false, higgsfieldCreditChoices = [], presentation,
 }: {
+  presentation?: 'finished';
   runId: string;
   agentName: string;
   /** The run's agent and FROZEN version, for "Open setup" on a setup refusal. */
@@ -165,11 +166,11 @@ export default function RunContinueBox({
   }
 
   return (
-    <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+    <div className={presentation==='finished'?'finished-continue':'rounded-lg border border-ink-800 bg-ink-900/40 p-4'}>
       <div className="text-sm font-semibold text-ink-100">
-        {pending ? 'Continue with changes or the missing inputs' : 'Continue this run'}
+        {presentation==='finished'?'Or ask for changes':pending ? 'Continue with changes or the missing inputs' : 'Continue this run'}
       </div>
-      <p className="text-xs text-ink-400 mt-0.5 leading-relaxed">
+      <p className={`text-xs text-ink-400 mt-0.5 leading-relaxed ${presentation==='finished'?'sr-only':''}`}>
         Add instructions, feedback, or the inputs it still needs{canAttach ? ' (attach files too)' : ''} — it picks up
         from this run&apos;s output and produces an updated result for <span className="text-ink-200">{agentName}</span>, hands-off.
       </p>
@@ -177,7 +178,8 @@ export default function RunContinueBox({
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={3}
-        placeholder="Add instructions, feedback, or the missing inputs…"
+        aria-label="What should change?"
+        placeholder={presentation==='finished'?'Say what to change, in your own words…':'Add instructions, feedback, or the missing inputs…'}
         className="mt-3 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
       />
       <AttachFiles
@@ -222,6 +224,7 @@ export default function RunContinueBox({
           <p className="mt-1 text-ink-400">Set a limit for this revision. Without a selection, the agent can source free footage.</p>
         </div>}
       </details>}
+      <details className="revision-options" open={presentation==='finished'?undefined:true}><summary>Advanced revision options</summary>
       {!pending && <label className="mt-3 flex items-start gap-2 text-xs text-ink-400">
         <input type="checkbox" checked={preservePlannerIdentity}
           onChange={(e) => setPreservePlannerIdentity(e.target.checked)} />
@@ -241,6 +244,7 @@ export default function RunContinueBox({
             className="mt-1 w-full bg-ink-900 border border-ink-700 rounded-md px-3 py-2 text-ink-100" />
         </>}
       </div>}
+      </details>
       <div className="mt-3 flex items-center gap-3 flex-wrap">
         <button
           type="button"
@@ -252,7 +256,7 @@ export default function RunContinueBox({
         >
           {sourcePhase === 'checking' ? 'Checking original source…'
             : sourcePhase === 'reconnecting' ? 'Reconnect the original source…'
-            : busy ? 'Queuing…' : 'Continue & re-run'}
+            : busy ? 'Queuing…' : presentation==='finished'?'Run again with these changes':'Continue & re-run'}
         </button>
         {msg && <span className="text-xs text-state-fail">{msg}</span>}
       </div>
