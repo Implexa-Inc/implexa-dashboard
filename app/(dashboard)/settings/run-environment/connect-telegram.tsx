@@ -50,7 +50,7 @@ export default function ConnectTelegram() {
       <p className="text-xs text-ink-300 mb-4 leading-relaxed">
         Link a Telegram chat and you can text <span className="font-mono text-ink-100">run &lt;agent&gt;</span> or{' '}
         <span className="font-mono text-ink-100">build an agent that …</span> from anywhere. It runs on this
-        machine under your own accounts; the result comes back in the chat. Implexa never holds your keys.
+        machine under your own accounts; the result comes back in the chat. Tukido never holds your keys.
       </p>
 
       {/* Not yet connected */}
@@ -63,7 +63,7 @@ export default function ConnectTelegram() {
       {/* Bot not configured server-side */}
       {info && !info.enabled && (
         <p className="text-sm text-ink-300">
-          Telegram isn&apos;t switched on for Implexa yet — it&apos;s coming soon. Nothing to do here for now.
+          Telegram isn&apos;t switched on for Tukido yet — it&apos;s coming soon. Nothing to do here for now.
         </p>
       )}
 
@@ -84,7 +84,7 @@ export default function ConnectTelegram() {
             </a>
           ) : (
             <p className="text-xs text-ink-400 leading-relaxed">
-              Open your Implexa bot in Telegram and send <span className="font-mono text-ink-100">/link {info.code}</span> to bind this chat.
+              Open your Tukido bot in Telegram and send <span className="font-mono text-ink-100">/link {info.code}</span> to bind this chat.
             </p>
           )}
 

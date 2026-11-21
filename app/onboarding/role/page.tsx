@@ -55,5 +55,5 @@ export default async function RolePickerPage() {
 }
 
 export const metadata = {
-  title: 'Pick your role — Implexa',
+  title: 'Pick your role — Tukido',
 };

@@ -34,7 +34,7 @@ export default function PaidActionApproval({ runId, view }: { runId: string; vie
       <section className="rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-5" aria-labelledby="paid-approval-unavailable-title">
         <h2 id="paid-approval-unavailable-title" className="text-sm font-semibold text-ink-100">Approval details unavailable</h2>
         <p className="mt-2 text-sm leading-relaxed text-state-needs">
-          Implexa could not verify the complete paid-action batch. Reload this page after the run is repaired; no provider work can be approved here.
+          Tukido could not verify the complete paid-action batch. Reload this page after the run is repaired; no provider work can be approved here.
         </p>
       </section>
     );
@@ -70,7 +70,7 @@ export default function PaidActionApproval({ runId, view }: { runId: string; vie
     } catch {
       inFlight.current = false;
       setBusy(false);
-      setError('Implexa could not verify whether this approval was recorded. Retry the same exact batch; an existing approval will be reused and no second batch will be created.');
+      setError('Tukido could not verify whether this approval was recorded. Retry the same exact batch; an existing approval will be reused and no second batch will be created.');
     }
   }
 

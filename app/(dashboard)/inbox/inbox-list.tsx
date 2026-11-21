@@ -490,7 +490,7 @@ export default function InboxList({
                 : openItem.judgment.verdict === 'repair' ? 'border-amber-500/35 bg-amber-500/5'
                 : 'border-ink-700 bg-ink-900/40'}`}>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] uppercase tracking-wide text-ink-500">Implexa Judge</span>
+                  <span className="text-[10px] uppercase tracking-wide text-ink-500">Tukido Judge</span>
                   <span className={`text-xs font-medium ${
                     openItem.judgment.verdict === 'pass' ? 'text-state-ok'
                     : openItem.judgment.verdict === 'blocked' ? 'text-state-needs'

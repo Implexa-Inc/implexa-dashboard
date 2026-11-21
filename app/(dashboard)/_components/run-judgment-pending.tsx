@@ -84,7 +84,7 @@ export function RunJudgmentPending({
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-ink-500" aria-hidden />
           <span className="text-sm font-medium text-ink-200">
-            {phase === 'repair' ? 'The repair attempt was cancelled' : 'Implexa Judge review was cancelled'}
+            {phase === 'repair' ? 'The repair attempt was cancelled' : 'Tukido Judge review was cancelled'}
           </span>
         </div>
         <p className="text-xs text-ink-500 mt-1">No verdict will be produced for this request.</p>
@@ -113,7 +113,7 @@ export function RunJudgmentPending({
       <div className="flex items-center gap-2">
         <span className="h-2 w-2 rounded-full bg-violet-400 animate-pulse" aria-hidden />
         <span className="text-sm font-medium text-ink-200">
-          {phase === 'repair' ? 'Implexa is repairing this run' : 'Implexa Judge is reviewing this run'}
+          {phase === 'repair' ? 'Tukido is repairing this run' : 'Tukido Judge is reviewing this run'}
         </span>
       </div>
       <p className="text-xs text-ink-500 mt-1">

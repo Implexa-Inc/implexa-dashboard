@@ -49,8 +49,8 @@ export default async function TeamSettingsPage() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-3xl mx-auto">
+    <main className="app-page">
+      <div className="app-content">
         <nav className="text-xs text-ink-500 mb-4">
           <Link href="/settings" className="hover:underline">← Settings</Link>
         </nav>
@@ -126,5 +126,5 @@ export default async function TeamSettingsPage() {
 }
 
 export const metadata = {
-  title: 'Team — Implexa',
+  title: 'Team — Tukido',
 };

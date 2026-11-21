@@ -112,7 +112,7 @@ export default function NeedsYouStrip({
           key={`stalled-${r.id}`}
           warn
           title={`${r.name} — stopped mid-run`}
-          detail="It started and then stopped without finishing. Open the run to see what Implexa found and what it needs."
+          detail="It started and then stopped without finishing. Open the run to see what Tukido found and what it needs."
           href={`/runs/${r.id}`}
           cta="See what it needs"
         />

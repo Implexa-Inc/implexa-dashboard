@@ -120,7 +120,7 @@ export default function OutcomeEntry() {
     }
     const bridge = desktopBridge();
     if (!bridge?.pickRunInput) {
-      setPickerError('Open Implexa Desktop to add verified artifacts. Browser filenames are not accepted.');
+      setPickerError('Open Tukido Desktop to add verified artifacts. Browser filenames are not accepted.');
       return;
     }
     const inputType = expectedType || artifactType;
@@ -179,7 +179,7 @@ export default function OutcomeEntry() {
     setCancelingVerification(true);
     const result = await bridge.cancelRunInputVerification(operationId).catch(() => null);
     if (!result?.ok) {
-      setPickerError(result?.error || 'Implexa Desktop could not cancel this verification.');
+      setPickerError(result?.error || 'Tukido Desktop could not cancel this verification.');
       setCancelingVerification(false);
     }
   }
@@ -309,7 +309,7 @@ export default function OutcomeEntry() {
   return (
     <div className="card p-6 sm:p-8">
       <h2 className="text-xl font-semibold tracking-tight text-ink-50">State the outcome</h2>
-      <p className="text-sm text-ink-400 mt-1.5">Describe the result you need. Implexa will ask at most one question, then show one recommended Backend plan before anything starts.</p>
+      <p className="text-sm text-ink-400 mt-1.5">Describe the result you need. Tukido will ask at most one question, then show one recommended Backend plan before anything starts.</p>
 
       <div className="mt-5 space-y-4">
         <div>
@@ -319,7 +319,7 @@ export default function OutcomeEntry() {
 
         <div>
           <span className="block text-sm font-medium text-ink-200">Verified inputs</span>
-          <p className="text-xs text-ink-500 mt-0.5">Optional. Implexa Desktop verifies each artifact; only its identity, digest, description, and input type are sent.</p>
+          <p className="text-xs text-ink-500 mt-0.5">Optional. Tukido Desktop verifies each artifact; only its identity, digest, description, and input type are sent.</p>
           {artifacts.length > 0 && <ul className="mt-2 space-y-2">{artifacts.map((artifact) => (
             <li key={`${artifact.artifactId}-${artifact.sha256}`} className="flex flex-wrap items-center gap-2 text-xs text-ink-300">
               <span className="truncate max-w-xs">{artifact.displayName}</span>
@@ -328,7 +328,7 @@ export default function OutcomeEntry() {
                 <span className="basis-full text-[11px] text-state-needs">Kept on its current drive — keep the drive connected and the file unchanged.</span>
               )}
               {artifact.storageMode === 'managed_copy' && (
-                <span className="basis-full text-[11px] text-ink-500">Copied into Implexa-managed storage for this run.</span>
+                <span className="basis-full text-[11px] text-ink-500">Copied into Tukido-managed storage for this run.</span>
               )}
               <button type="button" aria-label={`Remove ${artifact.displayName}`} onClick={() => editArtifacts(artifacts.filter((item) => item.artifactId !== artifact.artifactId))} className="text-ink-500 hover:text-ink-200">×</button>
             </li>
@@ -342,7 +342,7 @@ export default function OutcomeEntry() {
           {verificationSurface === 'inputs' && verificationProgress && (
             <RunInputVerificationProgress progress={verificationProgress} canceling={cancelingVerification} onCancel={cancelVerification} />
           )}
-          {!inDesktop && <p role="status" className="mt-2 text-xs text-state-needs">Open Implexa Desktop to add verified artifacts. Browser filenames cannot be used.</p>}
+          {!inDesktop && <p role="status" className="mt-2 text-xs text-state-needs">Open Tukido Desktop to add verified artifacts. Browser filenames cannot be used.</p>}
           {pickerError && <p role="status" className="mt-2 text-xs text-state-fail">{pickerError}</p>}
         </div>
 

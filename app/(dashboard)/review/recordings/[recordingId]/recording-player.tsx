@@ -46,6 +46,9 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const noteSnapshot = useRef<{id:string;before:Moment|null}|null>(null);
   const [hoverImage,setHoverImage]=useState<{second:number;url:string}|null>(null);
+  const [hoverUnavailable,setHoverUnavailable]=useState(false);
+  const hoverDecoder=useRef<HTMLVideoElement|null>(null);
+  const hoverSecond=useRef<number|null>(null);
   const [hoverMs,setHoverMs] = useState<number|null>(null);
   const [markStartMs, setMarkStartMs] = useState<number | null>(null);
   const [barDraft, setBarDraft] = useState<Range | null>(null);
@@ -86,19 +89,29 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   );
   const openSuggestions = suggestions.filter((s) => !moments.some((m) => rangesOverlap(m, s)));
 
-  // Hover decodes the already-open local preview in a separate media element.
-  // It never seeks playback or asks Desktop for another screenshot/token.
+  // Reuse one decoder for this already-authorized, origin-bound preview. The
+  // protocol supports parallel range reads; anonymous CORS keeps sampling honest.
   useEffect(()=>{
-    if(hoverMs===null||!preview)return;
-    const second=Math.floor(hoverMs/1000);
-    const video=document.createElement('video');video.muted=true;video.preload='metadata';
-    let live=true;
-    const capture=()=>{if(!live)return;try{const canvas=document.createElement('canvas');canvas.width=192;canvas.height=108;const context=canvas.getContext('2d');if(!context)return;context.drawImage(video,0,0,192,108);setHoverImage({second,url:canvas.toDataURL('image/jpeg',.65)});}catch{/* Time-only fallback when the local media cannot be sampled. */}};
-    const seekHover=()=>{video.currentTime=Math.min(second,Math.max(0,video.duration-.01));};
-    video.addEventListener('loadedmetadata',seekHover);video.addEventListener('seeked',capture);
-    const timer=window.setTimeout(()=>{video.src=preview.url;},180);
-    return()=>{live=false;window.clearTimeout(timer);video.removeEventListener('loadedmetadata',seekHover);video.removeEventListener('seeked',capture);video.removeAttribute('src');video.load();};
-  },[hoverMs===null?null:Math.floor(hoverMs/1000),preview]);
+    if(!preview)return;
+    const video=document.createElement('video');video.crossOrigin='anonymous';video.muted=true;video.preload='metadata';
+    hoverDecoder.current=video;setHoverImage(null);setHoverUnavailable(false);let live=true;
+    const fail=()=>{if(live)setHoverUnavailable(true);};
+    const capture=()=>{
+      if(!live||hoverSecond.current===null||!video.videoWidth||!video.videoHeight||Math.abs(video.currentTime-hoverSecond.current)>.2)return;
+      try{const canvas=document.createElement('canvas');canvas.width=192;canvas.height=Math.max(1,Math.round(192*video.videoHeight/video.videoWidth));const context=canvas.getContext('2d');if(!context)return;context.drawImage(video,0,0,canvas.width,canvas.height);setHoverImage({second:hoverSecond.current,url:canvas.toDataURL('image/jpeg',.65)});}
+      catch{fail();}
+    };
+    const seekHover=()=>{if(hoverSecond.current!==null)video.currentTime=Math.min(hoverSecond.current,Math.max(0,video.duration-.01));};
+    video.addEventListener('loadedmetadata',seekHover);video.addEventListener('loadeddata',capture);video.addEventListener('seeked',capture);video.addEventListener('error',fail);
+    return()=>{live=false;hoverDecoder.current=null;video.removeEventListener('loadedmetadata',seekHover);video.removeEventListener('loadeddata',capture);video.removeEventListener('seeked',capture);video.removeEventListener('error',fail);if(video.getAttribute('src')){video.removeAttribute('src');video.load();}};
+  },[preview]);
+  const hoveredSecond=hoverMs===null?null:Math.floor(hoverMs/1000);
+  useEffect(()=>{
+    hoverSecond.current=hoveredSecond;
+    if(hoveredSecond===null||!preview||hoverUnavailable)return;
+    const timer=window.setTimeout(()=>{const video=hoverDecoder.current;if(!video)return;if(!video.getAttribute('src'))video.src=preview.url;else if(video.readyState>=1)video.currentTime=Math.min(hoveredSecond,Math.max(0,video.duration-.01));},180);
+    return()=>window.clearTimeout(timer);
+  },[hoveredSecond,preview,hoverUnavailable]);
 
   // ── loading ────────────────────────────────────────────────────────────────
 
@@ -367,7 +380,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     if (selectedId === id) { setSelectedId(null); setDrawing(false); }
   };
   const selectMoment = (m: Moment) => {
-    if(voiceDirty.size || busyRef.current)return;
+    if(voiceDirty.size || busyRef.current){setNotice(voiceDirty.size?'Insert or discard your voice note before changing moments.':'Saving feedback. Wait a moment before changing moments.');return;}
     if(noteSnapshot.current?.id!==m.momentId)noteSnapshot.current={id:m.momentId,before:m};
     setSelectedId(m.momentId); seek(m.startMs);
   };
@@ -397,6 +410,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     try {
       const stored = await client.saveMoments(recordingId, sent, durationMs);
       setSaved(stored);
+      if(noteSnapshot.current){const id=noteSnapshot.current.id;noteSnapshot.current={id,before:stored.find(moment=>moment.momentId===id)??null};}
       if (momentsRef.current === sent) {
         // Nothing changed meanwhile: the Desktop's stored list is the truth.
         momentsRef.current = stored;
@@ -479,7 +493,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
         onPointerCancel={() => { barGesture.current = null; setBarDraft(null); }}
         className="recording-timeline relative mt-3 h-16 cursor-text select-none rounded bg-ink-800/70"
       >
-        {hoverMs!==null&&<output className="timeline-hover" style={{left:pctOf(hoverMs)}}>{hoverImage?.second===Math.floor(hoverMs/1000)&&<img src={hoverImage.url} alt="Timeline preview" className="mb-1 h-[108px] w-48 rounded object-contain"/>}{formatMs(hoverMs)}</output>}
+        {hoverMs!==null&&<output className="timeline-hover" style={{left:pctOf(hoverMs)}}>{hoverImage?.second===Math.floor(hoverMs/1000)&&<img src={hoverImage.url} alt="Timeline preview" className="mb-1 max-h-48 w-48 rounded object-contain"/>}{hoverUnavailable&&<span className="mb-1 block text-xs">Frame preview unavailable</span>}{formatMs(hoverMs)}</output>}
         {openSuggestions.map((s) => (
           <button
             key={`s-${s.startMs}`}
@@ -596,7 +610,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
       </p>
       {barDraft && <p className="text-xs text-state-running">{formatMs(barDraft.startMs)}–{formatMs(barDraft.endMs)} ({seconds(barDraft.endMs - barDraft.startMs)})</p>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <button type="button" className="btn-outline" disabled={full||busy!==null||voiceDirty.size>0} onClick={()=>{const ms=freezeForRegion();if(ms!==null)createMoment({startMs:ms,endMs:ms});}}>Mark this moment</button>
+        <button type="button" className="btn-outline" disabled={full||busy!==null||voiceDirty.size>0} onClick={()=>{const ms=freezeForRegion();if(ms!==null)createMoment({startMs:ms,endMs:ms},{x:0,y:0,width:COORD_MAX,height:COORD_MAX});}}>Mark this moment</button>
         <p className="text-xs text-ink-500">Or click the picture. Drag to mark an area.</p>
       </div>
       {notice && <p role="status" className="mt-2 text-xs text-ink-300">{notice}</p>}
@@ -634,7 +648,8 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                   <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => removeMoment(m.momentId)} className="text-xs text-ink-400 hover:text-state-fail">Delete</button>
                 </div>
                 {!isSel&&<button type="button" className="mt-2 block w-full text-left text-sm text-ink-300" onClick={()=>selectMoment(m)}>{m.card.whatToDo||'Add your feedback…'}</button>}
-                <div hidden={!isSel} className="recording-note" aria-label={`Edit moment ${i+1}`}>
+                <div hidden={!isSel||drawing} className="recording-note" role="group" data-side={m.region&&m.region.x+m.region.width/2<COORD_MAX/2?'right':'left'} aria-label={`Edit moment ${i+1}`}
+                  onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();cancelNote();}else if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)&&!event.repeat){event.preventDefault();event.stopPropagation();void doneNote();}}}>
                 <p className="mb-3 text-sm font-medium">Moment {i+1} · {formatMs(m.startMs)}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-400">
                   <span>Region: {m.region ? regionLabel(m.region) : 'none'}</span>
@@ -646,6 +661,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                   {embedded&&<TrainerVoiceNote disabled={busy!==null} onDirtyChange={dirty=>setVoiceDirty(previous=>{const next=new Set(previous);if(dirty)next.add(m.momentId);else next.delete(m.momentId);return next.size===previous.size&&[...next].every(id=>previous.has(id))?previous:next;})} ownerId={ownerId} attach={{sourceKind:detail.origin==='recorded'?'recording':'upload',sourceRef:`${recordingId}:${m.momentId}`,mark:m.endMs>m.startMs?{startMs:m.startMs,endMs:m.endMs}:{frameMs:m.startMs,region:m.region||{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,CARD_FIELD_MAX-m.card.whatToDo.trim().length-(m.card.whatToDo.trim()?2:0))} onInsert={text=>patch(m.momentId,current=>({...current,card:{...current.card,whatToDo:[current.card.whatToDo.trim(),text].filter(Boolean).join('\n\n')}}))}/>}
                   {warnings.whatToDo&&<p data-testid="card-warning" className="mt-1 text-xs text-state-needs">{warnings.whatToDo.join(' ')}</p>}
                 </div>
+                <p className="mt-3 text-xs text-ink-400">Done saves all pending feedback on this recording.</p>
                 <div className="mt-4 flex justify-end gap-2 border-t border-ink-700 pt-3">
                   <button type="button" className="btn-ghost" disabled={busy!==null||voiceDirty.size>0} onClick={cancelNote}>Cancel</button>
                   <button type="button" className="btn-success" disabled={busy!==null||voiceDirty.size>0} onClick={()=>void doneNote()}>{busy==='save'?'Saving…':'Done'}</button>
@@ -693,7 +709,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
           <button
             type="button"
             onClick={() => { const href = leaveHref; setLeaveHref(null); if (href) router.push(href); }}
-            className="rounded-md bg-rose-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-400"
+            className="rounded-md bg-action-danger px-3 py-1.5 text-sm font-medium text-[var(--on-action-danger)] hover:bg-action-danger-hover"
           >
             Leave without saving
           </button>

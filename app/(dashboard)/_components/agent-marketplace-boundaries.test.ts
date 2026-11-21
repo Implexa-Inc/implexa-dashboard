@@ -47,7 +47,7 @@ test('evidence keeps two axes: four provenance channels, four evidence types ins
   assert.doesNotMatch(resume, /trust score|reliability score|star rating|leaderboard/i);
 });
 
-const DISCLAIMER = 'Implexa does not combine them into a score, rating, or rank.';
+const DISCLAIMER = 'Tukido does not combine them into a score, rating, or rank.';
 
 test('nothing in the resume blends channels into a single number', () => {
   const parser = readFileSync(join(root, 'lib', 'agent-evidence-channels.ts'), 'utf8');

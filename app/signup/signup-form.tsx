@@ -181,7 +181,7 @@ export default function SignupForm({
         </div>
 
         <p className="text-xs text-ink-300 text-center mt-6 px-4">
-          By signing up you agree to our terms of service and privacy policy. Work email recommended — Implexa offers team-based features (skill sharing, org-shared library) that require a verified business domain.
+          By signing up you agree to our terms of service and privacy policy. Work email recommended — Tukido offers team-based features (skill sharing, org-shared library) that require a verified business domain.
         </p>
       </div>
     </main>

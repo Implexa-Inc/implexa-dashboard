@@ -67,7 +67,7 @@ export default function PluginUpdateStatus({ latest, surfaces, updateCommand, no
         <div className="flex items-start gap-3 min-w-0">
           <div className="text-2xl shrink-0" aria-hidden="true">⚡</div>
           <div className="min-w-0">
-            <div className="font-medium text-ink-50">Implexa plugin</div>
+            <div className="font-medium text-ink-50">Tukido plugin</div>
             <div className="text-xs text-ink-300 mt-0.5">Installed separately for Claude and Codex on each Mac.</div>
             {notes ? <div className="text-xs text-ink-400 mt-2 leading-relaxed">{notes}</div> : null}
           </div>
@@ -88,7 +88,7 @@ export default function PluginUpdateStatus({ latest, surfaces, updateCommand, no
         </div>
       ) : (
         <div className="mt-4 rounded-lg border border-ink-800 bg-ink-900/40 p-3 text-xs text-ink-300">
-          {checked ? 'Open this page in the Implexa desktop app to verify versions on this Mac.' : 'Checking versions on this Mac…'}
+          {checked ? 'Open this page in the Tukido desktop app to verify versions on this Mac.' : 'Checking versions on this Mac…'}
           {latest ? ` Latest published plugin: v${latest}.` : ''}
         </div>
       )}

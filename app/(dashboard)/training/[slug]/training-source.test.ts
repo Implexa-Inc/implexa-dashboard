@@ -599,7 +599,7 @@ test('web, missing bridge method and stale bridge versions all fail closed with 
     const rendered = await render('../training/[slug]/training-source.tsx', { slug: 'video-craft' }, { bridge });
     try {
       await rendered.act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
-      assert.match(rendered.text(), bridge && 'trainingLocal' in bridge ? /Update Implexa Desktop/ : /Open this page in an updated Implexa Desktop/);
+      assert.match(rendered.text(), bridge && 'trainingLocal' in bridge ? /Update Tukido Desktop/ : /Open this page in an updated Tukido Desktop/);
     } finally { rendered.cleanup(); }
   }
 });
@@ -1644,7 +1644,7 @@ test('server image custody uses an explicit separate consent and shows withdrawa
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
  try {
   await r.click(r.getByText('Manage teaching'));
-  const save=r.getByText('Save teaching image to Implexa') as HTMLButtonElement;assert.equal(save.disabled,true);
+  const save=r.getByText('Save teaching image to Tukido') as HTMLButtonElement;assert.equal(save.disabled,true);
   await r.click(r.getByText('Store this teaching image privately for my own future runs on other devices.').closest('label')!.querySelector('input')!);
   await r.click(save);
   const saved=h.calls.find(c=>c.operation==='serverStorage');assert.equal(saved?.args.action,'store');assert.equal(saved?.args.consent,true);

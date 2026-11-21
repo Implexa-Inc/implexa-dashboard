@@ -51,7 +51,7 @@ export default function RunInClaudeButton({
             ? 'border-red-500/40 bg-red-500/10 text-state-fail'
             : 'border-ink-700 text-ink-300 hover:bg-ink-800 hover:text-ink-100 hover:border-ink-500'
       }`}
-      title={`Copies: "${trigger}". Paste in any Claude surface with Implexa installed.`}
+      title={`Copies: "${trigger}". Paste in any Claude surface with Tukido installed.`}
       aria-label={`Copy "${trigger}" to clipboard`}
     >
       {state === 'copied' ? '✓ Copied — paste in Claude' : state === 'error' ? '✗ Try again' : '⚡ Run in Claude'}

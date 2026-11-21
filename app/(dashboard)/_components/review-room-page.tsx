@@ -124,6 +124,11 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
         </div>
       )}
 
+      <nav aria-label="Output versions" className="mb-4 flex flex-wrap items-center gap-3 text-xs text-ink-400">
+        <span>Versions</span>
+        {packet.sources.lineage==='unavailable'?<span className="text-state-needs">Version history unavailable</span>:versions.length?versions.map(v=>v.runId===packet.run!.id?<span key={v.runId} aria-current="page" className="rounded bg-ink-800 px-2 py-1 text-ink-100">{v.label}</span>:<Link key={v.runId} href={trainingSlug?trainingReviewHref(trainingSlug,v.runId):`/review/${v.runId}`} className="hover:underline">{v.label}</Link>):<span>No revisions yet</span>}
+      </nav>
+
       <ReviewRoom
         trainingSlug={trainingSlug}
         customerOwnerId={!ownerSlug?session.user.id:undefined}
@@ -180,7 +185,7 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
       </section>
 
       {/* Distinct authorities, kept visually and semantically separate. */}
-      <section className="mt-8 grid gap-4 md:grid-cols-3">
+      <section className="mt-8 grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
           <h2 className="text-sm font-medium text-ink-200">Judge</h2>
           <p className="mt-1 text-xs text-ink-500">A machine&apos;s opinion. Not proof, and not your decision.</p>
@@ -212,28 +217,7 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
           )}
         </div>
 
-        <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-          <h2 className="text-sm font-medium text-ink-200">Versions</h2>
-          {packet.sources.lineage === 'unavailable' ? (
-            <p className="mt-2 text-xs text-state-needs">
-              Version history unavailable — we can&apos;t say how this relates to earlier runs.
-            </p>
-          ) : versions.length ? (
-            <ul className="mt-2 space-y-1 text-xs">
-              {versions.map((v) => (
-                <li key={v.runId}>
-                  {v.runId === packet.run!.id ? (
-                    <span className="text-ink-100">{v.label} (viewing)</span>
-                  ) : (
-                    <Link href={trainingSlug?trainingReviewHref(trainingSlug,v.runId):`/review/${v.runId}`} className="text-state-running hover:underline">{v.label}</Link>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-2 text-xs text-ink-500">No revisions yet.</p>
-          )}
-        </div>
+
       </section>
         </div>
       </details>

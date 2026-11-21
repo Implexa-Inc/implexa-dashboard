@@ -21,7 +21,7 @@ const CHANNEL_LABELS: Record<EvidenceChannelKey, string> = {
 };
 const CHANNEL_DESCRIPTIONS: Record<EvidenceChannelKey, string> = {
   builderTraining: "Runs by the builder's own organization on this exact version.",
-  neutralBenchmark: 'An independent benchmark run by neither the builder nor a buyer. Implexa has not established a benchmark authority, so this is not measured.',
+  neutralBenchmark: 'An independent benchmark run by neither the builder nor a buyer. Tukido has not established a benchmark authority, so this is not measured.',
   customerField: 'Runs by other organizations that acquired or auditioned this exact version.',
   personalFit: 'Your own organization’s runs of this exact version. Private to you — the builder and other buyers never see it.',
 };
@@ -106,7 +106,7 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
   const auditionConfiguration = agent.ownership === 'Owned' ? ownerAuditionConfiguration ? (
     <div className="mt-5 rounded-md border border-ink-700 bg-ink-900/40 p-4">
       <p className="text-sm font-medium text-ink-100">Free auditions</p>
-      <p className="mt-1 text-xs text-ink-400">Let each customer try this exact published version before committing. Implexa does not charge for these runs; customers use their connected provider account.</p>
+      <p className="mt-1 text-xs text-ink-400">Let each customer try this exact published version before committing. Tukido does not charge for these runs; customers use their connected provider account.</p>
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <label className="text-xs text-ink-300"><span className="block pb-1">Runs per customer</span><select aria-label="Free auditions per customer" value={auditionAllowance} onChange={(event) => setAuditionAllowance(Number(event.target.value))} className="rounded border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100">{Array.from({ length: ownerAuditionConfiguration.maxAllowance + 1 }, (_, allowance) => <option key={allowance} value={allowance}>{allowance === 0 ? 'Off' : allowance}</option>)}</select></label>
         <button className="btn-primary px-4 py-2 text-sm disabled:opacity-50" disabled={busy || auditionAllowance === ownerAuditionConfiguration.allowance} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/audition-policy`, { allowance: auditionAllowance })}>{busy ? 'Saving…' : 'Save audition setting'}</button>
@@ -117,13 +117,13 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
     <div role="status" className="mt-5 rounded-md border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-state-needs">Free audition settings are unavailable, so no setting can be changed.</div>
   ) : null;
   return (
-    <main className="min-h-screen px-4 py-10"><article className="mx-auto max-w-4xl">
+    <main className="app-page agent-resume-page"><article className="app-content">
       <Link href="/workflows" className="text-sm text-ink-500 hover:text-ink-200">← Agents</Link>
       <header className="mt-6 border-b border-ink-800 pb-7">
         <div className="flex flex-wrap items-start justify-between gap-5"><div>
           <div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-semibold text-ink-50">{agent.name}</h1><span className="rounded border border-ink-700 px-2 py-0.5 text-xs text-ink-300">{agent.ownership}</span><span className="rounded border border-sky-500/40 px-2 py-0.5 text-xs text-state-running">{agent.readiness.state}</span></div>
           <p className="mt-3 max-w-2xl text-ink-200">{agent.job}</p><p className="mt-2 text-xs text-ink-500">Built by {agent.builder.name} · v{agent.version.number} · updated {new Date(agent.version.updatedAt).toLocaleDateString()}</p>
-        </div>{action}</div>
+        </div></div>
         {agent.readiness.reason && <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">{agent.readiness.reason}</p>}
         {error && <p role="alert" className="mt-3 text-sm text-state-fail">{error}</p>}
         {auditionConfiguration}
@@ -135,9 +135,13 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
       <div className="grid gap-8 py-8 md:grid-cols-2">
         <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">What it can and cannot do</h2><p className="mt-3 text-sm text-ink-300">{agent.limitations}</p></section>
         <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Tested compatibility</h2><p className="mt-3 text-sm text-ink-300">{agent.testedCompatibility.executionEngines.length ? agent.testedCompatibility.executionEngines.join(', ') : 'No supported engine has been established.'}</p></section>
-        <section className="md:col-span-2">
+
+        <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Required inputs</h2>{fields.length ? <ul className="mt-3 space-y-3">{fields.map((field) => <li key={field.key} className="text-sm text-ink-300"><label className="font-medium" htmlFor={`agent-input-${field.key}`}>{field.label}{field.required ? ' · required' : ' · optional'}</label><p className="text-xs text-ink-500">{field.description}</p>{field.kind === 'choice' ? <select id={`agent-input-${field.key}`} value={inputBindings[field.key] || ''} onChange={(event) => setInputBindings((current) => ({ ...current, [field.key]: event.target.value }))} className="mt-2 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm"><option value="">Choose…</option>{field.options?.map((option) => <option key={option} value={option}>{option}</option>)}</select> : field.kind === 'text' ? <input id={`agent-input-${field.key}`} value={inputBindings[field.key] || ''} onChange={(event) => setInputBindings((current) => ({ ...current, [field.key]: event.target.value }))} className="mt-2 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm" /> : <p id={`agent-input-${field.key}`} className="mt-2 text-xs text-state-needs">Choose and verify this file in the Desktop setup flow. Local paths are never sent to the server.</p>}</li>)}</ul> : <p className="mt-3 text-sm text-ink-500">No per-run inputs declared.</p>}</section>
+        <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Integrations and permissions</h2>{agent.requirements?.requirements.length ? <ul className="mt-3 space-y-3">{agent.requirements.requirements.map((requirement) => <li key={requirement.id} className="text-sm text-ink-300"><span className="font-medium">{requirement.setup.title}</span><p className="text-xs text-ink-500">{requirement.permission_category.replaceAll('_', ' ')} · {requirement.requirement_type.replaceAll('_', ' ')}</p><ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-ink-400">{requirement.setup.instructions.map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></li>)}</ul> : <p className="mt-3 text-sm text-ink-500">No integration requirements declared.</p>}</section>
+        {agent.examples?.length ? <section className="md:col-span-2"><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Examples</h2>{agent.examples.map((example, index) => <div key={index} className="mt-3 rounded-md border border-ink-800 p-4"><p className="text-sm font-medium text-ink-200">{example.title || 'Example result'}</p><p className="mt-2 whitespace-pre-wrap text-sm text-ink-400">{example.body}</p></div>)}</section> : null}
+        <details className="proof-disclosure md:col-span-2"><summary>Evidence and limits{evidenceChannels.status!=='ready'?' · unavailable':''}</summary><div className="mt-5">        <section className="md:col-span-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Evidence by source</h2>
-          <p className="mt-2 text-xs text-ink-500">Each source is counted separately for this exact version. Implexa does not combine them into a score, rating, or rank.</p>
+          <p className="mt-2 text-xs text-ink-500">Each source is counted separately for this exact version. Tukido does not combine them into a score, rating, or rank.</p>
           {evidenceChannels.status === 'ready' ? (
             <ul className="mt-3 grid gap-3 sm:grid-cols-2">{EVIDENCE_CHANNEL_KEYS.map((key) => {
               const channel = evidenceChannels.channels[key];
@@ -165,11 +169,9 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
           ) : (
             <p role="status" className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">Evidence by source is unavailable for this version, so none is shown. {evidenceChannels.reason}</p>
           )}
-        </section>
-        <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Required inputs</h2>{fields.length ? <ul className="mt-3 space-y-3">{fields.map((field) => <li key={field.key} className="text-sm text-ink-300"><label className="font-medium" htmlFor={`agent-input-${field.key}`}>{field.label}{field.required ? ' · required' : ' · optional'}</label><p className="text-xs text-ink-500">{field.description}</p>{field.kind === 'choice' ? <select id={`agent-input-${field.key}`} value={inputBindings[field.key] || ''} onChange={(event) => setInputBindings((current) => ({ ...current, [field.key]: event.target.value }))} className="mt-2 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm"><option value="">Choose…</option>{field.options?.map((option) => <option key={option} value={option}>{option}</option>)}</select> : field.kind === 'text' ? <input id={`agent-input-${field.key}`} value={inputBindings[field.key] || ''} onChange={(event) => setInputBindings((current) => ({ ...current, [field.key]: event.target.value }))} className="mt-2 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm" /> : <p id={`agent-input-${field.key}`} className="mt-2 text-xs text-state-needs">Choose and verify this file in the Desktop setup flow. Local paths are never sent to the server.</p>}</li>)}</ul> : <p className="mt-3 text-sm text-ink-500">No per-run inputs declared.</p>}</section>
-        <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Integrations and permissions</h2>{agent.requirements?.requirements.length ? <ul className="mt-3 space-y-3">{agent.requirements.requirements.map((requirement) => <li key={requirement.id} className="text-sm text-ink-300"><span className="font-medium">{requirement.setup.title}</span><p className="text-xs text-ink-500">{requirement.permission_category.replaceAll('_', ' ')} · {requirement.requirement_type.replaceAll('_', ' ')}</p><ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-ink-400">{requirement.setup.instructions.map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></li>)}</ul> : <p className="mt-3 text-sm text-ink-500">No integration requirements declared.</p>}</section>
-        {agent.examples?.length ? <section className="md:col-span-2"><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Examples</h2>{agent.examples.map((example, index) => <div key={index} className="mt-3 rounded-md border border-ink-800 p-4"><p className="text-sm font-medium text-ink-200">{example.title || 'Example result'}</p><p className="mt-2 whitespace-pre-wrap text-sm text-ink-400">{example.body}</p></div>)}</section> : null}
+        </section></div></details>
       </div>
+    <div className="agent-action-bar"><p className="min-w-0 truncate text-sm text-ink-100">{agent.name}</p><div>{action}</div></div>
     </article></main>
   );
 }

@@ -37,7 +37,7 @@ export default function ProfessionalCostSummary({ cost, source }: Props) {
       className="rounded-lg border border-ink-800 bg-ink-950/60 p-4"
     >
       <p className="text-xs font-medium uppercase tracking-wide text-ink-500">
-        {authoritative ? 'Compiled by Implexa' : 'Estimate — not yet compiled'}
+        {authoritative ? 'Compiled by Tukido' : 'Estimate — not yet compiled'}
       </p>
 
       <dl className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -66,8 +66,8 @@ export default function ProfessionalCostSummary({ cost, source }: Props) {
 
       <p className="mt-2 text-[11px] leading-snug text-ink-500">
         {authoritative
-          ? 'These are the figures Implexa compiled for this exact plan. Nothing here is calculated in your browser.'
-          : 'These figures are this build’s own arithmetic over the pinned provider rate. Preview the plan to get Implexa’s compiled figures — those are the ones an approval uses, and if the two disagree the plan cannot be approved.'}
+          ? 'These are the figures Tukido compiled for this exact plan. Nothing here is calculated in your browser.'
+          : 'These figures are this build’s own arithmetic over the pinned provider rate. Preview the plan to get Tukido’s compiled figures — those are the ones an approval uses, and if the two disagree the plan cannot be approved.'}
       </p>
     </section>
   );

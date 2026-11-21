@@ -336,84 +336,25 @@ export default async function WorkflowDetailPage({
       />
 
       {/* Stat strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-3 gap-3 mb-6">
         <Stat label="Steps" value={`${workflow.steps.length}`} />
-        <Stat label="From skills" value={`${boundCount}`} />
-        <Stat label="Runs" value={`${workflow.activity.run_count}`} highlight={workflow.activity.run_count > 0} />
+        <Stat label="Runs recorded" value={`${workflow.activity.run_count}`} highlight={workflow.activity.run_count > 0} />
         <Stat label="Last run" value={rel(workflow.activity.last_run_at)} />
       </div>
 
-      {/* Build evidence — whether this agent was assembled from parts that
-          have actually delivered in real runs, not merely from semantic matches. */}
-      {workflow.build_evidence && workflow.build_evidence.status !== 'pending' && (
-        <div className="card mb-6">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-1">Build evidence</h2>
-          {Number(workflow.build_evidence.provenSteps || 0) > 0 ? (
-            <p className="text-sm text-ink-200">
-              Real-run evidence on <span className="font-semibold text-ink-50">{workflow.build_evidence.provenSteps}</span> step{workflow.build_evidence.provenSteps === 1 ? '' : 's'}
-              {Number(workflow.build_evidence.verifiedSteps || 0) > 0 ? (
-                <> · <span className="text-state-ok">{workflow.build_evidence.verifiedSteps} verified</span></>
-              ) : null}
-              {Number(workflow.build_evidence.patternSteps || 0) > 0 ? (
-                <> · <span className="text-state-ok">{workflow.build_evidence.patternSteps} adapted from delivered agents</span></>
-              ) : null}
-              <span className="text-ink-500">. Unproven matches can still inspire steps, but they do not count as proof.</span>
-            </p>
-          ) : (
-            <p className="text-sm text-ink-400">
-              New agent — no proven run history yet. Implexa will learn from verified runs and feedback after this runs.
-            </p>
-          )}
+      {(workflow.input_contract?.fields.length||workflow.primary_outcome)&&<section className="agent-give-get mb-8" aria-label="Inputs and output">
+        <div className="card"><h2 className="mb-4 text-lg font-medium">You give</h2>
+          {workflow.input_contract?.fields.length?<ul className="space-y-3">{workflow.input_contract.fields.map(field=><li key={field.key} className="text-sm"><p className="font-medium text-ink-100">{field.label}<span className="ml-2 text-xs font-normal text-ink-400">{field.required?'Required':'Optional'}</span></p>{field.description&&<p className="mt-1 text-xs leading-relaxed text-ink-400">{field.description}</p>}</li>)}</ul>:<p className="text-sm text-ink-400">No run inputs declared.</p>}
         </div>
-      )}
-
-      {/* Track record — the proof-layer grade, graded on real runs (0091). */}
-      {grade && (
-        <div className="card mb-6 flex items-center justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-1">Track record</h2>
-            <p className="text-sm text-ink-200">
-              Delivered <span className="font-semibold text-ink-50">{Math.round(grade.rate * 100)}%</span> across {grade.runs} real run{grade.runs === 1 ? '' : 's'}.
-              <span className="text-ink-500"> Graded on what actually happened, not a benchmark.</span>
-            </p>
-          </div>
-          <GradeBadge grade={grade} />
+        <div className="card"><h2 className="mb-4 text-lg font-medium">You get</h2><p className="text-sm leading-relaxed text-ink-200">{workflow.primary_outcome||workflow.job||workflow.description}</p>
+          {workflow.signals.length>0&&<ul className="mt-4 space-y-2 text-xs text-ink-400">{workflow.signals.map(signal=><li key={signal}>{signal}</li>)}</ul>}
         </div>
-      )}
-
-      {/* Remote verdict explainer */}
-      <div className="card mb-6">
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Where this can run</h2>
-          <RemoteSafetyBadge safety={safety} size="xs" />
-        </div>
-        <p className="text-sm text-ink-200">{safety.reason}</p>
-        {safety.estimated && (
-          <p className="text-xs text-ink-500 mt-2">
-            Estimated from the step chain. The authoritative verdict comes from the watchdog once this agent runs on a schedule.
-          </p>
-        )}
-      </div>
-
-      {/* What you get */}
-      {workflow.primary_outcome && (
-        <div className="card mb-6">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-2">What you get</h2>
-          <p className="text-sm text-ink-200">{workflow.primary_outcome}</p>
-          {workflow.signals.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {workflow.signals.map((sig) => (
-                <span key={sig} className="text-[10px] px-2 py-1 rounded bg-ink-800 text-ink-300">{sig}</span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      </section>}
 
       {/* Steps */}
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">The steps</h2>
+          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">How it works</h2>
           <span className="text-xs text-ink-500">
             {workflow.steps.length} steps
             {boundCount > 0 && (
@@ -470,6 +411,61 @@ export default async function WorkflowDetailPage({
         </div>
       )}
 
+      <details className="proof-disclosure mb-6"><summary>Run history and checks</summary><div className="mt-5">
+      {/* Build evidence — whether this agent was assembled from parts that
+          have actually delivered in real runs, not merely from semantic matches. */}
+      {workflow.build_evidence && workflow.build_evidence.status !== 'pending' && (
+        <div className="card mb-6">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-1">Build evidence</h2>
+          {Number(workflow.build_evidence.provenSteps || 0) > 0 ? (
+            <p className="text-sm text-ink-200">
+              Real-run evidence on <span className="font-semibold text-ink-50">{workflow.build_evidence.provenSteps}</span> step{workflow.build_evidence.provenSteps === 1 ? '' : 's'}
+              {Number(workflow.build_evidence.verifiedSteps || 0) > 0 ? (
+                <> · <span className="text-state-ok">{workflow.build_evidence.verifiedSteps} verified</span></>
+              ) : null}
+              {Number(workflow.build_evidence.patternSteps || 0) > 0 ? (
+                <> · <span className="text-state-ok">{workflow.build_evidence.patternSteps} adapted from delivered agents</span></>
+              ) : null}
+              <span className="text-ink-500">. Unproven matches can still inspire steps, but they do not count as proof.</span>
+            </p>
+          ) : (
+            <p className="text-sm text-ink-400">
+              New agent — no proven run history yet. Tukido will learn from verified runs and feedback after this runs.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Track record — the proof-layer grade, graded on real runs (0091). */}
+      {grade && (
+        <div className="card mb-6 flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-1">Track record</h2>
+            <p className="text-sm text-ink-200">
+              Delivered <span className="font-semibold text-ink-50">{Math.round(grade.rate * 100)}%</span> across {grade.runs} real run{grade.runs === 1 ? '' : 's'}.
+              <span className="text-ink-500"> Graded on what actually happened, not a benchmark.</span>
+            </p>
+          </div>
+          <GradeBadge grade={grade} />
+        </div>
+      )}
+
+      {/* Remote verdict explainer */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Where this can run</h2>
+          <RemoteSafetyBadge safety={safety} size="xs" />
+        </div>
+        <p className="text-sm text-ink-200">{safety.reason}</p>
+        {safety.estimated && (
+          <p className="text-xs text-ink-500 mt-2">
+            Estimated from the step chain. The authoritative verdict comes from the watchdog once this agent runs on a schedule.
+          </p>
+        )}
+      </div>
+
+      </div></details>
+
       {/* Schedule — edit / pause / make-on-demand inline, no navigating away. */}
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-3">
@@ -508,6 +504,7 @@ export default async function WorkflowDetailPage({
               <ProposedAgentUpdateGate key={`${workflow.slug}:${workflow.workflow_version_id}`} slug={workflow.slug} baseVersionId={workflow.workflow_version_id} />
             )}
           </div>
+          <details><summary className="cursor-pointer text-sm text-ink-400">Version history</summary>
           <ol className="space-y-2 text-sm">
             {workflow.versions.map((v) => (
               <li key={v.version} className="flex items-start gap-2">
@@ -519,6 +516,7 @@ export default async function WorkflowDetailPage({
               </li>
             ))}
           </ol>
+          </details>
         </div>
       )}
 
@@ -636,7 +634,7 @@ export default async function WorkflowDetailPage({
           <BackLink fallback="/workflows" label="Back" />
         </nav>
 
-        {workflow.publisher_text_guidance_required&&<p className="mb-4 rounded-lg border border-amber-500/30 p-3 text-sm text-state-needs">The latest released training requires Codex and Implexa Desktop 0.4.160 or newer. Check this before installing or adopting it; Claude execution is not supported for this text guidance yet.</p>}
+        {workflow.publisher_text_guidance_required&&<p className="mb-4 rounded-lg border border-amber-500/30 p-3 text-sm text-state-needs">The latest released training requires Codex and Tukido Desktop 0.4.160 or newer. Check this before installing or adopting it; Claude execution is not supported for this text guidance yet.</p>}
 
         {/* Header */}
         <header className="mb-6">
@@ -666,7 +664,7 @@ export default async function WorkflowDetailPage({
             {judgePolicy === 'observe' && (
               <span
                 className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-violet-500/40 text-state-review"
-                title="Implexa Judge reviews every run of this agent and reports back. Nothing is changed or re-run."
+                title="Tukido Judge reviews every run of this agent and reports back. Nothing is changed or re-run."
               >
                 Judge: on
               </span>
@@ -674,7 +672,7 @@ export default async function WorkflowDetailPage({
             {judgePolicy === 'every_run' && (
               <span
                 className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-violet-500/40 text-state-review"
-                title="Implexa Judge reviews every run AND may automatically re-run this agent to repair what it safely can, on your own subscription."
+                title="Tukido Judge reviews every run AND may automatically re-run this agent to repair what it safely can, on your own subscription."
               >
                 Judge: on · repair
               </span>
@@ -816,7 +814,7 @@ export default async function WorkflowDetailPage({
               {desktopAppLive() && (
                 <NotInApp>
                   <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-action-accent hover:underline">
-                    Open in the Implexa app ↗
+                    Open in the Tukido app ↗
                   </a>
                 </NotInApp>
               )}
@@ -831,7 +829,7 @@ function Stat({ label, value, highlight = false }: { label: string; value: strin
   return (
     <div className={`card !p-3 ${highlight ? '!border-success-400/40' : ''}`}>
       <div className={`text-xl font-semibold tabular-nums ${highlight ? 'text-success-600 dark:text-success-400' : 'text-ink-50'}`}>{value}</div>
-      <div className="text-xs text-ink-400 uppercase tracking-wide mt-0.5">{label}</div>
+      <div className="text-xs text-ink-400 mt-0.5">{label}</div>
     </div>
   );
 }

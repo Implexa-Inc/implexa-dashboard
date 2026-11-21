@@ -31,9 +31,10 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title:       'Tukido — Build and run powerful agents in your own Claude or Codex',
   description: 'Build and run powerful agents inside your own Claude or Codex, on your machine. Unlimited agents. Free forever.',
+  manifest: '/site.webmanifest',
   icons: {
     icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
-    apple: '/logo-mark.svg',
+    apple: '/apple-touch-icon.png',
   },
 };
 

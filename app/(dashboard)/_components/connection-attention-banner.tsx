@@ -161,7 +161,7 @@ export function ConnectionAttentionBanner({
         <h2 className="text-sm font-semibold text-ink-50">{heading}</h2>
       </div>
       <p className="text-xs text-ink-300 mt-1">
-        Your agents run as you in the Implexa browser. These accounts are signed out or unreachable, so anything that needs them cannot run. Sign in once to fix it.
+        Your agents run as you in the Tukido browser. These accounts are signed out or unreachable, so anything that needs them cannot run. Sign in once to fix it.
       </p>
       <ul className="mt-3 space-y-2">
         {warnings.map((w, i) => (
@@ -236,10 +236,10 @@ export function ConnectionAdvisoryNote({
           counts" described the wrong problem. */}
       <p className="text-xs text-ink-300 mt-1">
         {onlyStale
-          ? 'These were proven through an agents’ browser extension, but not the one currently selected. Run “Check agents’ connections” from the Implexa menu bar to re-confirm them in the browser your agents use now.'
+          ? 'These were proven through an agents’ browser extension, but not the one currently selected. Run “Check agents’ connections” from the Tukido menu bar to re-confirm them in the browser your agents use now.'
           : onlyWorkspace
-            ? 'These are signed in, but the proof did not come through the browser extension your agents use. Run “Check agents’ connections” from the Implexa menu bar to confirm them where it counts.'
-            : 'These are signed in, but their proof does not match the browser your agents currently use. Run “Check agents’ connections” from the Implexa menu bar to confirm them where it counts.'}
+            ? 'These are signed in, but the proof did not come through the browser extension your agents use. Run “Check agents’ connections” from the Tukido menu bar to confirm them where it counts.'
+            : 'These are signed in, but their proof does not match the browser your agents currently use. Run “Check agents’ connections” from the Tukido menu bar to confirm them where it counts.'}
       </p>
       <ul className="mt-3 space-y-2">
         {advisories.map((a, i) => (

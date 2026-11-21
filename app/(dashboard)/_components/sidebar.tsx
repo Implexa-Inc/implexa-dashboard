@@ -185,7 +185,7 @@ export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: 
               title="Founding Creator — Pro is free for life on your account"
               className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400"
             >
-              🏆 Founding Creator
+              Founding creator
             </span>
           ) : (
             <span className={`text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 font-medium ${
@@ -328,7 +328,7 @@ export function MobileTopBar({ user, resultRunsAt = [], needsItemsAt = [] }: { u
         </Link>
         <div className="flex items-center gap-2 text-xs">
           <span className="capitalize text-ink-300">{user.plan}</span>
-          {user.isFoundingCreator && <span title="Founding Creator">🏆</span>}
+          {user.isFoundingCreator && <span title="Founding Creator" className="text-xs text-ink-400">Creator</span>}
         </div>
       </div>
       <nav aria-label="Primary" className="px-2 pb-2 overflow-x-auto">

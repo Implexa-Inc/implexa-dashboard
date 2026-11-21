@@ -29,6 +29,14 @@ import type { Config } from 'tailwindcss';
  *   🌿 success  → OUTCOMES  (attributed value, ✓ confirmations, active state, ROI)
  */
 
+// Existing utility names resolve through the same semantic tokens as new
+// components. This keeps older forms, dialogs and their selectors consistent
+// without a second palette or a behaviour rewrite across every route.
+const statePalette = (state: string) => Object.fromEntries(
+  [50,100,200,300,400,500,600,700,800,900,950].map(shade => [shade,
+    `rgb(from var(--state-${state}-${shade < 300 ? 'bg' : shade >= 700 ? 'fg' : 'dot'}) r g b / <alpha-value>)`]),
+);
+
 const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}', './lib/**/*.{ts,tsx}'],
   // Class-based dark mode. app/layout.tsx decides who gets the `dark` class
@@ -39,12 +47,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        emerald: statePalette('ok'), green: statePalette('ok'), teal: statePalette('ok'), lime: statePalette('ok'),
+        amber: statePalette('needs'), yellow: statePalette('needs'), orange: statePalette('needs'),
+        sky: statePalette('running'), blue: statePalette('running'), cyan: statePalette('running'),
+        violet: statePalette('review'), purple: statePalette('review'), indigo: statePalette('review'), fuchsia: statePalette('review'),
+        red: statePalette('fail'), rose: statePalette('fail'), pink: statePalette('fail'),
         state: {
           needs: 'var(--state-needs-fg)', running: 'var(--state-running-fg)',
           review: 'var(--state-review-fg)', ok: 'var(--state-ok-fg)',
           fail: 'var(--state-fail-fg)', idle: 'var(--state-idle-fg)',
         },
-        action: { accent: 'var(--text-accent)' },
+        action: { accent: 'var(--text-accent)', strong: 'var(--action-strong)', 'strong-hover': 'var(--action-strong-hover)', danger: 'var(--action-danger)', 'danger-hover':'var(--action-danger-hover)' },
         ink: {
           50:  'rgb(var(--ink-50) / <alpha-value>)',
           100: 'rgb(var(--ink-100) / <alpha-value>)',
@@ -63,8 +76,8 @@ const config: Config = {
           100:  '#F9D5CE',
           200:  '#F2AB9E',
           300:  '#EC806E',
-          400:  '#E0563F',  // brighter vermilion for links/accents on dark
-          500:  '#C8321F',  // PRIMARY: shu vermilion (Tukido). White label = 5.2:1.
+          400:  'rgb(from var(--action-primary-hover) r g b / <alpha-value>)',  // brighter vermilion for links/accents on dark
+          500:  'rgb(from var(--action-primary) r g b / <alpha-value>)',  // PRIMARY: shu vermilion (Tukido). White label = 5.2:1.
           600:  '#A92918',
           700:  '#862013',
           800:  '#5F170D',

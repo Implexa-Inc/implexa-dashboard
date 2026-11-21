@@ -269,7 +269,7 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
                 type="button"
                 onClick={deleteSkill}
                 disabled={busy === 'delete'}
-                className="btn bg-red-600 text-white hover:bg-red-700"
+                className="btn bg-action-danger text-[var(--on-action-danger)] hover:bg-action-danger-hover"
               >
                 {busy === 'delete' ? 'Deleting…' : 'Delete permanently'}
               </button>

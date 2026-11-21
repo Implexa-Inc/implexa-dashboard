@@ -37,7 +37,7 @@ test('the resume renders the ordered chain with per-component evidence and every
     assert.match(text, /Builder training/); assert.match(text, /Neutral benchmark/);
     assert.match(text, /Customer field/); assert.match(text, /Personal fit/);
     assert.match(text, /not measured/);
-    assert.match(text, /Implexa does not combine them into a score, rating, or rank/);
+    assert.match(text, /Tukido does not combine them into a score, rating, or rank/);
     // Acquired state: history language + start affordance, no acquire button.
     assert.match(text, /removes access, not history/);
     assert.ok(rendered.queryByText('Start a production'));

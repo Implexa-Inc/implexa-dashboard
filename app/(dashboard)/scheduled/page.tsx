@@ -76,7 +76,7 @@ export default async function ScheduledPage() {
   );
 
   return (
-    <main className="min-h-screen px-4 py-12">
+    <main className="app-page">
       <div className="max-w-5xl mx-auto">
         <header className="mb-8">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Routines</h1>

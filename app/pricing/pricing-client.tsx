@@ -16,10 +16,10 @@ type Props = {
 };
 
 const FREE_FEATURES = [
-  '🤖 Unlimited agents: describe a job in a sentence, Implexa builds it',
+  '🤖 Unlimited agents: describe a job in a sentence, Tukido builds it',
   '▶️ Unlimited runs and schedules, on the Claude or Codex you already pay for',
   '🧱 Steps grounded in a 40,000+ community skill catalog (license-checked)',
-  '🖥️ The Implexa desktop app: guided activation, one-click tool installs, a dedicated browser workspace for your agents',
+  '🖥️ The Tukido desktop app: guided activation, one-click tool installs, a dedicated browser workspace for your agents',
   '📬 Results inbox with review gates: nothing posts without you',
   '🔔 Watchdog + alerts: know when a run finishes, stalls, or misses',
   '🔒 Runs on YOUR machine, on YOUR subscription: your data never executes on our servers',
@@ -37,7 +37,7 @@ const PRO_FEATURES = [
 
 const CLOUD_FEATURES = [
   'Our thesis: we never run your AI for you.',
-  '☁️ When Claude and Codex ship cloud automations, your Implexa routines will schedule there too',
+  '☁️ When Claude and Codex ship cloud automations, your Tukido routines will schedule there too',
   '💤 Agents run even when your laptop is closed',
   '🏷️ Remote-safe agents are already flagged in your library today',
   '💳 Still your subscription doing the work: we stay the control plane',

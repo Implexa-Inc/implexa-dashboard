@@ -326,15 +326,16 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy }: {
   );
 }
 
-function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFavorite, busySlug, subtitle }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busySlug: string | null; subtitle?: string }) {
+function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFavorite, busySlug, subtitle, collapsible = false }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busySlug: string | null; subtitle?: string; collapsible?: boolean }) {
   if (agents.length === 0) return null;
-  return (
+  const rows=<ul className="agent-roster-list">{agents.map((a) => <Row key={a.slug} a={a} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug === a.slug} />)}</ul>;
+  return collapsible?<details className="mb-8 border-t border-ink-700 pt-5"><summary className="cursor-pointer text-sm text-ink-300">{title} ({agents.length})</summary><div className="mt-4">{rows}</div></details>:(
     <section className="mb-8">
       <h2 className="text-lg font-medium text-ink-100 mb-3">
         {title} <span className="text-ink-500">({agents.length})</span>
         {subtitle && <span className="ml-2 normal-case tracking-normal text-ink-500 font-normal">{subtitle}</span>}
       </h2>
-      <ul className="agent-roster-list">{agents.map((a) => <Row key={a.slug} a={a} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug === a.slug} />)}</ul>
+      {rows}
     </section>
   );
 }
@@ -646,7 +647,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
       <div className="mb-5 text-sm"><Link href="/workflows?tab=rent" className="text-action-accent hover:underline">Find a trained agent →</Link></div>
       <Section title="Favorites" subtitle="your starred agents" agents={favorites} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
       <Section title="Active agents" agents={activated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
-      <Section title="Need activation" agents={notActivated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
+      <Section title="Drafts" agents={notActivated} collapsible onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
 
       {shown.length === 0 && (
         <div className="card text-center py-10">
@@ -658,7 +659,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
               ? <button type="button" onClick={() => setQuery('')} className="text-action-accent hover:underline">Clear search</button>
               : activeCat
                 ? <button type="button" onClick={() => setCat('')} className="text-action-accent hover:underline">Clear filter</button>
-                : <>Describe one in <Link href="/create" className="text-action-accent hover:underline">Create</Link> and Implexa builds it.</>}
+                : <>Describe one in <Link href="/create" className="text-action-accent hover:underline">Create</Link> and Tukido builds it.</>}
           </p>
         </div>
       )}
@@ -668,7 +669,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
           opens the agent page, where Resume lives. */}
       {paused.length > 0 && (
         <section className="mt-10 pt-6 border-t border-ink-800">
-          <h2 className="text-xs uppercase tracking-wider text-ink-500 mb-3">Paused ({paused.length})</h2>
+          <h2 className="text-sm text-ink-400 mb-3">Paused ({paused.length})</h2>
           <ul className="space-y-2">
             {(showPaused ? paused : paused.slice(0, 3)).map((a) => (
               <li key={a.slug} className="card flex items-center justify-between gap-3 py-2.5">
@@ -711,7 +712,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
           <button
             type="button"
             onClick={() => setShowArchived((v) => !v)}
-            className="text-xs uppercase tracking-wider text-ink-500 hover:text-ink-300 flex items-center gap-1.5"
+            className="text-sm text-ink-400 hover:text-ink-300 flex items-center gap-1.5"
           >
             <span className={`inline-block transition-transform ${showArchived ? 'rotate-90' : ''}`}>▸</span>
             Archived ({arch.length})

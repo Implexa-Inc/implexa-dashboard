@@ -157,8 +157,8 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
   const stats          = actualSkill.outcome_stats   || {};
 
   return (
-    <main className="min-h-screen px-4 py-10">
-      <div className="max-w-4xl mx-auto">
+    <main className="app-page">
+      <div className="app-content">
         <nav className="text-sm text-ink-500 mb-6">
           <Link href="/skills" className="hover:underline">← All skills</Link>
         </nav>

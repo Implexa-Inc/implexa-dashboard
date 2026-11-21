@@ -72,7 +72,7 @@ export default function IntegrationCard({
             href={`mailto:support@implexa.ai?subject=${encodeURIComponent(
               `Connect ${integration.name}`,
             )}&body=${encodeURIComponent(
-              `I'd like to wire up ${integration.name} (${integration.authType === 'apikey' ? 'API key' : 'OAuth'}) to my Implexa org.\n\nMy ${integration.name} API key:\n[paste here — we encrypt at rest]\n\nAnything else we should know:\n`,
+              `I'd like to wire up ${integration.name} (${integration.authType === 'apikey' ? 'API key' : 'OAuth'}) to my Tukido org.\n\nMy ${integration.name} API key:\n[paste here — we encrypt at rest]\n\nAnything else we should know:\n`,
             )}`}
             className="btn-primary !py-1.5 !px-3 text-xs w-full inline-flex items-center justify-center gap-1.5"
           >

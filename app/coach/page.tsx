@@ -35,7 +35,7 @@ export default async function CoachPage() {
     <main className="min-h-screen flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-lg">
         <div className="mb-6"><Logo height={18} /></div>
-        <h1 className="text-3xl font-semibold tracking-tight mb-3 text-ink-50">Train agents with Implexa</h1>
+        <h1 className="text-3xl font-semibold tracking-tight mb-3 text-ink-50">Train agents with Tukido</h1>
         <p className="text-ink-300 text-sm mb-3">
           We&apos;re building agents that do long, skilled work like video production, trained by people who are great at it.
           Coaches earn a share of the revenue each time customers use the agents they train.
@@ -50,5 +50,5 @@ export default async function CoachPage() {
 }
 
 export const metadata = {
-  title: 'Train agents with Implexa',
+  title: 'Train agents with Tukido',
 };

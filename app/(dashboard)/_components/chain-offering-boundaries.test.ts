@@ -51,7 +51,7 @@ test('acquisition consents to the exact composition and cannot double-fire', () 
 });
 
 test('the chain resume preserves the no-blending and privacy language', () => {
-  assert.match(resume, /Implexa does not combine them into a score, rating, or rank/);
+  assert.match(resume, /Tukido does not combine them into a score, rating, or rank/);
   assert.match(resume, /stays private to your organization/);
   assert.match(resume, /If Step 1 does not succeed, Step 2 never runs/);
   assert.match(resume, /own connections and credentials/);

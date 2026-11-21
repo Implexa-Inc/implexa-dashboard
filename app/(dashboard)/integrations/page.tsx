@@ -133,13 +133,13 @@ export default async function IntegrationsPage() {
   const comingSoonByCategory = integrationsByCategory(comingSoon);
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-6xl mx-auto">
+    <main className="app-page">
+      <div className="app-content">
         {/* Top nav */}
         <header className="mb-10">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Integrations</h1>
           <p className="text-ink-300 text-sm mt-1 max-w-2xl leading-relaxed">
-            Implexa captures workflows from <strong>any MCP server you have installed</strong> in Claude — no setup required.
+            Tukido captures workflows from <strong>any MCP server you have installed</strong> in Claude — no setup required.
             Bring your own tools (Salesforce, GitHub, Slack, Apollo, Clay, anything MCP-compatible), and we capture every workflow you run with them.
           </p>
         </header>
@@ -151,17 +151,17 @@ export default async function IntegrationsPage() {
               <div className="text-3xl shrink-0">🌐</div>
               <div className="flex-1">
                 <h2 className="text-lg font-semibold text-ink-50 mb-2">
-                  Bring your own MCP — Implexa captures everything
+                  Bring your own MCP — Tukido captures everything
                 </h2>
                 <p className="text-sm text-ink-200 leading-relaxed mb-3">
                   Already have GitHub, Linear, Notion, Slack, Salesforce, Gmail, or any other MCP installed in Claude?
-                  During a recording, Implexa&apos;s <code className="text-xs bg-ink-800 px-1.5 py-0.5 rounded text-ink-100">PostToolUse</code> hook captures every tool call
+                  During a recording, Tukido&apos;s <code className="text-xs bg-ink-800 px-1.5 py-0.5 rounded text-ink-100">PostToolUse</code> hook captures every tool call
                   regardless of which MCP provides it. Your captured skill references the actual tool names you used —
                   so anyone with the same MCP installed can run it.
                 </p>
                 <p className="text-xs text-ink-300 leading-relaxed">
-                  <strong>You don&apos;t need to connect anything to Implexa to capture workflows.</strong>
-                  Install MCPs in Claude as you normally would. Implexa is the meta-layer that records + replays the choreography.
+                  <strong>You don&apos;t need to connect anything to Tukido to capture workflows.</strong>
+                  Install MCPs in Claude as you normally would. Tukido is the meta-layer that records + replays the choreography.
                 </p>
               </div>
             </div>
@@ -196,7 +196,7 @@ export default async function IntegrationsPage() {
           <SectionHeader
             badge="📡"
             title="Popular MCPs we've seen captured"
-            subtitle="Workflows we know Implexa captures cleanly. Install the MCP in Claude — recording works automatically."
+            subtitle="Workflows we know Tukido captures cleanly. Install the MCP in Claude — recording works automatically."
           />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {POPULAR_BYO_MCPS.map((m) => (
@@ -210,7 +210,7 @@ export default async function IntegrationsPage() {
             ))}
           </div>
           <p className="text-xs text-ink-400 mt-4 leading-relaxed">
-            Have an MCP not listed here? It still works — Implexa captures any tool call. Tell us at{' '}
+            Have an MCP not listed here? It still works — Tukido captures any tool call. Tell us at{' '}
             <a href="mailto:support@implexa.ai" className="text-action-accent hover:underline">support@implexa.ai</a>{' '}and we&apos;ll add it to the list.
           </p>
         </section>
@@ -282,6 +282,6 @@ function SectionHeader({
 }
 
 export const metadata = {
-  title:       'Integrations — Implexa',
-  description: 'Connect Implexa to your stack. Every integration unlocks more end-to-end skills.',
+  title:       'Integrations — Tukido',
+  description: 'Connect Tukido to your stack. Every integration unlocks more end-to-end skills.',
 };

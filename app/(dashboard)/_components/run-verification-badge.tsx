@@ -42,7 +42,7 @@ const SPEC: Record<string, { label: string; classes: string; dot: string; tip: s
     icon: 'check',
     classes: 'bg-emerald-500/12 text-state-ok ring-1 ring-inset ring-emerald-500/25',
     dot: 'bg-emerald-500 dark:bg-emerald-400',
-    tip: 'Implexa confirmed this run produced its deliverable — checked from the run’s own output and exit, not a model’s opinion of the text. This is separate from Implexa Judge review, shown in its own card below.',
+    tip: 'Tukido confirmed this run produced its deliverable — checked from the run’s own output and exit, not a model’s opinion of the text. This is separate from Tukido Judge review, shown in its own card below.',
   },
   incomplete_recoverable: {
     label: 'May be incomplete',

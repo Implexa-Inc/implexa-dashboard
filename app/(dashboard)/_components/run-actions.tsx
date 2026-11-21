@@ -425,7 +425,7 @@ export default function RunActions({
       {needsInput && (localRecovery === 'required' || localRecovery === 'verified') && (
         <div className="mt-3 rounded-md border border-amber-700/50 bg-amber-950/20 p-3">
           <p className="text-sm text-ink-100">Reconnect the original file to continue from the approved plan.</p>
-          <p className="mt-1 text-xs text-ink-400">Implexa verifies the exact bytes locally. It does not upload or copy the source.</p>
+          <p className="mt-1 text-xs text-ink-400">Tukido verifies the exact bytes locally. It does not upload or copy the source.</p>
           <button type="button" onClick={reconnectAndContinue} disabled={!!busy}
             className="btn-success mt-3 text-sm px-4 py-2 disabled:opacity-50">
             {busy === 'reconnect'

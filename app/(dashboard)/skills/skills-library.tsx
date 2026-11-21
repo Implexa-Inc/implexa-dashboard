@@ -103,8 +103,8 @@ const TABS: TabDef[] = [
   },
   {
     id:          'base',
-    label:       'Implexa Base Skills',
-    description: '30+ horizontal Playbooks shipped with every Implexa install. Fork them to make them yours, or run directly without forking. Free to fork unlimited times.',
+    label:       'Tukido Base Skills',
+    description: '30+ horizontal Playbooks shipped with every Tukido install. Fork them to make them yours, or run directly without forking. Free to fork unlimited times.',
   },
 ];
 

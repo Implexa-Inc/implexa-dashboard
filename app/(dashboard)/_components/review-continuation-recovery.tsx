@@ -226,7 +226,7 @@ export default function ReviewContinuationRecovery({
       });
     } catch (e) {
       const classified = classifyRunRequestRefusal(e);
-      setError(classified ? classified.message : 'Implexa could not queue this revision. Nothing was started.');
+      setError(classified ? classified.message : 'Tukido could not queue this revision. Nothing was started.');
       // Re-read rather than guess: the refusal may itself be the news that the
       // old attempt is now provably over, or newly running again.
       await load();
@@ -281,7 +281,7 @@ export default function ReviewContinuationRecovery({
       {resolved === 'running' && (
         <p className="mt-1 text-xs leading-relaxed text-ink-400">
           {launchWindowOpen
-            ? 'Implexa is confirming whether the previous revision started. Nothing new was queued. Retry will become available automatically when this safety window closes.'
+            ? 'Tukido is confirming whether the previous revision started. Nothing new was queued. Retry will become available automatically when this safety window closes.'
             : 'A revision process is working on this feedback right now. Nothing new was queued. Refresh attempt details to check for its result or latest message.'}
         </p>
       )}
@@ -295,7 +295,7 @@ export default function ReviewContinuationRecovery({
             <li>
               <span className="text-ink-500 mr-1.5">1.</span>
               Fully quit <span className="text-ink-100">{executorLabel}</span> and open it again.
-              Implexa Desktop then confirms the old process is gone.
+              Tukido Desktop then confirms the old process is gone.
             </li>
             <li>
               <span className="text-ink-500 mr-1.5">2.</span>
@@ -345,7 +345,7 @@ export default function ReviewContinuationRecovery({
       {resolved === 'settling' && (
         <>
           <p className="mt-1 text-xs leading-relaxed text-ink-400">
-            Implexa has not confirmed a validated revised result.
+            Tukido has not confirmed a validated revised result.
             This does not mean your feedback was applied. No new attempt has been queued.
           </p>
           <button type="button" onClick={load} disabled={busy} className="btn-outline mt-3 text-xs px-3 py-1.5">

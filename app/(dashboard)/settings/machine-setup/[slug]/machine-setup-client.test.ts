@@ -66,7 +66,7 @@ test('the page reads THE selected machine (segment) — never the bridge’s —
     await r.click(recheckButton(r));
     await settle(r);
     assert.equal(calls.filter(([k]) => k === 'recheck').length, 0, 'a bridge on ANOTHER computer cannot re-probe the selected one');
-    assert.match(r.text(), /checking a different computer than the one Implexa is running on/);
+    assert.match(r.text(), /checking a different computer than the one Tukido is running on/);
     assert.match(state.reads[1], /machineId=mac-mini-a$/, 'the refresh still reads the selected machine');
   } finally { r.cleanup(); }
 });
@@ -94,7 +94,7 @@ test('every backend action kind is routed to an explicit control (runtime, media
     await r.click(r.document.querySelector('[data-action="install_runtime"]')!); await settle(r);
     await r.click(r.document.querySelector('[data-action="install_media_tools"]')!); await settle(r);
     await r.click(r.document.querySelector('[data-action="sign_in_cli"]')!); await settle(r);
-    assert.match(r.text(), /Sign in with the vendor’s CLI in a terminal on this computer \(Implexa never captures the credential\)/);
+    assert.match(r.text(), /Sign in with the vendor’s CLI in a terminal on this computer \(Tukido never captures the credential\)/);
     await r.click(r.document.querySelector('[data-action="free_disk"]')!); await settle(r);
     assert.deepEqual(calls, ['runtime', 'install:ffmpeg', 'reveal']);
     await r.click(recheckButton(r)); await settle(r);

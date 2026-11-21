@@ -22,7 +22,7 @@ test('an AUTO-ROUTED request is never described as waiting for Claude', () => {
   assert.doesNotMatch(all, /waiting for (an available )?Claude/i);
   assert.doesNotMatch(all, /once Claude is free/i);
   assert.doesNotMatch(all, /5-hour|five-hour|usage limit\b(?!.*does not block)/i);
-  assert.match(n.headline, /Implexa is picking an available engine/i);
+  assert.match(n.headline, /Tukido is picking an available engine/i);
 });
 
 test('an auto-routed request never claims any engine is unavailable', () => {

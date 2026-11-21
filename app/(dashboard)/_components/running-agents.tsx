@@ -117,7 +117,7 @@ function visibleFailure(reason: string | null | undefined): string | null {
   if (reason === 'desktop_preparation_not_started') return 'Your Desktop did not start checking the selected file. Select it again and retry.';
   if (reason === 'desktop_preparation_lease_expired') return 'File verification stopped before it finished. Select the file again and retry.';
   if (reason === 'run_enqueue_interrupted') return 'The file was checked, but the run could not be queued. Try again.';
-  if (reason === 'desktop_media_runtime_unavailable') return 'Media support is required before this agent can start. Reopen Implexa and retry; setup will continue before file verification.';
+  if (reason === 'desktop_media_runtime_unavailable') return 'Media support is required before this agent can start. Reopen Tukido and retry; setup will continue before file verification.';
   return reason;
 }
 
@@ -783,7 +783,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                         </>
                       ) : (
                         <p className="text-[11px] text-state-needs leading-snug">
-                          This run stopped and needs you. Open it to see what Implexa found and what it needs —
+                          This run stopped and needs you. Open it to see what Tukido found and what it needs —
                           the reason is on the run itself.
                         </p>
                       )}
@@ -890,7 +890,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               type="button"
               onClick={() => confirmCancel && doCancel(confirmCancel)}
               disabled={cancelBusy}
-              className="text-sm px-4 py-2 rounded-lg bg-rose-500 text-white hover:bg-rose-400 font-medium disabled:opacity-50"
+              className="text-sm px-4 py-2 rounded-lg bg-action-danger text-[var(--on-action-danger)] hover:bg-action-danger-hover font-medium disabled:opacity-50"
             >
               {cancelBusy ? (isRunningCancel(confirmCancel) ? 'Stopping…' : 'Cancelling…') : (isRunningCancel(confirmCancel) ? 'Stop run' : 'Cancel run')}
             </button>

@@ -185,7 +185,7 @@ export default function CreateDecisionGate({
 
       {isGap && (
         <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" disabled={creating} onClick={() => enqueue({ toolPreferences: withAuto() })} className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60">
+          <button type="button" disabled={creating} onClick={() => enqueue({ toolPreferences: withAuto() })} className="rounded-md bg-action-strong px-4 py-2 text-sm font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover disabled:opacity-60">
             {creating ? 'Queuing…' : 'Build anyway'}
           </button>
           <span className="self-center text-xs text-ink-500">It’ll flag the gap instead of substituting a different tool.</span>

@@ -102,19 +102,19 @@ function EngineCard({ engine, report }: { engine: 'claude' | 'codex'; report: En
   return (
     <section className={`card border ${report?.healthy ? 'border-emerald-500/30' : 'border-ink-800'}`}>
       <div className="flex items-start justify-between gap-3">
-        <div><h2 className="text-lg font-semibold text-ink-50">{name}</h2><p className="text-xs text-ink-400 mt-0.5">{report?.healthy ? 'Ready to run Implexa agents' : 'Not fully connected'}</p></div>
+        <div><h2 className="text-lg font-semibold text-ink-50">{name}</h2><p className="text-xs text-ink-400 mt-0.5">{report?.healthy ? 'Ready to run Tukido agents' : 'Not fully connected'}</p></div>
         <Badge ok={!!report?.healthy}>{report?.healthy ? 'Ready' : 'Setup needed'}</Badge>
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-2">
         <Badge ok={!!report?.app_installed}>Desktop app</Badge><Badge ok={!!report?.cli_installed}>CLI</Badge>
-        <Badge ok={!!report?.authenticated}>Authentication</Badge><Badge ok={!!report?.plugin_connected}>Implexa plugin</Badge>
+        <Badge ok={!!report?.authenticated}>Authentication</Badge><Badge ok={!!report?.plugin_connected}>Tukido plugin</Badge>
       </div>
 
       <dl className="mt-5 space-y-2 text-xs">
         <Row label="Plan" value={report?.plan_type || 'Unknown'} />
         <Row label="Plugin" value={`${report?.plugin_version ? `v${report.plugin_version}` : 'Unknown'}${report?.latest_plugin_version ? ` · latest v${report.latest_plugin_version}` : ''}`} />
-        <Row label="Usage/headroom" value={usage?.usedPercent != null ? `${Math.max(0, 100 - usage.usedPercent)}% remaining (${confidence})` : confidence === 'estimated' ? `${report?.usage_snapshot?.recentRunCount || 0} Implexa runs in 5h (estimate)` : 'Unknown'} />
+        <Row label="Usage/headroom" value={usage?.usedPercent != null ? `${Math.max(0, 100 - usage.usedPercent)}% remaining (${confidence})` : confidence === 'estimated' ? `${report?.usage_snapshot?.recentRunCount || 0} Tukido runs in 5h (estimate)` : 'Unknown'} />
         <Row label="Usage source" value={confidence === 'authoritative' ? (engine === 'codex' ? 'Local Codex rate-limit event' : 'Vendor telemetry') : confidence === 'estimated' ? 'Recent Implexa-owned runs' : 'Not available'} />
         <Row label="Last connection" value={when(report?.last_connection_at)} />
         <Row label="Last successful run" value={when(report?.last_successful_run_at)} />

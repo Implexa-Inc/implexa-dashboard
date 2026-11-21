@@ -50,7 +50,7 @@ export default async function DataSettingsPage() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-12">
+    <main className="app-page">
       <div className="max-w-2xl mx-auto">
         <nav className="text-xs text-ink-500 mb-4">
           <Link href="/settings" className="hover:underline">← Settings</Link>
@@ -59,7 +59,7 @@ export default async function DataSettingsPage() {
         <header className="mb-8">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Data & SkillRank preferences</h1>
           <p className="text-sm text-ink-300 mt-2 leading-relaxed">
-            Implexa learns from how you work to recommend better skills over time.
+            Tukido learns from how you work to recommend better skills over time.
             This is the data + consent control surface. You can change anything here at any time.
           </p>
         </header>
@@ -88,5 +88,5 @@ export default async function DataSettingsPage() {
 }
 
 export const metadata = {
-  title: 'Data & preferences — Implexa',
+  title: 'Data & preferences — Tukido',
 };

@@ -211,7 +211,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
               type="button"
               disabled={!ready || busy('record') || (recorderBusy && (active?.origin==='voice_note'||active?.state !== 'permission_required'))}
               onClick={() => void record()}
-              className="mt-3 rounded-md bg-rose-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40"
+              className="mt-3 rounded-md bg-action-danger px-3 py-1.5 text-sm font-medium text-[var(--on-action-danger)] hover:bg-action-danger-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy('record') ? 'Opening recorder…' : active?.state === 'permission_required' ? 'Open permission setup' : 'Record'}
             </button>
@@ -242,7 +242,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
             {loadError && <p role="status" className="mb-3 text-sm text-state-needs">{loadError}</p>}
             {unreadable > 0 && (
               <p role="status" className="mb-3 text-sm text-state-needs">
-                {unreadable === 1 ? '1 recording could not be read.' : `${unreadable} recordings could not be read.`} Updating Implexa Desktop may fix this.
+                {unreadable === 1 ? '1 recording could not be read.' : `${unreadable} recordings could not be read.`} Updating Tukido Desktop may fix this.
               </p>
             )}
             {recordings === null && !loadError && <div className="h-20 animate-pulse rounded bg-ink-800/50" aria-label="Loading recordings" />}

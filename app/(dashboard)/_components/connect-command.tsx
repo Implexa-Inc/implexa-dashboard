@@ -105,7 +105,7 @@ export default function ConnectCommand() {
       )}
 
       <p className="text-xs text-ink-500 mt-2 leading-relaxed">
-        Paste it in your terminal. It signs you in and installs Implexa into your {COMMANDS[surface].label}.
+        Paste it in your terminal. It signs you in and installs Tukido into your {COMMANDS[surface].label}.
         Then your agent builds itself, runs as you, free on the plan you already pay for.
       </p>
 

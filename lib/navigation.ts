@@ -358,9 +358,10 @@ export const MAIN_CONTENT_ID = 'main-content';
  * review surfaces"). Creating an agent is not a plausible next action while
  * you are judging a delivered artifact, and the control overlaps the review
  * action area. Training and Create also own their contextual conversation;
- * a second floating creator covers the chat/retention controls there.
+ * a second floating creator covers the chat/retention controls there. Agents
+ * already owns Build; agent and Settings pages own their action/forms.
  */
-export const CREATE_FAB_SUPPRESSED_PREFIXES: readonly string[] = ['/work', '/review', '/runs', '/training', '/create'];
+export const CREATE_FAB_SUPPRESSED_PREFIXES: readonly string[] = ['/work', '/review', '/runs', '/training', '/create', '/workflows', '/settings'];
 
 export function isCreateFabSuppressed(pathname: string): boolean {
   return CREATE_FAB_SUPPRESSED_PREFIXES.some((p) => ownsPath(p, pathname));

@@ -113,7 +113,7 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
     const parsed = parseGenerationPreviewSet(bodies, { agentSubject, sourceRunId: runId, moment });
     if (!parsed) {
       setPhase('idle');
-      setError('The quality comparison was incomplete or inconsistent, so Implexa refused to show it.');
+      setError('The quality comparison was incomplete or inconsistent, so Tukido refused to show it.');
       return;
     }
     setPreviews(parsed); setMode('fast'); setPhase('ready');
@@ -137,7 +137,7 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
     if (!created) {
       createFlight.current = false;
       setPhase('ready');
-      setError('The proposal was created with an unexpected identity or plan, so Implexa refused to open it. Reload this run before trying again.');
+      setError('The proposal was created with an unexpected identity or plan, so Tukido refused to open it. Reload this run before trying again.');
       return;
     }
     router.push(`/generations/${encodeURIComponent(created.proposalId)}`);

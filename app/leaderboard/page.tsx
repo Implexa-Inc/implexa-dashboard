@@ -96,7 +96,7 @@ export default async function LeaderboardPage({
             Creator leaderboard
           </h1>
           <p className="text-ink-300 text-sm mt-2 leading-relaxed max-w-xl">
-            The Implexa creators whose shared skills are getting the most engagement.
+            The Tukido creators whose shared skills are getting the most engagement.
             Karma rises when others install, fork, or amplify your skills.
           </p>
         </header>
@@ -223,13 +223,13 @@ function EmptyState({ period }: { period: 'alltime' | 'month' }) {
 }
 
 export const metadata = {
-  title: 'Creator leaderboard — Implexa',
+  title: 'Creator leaderboard — Tukido',
   description:
-    'The Implexa creators whose shared skills earn the most karma. Install one, fork another, or share yours to join the board.',
+    'The Tukido creators whose shared skills earn the most karma. Install one, fork another, or share yours to join the board.',
   openGraph: {
-    title: 'Creator leaderboard — Implexa',
+    title: 'Creator leaderboard — Tukido',
     description:
-      'The Implexa creators whose shared skills earn the most karma. Install one, fork another, or share yours to join the board.',
+      'The Tukido creators whose shared skills earn the most karma. Install one, fork another, or share yours to join the board.',
     type: 'website',
   },
 };

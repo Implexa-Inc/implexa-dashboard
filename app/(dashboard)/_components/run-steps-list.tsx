@@ -59,7 +59,7 @@ export default function RunStepsList({
     <div className={compact ? '' : 'mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4'}>
       {heading !== null && (
         <div className="flex items-center gap-4 mb-4">
-          {!compact&&<svg className={`enso-progress ${steps.some(s=>s.status==='failed')?'has-failure':''}`} viewBox="0 0 100 100" role="img" aria-label={`${done} of ${total} steps complete`}>
+          {!compact&&<svg className={`enso-progress ${steps.some(s=>s.status==='failed')?'has-failure':done===total?'is-complete':''}`} viewBox="0 0 100 100" role="img" aria-label={`${done} of ${total} steps complete`}>
             <circle className="enso-track" cx="50" cy="50" r="40" fill="none" strokeWidth="6"/>
             <circle className="enso-arc" cx="50" cy="50" r="40" fill="none" strokeWidth="6" strokeLinecap="round" pathLength="100" strokeDasharray={`${Math.max(1,done/total*96)} 100`} transform="rotate(-90 50 50)"/>
             <text x="50" y="56" textAnchor="middle">{done}/{total}</text>

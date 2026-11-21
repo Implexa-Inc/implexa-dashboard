@@ -278,7 +278,7 @@ test('a missing Desktop bridge leaves a local-source retry unqueued', async () =
     await r.click(button(r, 'Retry safely'));
     await r.click(button(r, 'Queue the same request'));
     await settle(r);
-    assert.match(r.text(), /Open this run in Implexa on the source Mac/);
+    assert.match(r.text(), /Open this run in Tukido on the source Mac/);
     assert.equal(r.calls.backend.filter((call) => (call.init as { method?: string })?.method === 'POST').length, 0);
   } finally { r.cleanup(); }
 });

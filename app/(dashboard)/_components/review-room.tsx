@@ -514,7 +514,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         // and image elements are no-cors and unaffected, which is why it looked fine.
         const text = previewText(result);
         if (text === null) {
-          if (!cancelled) setDecision({ artifactId: artifact.id, value: { ...next, state: 'unavailable', message: 'Implexa could not read this file for review just now. That does not mean the file is gone.' } });
+          if (!cancelled) setDecision({ artifactId: artifact.id, value: { ...next, state: 'unavailable', message: 'Tukido could not read this file for review just now. That does not mean the file is gone.' } });
           return;
         }
         if (!cancelled) { setTextContent(text); setTextTruncated(previewTextTruncated(result)); }
@@ -558,7 +558,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   ) => {
     const bridge = reviewArtifactBridge();
     if (!bridge?.pickReviewArtifact) {
-      setError('Open Review Room in the Implexa desktop app to choose a local file or folder.');
+      setError('Open Review Room in the Tukido desktop app to choose a local file or folder.');
       return;
     }
     setError(null);
@@ -1215,7 +1215,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     const bridge = reviewArtifactBridge();
     if (!bridge?.openPostAcceptanceCleanup) {
       setCleanupPrompt(false);
-      setNotice('Open Implexa Desktop → Storage to review local cleanup.');
+      setNotice('Open Tukido Desktop → Storage to review local cleanup.');
       return;
     }
     setCleanupBusy(true);
@@ -1333,8 +1333,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         )}
 
         {props.trainingMode&&!latestFinalOutput&&<p role="status" className="mb-3 text-sm text-state-needs">The latest result could not be verified. Open Result details to choose a file.</p>}
-        <details open={!props.trainingMode||!latestFinalOutput||latestFinalOutput.id!==selectedId} className="mb-3">
-          <summary className={props.trainingMode?'cursor-pointer text-xs text-ink-500':'hidden'}>Result details</summary>
+        <details open={!latestFinalOutput||latestFinalOutput.id!==selectedId} className="mb-3">
+          <summary className="cursor-pointer text-xs text-ink-500">Result details</summary>
         <div className="mb-3 rounded-md border border-ink-800 bg-ink-950/50 px-3 py-2.5" aria-label="Review version identity">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
@@ -1515,7 +1515,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               // disabled on an invalid end: a silently dead button teaches nothing,
               // and completeRange refuses in words without touching anything.
               onClick={finishRange}
-              className="rounded-md bg-sky-400/90 px-3 py-1.5 font-mono text-sm font-medium text-ink-950 hover:bg-sky-300"
+              className="rounded-md bg-action-strong px-3 py-1.5 font-mono text-sm font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover"
             >
               {rangeEndButtonLabel(playheadMs)}
             </button>
@@ -1955,7 +1955,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               </p>
               <a
                 href={`/runs/${runId}`}
-                className="block rounded-md bg-violet-500/90 px-3 py-2 text-center text-sm font-medium text-white hover:bg-violet-500"
+                className="block rounded-md bg-action-strong px-3 py-2 text-center text-sm font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover"
               >
                 Approve next action
               </a>
@@ -1987,7 +1987,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                           <div>
                             <span className="block text-xs font-medium text-state-review">Apply a repeated pattern</span>
                             <span className="mt-0.5 block text-[11px] leading-snug text-ink-500">
-                              Select two or more exact comments in the issue list. Implexa discloses only those comments to compile one bounded rule for this revision. Nothing becomes future training.
+                              Select two or more exact comments in the issue list. Tukido discloses only those comments to compile one bounded rule for this revision. Nothing becomes future training.
                             </span>
                           </div>
                           <button
@@ -2265,7 +2265,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               Free up local storage?
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-ink-300">
-              Implexa can remove redundant review copies and rejected render intermediates that are no longer referenced.
+              Tukido can remove redundant review copies and rejected render intermediates that are no longer referenced.
             </p>
             <p className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-state-ok">
               Your accepted final, editable project, learned decision traces, and original source stay protected.
@@ -2284,7 +2284,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 type="button"
                 disabled={cleanupBusy}
                 onClick={() => void openPostAcceptanceCleanup()}
-                className="rounded-md bg-emerald-400 px-3 py-2 text-sm font-medium text-ink-950 disabled:opacity-40"
+                className="rounded-md bg-action-strong px-3 py-2 text-sm font-medium text-[var(--on-action-strong)] disabled:opacity-40"
               >
                 {cleanupBusy ? 'Opening cleanup…' : 'Review cleanup'}
               </button>
@@ -2347,7 +2347,7 @@ function ArtifactSurface({
               href={desktopReviewHref(runId)!}
               className="rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950"
             >
-              Open in Implexa Desktop
+              Open in Tukido Desktop
             </a>
           )}
           {decision.state === 'update_required' && (

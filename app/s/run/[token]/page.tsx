@@ -117,7 +117,7 @@ export default async function RunCardPage({ params }: { params: { token: string 
         </div>
 
         <p className="mt-6 text-center text-[11px] text-ink-600">
-          Built and graded on real runs by Implexa · {card.viewCount} view{card.viewCount === 1 ? '' : 's'}
+          Built and graded on real runs by Tukido · {card.viewCount} view{card.viewCount === 1 ? '' : 's'}
         </p>
       </div>
     </main>

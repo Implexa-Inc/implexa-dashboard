@@ -130,11 +130,11 @@ export default async function PricingPage() {
       <section className="mt-16 grid md:grid-cols-2 gap-6">
         <FaqItem
           q="Why is it free?"
-          a="Your agents run in YOUR Claude or Codex, on the subscription you already pay for. We never run AI compute for you, so we never charge for it. Implexa is the control plane: building, activating, scheduling, and watching your agents."
+          a="Your agents run in YOUR Claude or Codex, on the subscription you already pay for. We never run AI compute for you, so we never charge for it. Tukido is the control plane: building, activating, scheduling, and watching your agents."
         />
         <FaqItem
           q="What do I need to start?"
-          a="A Claude (or Codex) subscription and the free Implexa app. Describe a job in a sentence; Implexa builds the agent, walks you through a one-time activation, and it runs on your machine."
+          a="A Claude (or Codex) subscription and the free Tukido app. Describe a job in a sentence; Tukido builds the agent, walks you through a one-time activation, and it runs on your machine."
         />
         <FaqItem
           q="What is Pro actually for?"
@@ -178,6 +178,6 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 }
 
 export const metadata = {
-  title:       'Pricing — Implexa',
+  title:       'Pricing — Tukido',
   description: 'Build, run, and manage hundreds of agents on your existing Claude or Codex subscription. Free for individuals; Pro for teams at $19/seat/month.',
 };

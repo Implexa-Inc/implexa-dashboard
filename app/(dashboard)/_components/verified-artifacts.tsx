@@ -92,7 +92,7 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
     if (!runId || typeof reconnect !== 'function') return;
     setReconnecting(true);
     sourceAuthorityGeneration.current += 1;
-    setMessage('Select the original file. Implexa will verify every byte before restoring access.');
+    setMessage('Select the original file. Tukido will verify every byte before restoring access.');
     try {
       const result = await reconnect(runId);
       if (result?.ok) {
@@ -152,7 +152,7 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
           <h2 className="text-sm font-semibold text-ink-50">Files &amp; artifacts</h2>
           <p className="mt-1 text-xs text-ink-400">
             {artifacts.length
-              ? `Checked on this Mac by Implexa · ${finalCount} final ${finalCount === 1 ? 'output' : 'outputs'} · ${artifacts.length} total`
+              ? `Checked on this Mac by Tukido · ${finalCount} final ${finalCount === 1 ? 'output' : 'outputs'} · ${artifacts.length} total`
               : 'No verified files yet. Refresh after this run creates or validates files.'}
           </p>
         </div>
@@ -181,7 +181,7 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
       {sourceReconnect?.required && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5">
           <p className="min-w-0 flex-1 text-xs leading-relaxed text-ink-300">
-            Implexa forgot the private source path after restarting. Reconnect {sourceReconnect.label || 'the original source'} to verify its exact bytes; the file stays on this Mac.
+            Tukido forgot the private source path after restarting. Reconnect {sourceReconnect.label || 'the original source'} to verify its exact bytes; the file stays on this Mac.
           </p>
           <button
             type="button"

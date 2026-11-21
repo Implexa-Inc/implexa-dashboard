@@ -317,12 +317,12 @@ const REFUSAL_COPY: Record<ApprovalRefusalCode, string> = {
   unavailable: 'Professional generation is not available, so this plan cannot be approved.',
   not_awaiting_approval: 'This proposal is not awaiting approval.',
   expired: 'This proposal has expired. Preview the plan again to get a fresh one.',
-  identity_mismatch: 'This card no longer matches the proposal it was built from, so Implexa will not approve it.',
+  identity_mismatch: 'This card no longer matches the proposal it was built from, so Tukido will not approve it.',
   graph_changed: 'The compiled plan changed since it was shown. Reload before approving.',
   timeline_changed: 'The timeline changed since this proposal was compiled. Preview it again.',
   source_changed: 'This plan was compiled against a different source video. Preview it again against the video you have selected.',
   ceiling_not_confirmed: 'Confirm the maximum credits this authorizes before approving.',
-  invalid_idempotency_key: 'Implexa could not mint a safe retry key for this approval.',
+  invalid_idempotency_key: 'Tukido could not mint a safe retry key for this approval.',
 };
 
 /**
@@ -532,7 +532,7 @@ export function professionalEntryError(
 ): string {
   if (operation === 'create' && !responseOk
     && (responseStatus === null || responseStatus >= 500 || (isObject(body) && body.unavailable === true))) {
-    return "Implexa couldn't confirm whether the proposal was created. Reload this run before trying again; do not approve from this response.";
+    return "Tukido couldn't confirm whether the proposal was created. Reload this run before trying again; do not approve from this response.";
   }
   if (isObject(body) && body.unavailable === true) {
     return 'The generation service did not give a reliable answer. Nothing should be approved from this response.';
@@ -541,6 +541,6 @@ export function professionalEntryError(
     return `The plan was refused (${body.error}).`;
   }
   return responseOk
-    ? 'The generation service answered in an unexpected form, so Implexa refused to use it.'
+    ? 'The generation service answered in an unexpected form, so Tukido refused to use it.'
     : 'The generation service could not compile this timeline.';
 }

@@ -52,8 +52,8 @@ export type ControlPlaneRetryPresentation =
 export const RETRY_SAFELY_LABEL = 'Retry safely — no work started previously';
 export const RETRY_SAFELY_DISTINCTION = 'Retry safely: same request and frozen inputs';
 export const RUN_AGAIN_DISTINCTION = 'Run again: creates a new request';
-export const NO_WORK_CLAIM = 'Implexa could not attach its control tools before work began. No work or provider action started.';
-export const QUEUED_RECEIPT = 'Queued again safely — same request, frozen inputs. Implexa will verify its control tools before any work starts.';
+export const NO_WORK_CLAIM = 'Tukido could not attach its control tools before work began. No work or provider action started.';
+export const QUEUED_RECEIPT = 'Queued again safely — same request, frozen inputs. Tukido will verify its control tools before any work starts.';
 export const JUDGE_RETRY_LABEL = 'Retry final review';
 export const JUDGE_NO_WORK_CLAIM = 'The final review stopped before it started. Your delivered work is unchanged.';
 export const JUDGE_QUEUED_RECEIPT = 'The same final review is queued again. Your delivered work is unchanged.';
@@ -81,10 +81,10 @@ const WORK_MAY_HAVE_OCCURRED: Record<string, string> = {
   external_action_recorded: 'A previous attempt recorded an external action, so a safe replay cannot be proven.',
   artifact_recorded: 'A previous attempt declared an artifact, so a safe replay cannot be proven.',
   review_mutation_recorded: 'The Review submission was already reported, so it cannot be replaced by a retry.',
-  attempt_not_terminal: 'An earlier attempt never reported how it ended, so Implexa cannot prove that nothing happened.',
-  attempt_runtime_unverified: 'An earlier attempt ran without verified runtime evidence, so Implexa cannot prove that nothing happened.',
-  attempt_outcome_ambiguous: 'An earlier attempt ended in a state Implexa cannot classify as no-work.',
-  attempt_authority_unknown: 'An earlier attempt carries evidence Implexa does not recognise, so a safe replay cannot be proven.',
+  attempt_not_terminal: 'An earlier attempt never reported how it ended, so Tukido cannot prove that nothing happened.',
+  attempt_runtime_unverified: 'An earlier attempt ran without verified runtime evidence, so Tukido cannot prove that nothing happened.',
+  attempt_outcome_ambiguous: 'An earlier attempt ended in a state Tukido cannot classify as no-work.',
+  attempt_authority_unknown: 'An earlier attempt carries evidence Tukido does not recognise, so a safe replay cannot be proven.',
   not_control_plane_attachment_failure: 'The most recent attempt did not end as a control-plane attachment failure with parent-proven no-action evidence.',
   surfaced_attempt_mismatch: 'The failure on file is not the most recent attempt of this request.',
 };

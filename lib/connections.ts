@@ -148,8 +148,8 @@ function appNameFromDomain(domain: string): string {
 
 function reasonFor(label: string, account: string | null): string {
   return account
-    ? `${label} is signed out or unreachable in your Implexa browser. Sign in as ${account} to let the agent run.`
-    : `${label} is not reachable in your Implexa browser. Sign in once to let the agent run as you.`;
+    ? `${label} is signed out or unreachable in your Tukido browser. Sign in as ${account} to let the agent run.`
+    : `${label} is not reachable in your Tukido browser. Sign in once to let the agent run as you.`;
 }
 
 function mapConnections(raw: unknown): ConnectionAccount[] {

@@ -192,14 +192,14 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
     const imageNote = imageCount > 0
       ? ` I attached ${imageCount} image${imageCount === 1 ? '' : 's'} as reference (paths are listed at the end of this prompt — Read them).`
       : '';
-    const handoff = `Build my new Implexa agent. Use Implexa's get_pending_run_requests tool to find the request I just queued ("${t}"), then call generate_workflow to build the agent, then resolve_run_request to clear it. Then tell me what you built.${imageNote}`;
+    const handoff = `Build my new Tukido agent. Use Tukido's get_pending_run_requests tool to find the request I just queued ("${t}"), then call generate_workflow to build the agent, then resolve_run_request to clear it. Then tell me what you built.${imageNote}`;
     const bridge = typeof window !== 'undefined' ? window.implexaDesktop : undefined;
     if (bridge?.handoffAgent) {
       const r = await bridge.handoffAgent(handoff, undefined, 'code', imageCount ? queuedImages : undefined).catch(() => ({ ok: false }));
       setState('queued');
       setMsg(r?.ok
         ? `Opening your Claude with the build ready${imageCount ? ` and ${imageCount} image${imageCount === 1 ? '' : 's'} attached` : ''}. Review it and hit send.`
-        : 'Open your Claude or Codex and Implexa will build it.');
+        : 'Open your Claude or Codex and Tukido will build it.');
     } else {
       setState('queued');
       setMsg('Opening Claude with the build prefilled. Review it and hit send.');
@@ -224,12 +224,12 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
           {hasAgents ? 'Build an agent' : 'Build your first agent'}
         </h1>}
         <p className="text-sm text-ink-400 mt-1.5 mb-2">
-          {compact ? 'Tell Implexa what you want it to do.' : guided
+          {compact ? 'Tell Tukido what you want it to do.' : guided
             ? 'Just tell us a job you do over and over, in plain words. We build the agent and walk you through turning it on. No setup knowledge needed.'
-            : 'Describe a recurring job in a sentence. Implexa builds the agent; it runs in your Claude or Codex, on a schedule, as you.'}
+            : 'Describe a recurring job in a sentence. Tukido builds the agent; it runs in your Claude or Codex, on a schedule, as you.'}
         </p>
         {!compact && <p className="text-xs text-ink-500 mb-5">
-          Claude Code runs in the background, so you don&apos;t work there. Build, run, and approve every agent right here in Implexa.
+          Claude Code runs in the background, so you don&apos;t work there. Build, run, and approve every agent right here in Tukido.
         </p>}
         <div className={compact ? "mt-5 flex flex-col gap-3" : "flex gap-2.5"}>
           {compact ? <textarea id="talk" aria-label="Describe your agent" rows={6} value={intent} onChange={e=>setIntent(e.target.value)} onPaste={onPaste} onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();submit();}}} placeholder="What would you like your agent to do?" disabled={busy} className="w-full resize-y rounded-lg border border-ink-700 bg-ink-950 px-4 py-3 text-sm text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-brand-500"/> : <input
@@ -405,11 +405,11 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
             </button>
             <h2 className="text-lg font-semibold text-ink-50 mb-2">Your agent is saved. One step to build it.</h2>
             <p className="text-sm text-ink-300 leading-relaxed mb-4">
-              We recommend installing the Implexa desktop app, the control plane for your agents. It installs the Implexa plugin into your own Claude or Codex, then helps you build and run your agents there, as you, free. Your agent stays queued until you connect.
+              We recommend installing the Tukido desktop app, the control plane for your agents. It installs the Tukido plugin into your own Claude or Codex, then helps you build and run your agents there, as you, free. Your agent stays queued until you connect.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <a href={macDownloadUrl()} className="btn-success text-sm px-5 py-2.5 inline-flex items-center gap-2">
-                ↓ Download the Implexa app
+                ↓ Download the Tukido app
               </a>
               <a href="/install" className="text-xs text-ink-400 hover:text-ink-200">
                 Prefer the terminal? Connect with one command →

@@ -226,7 +226,7 @@ export default function RunContinueBox({
         <input type="checkbox" checked={preservePlannerIdentity}
           onChange={(e) => setPreservePlannerIdentity(e.target.checked)} />
         <span>Planner timing/layout revision: preserve the transcript, presenter, point and scene identities,
-          and existing media requests. Implexa verifies this against the original bundle; other agents do not support this option.</span>
+          and existing media requests. Tukido verifies this against the original bundle; other agents do not support this option.</span>
       </label>}
       {!pending && preservePlannerIdentity && <div className="mt-2 text-xs text-ink-400">
         <label className="flex items-start gap-2">

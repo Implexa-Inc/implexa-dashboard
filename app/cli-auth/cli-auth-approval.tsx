@@ -97,7 +97,7 @@ export default function CliAuthApproval({
         <h1 className="text-2xl font-semibold text-ink-50 mb-3">You&apos;re signed in.</h1>
         <p className="text-ink-200 leading-relaxed mb-6">
           {isApp
-            ? 'All set — this window closes itself and Implexa picks up from here.'
+            ? 'All set — this window closes itself and Tukido picks up from here.'
             : 'Return to your terminal — the install will continue automatically. You can close this tab.'}
         </p>
         <div className="text-xs text-ink-400 border-t border-ink-700 pt-4 leading-relaxed">
@@ -168,7 +168,7 @@ export default function CliAuthApproval({
     <div className="card">
       <h1 className="text-xl font-semibold text-ink-50 mb-2">Authorize CLI install</h1>
       <p className="text-sm text-ink-300 leading-relaxed mb-5">
-        Your terminal is asking permission to log in to Implexa as <strong className="text-ink-100">{email}</strong>.
+        Your terminal is asking permission to log in to Tukido as <strong className="text-ink-100">{email}</strong>.
       </p>
 
       <div className="rounded-lg border border-ink-700 bg-ink-900 px-4 py-5 mb-4 text-center">

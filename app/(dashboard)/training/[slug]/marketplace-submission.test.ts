@@ -28,7 +28,7 @@ test('the listing page pre-fills a private draft without writes',async t=>{
 test('included tool calculator shows 100 credits plus 20 percent as 1.20, separately from service price',async t=>{
  const {r,calls}=await setup(t);
  await input(r,r.document.querySelector('[aria-label="Runway access"]') as HTMLSelectElement,'included');
- const numbers=r.document.querySelectorAll('input[type="number"]');await input(r,numbers[1] as HTMLInputElement,'100');await input(r,numbers[2] as HTMLInputElement,'20');
+ await input(r,r.document.querySelector('[aria-label="Runway credits per run"]') as HTMLInputElement,'100');await input(r,r.document.querySelector('[aria-label="Runway markup percent"]') as HTMLInputElement,'20');
  assert.match(r.text(),/\$1\.20/);assert.match(r.text(),/Funding setup required/);await r.click(r.getByText('Preview listing'));assert.match(r.text(),/\$50\.00/);assert.match(r.text(),/\$1\.20 per run/);
  assert.equal(calls.some(c=>c.init.method==='POST'),false);
 });
@@ -49,15 +49,15 @@ test('conflict retains edits and switching versions closes the prior offer',asyn
  await r.rerender({...props,versionId:'12000000-0000-4000-8000-000000000002'});assert.equal(r.document.querySelector('[role="dialog"]'),null);
 });
 test('AI suggests editable wording without saving, changing price or granting a tool',async t=>{
- const {r,calls}=await setup(t);await r.click(r.getByText('✨ Suggest wording with AI'));
- assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'AI video wording');assert.equal((r.document.querySelector('input[type="number"]') as HTMLInputElement).value,'50');
+ const {r,calls}=await setup(t);await r.click(r.getByText('✦ Suggest wording with AI'));
+ assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'AI video wording');assert.equal((r.document.querySelector('[aria-label="Service price (USD)"]') as HTMLInputElement).value,'50');
  assert.equal((r.document.querySelector('[aria-label="Runway access"]') as HTMLSelectElement).value,'customer_connects');
  assert.deepEqual(calls.filter(c=>c.init.method==='POST').map(c=>JSON.parse(c.init.body)),[{action:'suggest',bindingDigest:'b'.repeat(64)}]);
  assert.match(r.text(),/Review it before saving/);
 });
 test('invalid tool prices stay unavailable in both editor and preview',async t=>{
  const {r}=await setup(t);await input(r,r.document.querySelector('[aria-label="Runway access"]') as HTMLSelectElement,'included');
- const number=r.document.querySelectorAll('input[type="number"]')[1] as HTMLInputElement;await input(r,number,'0');assert.match(r.text(),/Unavailable/);
+ const number=r.document.querySelector('[aria-label="Runway credits per run"]') as HTMLInputElement;await input(r,number,'0');assert.match(r.text(),/Unavailable/);
  await r.click(r.getByText('Preview listing'));assert.match(r.text(),/price unavailable/);assert.doesNotMatch(r.text(),/\$0\.00 per run|NaN/);
 });
 

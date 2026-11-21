@@ -316,7 +316,7 @@ function ConnectionsList({ items, onChanged, workedAround, onToggleWorkAround, s
       </ul>
       {!bridge?.connectAccount && (
         <p className="text-xs text-ink-500 mt-2 leading-snug">
-          Open this page in the Implexa app to sign in with one click — the app keeps a dedicated browser workspace your agents use.
+          Open this page in the Tukido app to sign in with one click — the app keeps a dedicated browser workspace your agents use.
         </p>
       )}
     </div>
@@ -381,7 +381,7 @@ function ToolsList({ items }: { items: ToolItem[] }) {
       </ul>
       {!bridge?.installTool && (
         <p className="text-xs text-ink-500 mt-2 leading-snug">
-          The agent installs anything missing the first time it runs. In the Implexa app you can install these ahead of time with one click.
+          The agent installs anything missing the first time it runs. In the Tukido app you can install these ahead of time with one click.
         </p>
       )}
     </div>
@@ -897,7 +897,7 @@ export function ActivationCard({
           {checklist.requiresLocal && (
             <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-ink-400">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-500 flex-none" aria-hidden />
-              Runs on your computer, in the Implexa app (not on a server).
+              Runs on your computer, in the Tukido app (not on a server).
             </p>
           )}
         </div>
@@ -979,7 +979,7 @@ export function ActivationCard({
             ) : !computerUseSatisfied ? (
               <div className="rounded-md bg-amber-500/10 border border-amber-500/25 px-3 py-2.5">
                 <p className="text-sm text-state-needs font-medium">Active — Mac access needs setup</p>
-                <p className="text-xs text-state-needs mt-0.5 leading-snug">Open Permissions &amp; access above and grant Screen Recording plus Accessibility to Implexa before this agent reaches its web-app step.</p>
+                <p className="text-xs text-state-needs mt-0.5 leading-snug">Open Permissions &amp; access above and grant Screen Recording plus Accessibility to Tukido before this agent reaches its web-app step.</p>
               </div>
             ) : browserCheck ? (
               <div className="rounded-md bg-amber-500/10 border border-amber-500/25 px-3 py-2.5">
@@ -1115,7 +1115,7 @@ export function ActivationCard({
             >
               Set up required Mac access
             </button>
-            <span className="text-xs text-state-needs max-w-md leading-snug">This agent cannot deliver its final output without Screen Recording and Accessibility on this Mac. macOS will identify the requester as Implexa because it launches the local Codex runner.</span>
+            <span className="text-xs text-state-needs max-w-md leading-snug">This agent cannot deliver its final output without Screen Recording and Accessibility on this Mac. macOS will identify the requester as Tukido because it launches the local Codex runner.</span>
           </div>
         ) : (
           <>

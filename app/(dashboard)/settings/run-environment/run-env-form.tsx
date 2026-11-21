@@ -77,7 +77,7 @@ export default function RunEnvForm({
         </p>
         <input
           type="text"
-          placeholder="e.g. Implexa Claude Chrome Connect"
+          placeholder="e.g. Tukido Claude Chrome Connect"
           value={chromeProfile}
           onChange={(e) => setChromeProfile(e.target.value)}
           disabled={saving}

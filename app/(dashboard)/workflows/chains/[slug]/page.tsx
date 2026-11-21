@@ -22,7 +22,7 @@ export default async function ChainOfferingPage({ params }: { params: { slug: st
   if (result.status === 'not_available') notFound();
   if (result.status === 'unavailable') {
     return (
-      <main className="min-h-screen px-4 py-10">
+      <main className="app-page">
         <div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4">
           <h1 className="text-lg font-semibold text-ink-50">Chain unavailable</h1>
           <p role="alert" className="mt-2 text-sm text-state-needs">

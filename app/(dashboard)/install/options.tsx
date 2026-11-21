@@ -50,7 +50,7 @@ claude`;
 
         <ol className="text-sm space-y-2 text-ink-200 list-decimal pl-4 mb-5">
           <li>In Claude: <strong>Settings → Connectors → Add custom connector</strong></li>
-          <li>Name it <strong>Implexa</strong>, paste the URL below (replace the key placeholder with your real key)</li>
+          <li>Name it <strong>Tukido</strong>, paste the URL below (replace the key placeholder with your real key)</li>
           <li>Leave OAuth Client ID / Secret empty. Save.</li>
           <li>28 tools appear in your tool picker.</li>
         </ol>

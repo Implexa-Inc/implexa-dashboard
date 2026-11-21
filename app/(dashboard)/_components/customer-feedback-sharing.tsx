@@ -15,7 +15,7 @@ export default function CustomerFeedbackSharing({issue,ownerId}:{issue:ReviewIss
  async function review(){const expected=identity;await work(async()=>{
   if(!excerpt.trim()||!issue.body.includes(excerpt))throw Error('Keep only the exact part of your saved note that you want to share.');
   const bridge=(window as any).implexaDesktop;
-  if(bridge?.customerContributionEvidenceContractVersion!=='1')throw Error('Update Implexa Desktop to share this saved frame. Your feedback stays private.');
+  if(bridge?.customerContributionEvidenceContractVersion!=='1')throw Error('Update Tukido Desktop to share this saved frame. Your feedback stays private.');
   const value=await bridge.trainingLocal('readCustomerContributionEvidence',{issueId:issue.id,excerpt,expectedOwnerId:ownerId});
   if(!value?.ok)throw Error(value?.reason==='customer_feedback_frame_unavailable'?'The saved frame is not ready yet. Wait a moment, then review again.':'This result has no verified trainer-linked frame to share. Your note stays private.');
   const receipt=value?.receipt,e=receipt?.evidence;

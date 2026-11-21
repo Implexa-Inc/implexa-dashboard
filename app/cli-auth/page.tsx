@@ -106,5 +106,5 @@ export default async function CliAuthPage({ searchParams }: { searchParams: { co
 }
 
 export const metadata = {
-  title: 'Approve CLI login — Implexa',
+  title: 'Approve CLI login — Tukido',
 };

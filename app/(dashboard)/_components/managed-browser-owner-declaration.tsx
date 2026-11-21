@@ -85,7 +85,7 @@ export default function ManagedBrowserOwnerDeclaration({ target }: { target: Own
     {supported ? <div className="mt-2 flex flex-wrap gap-3">
       <button type="button" className="btn-outline text-xs px-2.5 py-1" disabled={busy} onClick={() => void review('declare')}>Review statement</button>
       <button type="button" className="text-xs text-ink-400 underline" disabled={busy} onClick={() => void review('revoke')}>Revoke saved statement</button>
-    </div> : <p className="mt-2 text-xs text-ink-400">Open this Agent in an updated Implexa app to manage its statement.</p>}
+    </div> : <p className="mt-2 text-xs text-ink-400">Open this Agent in an updated Tukido app to manage its statement.</p>}
     {message && <p role="status" className="mt-2 text-xs text-ink-300">{message}</p>}
     <Modal open={open} onClose={close} title={operation === 'declare' ? 'Confirm account statement' : 'Revoke account statement'}>
       {view && <form onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4">

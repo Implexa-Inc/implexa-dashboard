@@ -106,12 +106,12 @@ export default async function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-10">
+    <main className="app-page">
       {/* Refresh the data every 60s in place; cleaned up on navigate-away so it
           never reloads you back to /admin from another tab. */}
       <AutoRefresh seconds={60} />
 
-      <div className="max-w-6xl mx-auto">
+      <div className="app-content">
         <header className="mb-8 flex items-baseline justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Admin</h1>
@@ -396,5 +396,5 @@ function formatDuration(ms: number): string {
 }
 
 export const metadata = {
-  title: 'Admin — Implexa',
+  title: 'Admin — Tukido',
 };

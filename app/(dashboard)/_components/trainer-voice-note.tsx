@@ -25,7 +25,7 @@ export function sameVoiceAttach(value:unknown,expected:VoiceNoteAttach){
  return region.x===wanted.x&&region.y===wanted.y&&region.width===wanted.width&&region.height===wanted.height;
 }
 class VoiceError extends Error{constructor(public reason:string,message:string){super(message);}}
-const voiceMessage=(reason:string)=>reason==='asr_unavailable'?'Voice transcription is unavailable. You can retry this saved note or keep typing.':reason==='no_speech'?"We couldn’t hear anything in this note. Check the selected microphone and record again.":reason==='microphone_unavailable'?'The microphone is unavailable. Check Implexa’s microphone access, then try again.':reason==='transcript_invalid'?"We couldn’t turn this note into text. Record again, or type your feedback.":'The voice note could not be completed. Your typed feedback is unchanged.';
+const voiceMessage=(reason:string)=>reason==='asr_unavailable'?'Voice transcription is unavailable. You can retry this saved note or keep typing.':reason==='no_speech'?"We couldn’t hear anything in this note. Check the selected microphone and record again.":reason==='microphone_unavailable'?'The microphone is unavailable. Check Tukido’s microphone access, then try again.':reason==='transcript_invalid'?"We couldn’t turn this note into text. Record again, or type your feedback.":'The voice note could not be completed. Your typed feedback is unchanged.';
 
 /** The existing trusted recorder owns audio and deletion; only edited text enters feedback. */
 export default function TrainerVoiceNote({ownerId,attach,onInsert,maxLength=600,onDirtyChange,disabled=false}:{ownerId:string;attach:VoiceNoteAttach;onInsert:(text:string)=>void;maxLength?:number;onDirtyChange?:(dirty:boolean)=>void;disabled?:boolean}){
@@ -37,7 +37,7 @@ export default function TrainerVoiceNote({ownerId,attach,onInsert,maxLength=600,
  const events=useRef(new Map<string,VoiceEvent>()),dirtyCallback=useRef(onDirtyChange);dirtyCallback.current=onDirtyChange;
  const bridge=()=>((window as unknown as {implexaDesktop?:VoiceBridge}).implexaDesktop);
  async function call(operation:string,args:Record<string,unknown>){
-  const native=bridge();if(native?.trainerCommentaryContractVersion!=='1'||!native.reviewRecorder)throw new VoiceError('update_required','Update Implexa Desktop to add a voice note.');
+  const native=bridge();if(native?.trainerCommentaryContractVersion!=='1'||!native.reviewRecorder)throw new VoiceError('update_required','Update Tukido Desktop to add a voice note.');
   const result=await native.reviewRecorder(operation,{...args,expectedOwnerId:ownerId});
   if(!result?.ok)throw new VoiceError(result?.reason||'recorder_failed',voiceMessage(result?.reason));return result;
  }

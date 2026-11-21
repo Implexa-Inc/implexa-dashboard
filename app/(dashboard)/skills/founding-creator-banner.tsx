@@ -57,7 +57,7 @@ export default async function FoundingCreatorBanner({ userId }: { userId: string
             </div>
             <p className="text-sm text-ink-200 leading-relaxed mb-3">
               You captured your first skill <em>and</em> shared it — the killer feature of
-              Implexa. You unlocked: <strong>unlimited captures (no 5/month cap)</strong>, the
+              Tukido. You unlocked: <strong>unlimited captures (no 5/month cap)</strong>, the
               Founding Creator badge on every skill you share, and your <strong>first seat on Pro free forever</strong> when we launch the Pro tier.
             </p>
             <div className="flex flex-wrap gap-3 items-baseline">
@@ -102,7 +102,7 @@ export default async function FoundingCreatorBanner({ userId }: { userId: string
           </div>
 
           <Link href="/install" className="text-xs text-action-accent hover:underline font-medium">
-            Don&apos;t have Implexa installed yet? Set it up in 30 seconds →
+            Don&apos;t have Tukido installed yet? Set it up in 30 seconds →
           </Link>
         </div>
       </div>

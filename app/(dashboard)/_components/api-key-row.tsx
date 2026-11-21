@@ -172,7 +172,7 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
   // Open the LOCAL key-entry window (the value is typed there, never here), then
   // re-check keysConfigured on the keys:changed event and flip the step to done.
   const addKey = async () => {
-    if (!bridge?.openKeySetup) { setNote('Open the Implexa desktop app to add your key.'); return; }
+    if (!bridge?.openKeySetup) { setNote('Open the Tukido desktop app to add your key.'); return; }
     setNote(null);
     const r = await bridge.openKeySetup(item.provider, slug);
     if (!r.ok) { setNote(r.error === 'vault_unavailable' ? 'This Mac can’t store keys securely (keychain unavailable).' : (r.error || 'Could not open key entry.')); return; }
@@ -229,11 +229,11 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
               know, and make re-checking one click. */}
           {verifyUnknown && !awaiting && (
             <p className="text-xs text-ink-500 mt-0.5 leading-snug">
-              Couldn’t reach the Implexa app to check access.{' '}
+              Couldn’t reach the Tukido app to check access.{' '}
               <button type="button" onClick={checkGrant} className="text-action-accent hover:underline">Check again</button>
             </p>
           )}
-          {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to confirm in the Implexa window — closed it? Hit Reopen.</p>}
+          {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to confirm in the Tukido window — closed it? Hit Reopen.</p>}
         </div>
         {/* Shown until this agent is actually READY (saved AND allowed) — not
             merely until a key exists somewhere. Gating on item.configured alone
@@ -263,7 +263,7 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
                   {awaiting ? 'Reopen' : ((needsGrantOnly || verifyUnknown) ? 'Use saved key' : 'Add key')}
                 </button>
               )
-              : <span className="text-[11px] text-ink-500">Add it in the Implexa app</span>}
+              : <span className="text-[11px] text-ink-500">Add it in the Tukido app</span>}
           </div>
         )}
       </div>
@@ -281,7 +281,7 @@ export function KeysList({ items, slug, trustLine, onChanged }: { items: KeyItem
       </ul>
       {!bridge?.openKeySetup && (
         <p className="text-xs text-ink-500 mt-2 leading-snug">
-          Keys are stored locally on your Mac by the Implexa desktop app — open the app to add one. The agent still activates now; a key-dependent step will pause until it’s set.
+          Keys are stored locally on your Mac by the Tukido desktop app — open the app to add one. The agent still activates now; a key-dependent step will pause until it’s set.
         </p>
       )}
     </div>
@@ -359,7 +359,7 @@ export function InlineAddKeyButton({ provider, slug }: { provider: string; slug:
   // whether to ask for a paste or only for authorization (it reads the same two
   // booleans from main, which is the authority) — the remote page never does.
   const openLocal = async () => {
-    if (!bridge?.openKeySetup) { setNote('Open the Implexa desktop app to add your key.'); return; }
+    if (!bridge?.openKeySetup) { setNote('Open the Tukido desktop app to add your key.'); return; }
     setNote(null);
     const r = await bridge.openKeySetup(provider, slug);
     if (!r.ok) { setNote(r.error === 'vault_unavailable' ? 'Keychain unavailable on this Mac.' : (r.error || 'Could not open key entry.')); return; }
@@ -384,7 +384,7 @@ export function InlineAddKeyButton({ provider, slug }: { provider: string; slug:
       type="button"
       onClick={openLocal}
       title={awaiting
-        ? 'Waiting for you to confirm in the Implexa window. Closed it? Click to reopen.'
+        ? 'Waiting for you to confirm in the Tukido window. Closed it? Click to reopen.'
         : (saved ? 'Your key is already saved — this only allows this agent to use it.' : undefined)}
       className={`btn-outline flex-none text-xs whitespace-nowrap px-2.5 py-1 ${awaiting ? 'text-ink-500' : 'text-action-accent'}`}
     >

@@ -27,7 +27,7 @@ async function setup({native=context,reply=suggestion,providerFails=false,applyF
 }
 test('marked-frame teaching preserves run provenance and uses one visible batch confirmation before Apply',async()=>{
  const {r,calls,nativeCalls,applied}=await setup();try{
-  await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('Implexa suggests: avoid this'));
+  await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('Tukido suggests: avoid this'));
   assert.equal(nativeCalls[0].operation,'readReviewMarkEvidence');assert.equal(nativeCalls[0].args.issueId,issue.id);assert.equal(nativeCalls[0].args.reviewSessionId,issue.sessionId);
   assert.equal(button(r,'Apply selected lesson').disabled,false);assert.equal(calls.some(c=>c.url.includes('operation=apply')),false);
   await r.click(button(r,'Apply selected lesson'));assert.equal(r.document.querySelectorAll('[role="dialog"]').length,1);assert.equal(calls.some(c=>c.url.includes('operation=apply')),false);assert.match(r.document.querySelector('[role="dialog"]')?.textContent||'',/Sent for revision/);assert.match(r.document.querySelector('[role="dialog"]')?.textContent||'',/Use a spatial explanation here/);await r.click(button(r,'Apply these lessons as shown'));await flush(r,()=>applied.length===1);
@@ -36,8 +36,8 @@ test('marked-frame teaching preserves run provenance and uses one visible batch 
  }finally{r.cleanup();}
 });
 test('reopening a saved proposal revalidates its PNG and skips the model call',async()=>{
- const first=await setup();let saved:any[]=[];try{await first.r.click(button(first.r,'Extract training'));await flush(first.r,()=>first.r.text().includes('Implexa suggests: avoid this'));saved=Object.entries(first.r.window.localStorage);}finally{first.r.cleanup();}
- const second=await setup({initialJournal:saved});try{await second.r.click(button(second.r,'Extract training'));await flush(second.r,()=>second.r.text().includes('Implexa suggests: avoid this'));assert.equal(second.calls.filter(c=>c.url.includes('teaching-suggestion')).length,0);assert.ok(second.nativeCalls.length>=1);}finally{second.r.cleanup();}
+ const first=await setup();let saved:any[]=[];try{await first.r.click(button(first.r,'Extract training'));await flush(first.r,()=>first.r.text().includes('Tukido suggests: avoid this'));saved=Object.entries(first.r.window.localStorage);}finally{first.r.cleanup();}
+ const second=await setup({initialJournal:saved});try{await second.r.click(button(second.r,'Extract training'));await flush(second.r,()=>second.r.text().includes('Tukido suggests: avoid this'));assert.equal(second.calls.filter(c=>c.url.includes('teaching-suggestion')).length,0);assert.ok(second.nativeCalls.length>=1);}finally{second.r.cleanup();}
 });
 test('mismatched evidence and unsupported example relations cannot become teaching',async()=>{
  for(const options of [{native:{...context,binding:{...binding,artifactSha256:sha('other')}}},{reply:{...suggestion,scopeSuggestion:{...suggestion.scopeSuggestion,relation:'contrast'}}}]){
@@ -48,16 +48,16 @@ test('an interrupted extraction is not silently re-sent after reopening',async()
  const {r,calls,props}=await setup({providerFails:true});try{await r.click(button(r,'Extract training'));await flush(r,()=>!!r.document.querySelector('[role="alert"]'));await r.rerender({...props,requests:null});await r.rerender(props);await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('Drafting was interrupted'));assert.equal(calls.filter(c=>c.url.includes('teaching-suggestion')).length,1);}finally{r.cleanup();}
 });
 test('uncertain Apply retries the exact same receipt identity and cannot change its fields',async()=>{
- const {r,calls,applied}=await setup({applyFails:true});try{await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('Implexa suggests: avoid this'));await r.click(button(r,'Apply selected lesson'));await r.click(button(r,'Apply these lessons as shown'));await flush(r,()=>!!button(r,'Confirm pending Apply'));await r.click(button(r,'Confirm pending Apply'));await flush(r,()=>applied.length===1);const writes=calls.filter(c=>c.url.includes('operation=apply'));assert.equal(writes.length,2);assert.deepEqual(writes[0].body,writes[1].body);assert.equal(writes[0].init.headers['Idempotency-Key'],writes[1].init.headers['Idempotency-Key']);}finally{r.cleanup();}
+ const {r,calls,applied}=await setup({applyFails:true});try{await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('Tukido suggests: avoid this'));await r.click(button(r,'Apply selected lesson'));await r.click(button(r,'Apply these lessons as shown'));await flush(r,()=>!!button(r,'Confirm pending Apply'));await r.click(button(r,'Confirm pending Apply'));await flush(r,()=>applied.length===1);const writes=calls.filter(c=>c.url.includes('operation=apply'));assert.equal(writes.length,2);assert.deepEqual(writes[0].body,writes[1].body);assert.equal(writes[0].init.headers['Idempotency-Key'],writes[1].init.headers['Idempotency-Key']);}finally{r.cleanup();}
 });
 
 test('owner can correct the example relation without rewriting the model proposal',async()=>{
  const {r,calls,applied}=await setup();try{
-  await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('Implexa suggests: avoid this'));
+  await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('Tukido suggests: avoid this'));
   await r.click(button(r,'Review'));
   const selector=r.document.querySelector('[aria-label="How to use this example"]') as HTMLSelectElement;
   await r.act(()=>{selector.value='accepted';selector.dispatchEvent(new r.window.Event('change',{bubbles:true}));});
-  assert.match(r.text(),/Implexa suggested: avoid this example. You changed it to: keep this example/);assert.match(r.text(),/Your choice: keep this/);
+  assert.match(r.text(),/Tukido suggested: avoid this example. You changed it to: keep this example/);assert.match(r.text(),/Your choice: keep this/);
   const stored=JSON.parse(Object.values(r.window.localStorage)[0] as string);assert.equal(stored.suggestion.scopeSuggestion.relation,'rejected');assert.equal(stored.ownerRelationOverride,'accepted');
   await r.click(button(r,'Apply selected lesson'));assert.match(r.text(),/Your choice: keep this/);await r.click(button(r,'Apply these lessons as shown'));await flush(r,()=>applied.length===1);
   assert.equal(calls.find(c=>c.url.includes('operation=apply')).body.relation,'accepted');
@@ -86,7 +86,7 @@ test('Done teaching drafts two notes separately and applies them through one sha
  const {r,calls,applied}=await setupBatch();try{
   assert.match(r.text(),/Extract training from 2 notes/);await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('2 selected')&&r.text().includes('ready to review'));
   const drafts=calls.filter(call=>call.url.includes('teaching-suggestion'));assert.equal(drafts.length,2);assert.deepEqual(drafts.map(call=>call.body.issueId),[issue.id,U(12)]);assert.equal(drafts.every(call=>typeof call.body.image==='string'&&!Array.isArray(call.body.image)),true);
-  assert.equal(calls.some(call=>call.url.includes('operation=apply')),false);await r.click(button(r,'Apply 2 selected lessons'));assert.equal(r.document.querySelectorAll('[role="dialog"]').length,1);assert.match(r.text(),/Suggested by Implexa/);
+  assert.equal(calls.some(call=>call.url.includes('operation=apply')),false);await r.click(button(r,'Apply 2 selected lessons'));assert.equal(r.document.querySelectorAll('[role="dialog"]').length,1);assert.match(r.text(),/Suggested by Tukido/);
   await r.click(button(r,'Apply these lessons as shown'));await flush(r,()=>applied.length===1);assert.equal(calls.filter(call=>call.url.includes('operation=apply')).length,2);assert.match(r.text(),/2 lessons saved/);
   assert.equal(calls.some(call=>/accept|submit|revision|demo-annotation/.test(call.url)),false);
  }finally{r.cleanup();}

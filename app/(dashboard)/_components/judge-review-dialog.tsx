@@ -207,9 +207,9 @@ function JudgeReviewModal({
           <div>
             <div className="flex items-center gap-2">
               <h2 id="judge-review-title" className="text-sm font-semibold text-ink-50">{who}</h2>
-              <span className="text-[10px] uppercase tracking-wide rounded border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-state-needs">Implexa Judge</span>
+              <span className="text-[10px] uppercase tracking-wide rounded border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-state-needs">Tukido Judge</span>
             </div>
-            <p className="text-xs text-ink-400 mt-0.5">Implexa Judge found something that needs your attention.</p>
+            <p className="text-xs text-ink-400 mt-0.5">Tukido Judge found something that needs your attention.</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="text-ink-500 hover:text-ink-300 text-lg leading-none flex-none">×</button>
         </div>

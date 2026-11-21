@@ -75,7 +75,7 @@ export default function ChainOfferingResume({ offering }: { offering: ChainOffer
   const acquired = installed && offering.acquisition?.authority === 'exact';
   const upgradeRequired = installed && offering.acquisition?.authority === 'upgrade_required';
   return (
-    <main className="min-h-screen px-4 py-10"><article className="mx-auto max-w-4xl">
+    <main className="app-page agent-resume-page"><article className="app-content">
       <Link href="/workflows" className="text-sm text-ink-500 hover:text-ink-200">← Agents</Link>
       <header className="mt-6 border-b border-ink-800 pb-7">
         <div className="flex flex-wrap items-start justify-between gap-5">
@@ -124,7 +124,7 @@ export default function ChainOfferingResume({ offering }: { offering: ChainOffer
             </li>
           ))}
         </ol>
-        <p className="mt-3 text-xs text-ink-500">Evidence is counted separately per component and per source. Implexa does not combine them into a score, rating, or rank.</p>
+        <p className="mt-3 text-xs text-ink-500">Evidence is counted separately per component and per source. Tukido does not combine them into a score, rating, or rank.</p>
       </section>
 
       <div className="grid gap-8 border-t border-ink-800 py-7 md:grid-cols-2">

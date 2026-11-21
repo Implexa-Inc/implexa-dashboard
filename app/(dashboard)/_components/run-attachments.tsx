@@ -203,7 +203,7 @@ export function useRunAttachments() {
   async function attachFolder() {
     const bridge = desktopBridge();
     if (!bridge?.pickDirectory) {
-      setError('Open this run in the Implexa desktop app to attach a folder.');
+      setError('Open this run in the Tukido desktop app to attach a folder.');
       return;
     }
     setError(null);
@@ -235,11 +235,11 @@ export function useRunAttachments() {
 export function describeFolderAttachError(code: string | undefined): string {
   switch (code) {
     case 'forbidden':
-      return 'Implexa Desktop would not accept this page. Open this run from the Implexa desktop app window and try again.';
+      return 'Tukido Desktop would not accept this page. Open this run from the Tukido desktop app window and try again.';
     case 'folder_picker_failed':
-      return 'Implexa Desktop could not open a folder picker. Try again, or attach the files individually.';
+      return 'Tukido Desktop could not open a folder picker. Try again, or attach the files individually.';
     case 'bridge_unavailable':
-      return 'Implexa Desktop did not respond. Make sure it is running, then try again.';
+      return 'Tukido Desktop did not respond. Make sure it is running, then try again.';
     default:
       return `Could not attach that folder (${code}). Try again, or attach the files individually.`;
   }
@@ -265,7 +265,7 @@ export function AttachFiles({
           type="button"
           onClick={onAttach}
           disabled={!canAttach || files.length >= MAX_RUN_FILES}
-          title={canAttach ? 'Attach a screenshot or file for this run' : 'Attach files in the Implexa desktop app'}
+          title={canAttach ? 'Attach a screenshot or file for this run' : 'Attach files in the Tukido desktop app'}
           className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 text-ink-300 px-2.5 py-1.5 text-xs hover:border-ink-500 hover:text-ink-100 transition-colors disabled:opacity-40 disabled:hover:border-ink-700 disabled:hover:text-ink-300"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">

@@ -81,7 +81,7 @@ export default function AccountForm({
     <div className="space-y-6">
       {typeof desktop?.openSetup === 'function' && <section className="card">
         <h2 className="text-base font-medium text-ink-50 mb-1">Desktop account</h2>
-        <p className="text-xs text-ink-300 mb-4">Link or switch the account Implexa uses on this Mac.</p>
+        <p className="text-xs text-ink-300 mb-4">Link or switch the account Tukido uses on this Mac.</p>
         <button type="button" className="btn-outline" disabled={desktopSetupOpening} onClick={openDesktopSetup}>
           {desktopSetupOpening ? 'Opening…' : 'Open Desktop setup'}
         </button>
@@ -158,7 +158,7 @@ export default function AccountForm({
           Account deletion is currently white-glove — email us and we&apos;ll handle it within 1 business day.
           You can also export your captured skills first via your dashboard.
         </p>
-        <a href={`mailto:support@implexa.ai?subject=${encodeURIComponent('Delete my Implexa account')}&body=${encodeURIComponent(`Please delete my account: ${currentEmail}`)}`}
+        <a href={`mailto:support@implexa.ai?subject=${encodeURIComponent('Delete my Tukido account')}&body=${encodeURIComponent(`Please delete my account: ${currentEmail}`)}`}
            className="text-xs text-state-fail hover:underline">
           Email support to delete →
         </a>

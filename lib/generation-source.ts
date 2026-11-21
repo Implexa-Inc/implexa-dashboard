@@ -163,13 +163,13 @@ export const SOURCE_STATE_COPY: Record<Exclude<GenerationSourceState['state'], '
   title: string; body: string; action: string | null;
 }> = {
   needs_verification: {
-    title: "Implexa needs to check this video's length before generating.",
-    body: 'Paid generation is bounded by the length of the source video, and only Implexa Desktop can measure it — it reads the file on your Mac, which the web app cannot. Open Implexa Desktop with this run and it will verify the video, then reload this page.',
-    action: 'Open Implexa Desktop to verify this video’s duration.',
+    title: "Tukido needs to check this video's length before generating.",
+    body: 'Paid generation is bounded by the length of the source video, and only Tukido Desktop can measure it — it reads the file on your Mac, which the web app cannot. Open Tukido Desktop with this run and it will verify the video, then reload this page.',
+    action: 'Open Tukido Desktop to verify this video’s duration.',
   },
   ambiguous: {
     title: 'This run has more than one final video.',
-    body: 'Choose which one your B-roll is being cut into. Implexa will not pick for you: the moments you place are bounded by the length of the source, and the two files may not be the same length.',
+    body: 'Choose which one your B-roll is being cut into. Tukido will not pick for you: the moments you place are bounded by the length of the source, and the two files may not be the same length.',
     action: null,
   },
   ineligible: {
@@ -178,7 +178,7 @@ export const SOURCE_STATE_COPY: Record<Exclude<GenerationSourceState['state'], '
     action: null,
   },
   unavailable: {
-    title: "Implexa couldn't verify this run's video.",
+    title: "Tukido couldn't verify this run's video.",
     body: 'The artifact check is unavailable right now. Reload before preparing paid generation — nothing should be approved from this state.',
     action: null,
   },

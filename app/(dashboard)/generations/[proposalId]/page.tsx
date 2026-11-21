@@ -46,7 +46,7 @@ export default async function GenerationProposalPage({ params }: { params: { pro
       <div className="mx-auto w-full max-w-3xl px-4 py-16 text-center">
         <h1 className="text-lg font-medium text-ink-100">This proposal doesn&apos;t exist.</h1>
         <p className="mt-2 text-sm text-ink-400">
-          Implexa has no generation proposal with this id for your account.
+          Tukido has no generation proposal with this id for your account.
         </p>
       </div>
     );

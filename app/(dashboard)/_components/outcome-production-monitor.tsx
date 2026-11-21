@@ -271,7 +271,7 @@ export default function OutcomeProductionMonitor({
             type="button"
             onClick={stopProduction}
             disabled={stopping}
-            className="rounded-lg bg-red-500/90 text-ink-950 px-4 py-2 text-sm font-medium hover:bg-red-400 disabled:opacity-50"
+            className="rounded-lg bg-action-danger text-[var(--on-action-danger)] px-4 py-2 text-sm font-medium hover:bg-action-danger-hover disabled:opacity-50"
           >
             {stopping ? 'Stopping…' : 'Stop production'}
           </button>

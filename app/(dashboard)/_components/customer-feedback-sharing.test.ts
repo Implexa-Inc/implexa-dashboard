@@ -23,7 +23,7 @@ test('customer reviews exact note and frame before explicit sharing; retries pre
 });
 test('missing Desktop route leaves feedback private and makes zero share requests',async()=>{
  let calls=0;const r=await render('customer-feedback-sharing.tsx',{issue,ownerId:U(1)},{fetch:(async()=>{calls++;throw Error('must not share');}) as typeof fetch});
- try{await r.click(r.getByText('Suggest an improvement to the trainer'));await r.click(r.getByText('Review what will be shared'));assert.match(r.text(),/Update Implexa Desktop/);assert.equal(calls,0);assert.equal(r.queryByText('Share with the trainer'),null);}finally{r.cleanup();}
+ try{await r.click(r.getByText('Suggest an improvement to the trainer'));await r.click(r.getByText('Review what will be shared'));assert.match(r.text(),/Update Tukido Desktop/);assert.equal(calls,0);assert.equal(r.queryByText('Share with the trainer'),null);}finally{r.cleanup();}
 });
 
 test('switching annotations while native preview is pending does not leave the new note busy',async()=>{

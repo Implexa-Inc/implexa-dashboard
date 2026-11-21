@@ -28,7 +28,7 @@ export default async function LocalVaultPage() {
   if (!session?.user) redirect('/login');
 
   return (
-    <main className="min-h-screen px-4 py-12">
+    <main className="app-page">
       <div className="max-w-2xl mx-auto">
         <nav className="text-xs text-ink-500 mb-4">
           <Link href="/settings" className="hover:underline">← Settings</Link>
@@ -40,7 +40,7 @@ export default async function LocalVaultPage() {
               Never claim agents structurally cannot see keys — that is the v2
               capability proxy, which does not exist yet. */}
           <p className="text-ink-300 text-sm mt-2 leading-relaxed">
-            Your keys are encrypted on this Mac. Implexa doesn&apos;t upload them.
+            Your keys are encrypted on this Mac. Tukido doesn&apos;t upload them.
             Agents you approve can use them locally to call the provider.
           </p>
         </header>
@@ -52,5 +52,5 @@ export default async function LocalVaultPage() {
 }
 
 export const metadata = {
-  title: 'Local key vault — Implexa',
+  title: 'Local key vault — Tukido',
 };

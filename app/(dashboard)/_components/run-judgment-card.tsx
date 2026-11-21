@@ -77,11 +77,11 @@ export function RunJudgmentCard({
     : repair.phase === 'queued' || repair.phase === 'running' ? 'Repairing'
     : 'Needs review';
   return (
-    <section className={`mb-6 rounded-xl border ${s.border} ${s.bg} px-4 py-4`} aria-label="Implexa Judge result">
+    <section className={`mb-6 rounded-xl border ${s.border} ${s.bg} px-4 py-4`} aria-label="Tukido Judge result">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-sm font-semibold text-ink-100">Implexa Judge</h2>
+            <h2 className="text-sm font-semibold text-ink-100">Tukido Judge</h2>
             <span className={`text-xs font-medium ${s.text}`}>{verdictLabel}</span>
           </div>
           <p className="text-sm text-ink-300 mt-2 leading-relaxed whitespace-pre-wrap">{judgment.summary}</p>
@@ -141,7 +141,7 @@ export function RunJudgmentCard({
       {(judgment.verdict === 'blocked' || judgment.verdict === 'uncertain') && (
         <div className="mt-3 rounded-lg border border-orange-500/25 bg-orange-500/5 px-3 py-2.5">
           <div className="text-[10px] uppercase tracking-wide text-state-needs mb-1">Human action required</div>
-          <p className="text-xs text-ink-300">Implexa stopped the loop instead of guessing or repeating a consequential action. Review the reason above, then continue when ready.</p>
+          <p className="text-xs text-ink-300">Tukido stopped the loop instead of guessing or repeating a consequential action. Review the reason above, then continue when ready.</p>
         </div>
       )}
 

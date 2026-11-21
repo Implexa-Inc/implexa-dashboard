@@ -54,7 +54,7 @@ export function GuidedPublicationReview({open,value,busy=false,error='',onClose,
    <button type="button" className="btn-outline" disabled={unavailable||!value.publication.canPrepare} onClick={()=>work(prepare)}>Prepare exact public preview</button>
    {preview&&<section className="space-y-4 rounded-xl border border-ink-700 p-4" aria-label="Exact public snapshot">
     <div><h3 className="font-medium">{preview.definition.name}</h3><p className="mt-2 text-ink-400">{preview.definition.description}</p></div>
-    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-sm text-state-needs">This selection includes text guidance. Customers need Codex and Implexa Desktop 0.4.160 or newer to run it; Claude execution is not supported for this teaching format yet.</p>}
+    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-sm text-state-needs">This selection includes text guidance. Customers need Codex and Tukido Desktop 0.4.160 or newer to run it; Claude execution is not supported for this teaching format yet.</p>}
     <div className="space-y-2" aria-label="Changes for customers"><h4 className="font-medium">What changes for customers</h4>
      <p>{preview.publicationDelta.definitionChanged?'The public definition changes.':'The public definition stays the same.'}</p>
      <p>{preview.publicationDelta.changes.filter(c=>c.change==='added').length} added · {preview.publicationDelta.changes.filter(c=>c.change==='removed').length} removed · {preview.publicationDelta.changes.filter(c=>c.change==='changed').length} changed · {preview.publicationDelta.changes.filter(c=>c.change==='unchanged').length} unchanged teachings.</p>
@@ -71,7 +71,7 @@ export function GuidedPublicationReview({open,value,busy=false,error='',onClose,
     {!preview.canPublish&&<><p className="text-ink-400">{trainingSnapshotReason(preview.reason)}</p>
      <button type="button" className="btn-outline" disabled={unavailable} onClick={()=>work(()=>onTest(preview))}>Test this public version</button></>}
     {preview.canPublish&&<p className="text-state-ok">A delivered test matches this exact public material.</p>}
-    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-xs text-ink-400">Testing this text guidance currently requires Codex and Implexa Desktop 0.4.160 or newer, through the prepared Run now path.</p>}
+    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-xs text-ink-400">Testing this text guidance currently requires Codex and Tukido Desktop 0.4.160 or newer, through the prepared Run now path.</p>}
     <label className="flex items-start gap-3"><input type="checkbox" className="mt-1" checked={consent} disabled={unavailable} onChange={e=>setConsent(e.target.checked)}/>
      <span>I reviewed this definition, the selected guidance and examples, and the additions, changes and removals listed above. I release this exact public version for customers. Raw feedback and recordings stay private.</span></label>
     <button type="button" className="btn-primary" disabled={unavailable||!preview.canPublish||!consent} onClick={()=>work(async()=>{const captured=identity;if(await onPublish(preview)&&current.current===captured){setNote('This exact tested public version is published.');setConsent(false);}})}>Publish tested public version</button>
@@ -98,7 +98,7 @@ export default function PublisherTeachingRelease({slug,versionId:activeVersionId
  const current=useRef(versionId);current.current=versionId;const pending=useRef(false);
  useEffect(()=>{setItems([]);setListVersion(null);setSelected(null);setPreview(null);setStoreConsent(false);setReleaseConsent(false);setForkPreview(null);setForkGrants([]);setForkConsent(false);setScopePreview(null);setScopeConsent(false);},[slug,versionId]);
  const bridge=()=>{const b=(window as unknown as {implexaDesktop?:Bridge}).implexaDesktop;
-  if(!b?.trainingLocal||b.trainingEvidenceStorageContractVersion!=='1')throw Error('Open updated Implexa Desktop on the source machine to prepare this teaching.');return b;};
+  if(!b?.trainingLocal||b.trainingEvidenceStorageContractVersion!=='1')throw Error('Open updated Tukido Desktop on the source machine to prepare this teaching.');return b;};
  const work=async(fn:()=>Promise<void>)=>{if(pending.current)return;pending.current=true;setBusy(true);setError('');setNote('');try{await fn();}catch(e){setError(e instanceof Error?e.message:'Teaching release is unavailable.');}finally{pending.current=false;setBusy(false);}};
  const request=async(body:unknown=null)=>{const response=await fetch(`/api/agent-training/teaching-releases?slug=${encodeURIComponent(slug)}&versionId=${encodeURIComponent(versionId||'')}`,{
   method:body?'POST':'GET',cache:'no-store',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});
@@ -223,7 +223,7 @@ export default function PublisherTeachingRelease({slug,versionId:activeVersionId
   {selected&&<div className="rounded border border-brand-500 p-3 space-y-3"><h3>Exact teaching proposed for customer release</h3><img src={selected.image} alt="Exact admitted teaching proposed for release" className="w-full"/>
    <dl>{Object.entries(selected.item.decision).map(([key,value])=><div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}</dl>
    <pre className="whitespace-pre-wrap break-all text-sm">{JSON.stringify(preview?.projection||selected.item.projection,null,2)}</pre>
-   {!selected.item.storage&&<><label><input type="checkbox" disabled={busy} checked={storeConsent} onChange={e=>setStoreConsent(e.target.checked)}/>Store this exact teaching image privately in Implexa, under its existing expiry. This alone does not release it.</label><button disabled={busy||!storeConsent} onClick={()=>work(store)}>Save exact image privately</button></>}
+   {!selected.item.storage&&<><label><input type="checkbox" disabled={busy} checked={storeConsent} onChange={e=>setStoreConsent(e.target.checked)}/>Store this exact teaching image privately in Tukido, under its existing expiry. This alone does not release it.</label><button disabled={busy||!storeConsent} onClick={()=>work(store)}>Save exact image privately</button></>}
    {selected.item.storage&&<button disabled={busy} onClick={()=>work(prepare)}>Prepare exact release preview</button>}
    {preview&&<><p>Delivery: on question only. Released image expires {preview.receipt.retentionUntil}. Release receipt {preview.releaseDigest}.</p>
     <label><input type="checkbox" disabled={busy} checked={releaseConsent} onChange={e=>setReleaseConsent(e.target.checked)}/>I reviewed this exact image and guidance and release them to installed customers of this public agent version.</label>

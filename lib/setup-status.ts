@@ -78,21 +78,21 @@ export const STATUS_PRESENTATION: Record<SetupStatus, { dot: string; label: stri
   active: {
     dot:     'bg-success-400',
     label:   'Active',
-    tooltip: 'Implexa is connected and active in your Claude.',
+    tooltip: 'Tukido is connected and active in your Claude.',
   },
   idle: {
     dot:     'bg-success-400/50',
     label:   'Idle',
-    tooltip: "Implexa is connected, but we haven't seen recent activity (>24h).",
+    tooltip: "Tukido is connected, but we haven't seen recent activity (>24h).",
   },
   stale: {
     dot:     'bg-amber-400',
     label:   'Stale',
-    tooltip: 'Implexa was set up >30 days ago. Reinstall if commands stopped working.',
+    tooltip: 'Tukido was set up >30 days ago. Reinstall if commands stopped working.',
   },
   never: {
     dot:     'bg-red-400',
     label:   'Claude not connected',
-    tooltip: "We haven't seen your Claude talk to Implexa yet. Click to set up.",
+    tooltip: "We haven't seen your Claude talk to Tukido yet. Click to set up.",
   },
 };

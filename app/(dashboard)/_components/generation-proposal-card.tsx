@@ -111,7 +111,7 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
       setFlight((s) => settleApproval(s, 'retryable_error'));
       router.refresh();
     } catch {
-      setError('We could not reach Implexa to approve this. Nothing is known to have been authorized — try again.');
+      setError('We could not reach Tukido to approve this. Nothing is known to have been authorized — try again.');
       setFlight((s) => settleApproval(s, 'retryable_error'));
     }
   }, [flight, ref, vm, router]);
@@ -133,7 +133,7 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
       setError('We could not confirm whether this cancellation went through. Reload to see the current state.');
       router.refresh();
     } catch {
-      setError('We could not reach Implexa to cancel this.');
+      setError('We could not reach Tukido to cancel this.');
     } finally { setCancelBusy(false); }
   }, [vm.proposalId, router]);
 

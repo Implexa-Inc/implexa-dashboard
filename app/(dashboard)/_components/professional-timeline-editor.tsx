@@ -79,7 +79,7 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
           <span className="mt-0.5 block text-[11px] text-ink-600">
             {capability
               ? `${capability.strengths.join(', ')} · ${DEFAULT_RATIO}`
-              : 'No verified rate for this engine in this build — Implexa will supply the figures.'}
+              : 'No verified rate for this engine in this build — Tukido will supply the figures.'}
           </span>
         </p>
       </header>

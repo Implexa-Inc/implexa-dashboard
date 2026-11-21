@@ -101,7 +101,7 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
         <h2 className="text-lg font-medium">Join your team?</h2>
         <p className="text-sm text-ink-500 mt-1">
           <strong>{suggestion.memberCount} member{suggestion.memberCount === 1 ? '' : 's'}</strong> from your domain
-          already use Implexa in the <strong>{suggestion.organizationName}</strong> workspace.
+          already use Tukido in the <strong>{suggestion.organizationName}</strong> workspace.
         </p>
       </div>
 

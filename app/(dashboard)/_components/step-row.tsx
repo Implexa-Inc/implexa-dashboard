@@ -42,6 +42,8 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const firstSentence=step.label.split(/(?<=[.!?])\s+/)[0]||step.label;
+  const displayLabel=firstSentence.length>140?`${firstSentence.slice(0,140).trim()}…`:firstSentence;
   const bound = step.ref && !step.gap;
   const isAgent = step.kind === 'workflow';
   const isOrg = bound && step.ref && step.ref.source === 'org';
@@ -63,6 +65,9 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
         </span>
       </div>
       <div className="min-w-0">
+        <details className="agent-step-details">
+          <summary className="cursor-pointer text-sm text-ink-100">{displayLabel||`Step ${step.order}`}</summary>
+          <div className="mt-3">
         <div className="flex items-center gap-2 mb-0.5">
           {step.kind !== 'skill' && (
             <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">{step.kind}</span>
@@ -129,6 +134,8 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
             ))}
           </ul>
         ) : null}
+          </div>
+        </details>
       </div>
 
       {bound && step.ref && (

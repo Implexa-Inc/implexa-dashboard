@@ -47,8 +47,8 @@ export default async function ChainsPage() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-4xl mx-auto">
+    <main className="app-page">
+      <div className="app-content">
         <header className="mb-7">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Agent Chains</h1>
           <p className="text-ink-300 text-sm mt-1">
@@ -70,4 +70,4 @@ export default async function ChainsPage() {
   );
 }
 
-export const metadata = { title: 'Agent Chains — Implexa' };
+export const metadata = { title: 'Agent Chains — Tukido' };

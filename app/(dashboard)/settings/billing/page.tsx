@@ -57,7 +57,7 @@ export default async function BillingPage() {
   const isFoundingCreator = !!profile?.founding_creator_unlocked_at;
 
   return (
-    <main className="min-h-screen px-4 py-12">
+    <main className="app-page">
       <div className="max-w-2xl mx-auto">
         <nav className="text-xs text-ink-500 mb-4">
           <Link href="/settings" className="hover:underline">← Settings</Link>

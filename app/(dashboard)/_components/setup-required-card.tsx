@@ -77,9 +77,9 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
         const bridgeMachine = native.executionMachineId ? await native.executionMachineId().catch(() => null) : null;
         if (!machineId || !bridgeMachine || bridgeMachine === machineId) {
           const r = await native.recheckMachineCapabilities().catch(() => ({ ok: false, reason: 'recheck_failed' }));
-          if (!r.ok) setNote('The Implexa app could not re-check this computer. Make sure it is signed in, then try again.');
+          if (!r.ok) setNote('The Tukido app could not re-check this computer. Make sure it is signed in, then try again.');
         } else {
-          setNote(`This check is for ${machineCopy(current)}. Open Implexa on that computer to re-probe it; its last report is used here.`);
+          setNote(`This check is for ${machineCopy(current)}. Open Tukido on that computer to re-probe it; its last report is used here.`);
         }
       }
       if (admittedRef.current) return;
@@ -103,7 +103,7 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
         await onAdmitted(machineId);
         return;
       }
-      setNote('Implexa could not confirm readiness. Try again in a moment.');
+      setNote('Tukido could not confirm readiness. Try again in a moment.');
     } catch (e) {
       const next = parseSetupRequired(e);
       if (next) { setCurrent(next); return; }
@@ -120,7 +120,7 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
     // The real agent, frozen version and selected machine — never a guessed
     // path. If nothing names the agent, say so instead of navigating.
     if (!target) {
-      setNote('Implexa could not tell which agent this setup is for. Open the agent’s page and run it from there to see its setup.');
+      setNote('Tukido could not tell which agent this setup is for. Open the agent’s page and run it from there to see its setup.');
       return;
     }
     if (inApp) { router.push(target.path); return; }
@@ -156,13 +156,13 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
         <p className="mt-2 text-xs text-ink-500">Only optional items are limited; they use their declared fallback.</p>
       ) : null}
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <button type="button" className="btn-success text-xs px-3 py-1.5" onClick={openSetup}>Open setup in Implexa</button>
+        <button type="button" className="btn-success text-xs px-3 py-1.5" onClick={openSetup}>Open setup in Tukido</button>
         <button type="button" disabled={checking} className="btn-outline text-xs px-3 py-1.5 disabled:opacity-60" onClick={recheck}>
           {checking ? 'Rechecking…' : 'Recheck'}
         </button>
         <button type="button" disabled={checking} className="text-xs text-ink-500 hover:underline disabled:opacity-60" onClick={onCancel}>Cancel</button>
       </div>
-      <p className="mt-3 text-[11px] text-ink-500">Nothing was queued. Installation and sign-in happen only when you choose them in Implexa; Implexa never installs software or captures credentials on its own.</p>
+      <p className="mt-3 text-[11px] text-ink-500">Nothing was queued. Installation and sign-in happen only when you choose them in Tukido; Tukido never installs software or captures credentials on its own.</p>
       {note ? <p className="mt-2 text-xs text-state-fail">{note}</p> : null}
     </div>
   );

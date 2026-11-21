@@ -198,7 +198,7 @@ export default function DataRightsForm({ initial }: { initial: Snapshot }) {
               type="button"
               onClick={deleteAll}
               disabled={deleting}
-              className="btn-primary !bg-red-600 hover:!bg-red-700 !text-white"
+              className="btn-danger !bg-action-danger hover:!bg-action-danger-hover !text-[var(--on-action-danger)]"
             >
               {deleting ? 'Deleting…' : 'Yes, delete everything'}
             </button>

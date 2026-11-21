@@ -122,14 +122,14 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
     <main className="min-h-screen bg-ink-950 text-ink-100 px-6 py-12 sm:py-16">
       <div className="mx-auto max-w-xl">
         <div className="mb-8">
-          <span className="text-sm font-semibold tracking-tight text-action-accent">Implexa</span>
+          <span className="text-sm font-semibold tracking-tight text-action-accent">Tukido</span>
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-semibold text-ink-50 leading-tight">
           {firstName ? `${firstName}, get the app to start` : 'Get the app to start'}
         </h1>
         <p className="mt-3 text-ink-400 leading-relaxed">
-          Implexa runs your agents inside your own Claude or Codex, on your machine — so the desktop app
+          Tukido runs your agents inside your own Claude or Codex, on your machine — so the desktop app
           is where everything happens. {isMac ? 'Your download is starting now.' : ''}
         </p>
 
@@ -158,7 +158,7 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
             <ol className="mt-8 space-y-4">
               {[
                 ['Open the download', 'Double-click Implexa.dmg, then drag Implexa into Applications.'],
-                ['Launch Implexa', 'Open it from Applications. Sign in with this same account.'],
+                ['Launch Tukido', 'Open it from Applications. Sign in with this same account.'],
                 ['You’re in', 'The app connects your Claude or Codex and picks up where you left off — this page jumps you to your dashboard automatically.'],
               ].map(([t, d], i) => (
                 <li key={i} className="flex gap-3.5">
@@ -202,7 +202,7 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
             Prefer to connect via the terminal instead?
           </summary>
           <div className="mt-3 rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-3">
-            <p className="text-sm text-ink-400">One command connects Implexa to your existing Claude Code or Codex:</p>
+            <p className="text-sm text-ink-400">One command connects Tukido to your existing Claude Code or Codex:</p>
             <button
               type="button"
               onClick={copyCurl}

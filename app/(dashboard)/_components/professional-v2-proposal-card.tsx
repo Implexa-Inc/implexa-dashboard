@@ -108,14 +108,14 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
         return;
       }
       if (read.outcome === 'refused') {
-        setError(`Implexa refused this approval (${read.code}). Nothing was authorized.`);
+        setError(`Tukido refused this approval (${read.code}). Nothing was authorized.`);
         router.refresh();
         return;
       }
       setError('We could not confirm whether this approval went through. Reload to see the current state — retrying from this card cannot authorize it twice.');
       router.refresh();
     } catch {
-      setError('We could not reach Implexa to approve this. Nothing is known to have been authorized — try again.');
+      setError('We could not reach Tukido to approve this. Nothing is known to have been authorized — try again.');
     } finally {
       setInFlight(false);
     }
@@ -137,11 +137,11 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
       const outcome = await requestCancel();
       if (outcome === 'cancelled') { setNotice('Plan cancelled. Nothing was authorized.'); router.refresh(); return; }
       setError(outcome === 'refused'
-        ? 'Implexa refused to cancel this plan. Reload to see the current state.'
+        ? 'Tukido refused to cancel this plan. Reload to see the current state.'
         : 'We could not confirm whether this cancellation went through. Reload to see the current state.');
       router.refresh();
     } catch {
-      setError('We could not reach Implexa to cancel this.');
+      setError('We could not reach Tukido to cancel this.');
     } finally { setCancelBusy(false); }
   }, [requestCancel, router]);
 
@@ -177,7 +177,7 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
         // approvable, so the identity is left intact rather than hidden behind
         // copy claiming an edit that did not happen.
         setError(outcome === 'refused'
-          ? 'Implexa refused to retire this plan, so it has not been opened for editing. It is still approvable — reload to see the current state.'
+          ? 'Tukido refused to retire this plan, so it has not been opened for editing. It is still approvable — reload to see the current state.'
           : 'We could not confirm this plan was retired, so it has not been opened for editing. It may still be approvable — reload before doing anything else.');
         router.refresh();
         return;
@@ -186,7 +186,7 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
       setConfirmedCeiling(false);
       router.push(editHref);
     } catch {
-      setError('We could not reach Implexa to retire this plan, so it has not been opened for editing.');
+      setError('We could not reach Tukido to retire this plan, so it has not been opened for editing.');
     } finally {
       setEditBusy(false);
     }

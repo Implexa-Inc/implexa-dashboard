@@ -33,6 +33,7 @@ export default function Modal({
   children: ReactNode;
   maxWidth?: string;
 }) {
+  const closeRef=useRef(onClose);closeRef.current=onClose;
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
 
@@ -43,9 +44,11 @@ export default function Modal({
     restoreRef.current = (document.activeElement instanceof HTMLElement) ? document.activeElement : null;
     const focusables = () => Array.from(dialog?.querySelectorAll<HTMLElement>(FOCUSABLE) || []);
     const first = focusables().find((el) => el.getAttribute('aria-label') !== 'Close') || focusables()[0] || dialog;
-    first?.focus();
+    const tall=(dialog?.getBoundingClientRect().height||0)>window.innerHeight-80;
+    if(dialog?.parentElement)dialog.parentElement.scrollTop=0;
+    (tall?dialog:first)?.focus({preventScroll:true});
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'Escape') { closeRef.current(); return; }
       if (e.key !== 'Tab' || !dialog) return;
       const list = focusables();
       if (!list.length) { e.preventDefault(); dialog.focus(); return; }
@@ -61,13 +64,13 @@ export default function Modal({
       restoreRef.current = null;
       if (back && typeof back.focus === 'function' && back.isConnected) back.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm px-4 py-10"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm px-4 py-10 app-dialog-backdrop"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -76,7 +79,7 @@ export default function Modal({
       <div ref={dialogRef} tabIndex={-1} className={`card w-full ${maxWidth} my-auto outline-none`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-ink-50">{title}</h2>
+            <h2 className="font-display text-2xl font-medium text-ink-50">{title}</h2>
             {subtitle && <div className="mt-1">{subtitle}</div>}
           </div>
           <button

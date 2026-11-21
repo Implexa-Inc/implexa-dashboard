@@ -52,7 +52,7 @@ export interface RunRequestRefusal {
 const COPY: Record<string, { kind: RefusalKind; message: string; action: RefusalAction }> = {
   review_continuation_launch_window_open: {
     kind: 'still_running',
-    message: 'Implexa is still confirming whether the previous revision started. Nothing was queued; retry will unlock automatically when the safety window closes.',
+    message: 'Tukido is still confirming whether the previous revision started. Nothing was queued; retry will unlock automatically when the safety window closes.',
     action: { type: 'wait' },
   },
   review_continuation_still_running: {
@@ -64,8 +64,8 @@ const COPY: Record<string, { kind: RefusalKind; message: string; action: Refusal
     kind: 'unverifiable',
     // States the fact, then the one action that changes it. The old copy stopped
     // at the fact, which is why it read as a dead end.
-    message: 'Implexa cannot yet verify that the previous revision process ended, so nothing was queued. '
-      + 'Fully quit and reopen the executor — that lets Implexa confirm the old process is gone — then retry.',
+    message: 'Tukido cannot yet verify that the previous revision process ended, so nothing was queued. '
+      + 'Fully quit and reopen the executor — that lets Tukido confirm the old process is gone — then retry.',
     action: { type: 'restart_executor_then_retry', executorLabel: 'ChatGPT / Codex' },
   },
   review_continuation_not_terminal: {
@@ -110,7 +110,7 @@ const COPY: Record<string, { kind: RefusalKind; message: string; action: Refusal
   },
   review_continuation_context_changed: {
     kind: 'transient',
-    message: 'Something else changed this revision while Implexa was queueing it. Nothing was queued — try again.',
+    message: 'Something else changed this revision while Tukido was queueing it. Nothing was queued — try again.',
     action: { type: 'none' },
   },
 };
@@ -140,7 +140,7 @@ export function classifyRunRequestRefusal(error: unknown): RunRequestRefusal | n
       kind: 'unknown',
       // Deliberately says nothing about WHY. An unrecognised reason string is
       // not something to paraphrase for a user.
-      message: 'Implexa could not queue this revision. Nothing was started.',
+      message: 'Tukido could not queue this revision. Nothing was started.',
       action: { type: 'none' },
       requestId: parsed.requestId,
       recoverable: false,

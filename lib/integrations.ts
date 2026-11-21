@@ -108,7 +108,7 @@ export const INTEGRATIONS: Integration[] = [
   {
     slug: 'outreach',
     name: 'Outreach',
-    description: 'Sales engagement — sequences, calls, replies tracked back to Implexa skills.',
+    description: 'Sales engagement — sequences, calls, replies tracked back to Tukido skills.',
     category: 'gtm', tier: 2, status: 'coming-soon', logo: '📣', authType: 'oauth',
     tools: [],
   },
@@ -158,7 +158,7 @@ export const INTEGRATIONS: Integration[] = [
   {
     slug: 'gainsight',
     name: 'Gainsight',
-    description: 'Health scores, CTAs, and customer success playbooks tied to Implexa skills.',
+    description: 'Health scores, CTAs, and customer success playbooks tied to Tukido skills.',
     category: 'cs', tier: 2, status: 'coming-soon', logo: '💚', authType: 'oauth',
     tools: [],
   },

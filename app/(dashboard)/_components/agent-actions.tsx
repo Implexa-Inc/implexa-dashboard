@@ -923,7 +923,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           setMsg('');
         }
         if (!(admission?.ok === true && admission?.admitted === true)) {
-          throw new Error(admission?.reason ? `Implexa could not verify this computer’s readiness (${admission.reason}). Nothing was queued.` : 'Implexa could not verify this computer’s readiness. Nothing was queued.');
+          throw new Error(admission?.reason ? `Tukido could not verify this computer’s readiness (${admission.reason}). Nothing was queued.` : 'Tukido could not verify this computer’s readiness. Nothing was queued.');
         }
       }
       // Freeze the complete request before its first birth attempt. If that
@@ -1011,7 +1011,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         const selectionIds = Object.values(deferredSelections).map((value) => value.selectionId);
         try {
           if (!bridge?.startRunInputPreparation || !selectionIds.length) {
-            throw new Error('This Desktop cannot prepare the selected file in the background. Update Implexa and try again.');
+            throw new Error('This Desktop cannot prepare the selected file in the background. Update Tukido and try again.');
           }
           const started = await bridge.startRunInputPreparation({ preparationId, selectionIds });
           if (!started.ok) throw new Error(started.error || 'Desktop could not start input preparation.');
@@ -1063,7 +1063,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // Other mounted surfaces (the second <AgentActions/>, Home) should see
       // this run promptly — snap the shared live-feed cadence back to base.
       notifyRunActivity();
-      setMsg('Queued. It runs hands-off on your computer (Claude open / Mac awake) — the result lands in your Implexa inbox, usually within a few minutes.');
+      setMsg('Queued. It runs hands-off on your computer (Claude open / Mac awake) — the result lands in your Tukido inbox, usually within a few minutes.');
       // Land the user where the run actually shows itself starting — the Active
       // Agents loader on /workflows (founder ask: "redirect to agent home so I can
       // see the loader starting"). EXCEPTION: on the very first queued run ever,
@@ -1309,12 +1309,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           the decision server-side regardless). */}
       <Modal open={!!bundleRefusal} title={bundleRefusal?.title || 'Project bundle needs an updated Planner export'}
       onClose={() => { if (!bundleRechecking) { setBundleRefusal(null); setShowSetupModal(true); } }}>
-      <p className="text-sm text-slate-300">Nothing was queued. Your selected inputs are preserved. Ask the Planner for a corrected export that retains the approved timeline.</p>
+      <p className="text-sm text-ink-300">Nothing was queued. Your selected inputs are preserved. Ask the Planner for a corrected export that retains the approved timeline.</p>
       <ul className="my-4 list-disc pl-5 text-sm">{bundleRefusal?.details.map((detail, index) => <li key={index}>{detail}</li>)}</ul>
-      <button className="mr-2 rounded-lg border border-slate-600 px-3 py-2 text-sm disabled:opacity-50" type="button" disabled={bundleRechecking} onClick={() => void recheckProjectBundle()}>
+      <button className="mr-2 rounded-lg border border-ink-600 px-3 py-2 text-sm disabled:opacity-50" type="button" disabled={bundleRechecking} onClick={() => void recheckProjectBundle()}>
         {bundleRechecking ? 'Rechecking…' : 'Recheck and run'}
       </button>
-      <button className="mr-2 rounded-lg border border-slate-600 px-3 py-2 text-sm disabled:opacity-50" type="button" disabled={bundleRechecking} onClick={() => { setBundleRefusal(null); setShowSetupModal(true); }}>Choose updated export</button>
+      <button className="mr-2 rounded-lg border border-ink-600 px-3 py-2 text-sm disabled:opacity-50" type="button" disabled={bundleRechecking} onClick={() => { setBundleRefusal(null); setShowSetupModal(true); }}>Choose updated export</button>
     </Modal>
     <Modal open={!!trialReview} title="Confirm one beta browser trial" onClose={() => { trialReply.current?.(false); }}>
       {trialReview && <div className="space-y-3">
@@ -1351,12 +1351,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             )}
             <div className="flex flex-wrap gap-2">
               {versionRefusal.retrySafe && (
-                <button type="button" className="rounded-lg border border-slate-600 px-3 py-2 text-sm"
+                <button type="button" className="rounded-lg border border-ink-600 px-3 py-2 text-sm"
                   onClick={() => { setVersionRefusal(null); void doQueue(lastNote.current, { fingerprint: lastFingerprint.current }); }}>
                   Try again
                 </button>
               )}
-              <button type="button" className="rounded-lg border border-slate-600 px-3 py-2 text-sm" onClick={() => setVersionRefusal(null)}>
+              <button type="button" className="rounded-lg border border-ink-600 px-3 py-2 text-sm" onClick={() => setVersionRefusal(null)}>
                 Close
               </button>
             </div>
@@ -1399,7 +1399,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 <p>
                   {trainingGate.successorAdoption.contractVersion === 'manager-training-successor-adoption-preview.v2'
                     ? <>Your training from earlier versions is available for this version. Carry {trainingGate.successorAdoption.newlyAdoptableRecordCount} saved lesson{trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'} with their original examples. Earlier versions and runs stay unchanged.</>
-                    : <>Implexa verified the same Agent task identity and unchanged Manager policy between these consecutive versions. You can carry {trainingGate.successorAdoption.newlyAdoptableRecordCount} accepted decision{trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'} spanning {trainingGate.successorAdoption.eligibleRouteCount} compatible reference route{trainingGate.successorAdoption.eligibleRouteCount === 1 ? '' : 's'}.</>}
+                    : <>Tukido verified the same Agent task identity and unchanged Manager policy between these consecutive versions. You can carry {trainingGate.successorAdoption.newlyAdoptableRecordCount} accepted decision{trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'} spanning {trainingGate.successorAdoption.eligibleRouteCount} compatible reference route{trainingGate.successorAdoption.eligibleRouteCount === 1 ? '' : 's'}.</>}
                 </p>
                 {trainingGate.successorAdoption.contractVersion === 'manager-training-successor-adoption-preview.v2' && (
                   <details className="text-xs text-ink-400">
@@ -1437,7 +1437,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             {trainingGate?.state==='unavailable'&&trainingGate.reason==='training_served_snapshot_version_mismatch'?<>
               <p>This working definition differs from the version with your served training. Test the current private update in Training, then activate it when it delivers.</p>
               <Link href={`/training/${encodeURIComponent(slug)}`} className="btn-primary" onClick={()=>setTrainingGate(null)}>Test this working update in Training</Link>
-            </>:<><p>Implexa could not verify Manager reference-training readiness for this exact active version. No run inputs were selected, verified, or prepared.</p>
+            </>:<><p>Tukido could not verify Manager reference-training readiness for this exact active version. No run inputs were selected, verified, or prepared.</p>
             <p>Reload and try again after Dashboard and the backend are updated. Run creation remains blocked on an unverifiable basis.</p>
             {trainingTest&&<Link href={`/training/${encodeURIComponent(slug)}`} className="btn-primary" onClick={()=>setTrainingGate(null)}>Return to Training to prepare the current test</Link>}</>}
             <div className="flex justify-end gap-3">
@@ -1481,7 +1481,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         Your agent’s run is queued. It fires the next time <strong>Claude Code is open</strong> on this
         computer to pick it up (usually a minute or two), and the result lands in your{' '}
         <Link href="/inbox" className="text-action-accent hover:underline" onClick={() => setShowRunModal(false)}>
-          Implexa results
+          Tukido results
         </Link>
         {' '}like any scheduled run. Keep Claude open and you’ll see it come through.
       </p>
@@ -1825,10 +1825,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                   // happen for the run to use it.
                   <p className="text-[11px] text-ink-400 mt-2">
                     Saved source: <span className="font-mono text-ink-300">{fileName(savedPath)}</span>
-                    {' '}<span className="text-state-needs">— open this agent in the Implexa desktop app to use it for a run.</span>
+                    {' '}<span className="text-state-needs">— open this agent in the Tukido desktop app to use it for a run.</span>
                   </p>
                 ) : field.kind === 'file' && !desktopBridge()?.pickRunInput ? (
-                  <p className="text-[11px] text-state-needs mt-2">Open this agent in the Implexa desktop app to choose a local file.</p>
+                  <p className="text-[11px] text-state-needs mt-2">Open this agent in the Tukido desktop app to choose a local file.</p>
                 ) : null}
                 {/* The way BACK, and the explicit way OUT. Without a route to the
                     saved value an override is a one-way door and a clear looks

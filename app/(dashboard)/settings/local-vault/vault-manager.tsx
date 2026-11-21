@@ -115,7 +115,7 @@ export default function VaultManager({ jwt }: { jwt: string }) {
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const openLocal = async (provider: string, agentSlug?: string) => {
-    if (!bridge?.openKeySetup) { setNote('Open the Implexa desktop app to manage keys.'); return; }
+    if (!bridge?.openKeySetup) { setNote('Open the Tukido desktop app to manage keys.'); return; }
     setNote(null);
     const r = await bridge.openKeySetup(provider, agentSlug);
     if (!r.ok) {
@@ -127,14 +127,14 @@ export default function VaultManager({ jwt }: { jwt: string }) {
     awaitingUntil.current = Date.now() + WAIT_MS;
   };
   const revokeGrant = async (provider: string, agentSlug: string) => {
-    if (!bridge?.requestRevokeGrant) { setNote('Update the Implexa app to manage access from this page.'); return; }
+    if (!bridge?.requestRevokeGrant) { setNote('Update the Tukido app to manage access from this page.'); return; }
     setNote(null);
     const r = await bridge.requestRevokeGrant(provider, agentSlug);
     if (r.ok) refreshLocal();
     else if (!r.cancelled) setNote(r.error || 'Could not revoke access.');
   };
   const deleteKey = async (provider: string) => {
-    if (!bridge?.requestDeleteKey) { setNote('Update the Implexa app to delete keys from this page.'); return; }
+    if (!bridge?.requestDeleteKey) { setNote('Update the Tukido app to delete keys from this page.'); return; }
     setNote(null);
     const r = await bridge.requestDeleteKey(provider);
     if (r.ok) refreshLocal();
@@ -147,14 +147,14 @@ export default function VaultManager({ jwt }: { jwt: string }) {
   if (mode === 'web') {
     return (
       <div className="card">
-        <h2 className="font-medium text-ink-50">Open Implexa desktop to manage local keys</h2>
+        <h2 className="font-medium text-ink-50">Open Tukido desktop to manage local keys</h2>
         <p className="text-sm text-ink-300 mt-2 leading-relaxed">
           Your keys live on your Mac, so this page can only manage them when the
-          desktop app is running. Nothing here is stored on Implexa&apos;s servers.
+          desktop app is running. Nothing here is stored on Tukido&apos;s servers.
         </p>
         <div className="mt-4 flex items-center gap-3">
           {desktopAppLive() ? (
-            <a href={appLocalVaultUrl()} className="btn-primary text-sm">Open Implexa desktop</a>
+            <a href={appLocalVaultUrl()} className="btn-primary text-sm">Open Tukido desktop</a>
           ) : null}
           <a href={macDownloadUrl()} className="btn-outline text-sm" target="_blank" rel="noopener noreferrer">
             Download for Mac
@@ -174,17 +174,17 @@ export default function VaultManager({ jwt }: { jwt: string }) {
         </div>
         <ul className="text-sm text-ink-200 space-y-1.5">
           <li className="flex items-center gap-2">
-            <Dot tone="ok" /> This Mac: connected through the Implexa app
+            <Dot tone="ok" /> This Mac: connected through the Tukido app
           </li>
           <li className="flex items-center gap-2">
             {mode === 'ready' && <><Dot tone="ok" /> Vault: available</>}
             {mode === 'unavailable' && <><Dot tone="bad" /> Vault: unavailable — this Mac can&apos;t store keys securely (system keychain locked or unsupported)</>}
             {mode === 'error' && <><Dot tone="warn" /> Vault: couldn&apos;t check — the app didn&apos;t answer. That&apos;s different from &quot;unavailable&quot;; try Check again.</>}
-            {mode === 'unsupported' && <><Dot tone="warn" /> Vault: this app version can&apos;t report vault status — update the Implexa app</>}
+            {mode === 'unsupported' && <><Dot tone="warn" /> Vault: this app version can&apos;t report vault status — update the Tukido app</>}
             {mode === 'loading' && <><Dot tone="warn" /> Vault: checking…</>}
           </li>
           <li className="flex items-center gap-2">
-            <Dot tone="ok" /> Storage: encrypted local file, readable only by the Implexa app (keychain-bound)
+            <Dot tone="ok" /> Storage: encrypted local file, readable only by the Tukido app (keychain-bound)
           </li>
           {checkedAt && (
             <li className="text-xs text-ink-400">Last checked {new Date(checkedAt).toLocaleTimeString()}</li>
@@ -273,9 +273,9 @@ function ProviderCard({ card, ctx, onAdd, onAllow, onRevoke, onDelete, canReques
           {card.state === 'saved' && (
             <>
               {/* Replace = the ADD window; typing a new value rotates in place. */}
-              <button type="button" onClick={onAdd} className="btn-outline text-xs px-2.5 py-1" title="Opens the Implexa key window. Saving a new value replaces the stored key.">Replace key</button>
+              <button type="button" onClick={onAdd} className="btn-outline text-xs px-2.5 py-1" title="Opens the Tukido key window. Saving a new value replaces the stored key.">Replace key</button>
               {canRequestDelete
-                ? <button type="button" onClick={onDelete} className="text-xs text-state-fail hover:underline px-1" title="Removes the key and every agent's access to it from this Mac. You'll confirm in an Implexa dialog.">Delete key</button>
+                ? <button type="button" onClick={onDelete} className="text-xs text-state-fail hover:underline px-1" title="Removes the key and every agent's access to it from this Mac. You'll confirm in an Tukido dialog.">Delete key</button>
                 : <span className="text-[11px] text-ink-500">update app to delete</span>}
             </>
           )}
@@ -291,7 +291,7 @@ function ProviderCard({ card, ctx, onAdd, onAllow, onRevoke, onDelete, canReques
       </div>
 
       {card.state === 'saved' && !card.canManageAccess && (
-        <p className="text-xs text-ink-500 mt-2">Update the Implexa app to see and manage which agents may use this key.</p>
+        <p className="text-xs text-ink-500 mt-2">Update the Tukido app to see and manage which agents may use this key.</p>
       )}
 
       {open && card.canManageAccess && (
@@ -317,7 +317,7 @@ function ProviderCard({ card, ctx, onAdd, onAllow, onRevoke, onDelete, canReques
                         type="button"
                         onClick={() => onRevoke(g.agentSlug)}
                         className="flex-none text-xs text-state-fail hover:underline"
-                        title={canRequestRevoke ? "You'll confirm in an Implexa dialog." : 'Update the Implexa app to revoke from this page.'}
+                        title={canRequestRevoke ? "You'll confirm in an Tukido dialog." : 'Update the Tukido app to revoke from this page.'}
                       >
                         Revoke
                       </button>

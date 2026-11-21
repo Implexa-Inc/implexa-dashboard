@@ -93,9 +93,9 @@ export default async function InstalledAgents({jwt,pilot,insideRun=false}:{jwt:s
             sounded like a separate product. ChainSuggestions already renders
             nothing without enough agents to chain, so this is a no-op for a
             new user and appears naturally once there's something to chain. */}
-        {!insideRun&&<div className="mt-10">
+        {!insideRun&&list.length>1&&<details className="mt-10 border-t border-ink-700 pt-5"><summary className="cursor-pointer text-sm text-ink-400">Connect agents into a sequence</summary><div className="mt-4">
           <ChainSuggestions agents={list.map((a) => ({ slug: a.slug, source: a.source, name: a.name }))} />
-        </div>}
+        </div></details>}
       </div></Frame>
   );
 }

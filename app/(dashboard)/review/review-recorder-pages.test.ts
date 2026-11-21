@@ -170,7 +170,7 @@ test('New review with an older recorder contract asks for an update', async () =
   const b = bridge(() => ({ ok: true }), { reviewRecorderContractVersion: '0' });
   const page = await render(NEW_REVIEW, {ownerId:ID}, { bridge: b.value });
   try {
-    assert.match(page.text(), /Update Implexa Desktop/);
+    assert.match(page.text(), /Update Tukido Desktop/);
     assert.equal(b.calls.length, 0, 'an unknown contract is never called');
   } finally { page.cleanup(); }
 });
@@ -806,5 +806,28 @@ test('moment endpoint keys adjust the range, preserve feedback and stay unsaved 
   assert.equal(sent.moments[0].endMs,4100);assert.equal(sent.moments[0].startMs,1000);
   assert.equal(sent.moments[0].card.whatToDo,original.card.whatToDo);
   assert.equal(page.document.querySelectorAll('input[aria-label="Seek video"]').length,1,'one accessible seek control');
+ }finally{page.cleanup();}
+});
+
+test('Mark this moment works on an uploaded recording without pointer samples',async()=>{
+ const b=bridge((op,args)=>op==='get'?{ok:true,recording:detail({origin:'imported'})}:op==='preview'?previewOk:op==='saveMoments'?{ok:true,moments:args.moments}:{ok:true});
+ const page=await render(PLAYER,{recordingId:ID,ownerId:ID},{bridge:b.value});
+ try{await page.act(()=>{});const video=page.document.querySelector('video')!;Object.defineProperty(video,'currentTime',{value:1250/1000,writable:true});
+  await page.click(button(page,'Mark this moment')!);
+  assert.equal(page.document.querySelectorAll('textarea').length,1);
+  await typeInto(page,page.document.querySelector('textarea')!,'Keep this example');await page.click(button(page,'Done')!);
+  const m=(b.calls.find(c=>c.operation==='saveMoments')!.args as {moments:Array<{startMs:number;endMs:number;region:unknown}>}).moments[0];
+  assert.equal(m.startMs,1250);assert.equal(m.endMs,1250);assert.deepEqual(m.region,{x:0,y:0,width:1000000,height:1000000});
+ }finally{page.cleanup();}
+});
+
+test('Cancel after Save feedback restores the saved note rather than undoing it',async()=>{
+ const original={momentId:M1,startMs:1000,endMs:4000,region:null,card:{...emptyCard(),whatToDo:'Original'},createdAt:NOW};
+ const b=bridge((op,args)=>op==='get'?{ok:true,recording:detail({},[original])}:op==='preview'?previewOk:op==='saveMoments'?{ok:true,moments:args.moments}:{ok:true});
+ const page=await render(PLAYER,{recordingId:ID,ownerId:ID},{bridge:b.value});
+ try{await page.act(()=>{});await page.click(page.document.querySelector('button[aria-label="Moment 1 at 00:01.000"]')!);
+  await typeInto(page,page.document.querySelector('textarea')!,'Saved change');await page.click(button(page,'Save feedback')!);
+  await typeInto(page,page.document.querySelector('textarea')!,'Unsaved change');await page.click(button(page,'Cancel')!);
+  assert.equal(page.document.querySelector('textarea')!.value,'Saved change');assert.equal(button(page,'Saved')!.disabled,true);
  }finally{page.cleanup();}
 });

@@ -281,7 +281,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
         {/* Footer */}
         <footer className="mt-10 text-center text-xs text-ink-400">
           <p>
-            Powered by <Link href="/" className="text-action-accent hover:underline font-medium">Implexa</Link> · Build and run powerful agents in your own Claude or Codex
+            Powered by <Link href="/" className="text-action-accent hover:underline font-medium">Tukido</Link> · Build and run powerful agents in your own Claude or Codex
           </p>
           <p className="mt-2">
             {stats.viewCount} {stats.viewCount === 1 ? 'view' : 'views'} · {stats.installCount} {stats.installCount === 1 ? 'install' : 'installs'}
@@ -305,19 +305,19 @@ function Stat({ label, value, highlight = false }: { label: string; value: strin
 export async function generateMetadata({ params }: { params: { token: string } }) {
   const data = await fetchPreview(params.token);
   if ('notFound' in data || 'expired' in data || 'error' in data) {
-    return { title: 'Implexa — share link', description: 'A shared Implexa skill.' };
+    return { title: 'Tukido — share link', description: 'A shared Tukido skill.' };
   }
   return {
-    title:       `${data.skill.name} — Implexa`,
+    title:       `${data.skill.name} — Tukido`,
     description: data.skill.description,
     openGraph: {
-      title:       `${data.skill.name} — Implexa`,
+      title:       `${data.skill.name} — Tukido`,
       description: data.skill.description,
       type:        'website',
     },
     twitter: {
       card:        'summary_large_image',
-      title:       `${data.skill.name} — Implexa`,
+      title:       `${data.skill.name} — Tukido`,
       description: data.skill.description,
     },
   };
