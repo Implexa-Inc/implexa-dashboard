@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { unstable_cache } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { loadNeedsYou } from '@/lib/needs-you';
 import { getReviewQueue, reviewQueueWarning } from '@/lib/review';
@@ -15,10 +16,17 @@ export async function GET() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) return NextResponse.json({ ok: false }, { status: 401 });
   const within = <T,>(read: Promise<T>) => settleWithin<T | null>(read, 10_000, null);
+  // The owner roster changes far less often than run attention. Cache successful
+  // reads per authenticated account; never cache a failed read as "no agents".
+  const ownership = unstable_cache(async () => {
+    const result = await readMyWorkflows(session.access_token);
+    if (result.status !== 'ready' || result.unavailableEntries) throw new Error('owner_roster_unavailable');
+    return result;
+  }, ['shell-owner-roster', session.user.id], { revalidate: 300 })();
   const [needs, reviews, owned] = await Promise.all([
     within(loadNeedsYou(supabase)),
     within(getReviewQueue()),
-    within(readMyWorkflows(session.access_token)),
+    within(ownership),
   ]);
   const ownershipKnown = owned?.status === 'ready';
   const canTrain = ownershipKnown && owned.workflows.some((agent) => agent.source === 'generated')
@@ -33,5 +41,10 @@ export async function GET() {
     work: needs || workReviews?.live
       ? workAttentionBadge(needs ?? emptyNeeds, workReviews?.items ?? [], complete) : null,
   };
-  return NextResponse.json({ ok: true, ...state }, { headers: { 'Cache-Control': 'private, no-store' } });
+  const unavailableSources = [
+    ...(needs ? needs.unavailableSources : ['needs_you_timeout']),
+    ...(!workReviews ? ['review_queue_timeout'] : Object.entries(workReviews.sources).filter(([, status]) => status === 'unavailable').map(([name]) => name)),
+    ...(!ownershipKnown ? ['owner_roster'] : []),
+  ];
+  return NextResponse.json({ ok: true, ...state, unavailableSources, knownAttentionCount: needs?.total ?? null, knownWorkReviewCount: workReviews?.items.length ?? null }, { headers: { 'Cache-Control': 'private, no-store' } });
 }

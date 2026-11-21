@@ -264,6 +264,12 @@ html, body {
 .app-sidebar-name { font-size: 13px; font-weight: 500; line-height: 1.2; color: var(--text-strong); }
 .app-sidebar-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--action-strong); color: var(--on-action-strong); display: inline-flex; align-items: center; justify-content: center; font: 13px var(--font-display),Georgia,serif; flex-shrink: 0; }
 .app-sidebar-signout { padding: 0 10px; }
+.app-mobile-nav, .settings-nav { scrollbar-width: none; }
+.app-mobile-nav::-webkit-scrollbar, .settings-nav::-webkit-scrollbar { display: none; }
+@media (max-width: 479px) {
+  .app-mobile-nav .app-nav-icon { display: none; }
+  .app-mobile-nav .app-mobile-nav-link { padding-inline: 8px; gap: 6px; font-size: 13px; }
+}
 
 .theme-switch { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); background: var(--bg-sunken); }
 .theme-switch button { min-height: 28px; padding: 3px 12px; border-radius: 3px; font-size: 12px; color: var(--text-muted); }

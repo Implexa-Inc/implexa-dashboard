@@ -43,16 +43,22 @@ const FOCUS_RING =
 
 const ShellState = createContext<ShellNavigationState | undefined>(undefined);
 
-/** One read for both surfaces, after paint; refresh on navigation/focus. */
+/** One read for both surfaces after paint, with throttled focus/periodic refresh. */
 export function ShellNavigationProvider({ userId, children }: { userId: string; children: ReactNode }) {
-  const pathname = usePathname();
   const [state, setState] = useState<ShellNavigationState>();
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
     let inFlight = false;
+    let lastRead = 0;
+    const roleKey = `tukido.coach-navigation:${userId}`;
+    try {
+      const known = window.localStorage.getItem(roleKey);
+      if (known === 'true' || known === 'false') setState((previous) => ({ canTrain: known === 'true', work: previous?.work ?? null }));
+    } catch { /* A blocked storage area does not block navigation. */ }
     async function refresh() {
-      if (inFlight || document.visibilityState === 'hidden') return;
+      if (inFlight || document.visibilityState === 'hidden' || Date.now() - lastRead < 15_000) return;
+      lastRead = Date.now();
       inFlight = true;
       try {
         const res = await fetch('/api/shell-navigation', { cache: 'no-store', signal: controller.signal });
@@ -60,9 +66,14 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
         const work = body?.work;
         const valid = body?.ok === true && [true, false, null].includes(body.canTrain)
           && (work === null || (Number.isSafeInteger(work?.count) && work.count >= 0 && typeof work.complete === 'boolean'));
-        if (active) setState((previous) => valid
-          ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work }
-          : { canTrain: previous?.canTrain ?? null, work: null });
+        if (active) {
+          if (valid && typeof body.canTrain === 'boolean') {
+            try { window.localStorage.setItem(roleKey, String(body.canTrain)); } catch { /* UI hint only, never authorization */ }
+          }
+          setState((previous) => valid
+            ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work }
+            : { canTrain: previous?.canTrain ?? null, work: null });
+        }
       } catch {
         if (active) setState((previous) => ({ canTrain: previous?.canTrain ?? null, work: null }));
       } finally { inFlight = false; }
@@ -79,14 +90,18 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onFocus);
     };
-  }, [userId, pathname]);
+  }, [userId]);
+  // Navigation remounts do not create another read; the provider belongs to the
+  // persistent layout. Focus/periodic checks refresh decisions with a minimum gap.
   return <ShellState.Provider value={state}>{children}</ShellState.Provider>;
 }
 
 function useShellNav(user: UserCtx) {
   const pathname = usePathname() || '';
   const state = useContext(ShellState);
-  const canTrain = user.canTrain ?? state?.canTrain === true;
+  const onCoach = pathname === '/training' || pathname.startsWith('/training/');
+  // A failed first read is unknown, not proof this person cannot train.
+  const canTrain = onCoach || (user.canTrain ?? (state ? state.canTrain !== false : false));
   const items = primaryNavigation(user.marketplacePilot, canTrain);
   return { pathname, items, work: state?.work };
 }
@@ -242,7 +257,7 @@ export function MobileTopBar({ user }: { user: UserCtx }) {
           {user.isFoundingCreator && <span title="Founding Creator" className="text-xs text-ink-400">Creator</span>}
         </div>
       </div>
-      <nav aria-label="Primary" className="px-2 pb-2 overflow-x-auto">
+      <nav aria-label="Primary" className="app-mobile-nav px-2 pb-2 overflow-x-auto">
         <ul className="flex items-center gap-1 min-w-max">
           {[...items, ...SECONDARY_NAV].map((item) => {
             const active = isNavItemActive(item, pathname);
@@ -252,7 +267,7 @@ export function MobileTopBar({ user }: { user: UserCtx }) {
                 <Link
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
-                  className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors ${FOCUS_RING} ${
+                  className={`app-mobile-nav-link flex items-center gap-2 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors ${FOCUS_RING} ${
                     active
                       ? 'bg-brand-500/10 text-ink-50 font-medium border-b-2 border-brand-500'
                       : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100 border-b-2 border-transparent'

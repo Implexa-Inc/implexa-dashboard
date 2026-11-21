@@ -195,7 +195,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
          * action-oriented — link to /settings or external repos as needed.
          * Adding entries: prepend new ones (most recent friction first).
          * ────────────────────────────────────────────────────────── */}
-        <section className="mt-16 max-w-3xl mx-auto">
+        <section className="mt-16">
           <h2 className="text-xs uppercase tracking-wider text-ink-400 font-bold mb-3">Frequently asked</h2>
           <div className="space-y-2">
 
@@ -305,7 +305,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
           </div>
         </section>
 
-        <footer className="mt-12 text-center text-xs text-ink-400 max-w-xl mx-auto leading-relaxed">
+        <footer className="mt-12 text-xs text-ink-400 leading-relaxed">
           <p>
             Once connected, try the wedge first: <code className="bg-ink-800 px-1 rounded">/implexa:run draft a cold outreach email</code>{' '}
             builds a small agent for that, picks the best building blocks, and runs it inline in your current session.{' '}
