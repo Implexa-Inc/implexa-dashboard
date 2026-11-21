@@ -28,6 +28,6 @@ async function CoachContents({jwt,review,recordingId}:{jwt:string;review:boolean
  return <>
   {!!feed.unavailableEntries&&<p role="status" className="mb-5 text-sm text-ink-400">Some agent details couldn’t be loaded. Known agents are shown below. <RetryButton/></p>}
   {queue?<><Link href="/training" className="mb-5 inline-block text-sm text-ink-400">← All agents you train</Link><h2 className="mb-5 text-xl">Feedback from runs</h2><ReadyForReviewList queue={queue} nameBySlug={new Map(owned.map(agent=>[agent.slug,agent.name]))} training/></>:
-   <><div className="coach-history-entry"><Link href="/training?view=review" prefetch={false}>Feedback from runs →</Link></div><TrainingAgentPicker owned={owned} recordingId={recordingId} partial={!!feed.unavailableEntries}/></>}
+   <TrainingAgentPicker owned={owned} recordingId={recordingId} partial={!!feed.unavailableEntries}/>}
  </>;
 }

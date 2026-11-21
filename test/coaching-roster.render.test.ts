@@ -14,3 +14,8 @@ test('known empty and unavailable Coach sources never use the same state',async(
  const partial=await render('training-agent-picker.tsx',{owned:[],partial:true});try{assert.doesNotMatch(partial.text(),/No agents to train yet|All · 0/);assert.match(partial.text(),/Some agents couldn’t be checked/);assert.ok(partial.document.querySelector('[role="alert"] button.btn-outline'));}finally{partial.cleanup();}
  const failed=await render('training-agent-picker.tsx',{reason:'timeout'},{exportName:'TrainingFeedUnavailable'});try{assert.match(failed.text(),/Couldn’t load the agents you train/);assert.doesNotMatch(failed.text(),/No agents to train yet/);}finally{failed.cleanup();}
 });
+
+test('Coach orders by existing updated_at with deterministic fallback and keeps feedback beside search',async()=>{
+ const r=await render('training-agent-picker.tsx',{owned:[{...agent(1),updated_at:'2026-11-01T00:00:00Z'},{...agent(2),updated_at:'2026-11-20T00:00:00Z'},{...agent(3),updated_at:'invalid'}]});
+ try{const rows=[...r.document.querySelectorAll('.coach-agent-row h3')].map(x=>x.textContent);assert.deepEqual(rows,['Agent 2','Agent 1','Agent 3']);assert.ok(r.document.querySelector('.coach-collection-tools input'));assert.equal(r.document.querySelector('.coach-collection-tools a')?.getAttribute('href'),'/training?view=review');assert.doesNotMatch(r.text(),/taught today|last trained/);}finally{r.cleanup();}
+});
