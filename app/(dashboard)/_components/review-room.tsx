@@ -558,7 +558,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   ) => {
     const bridge = reviewArtifactBridge();
     if (!bridge?.pickReviewArtifact) {
-      setError('Open Review Room in the Tukido desktop app to choose a local file or folder.');
+      setError('Open Review Room in the Implexa desktop app to choose a local file or folder.');
       return;
     }
     setError(null);
@@ -1215,7 +1215,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     const bridge = reviewArtifactBridge();
     if (!bridge?.openPostAcceptanceCleanup) {
       setCleanupPrompt(false);
-      setNotice('Open Tukido Desktop → Storage to review local cleanup.');
+      setNotice('Open Implexa Desktop → Storage to review local cleanup.');
       return;
     }
     setCleanupBusy(true);
@@ -2347,7 +2347,7 @@ function ArtifactSurface({
               href={desktopReviewHref(runId)!}
               className="rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950"
             >
-              Open in Tukido Desktop
+              Open in Implexa Desktop
             </a>
           )}
           {decision.state === 'update_required' && (

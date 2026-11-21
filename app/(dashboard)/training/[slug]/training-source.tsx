@@ -174,9 +174,9 @@ const coveragePairKey = (pair: { stage: string; property: string; relation: stri
 
 function resolveBridge() {
   const candidate = bridge();
-  if (!candidate?.trainingLocal) throw new TrainingError('training_desktop_required', 'Open this page in an updated Tukido Desktop to select a local training source.');
+  if (!candidate?.trainingLocal) throw new TrainingError('training_desktop_required', 'Open this page in an updated Implexa Desktop to select a local training source.');
   if (candidate.trainingLocalContractVersion !== TRAINING_LOCAL_CONTRACT_VERSION) {
-    throw new TrainingError('training_desktop_update_required', 'Update Tukido Desktop before training. This page requires the local training v2 bridge.');
+    throw new TrainingError('training_desktop_update_required', 'Update Implexa Desktop before training. This page requires the local training v2 bridge.');
   }
   return candidate;
 }
@@ -840,7 +840,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         throw new TrainingError('training_version_changed');
       setRecentSessions(home.recentSessions);
       if (!isTrainingSuccessorProjection(home.successorProjection, home.agent.currentVersionId)) {
-        throw new TrainingError('training_successor_projection_unavailable', 'Update Tukido Desktop before training. The version-transition evidence projection could not be verified.');
+        throw new TrainingError('training_successor_projection_unavailable', 'Update Implexa Desktop before training. The version-transition evidence projection could not be verified.');
       }
       const projection = home.successorProjection;
       if (projection.activeVersionId) {

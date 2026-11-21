@@ -599,7 +599,7 @@ test('web, missing bridge method and stale bridge versions all fail closed with 
     const rendered = await render('../training/[slug]/training-source.tsx', { slug: 'video-craft' }, { bridge });
     try {
       await rendered.act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
-      assert.match(rendered.text(), bridge && 'trainingLocal' in bridge ? /Update Tukido Desktop/ : /Open this page in an updated Tukido Desktop/);
+      assert.match(rendered.text(), bridge && 'trainingLocal' in bridge ? /Update Implexa Desktop/ : /Open this page in an updated Implexa Desktop/);
     } finally { rendered.cleanup(); }
   }
 });

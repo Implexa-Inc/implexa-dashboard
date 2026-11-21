@@ -39,7 +39,7 @@ const relationText=(value:string)=>value==='accepted'?'keep this example':value=
 
 async function markedEvidence({ownerId,sessionId,currentVersionId,request,sourceId}:{ownerId:string;sessionId:string;currentVersionId:string;request:RunMarkRequest;sourceId:string}){
  const bridge=(window as unknown as {implexaDesktop?:{trainingReviewMarkContractVersion?:string;trainingLocal:(operation:string,args:unknown)=>Promise<any>}}).implexaDesktop;
- if(!bridge?.trainingLocal||bridge.trainingReviewMarkContractVersion!=='1')throw Error('Open Training in an updated Tukido Desktop to use the saved frames.');
+ if(!bridge?.trainingLocal||bridge.trainingReviewMarkContractVersion!=='1')throw Error('Open Training in an updated Implexa Desktop to use the saved frames.');
  const native=await bridge.trainingLocal('readReviewMarkEvidence',{sessionId,sourceId,reviewSessionId:request.issue.sessionId,issueId:request.issue.id,expectedOwnerId:ownerId});
  const expected={sourceId,reviewSessionId:request.issue.sessionId,issueId:request.issue.id,versionId:currentVersionId,runId:request.issue.runId,artifactId:request.artifact.id,artifactSha256:request.artifact.sha256||'',feedback:request.issue.body},image=native?.image;
  if(native?.contractVersion!=='training-review-mark-evidence.v1'||!reviewMarkContext(native,expected)||await teachingDigest(reviewMarkFrame(image,native.evidence))!==native.evidence.sha256)throw Error('The saved frame or teaching note changed. Reopen the note before extracting training.');

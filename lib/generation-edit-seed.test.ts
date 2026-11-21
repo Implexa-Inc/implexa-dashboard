@@ -77,7 +77,7 @@ test('plan source UNVERIFIED: fail closed with the Desktop action — never rebo
   if (resolved.kind !== 'source_unverified') return;
   assert.equal(resolved.source.artifactId, FIXTURE_SOURCE_B, 'the refusal names the plan\'s OWN source');
   assert.deepEqual(resolved.moments, fixtureSeed().moments, 'the timeline survives the refusal');
-  assert.match(EDIT_SEED_COPY.source_unverified.action ?? '', /Tukido Desktop/);
+  assert.match(EDIT_SEED_COPY.source_unverified.action ?? '', /Implexa Desktop/);
 });
 
 test('plan source MISSING from the run: fail closed — never rebound to whatever remains', () => {

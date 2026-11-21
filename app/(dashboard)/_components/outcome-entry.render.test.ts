@@ -194,7 +194,7 @@ test('a startable plan must bind edited run instructions before production can s
 test('browser mode requires Implexa Desktop and has no file input fallback', async () => {
   const rendered = await render('outcome-entry.tsx', {});
   try {
-    assert.match(rendered.text(), /Open Tukido Desktop/);
+    assert.match(rendered.text(), /Open Implexa Desktop/);
     assert.equal(rendered.document.querySelector('input[type="file"]'), null);
     await rendered.click(rendered.getByText('Add verified artifact'));
     assert.match(rendered.text(), /Browser filenames are not accepted/);

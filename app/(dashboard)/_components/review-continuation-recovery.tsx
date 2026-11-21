@@ -295,7 +295,7 @@ export default function ReviewContinuationRecovery({
             <li>
               <span className="text-ink-500 mr-1.5">1.</span>
               Fully quit <span className="text-ink-100">{executorLabel}</span> and open it again.
-              Tukido Desktop then confirms the old process is gone.
+              Implexa Desktop then confirms the old process is gone.
             </li>
             <li>
               <span className="text-ink-500 mr-1.5">2.</span>

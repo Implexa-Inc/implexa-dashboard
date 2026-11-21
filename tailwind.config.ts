@@ -34,7 +34,7 @@ import type { Config } from 'tailwindcss';
 // without a second palette or a behaviour rewrite across every route.
 const statePalette = (state: string) => Object.fromEntries(
   [50,100,200,300,400,500,600,700,800,900,950].map(shade => [shade,
-    `rgb(from var(--state-${state}-${shade < 300 ? 'bg' : shade >= 700 ? 'fg' : 'dot'}) r g b / <alpha-value>)`]),
+    `rgb(var(--state-${state}-${shade < 300 ? 'bg' : 'dot'}-rgb) / <alpha-value>)`]),
 );
 
 const config: Config = {
@@ -76,8 +76,8 @@ const config: Config = {
           100:  '#F9D5CE',
           200:  '#F2AB9E',
           300:  '#EC806E',
-          400:  'rgb(from var(--action-primary-hover) r g b / <alpha-value>)',  // brighter vermilion for links/accents on dark
-          500:  'rgb(from var(--action-primary) r g b / <alpha-value>)',  // PRIMARY: shu vermilion (Tukido). White label = 5.2:1.
+          400:  'rgb(var(--action-primary-hover-rgb) / <alpha-value>)',  // brighter vermilion for links/accents on dark
+          500:  'rgb(var(--action-primary-rgb) / <alpha-value>)',  // PRIMARY: shu vermilion (Tukido). White label = 5.2:1.
           600:  '#A92918',
           700:  '#862013',
           800:  '#5F170D',

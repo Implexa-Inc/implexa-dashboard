@@ -306,7 +306,7 @@ export default function InstallFlow({
                   <div className="mt-2 bg-ink-950 border border-ink-700 rounded px-3 py-2 text-xs font-mono text-ink-100">
                     Tukido, start recording. I want to capture how I research a company before a sales call.
                   </div>
-                  <p className="text-[11px] text-ink-400 mt-1.5">Claude calls <code className="text-[11px]">start_demonstration</code>, then runs your workflow alongside you, and finally synthesizes a SKILL.md when you say &ldquo;Tukido, stop recording.&rdquo;</p>
+                  <p className="text-[11px] text-ink-400 mt-1.5">Claude calls <code className="text-[11px]">start_demonstration</code>, then runs your workflow alongside you, and finally synthesizes a SKILL.md when you say &ldquo;Implexa, stop recording.&rdquo;</p>
                 </div>
               </div>
               <p className="text-xs text-ink-400">
@@ -432,7 +432,7 @@ function SurfaceContent({ surface, hasKey, keyPrefix, coworkHooksLive, installCu
                 <li>Installs <strong>jq</strong> + <strong>Node.js</strong> via Homebrew if missing</li>
                 <li>Patches <code className="text-[10px] bg-ink-800 px-1 rounded">~/.claude/settings.json</code> to register hooks</li>
                 <li>Registers the MCP server in <code className="text-[10px] bg-ink-800 px-1 rounded">claude_desktop_config.json</code></li>
-                <li>Installs the <strong>Tukido plugin</strong> into Claude Code (skills + slash commands)</li>
+                <li>Installs the <strong>Implexa plugin</strong> into Claude Code (skills + slash commands)</li>
                 <li>Runs a smoke test to verify the chain works</li>
               </ul>
             </details>
@@ -465,7 +465,7 @@ source ~/.zshrc`}
         {/* Step B — launch Claude Code. Plugin is already installed by Step A's
          * script so there's no third step inside Claude Code anymore. */}
         <p className="text-sm text-ink-200 mt-5 mb-2 leading-relaxed">
-          <strong className="text-ink-50">B.</strong> Launch Claude Code by typing <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> in the same terminal and pressing Enter. The Tukido plugin is already installed — run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:setup</code> to verify, and you&apos;re ready.
+          <strong className="text-ink-50">B.</strong> Launch Claude Code by typing <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> in the same terminal and pressing Enter. The Implexa plugin is already installed — run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:setup</code> to verify, and you&apos;re ready.
         </p>
         <p className="text-[11px] text-ink-400 mt-1 leading-relaxed">
           Already had Claude Code open? Fully quit it (Cmd+Q) and relaunch — plugins load on startup.
@@ -515,7 +515,7 @@ source ~/.zshrc`}
         <div className="rounded-lg border border-success-400/40 bg-success-400/5 p-3 mb-3 text-xs text-ink-200 leading-relaxed">
           <p className="font-medium text-ink-100 mb-1">⚡ Fastest install — under a minute.</p>
           <p>
-            Claude chat (Desktop) doesn&apos;t use plugins (those are Cowork + Claude Code only). Instead, you add Tukido as a <strong>Custom Connector</strong> — a remote MCP server. Just paste one URL with your API key in it.
+            Claude chat (Desktop) doesn&apos;t use plugins (those are Cowork + Claude Code only). Instead, you add Implexa as a <strong>Custom Connector</strong> — a remote MCP server. Just paste one URL with your API key in it.
           </p>
         </div>
 
@@ -570,28 +570,28 @@ source ~/.zshrc`}
           </HoverImageHint>:
         </p>
         <ul className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-disc marker:text-ink-500">
-          <li><strong>Name:</strong> type <code className="bg-ink-800 px-1 rounded text-xs">Tukido</code></li>
+          <li><strong>Name:</strong> type <code className="bg-ink-800 px-1 rounded text-xs">Implexa</code></li>
           <li><strong>Remote MCP server URL:</strong> paste the URL you edited above</li>
           <li>Click <strong>Add</strong>.</li>
         </ul>
 
         <p className="text-xs text-ink-400 mt-4 leading-relaxed">
-          Done — Tukido is now available across all your Claude chats. Try it with{' '}
-          <em className="text-ink-200">&ldquo;Tukido, show my plan&rdquo;</em> or{' '}
-          <em className="text-ink-200">&ldquo;Tukido, record this workflow&rdquo;</em>.
+          Done — Implexa is now available across all your Claude chats. Try it with{' '}
+          <em className="text-ink-200">&ldquo;Implexa, show my plan&rdquo;</em> or{' '}
+          <em className="text-ink-200">&ldquo;Implexa, record this workflow&rdquo;</em>.
         </p>
 
         <details className="text-xs text-ink-300 mt-4">
           <summary className="cursor-pointer hover:text-ink-100 select-none">Already use Cowork? You probably don&apos;t need this.</summary>
           <div className="mt-2 pl-4 leading-relaxed">
-            <p>Installing the Tukido plugin via Cowork automatically registers a matching Custom Connector in Claude chat. Check Customize → Connectors first — Tukido may already be there as <em>Tukido</em>.</p>
+            <p>Installing the Implexa plugin via Cowork automatically registers a matching Custom Connector in Claude chat. Check Customize → Connectors first — Implexa may already be there as <em>Implexa</em>.</p>
           </div>
         </details>
         <details className="text-xs text-ink-300 mt-2">
           <summary className="cursor-pointer hover:text-ink-100 select-none">What does this connector give me?</summary>
           <div className="mt-2 pl-4 leading-relaxed space-y-1">
-            <p>All Tukido MCP tools — record-skill, list-org-skills, share-this, find-accounts, etc. — available via natural language in Claude chat.</p>
-            <p>Slash commands like <code className="bg-ink-800 px-1 rounded text-[11px]">/implexa:run</code> don&apos;t exist here (those require the plugin system). Instead, just ask Claude things like <em>&ldquo;Tukido, run my triage skill&rdquo;</em> or <em>&ldquo;Tukido, record this workflow&rdquo;</em>.</p>
+            <p>All Implexa MCP tools — record-skill, list-org-skills, share-this, find-accounts, etc. — available via natural language in Claude chat.</p>
+            <p>Slash commands like <code className="bg-ink-800 px-1 rounded text-[11px]">/implexa:run</code> don&apos;t exist here (those require the plugin system). Instead, just ask Claude things like <em>&ldquo;Implexa, run my triage skill&rdquo;</em> or <em>&ldquo;Implexa, record this workflow&rdquo;</em>.</p>
           </div>
         </details>
       </>
@@ -607,7 +607,7 @@ source ~/.zshrc`}
       <div className="rounded-lg border border-brand-500/40 bg-brand-500/5 p-3 mb-3 text-xs text-ink-200 leading-relaxed">
         <p className="font-medium text-ink-100 mb-1">✨ Bonus: this also enables Claude chat.</p>
         <p>
-          Installing the Tukido plugin in Cowork automatically registers the Custom Connector in your Claude chat (Desktop) too — one install, both surfaces. No extra step for Claude chat.
+          Installing the Implexa plugin in Cowork automatically registers the Custom Connector in your Claude chat (Desktop) too — one install, both surfaces. No extra step for Claude chat.
         </p>
       </div>
       <p className="text-sm text-ink-200 mb-3 leading-relaxed">
@@ -636,7 +636,7 @@ source ~/.zshrc`}
       </ol>
       <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
       <ol className="text-sm text-ink-200 mt-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400" start={4}>
-        <li>You&apos;ll land on the <strong>Directory</strong> page. Under the <strong>Personal</strong> tab, find the <strong>Tukido</strong> plugin tile and click it to install.</li>
+        <li>You&apos;ll land on the <strong>Directory</strong> page. Under the <strong>Personal</strong> tab, find the <strong>Implexa</strong> plugin tile and click it to install.</li>
       </ol>
       <p className="text-xs text-ink-400 mt-3 leading-relaxed">
         You do <strong>not</strong> need your API key for this step. The plugin pulls it from your account.

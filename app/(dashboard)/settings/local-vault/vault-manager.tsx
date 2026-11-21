@@ -115,7 +115,7 @@ export default function VaultManager({ jwt }: { jwt: string }) {
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const openLocal = async (provider: string, agentSlug?: string) => {
-    if (!bridge?.openKeySetup) { setNote('Open the Tukido desktop app to manage keys.'); return; }
+    if (!bridge?.openKeySetup) { setNote('Open the Implexa desktop app to manage keys.'); return; }
     setNote(null);
     const r = await bridge.openKeySetup(provider, agentSlug);
     if (!r.ok) {

@@ -279,7 +279,7 @@ export function progressPresentation(
     case 'pending':
       return {
         label: 'Approved — waiting for your Desktop', tone: 'active', doNotRetry: false,
-        description: 'The authorization is ready. Generation starts when your Tukido Desktop picks it up. Nothing has been generated yet.',
+        description: 'The authorization is ready. Generation starts when your Implexa Desktop picks it up. Nothing has been generated yet.',
       };
     case 'generating': {
       const finished = clips.succeeded + clips.failed;

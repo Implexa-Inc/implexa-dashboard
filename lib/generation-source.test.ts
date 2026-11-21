@@ -38,7 +38,7 @@ test('NULL duration is NOT unlimited — it is "not yet verified", with a Deskto
   }
   // The copy names an ACTION, because there is nothing to do about this in the
   // browser and "unavailable" alone would be a dead end.
-  assert.match(SOURCE_STATE_COPY.needs_verification.action ?? '', /Tukido Desktop/);
+  assert.match(SOURCE_STATE_COPY.needs_verification.action ?? '', /Implexa Desktop/);
 });
 
 test('an out-of-range or wrongly-typed duration is treated as UNVERIFIED, never coerced', () => {
@@ -125,7 +125,7 @@ test('an UNKNOWN duration refuses every moment — the browser has no fallback e
   const unknown = validateTimeline([moment()], null);
   assert.equal(unknown.ok, false);
   assert.ok(unknown.issues.some((i) => i.code === 'source_duration_unknown'));
-  assert.match(unknown.issues.find((i) => i.code === 'source_duration_unknown')!.message, /Tukido Desktop/);
+  assert.match(unknown.issues.find((i) => i.code === 'source_duration_unknown')!.message, /Implexa Desktop/);
 });
 
 test('a timeline call with NO source argument still validates shape only — the two are distinct', () => {

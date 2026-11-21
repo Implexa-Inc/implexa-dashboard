@@ -172,7 +172,7 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
   // Open the LOCAL key-entry window (the value is typed there, never here), then
   // re-check keysConfigured on the keys:changed event and flip the step to done.
   const addKey = async () => {
-    if (!bridge?.openKeySetup) { setNote('Open the Tukido desktop app to add your key.'); return; }
+    if (!bridge?.openKeySetup) { setNote('Open the Implexa desktop app to add your key.'); return; }
     setNote(null);
     const r = await bridge.openKeySetup(item.provider, slug);
     if (!r.ok) { setNote(r.error === 'vault_unavailable' ? 'This Mac can’t store keys securely (keychain unavailable).' : (r.error || 'Could not open key entry.')); return; }
@@ -281,7 +281,7 @@ export function KeysList({ items, slug, trustLine, onChanged }: { items: KeyItem
       </ul>
       {!bridge?.openKeySetup && (
         <p className="text-xs text-ink-500 mt-2 leading-snug">
-          Keys are stored locally on your Mac by the Tukido desktop app — open the app to add one. The agent still activates now; a key-dependent step will pause until it’s set.
+          Keys are stored locally on your Mac by the Implexa desktop app — open the app to add one. The agent still activates now; a key-dependent step will pause until it’s set.
         </p>
       )}
     </div>
@@ -359,7 +359,7 @@ export function InlineAddKeyButton({ provider, slug }: { provider: string; slug:
   // whether to ask for a paste or only for authorization (it reads the same two
   // booleans from main, which is the authority) — the remote page never does.
   const openLocal = async () => {
-    if (!bridge?.openKeySetup) { setNote('Open the Tukido desktop app to add your key.'); return; }
+    if (!bridge?.openKeySetup) { setNote('Open the Implexa desktop app to add your key.'); return; }
     setNote(null);
     const r = await bridge.openKeySetup(provider, slug);
     if (!r.ok) { setNote(r.error === 'vault_unavailable' ? 'Keychain unavailable on this Mac.' : (r.error || 'Could not open key entry.')); return; }

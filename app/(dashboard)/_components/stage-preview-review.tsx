@@ -28,8 +28,8 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
       if (!decoded) {
         tokens.forEach(t => void revokePreview(t)); tokens = [];
         const error = (result as { error?: string } | null)?.error;
-        setMessage(error === 'desktop_required' ? 'Open this run in Tukido Desktop on the machine that ran Preview.'
-          : error === 'update_required' ? 'Update Tukido Desktop to inspect this Preview.'
+        setMessage(error === 'desktop_required' ? 'Open this run in Implexa Desktop on the machine that ran Preview.'
+          : error === 'update_required' ? 'Update Implexa Desktop to inspect this Preview.'
           : error === 'scene_preview_wrong_machine' ? 'These preserved files are on the machine that ran Preview. Open this run there.'
           : 'The preserved Preview could not be verified here. This does not mean its files are gone.');
       } else setView(decoded);
@@ -72,7 +72,7 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
           ? 'The exact owner decision is still required before Master.'
           : 'All-eight temporal QA and the exact owner decision are still required before Master.'}`}</p>
       {!view && <p role="status" className="text-sm text-ink-300">{message}</p>}
-      {!view && <a className="mt-3 inline-flex text-sm underline" href={desktopReviewHref(summary.runId) || undefined}>Open this run in Tukido Desktop</a>}
+      {!view && <a className="mt-3 inline-flex text-sm underline" href={desktopReviewHref(summary.runId) || undefined}>Open this run in Implexa Desktop</a>}
       {view && <>
         {view.temporalQa && <section className="mb-4 text-sm text-ink-300" aria-label="Temporal QA">
           {['unavailable','not_applicable'].includes(view.temporalQa.status)

@@ -37,7 +37,7 @@ export default function TrainerVoiceNote({ownerId,attach,onInsert,maxLength=600,
  const events=useRef(new Map<string,VoiceEvent>()),dirtyCallback=useRef(onDirtyChange);dirtyCallback.current=onDirtyChange;
  const bridge=()=>((window as unknown as {implexaDesktop?:VoiceBridge}).implexaDesktop);
  async function call(operation:string,args:Record<string,unknown>){
-  const native=bridge();if(native?.trainerCommentaryContractVersion!=='1'||!native.reviewRecorder)throw new VoiceError('update_required','Update Tukido Desktop to add a voice note.');
+  const native=bridge();if(native?.trainerCommentaryContractVersion!=='1'||!native.reviewRecorder)throw new VoiceError('update_required','Update Implexa Desktop to add a voice note.');
   const result=await native.reviewRecorder(operation,{...args,expectedOwnerId:ownerId});
   if(!result?.ok)throw new VoiceError(result?.reason||'recorder_failed',voiceMessage(result?.reason));return result;
  }

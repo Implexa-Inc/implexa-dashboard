@@ -1828,10 +1828,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                   // happen for the run to use it.
                   <p className="text-[11px] text-ink-400 mt-2">
                     Saved source: <span className="font-mono text-ink-300">{fileName(savedPath)}</span>
-                    {' '}<span className="text-state-needs">— open this agent in the Tukido desktop app to use it for a run.</span>
+                    {' '}<span className="text-state-needs">— open this agent in the Implexa desktop app to use it for a run.</span>
                   </p>
                 ) : field.kind === 'file' && !desktopBridge()?.pickRunInput ? (
-                  <p className="text-[11px] text-state-needs mt-2">Open this agent in the Tukido desktop app to choose a local file.</p>
+                  <p className="text-[11px] text-state-needs mt-2">Open this agent in the Implexa desktop app to choose a local file.</p>
                 ) : null}
                 {/* The way BACK, and the explicit way OUT. Without a route to the
                     saved value an override is a one-way door and a clear looks

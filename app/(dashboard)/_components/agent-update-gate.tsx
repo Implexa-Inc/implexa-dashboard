@@ -263,7 +263,7 @@ export default function AgentUpdateGate({ workflowId, update }: {
         <p className="text-xs font-medium text-state-needs">
           {trainingOnly?'Tested training update needs review':<>Agent update v{update.version} needs review</>}
         </p>
-        {update.manager_text_guidance_required&&<p className="text-[11px] text-state-needs mt-1">This training requires Codex and Tukido Desktop 0.4.160 or newer. Claude execution is not supported for its text guidance yet.</p>}
+        {update.manager_text_guidance_required&&<p className="text-[11px] text-state-needs mt-1">This training requires Codex and Implexa Desktop 0.4.160 or newer. Claude execution is not supported for its text guidance yet.</p>}
         <p className="text-[11px] text-ink-400 mt-1">
           {snapshotUnavailable?'The published training identity is unavailable. Reload before updating.':trainingOnly?'The agent’s steps are unchanged. Future runs keep using your installed training until you explicitly activate this tested teaching set.':incompatible
             ? 'This update cannot be applied to your installed version. It needs a migration, not an activation.'

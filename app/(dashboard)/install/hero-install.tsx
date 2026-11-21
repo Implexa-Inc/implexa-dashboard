@@ -132,7 +132,7 @@ export default function HeroInstall({
 
         <p className="text-sm text-ink-200 leading-relaxed">
           Paste in your terminal. The script auto-installs everything:{' '}
-          <strong className="text-ink-100">API key, hooks, the Tukido plugin, MCP wiring.</strong>{' '}
+          <strong className="text-ink-100">API key, hooks, the Implexa plugin, MCP wiring.</strong>{' '}
           {isTokenized
             ? <>The link contains a single-use token tied to your account — refreshes automatically when you click Copy.</>
             : <>Your browser opens to approve; once you click Approve, the terminal finishes the rest.</>}

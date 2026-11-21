@@ -170,7 +170,7 @@ test('New review with an older recorder contract asks for an update', async () =
   const b = bridge(() => ({ ok: true }), { reviewRecorderContractVersion: '0' });
   const page = await render(NEW_REVIEW, {ownerId:ID}, { bridge: b.value });
   try {
-    assert.match(page.text(), /Update Tukido Desktop/);
+    assert.match(page.text(), /Update Implexa Desktop/);
     assert.equal(b.calls.length, 0, 'an unknown contract is never called');
   } finally { page.cleanup(); }
 });

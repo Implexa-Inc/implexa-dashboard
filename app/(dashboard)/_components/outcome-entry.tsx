@@ -120,7 +120,7 @@ export default function OutcomeEntry() {
     }
     const bridge = desktopBridge();
     if (!bridge?.pickRunInput) {
-      setPickerError('Open Tukido Desktop to add verified artifacts. Browser filenames are not accepted.');
+      setPickerError('Open Implexa Desktop to add verified artifacts. Browser filenames are not accepted.');
       return;
     }
     const inputType = expectedType || artifactType;
@@ -179,7 +179,7 @@ export default function OutcomeEntry() {
     setCancelingVerification(true);
     const result = await bridge.cancelRunInputVerification(operationId).catch(() => null);
     if (!result?.ok) {
-      setPickerError(result?.error || 'Tukido Desktop could not cancel this verification.');
+      setPickerError(result?.error || 'Implexa Desktop could not cancel this verification.');
       setCancelingVerification(false);
     }
   }
@@ -319,7 +319,7 @@ export default function OutcomeEntry() {
 
         <div>
           <span className="block text-sm font-medium text-ink-200">Verified inputs</span>
-          <p className="text-xs text-ink-500 mt-0.5">Optional. Tukido Desktop verifies each artifact; only its identity, digest, description, and input type are sent.</p>
+          <p className="text-xs text-ink-500 mt-0.5">Optional. Implexa Desktop verifies each artifact; only its identity, digest, description, and input type are sent.</p>
           {artifacts.length > 0 && <ul className="mt-2 space-y-2">{artifacts.map((artifact) => (
             <li key={`${artifact.artifactId}-${artifact.sha256}`} className="flex flex-wrap items-center gap-2 text-xs text-ink-300">
               <span className="truncate max-w-xs">{artifact.displayName}</span>
@@ -342,7 +342,7 @@ export default function OutcomeEntry() {
           {verificationSurface === 'inputs' && verificationProgress && (
             <RunInputVerificationProgress progress={verificationProgress} canceling={cancelingVerification} onCancel={cancelVerification} />
           )}
-          {!inDesktop && <p role="status" className="mt-2 text-xs text-state-needs">Open Tukido Desktop to add verified artifacts. Browser filenames cannot be used.</p>}
+          {!inDesktop && <p role="status" className="mt-2 text-xs text-state-needs">Open Implexa Desktop to add verified artifacts. Browser filenames cannot be used.</p>}
           {pickerError && <p role="status" className="mt-2 text-xs text-state-fail">{pickerError}</p>}
         </div>
 

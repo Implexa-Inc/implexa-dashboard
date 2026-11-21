@@ -192,7 +192,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
     const imageNote = imageCount > 0
       ? ` I attached ${imageCount} image${imageCount === 1 ? '' : 's'} as reference (paths are listed at the end of this prompt — Read them).`
       : '';
-    const handoff = `Build my new Tukido agent. Use Tukido's get_pending_run_requests tool to find the request I just queued ("${t}"), then call generate_workflow to build the agent, then resolve_run_request to clear it. Then tell me what you built.${imageNote}`;
+    const handoff = `Build my new Tukido agent. Use Implexa's get_pending_run_requests tool to find the request I just queued ("${t}"), then call generate_workflow to build the agent, then resolve_run_request to clear it. Then tell me what you built.${imageNote}`;
     const bridge = typeof window !== 'undefined' ? window.implexaDesktop : undefined;
     if (bridge?.handoffAgent) {
       const r = await bridge.handoffAgent(handoff, undefined, 'code', imageCount ? queuedImages : undefined).catch(() => ({ ok: false }));
@@ -405,11 +405,11 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
             </button>
             <h2 className="text-lg font-semibold text-ink-50 mb-2">Your agent is saved. One step to build it.</h2>
             <p className="text-sm text-ink-300 leading-relaxed mb-4">
-              We recommend installing the Tukido desktop app, the control plane for your agents. It installs the Tukido plugin into your own Claude or Codex, then helps you build and run your agents there, as you, free. Your agent stays queued until you connect.
+              We recommend installing the Implexa desktop app, the control plane for your agents. It installs the Implexa plugin into your own Claude or Codex, then helps you build and run your agents there, as you, free. Your agent stays queued until you connect.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <a href={macDownloadUrl()} className="btn-success text-sm px-5 py-2.5 inline-flex items-center gap-2">
-                ↓ Download the Tukido app
+                ↓ Download Implexa for Mac
               </a>
               <a href="/install" className="text-xs text-ink-400 hover:text-ink-200">
                 Prefer the terminal? Connect with one command →

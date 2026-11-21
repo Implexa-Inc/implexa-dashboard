@@ -97,8 +97,8 @@ export function resolveEditSeed(
 export const EDIT_SEED_COPY = {
   source_unverified: {
     title: "This plan's source video hasn't had its length verified yet.",
-    body: 'The plan you are editing was compiled against a specific video, and its moments are bounded by that video’s length — which Tukido Desktop has not verified yet. Open Tukido Desktop and it will verify the video; then reload this page to continue editing. Tukido will not silently rebuild this plan against a different file.',
-    action: 'Open Tukido Desktop to verify this video’s duration.',
+    body: 'The plan you are editing was compiled against a specific video, and its moments are bounded by that video’s length — which Implexa Desktop has not verified yet. Open Implexa Desktop and it will verify the video; then reload this page to continue editing. Tukido will not silently rebuild this plan against a different file.',
+    action: 'Open Implexa Desktop to verify this video’s duration.',
   },
   source_missing: {
     title: "This plan's source video is no longer available on this run.",

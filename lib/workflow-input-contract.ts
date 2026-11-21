@@ -191,9 +191,9 @@ export function describeInputPickerError(code: string | undefined, field: Workfl
     case 'incompatible_file_type':
       return `That file isn't an accepted type for “${field.label}”.${describeAcceptedTypes(field)}`;
     case 'not_linked':
-      return 'Tukido Desktop is not linked to your account yet. Sign in from the desktop app, then choose the file again.';
+      return 'Implexa Desktop is not linked to your account yet. Sign in from the desktop app, then choose the file again.';
     case 'forbidden':
-      return 'Tukido Desktop would not accept this page. Open the agent from the Tukido desktop app window and try again.';
+      return 'Implexa Desktop would not accept this page. Open the agent from the Implexa desktop app window and try again.';
     case 'registration_unavailable':
       return 'Could not reach Tukido to verify this file. Check your connection, then choose it again.';
     case 'registration_rejected':
@@ -225,9 +225,9 @@ export function describeInputPickerError(code: string | undefined, field: Workfl
     case 'directory_snapshot_write_stalled':
       return 'Tukido could not create a verified ZIP snapshot of that folder. Check free disk space, then try again.';
     case 'desktop_folder_support_missing':
-      return `This version of Tukido Desktop cannot attach a folder for “${field.label}”. Update Tukido Desktop, or choose a ZIP of the folder instead.`;
+      return `This version of Implexa Desktop cannot attach a folder for “${field.label}”. Update Implexa Desktop, or choose a ZIP of the folder instead.`;
     case 'invalid_input_registration':
-      return `Tukido Desktop could not register a file for “${field.label}”. Update the desktop app, then try again.`;
+      return `Implexa Desktop could not register a file for “${field.label}”. Update the desktop app, then try again.`;
     default:
       return code
         ? `Could not attach this file (${code}). Choose it again, or pick a different file.`

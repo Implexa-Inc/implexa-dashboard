@@ -53,6 +53,7 @@
   --border-control:var(--aizome-400);/* inputs, secondary buttons (3:1) */
   --border-strong:var(--aizome-800);
   --focus-ring:var(--aizome-800);
+  --action-primary-rgb:200 50 31; --action-primary-hover-rgb:169 41 24;
   --action-primary:var(--shu-500);  --action-primary-hover:var(--shu-600); --on-action-primary:#ffffff;
   --action-strong:var(--aizome-800);--action-strong-hover:var(--aizome-900);--on-action-strong:var(--washi-100);
   --action-danger:#9a2a26; --action-danger-hover:#7c211e; --on-action-danger:#ffffff;
@@ -69,6 +70,22 @@
   --state-review-fg:#5b3f86;  --state-review-bg:#e9e2f2;  --state-review-dot:#7a59ad;  /* Ready for review */
   --state-ok-fg:#2f5d3a;      --state-ok-bg:#dce8da;      --state-ok-dot:#3f7a4d;      /* Accepted, Delivered, Ready */
   --state-fail-fg:#9a2a26;    --state-fail-bg:#f5dcd7;    --state-fail-dot:#b8392f;    /* Failed */
+  /* RGB channels keep opacity utilities compatible with older browsers. */
+  --state-needs-fg-rgb:128 84 10;
+  --state-needs-bg-rgb:245 231 198;
+  --state-needs-dot-rgb:201 138 18;
+  --state-running-fg-rgb:44 74 124;
+  --state-running-bg-rgb:223 230 241;
+  --state-running-dot-rgb:61 95 153;
+  --state-review-fg-rgb:91 63 134;
+  --state-review-bg-rgb:233 226 242;
+  --state-review-dot-rgb:122 89 173;
+  --state-ok-fg-rgb:47 93 58;
+  --state-ok-bg-rgb:220 232 218;
+  --state-ok-dot-rgb:63 122 77;
+  --state-fail-fg-rgb:154 42 38;
+  --state-fail-bg-rgb:245 220 215;
+  --state-fail-dot-rgb:184 57 47;
   --state-idle-fg:var(--aizome-700); --state-idle-bg:var(--washi-300); --state-idle-dot:var(--aizome-400); /* Paused, Draft */
 
   /* Trust channels (DESIGN.md §13.3) — four signals, four distinct looks. */
@@ -110,6 +127,7 @@
   --border-control:var(--sumi-500);
   --border-strong:#ece8de;
   --focus-ring:#ece8de;
+  --action-primary-rgb:210 60 39; --action-primary-hover-rgb:184 50 31;
   --action-primary:var(--shu-400);  --action-primary-hover:#b8321f; --on-action-primary:#ffffff; /* deeper FILL keeps white label crisp */
   --action-strong:#e6e1d4;          --action-strong-hover:#ffffff;  --on-action-strong:var(--aizome-900);
   --action-danger:#b8321f; --action-danger-hover:#9a2a26; --on-action-danger:#ffffff;
@@ -125,6 +143,22 @@
   --state-review-fg:#c9b0ee;  --state-review-bg:#2a2240;  --state-review-dot:#a885d9;
   --state-ok-fg:#86c99a;      --state-ok-bg:#1a2e21;      --state-ok-dot:#5fae78;
   --state-fail-fg:#f2907f;    --state-fail-bg:#3a1e1c;    --state-fail-dot:#e5604d;
+  /* RGB channels keep opacity utilities compatible with older browsers. */
+  --state-needs-fg-rgb:232 185 79;
+  --state-needs-bg-rgb:51 41 26;
+  --state-needs-dot-rgb:224 166 48;
+  --state-running-fg-rgb:163 188 232;
+  --state-running-bg-rgb:28 40 64;
+  --state-running-dot-rgb:125 159 217;
+  --state-review-fg-rgb:201 176 238;
+  --state-review-bg-rgb:42 34 64;
+  --state-review-dot-rgb:168 133 217;
+  --state-ok-fg-rgb:134 201 154;
+  --state-ok-bg-rgb:26 46 33;
+  --state-ok-dot-rgb:95 174 120;
+  --state-fail-fg-rgb:242 144 127;
+  --state-fail-bg-rgb:58 30 28;
+  --state-fail-dot-rgb:229 96 77;
   --state-idle-fg:#bcc1cc;    --state-idle-bg:var(--sumi-700); --state-idle-dot:var(--sumi-500);
 
   --trust-verified:#86c99a; --trust-judge:#a3bce8; --trust-accepted:#ece8de; --trust-certified:var(--shu-300);

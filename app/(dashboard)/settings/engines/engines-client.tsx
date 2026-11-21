@@ -108,7 +108,7 @@ function EngineCard({ engine, report }: { engine: 'claude' | 'codex'; report: En
 
       <div className="mt-5 grid grid-cols-2 gap-2">
         <Badge ok={!!report?.app_installed}>Desktop app</Badge><Badge ok={!!report?.cli_installed}>CLI</Badge>
-        <Badge ok={!!report?.authenticated}>Authentication</Badge><Badge ok={!!report?.plugin_connected}>Tukido plugin</Badge>
+        <Badge ok={!!report?.authenticated}>Authentication</Badge><Badge ok={!!report?.plugin_connected}>Implexa plugin</Badge>
       </div>
 
       <dl className="mt-5 space-y-2 text-xs">

@@ -46,7 +46,7 @@ export default async function UpdatesPage() {
           <Link href="/settings" className="text-xs text-action-accent hover:underline">← Settings</Link>
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50 mt-2">Updates</h1>
           <p className="text-ink-300 text-sm mt-1">
-            Keep your Tukido plugin and desktop app current. Updates ship new workflows, better recommendations, and fixes.
+            Keep your Implexa plugin and desktop app current. Updates ship new workflows, better recommendations, and fixes.
           </p>
         </header>
 
@@ -64,7 +64,7 @@ export default async function UpdatesPage() {
             <div className="flex items-start gap-3 min-w-0">
               <div className="text-2xl shrink-0" aria-hidden="true">🖥️</div>
               <div className="min-w-0">
-                <div className="font-medium text-ink-50">Tukido desktop app</div>
+                <div className="font-medium text-ink-50">Implexa desktop app</div>
                 <div className="text-xs text-ink-300 mt-0.5">
                   Optional menu-bar companion: run notifications, onboarding, and your dashboard in one window.
                 </div>

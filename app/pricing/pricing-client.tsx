@@ -19,7 +19,7 @@ const FREE_FEATURES = [
   '🤖 Unlimited agents: describe a job in a sentence, Tukido builds it',
   '▶️ Unlimited runs and schedules, on the Claude or Codex you already pay for',
   '🧱 Steps grounded in a 40,000+ community skill catalog (license-checked)',
-  '🖥️ The Tukido desktop app: guided activation, one-click tool installs, a dedicated browser workspace for your agents',
+  '🖥️ The Implexa desktop app: guided activation, one-click tool installs, a dedicated browser workspace for your agents',
   '📬 Results inbox with review gates: nothing posts without you',
   '🔔 Watchdog + alerts: know when a run finishes, stalls, or misses',
   '🔒 Runs on YOUR machine, on YOUR subscription: your data never executes on our servers',

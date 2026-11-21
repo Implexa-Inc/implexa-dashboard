@@ -225,7 +225,7 @@ export function describeSavedInputError(code: string | undefined, field: Workflo
     case 'saved_input_unavailable':
       return 'Could not reach Tukido to check your saved file. Choose it for this run, or try again.';
     case 'not_linked':
-      return 'Tukido Desktop is not linked to your account yet. Sign in from the desktop app, then reopen this.';
+      return 'Implexa Desktop is not linked to your account yet. Sign in from the desktop app, then reopen this.';
     case 'source_changed_while_hashing':
       return `The file saved for “${field.label}” changed while it was being checked. Make sure nothing is still writing to it, then reopen this.`;
     default:

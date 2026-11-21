@@ -143,7 +143,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
               href={macDownloadUrl()}
               className="btn-success text-base px-7 py-3.5 inline-flex items-center gap-2"
             >
-              ↓ Download the Tukido app for Mac
+              ↓ Download Implexa for Mac
             </a>
             <span className="text-[11px] text-ink-500">Universal · macOS 11+ · signed &amp; notarized · free · connects your Claude or Codex for you</span>
           </div>
@@ -227,7 +227,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
               </summary>
               <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-3 border-t border-ink-700/60">
                 <p>
-                  Claude Code keeps a local clone of the Tukido marketplace at <code className="text-xs bg-ink-800 px-1 rounded">~/.claude/plugins/marketplaces/implexa/</code>. It doesn&apos;t auto-pull on reinstall — so you get whatever version that local clone was last synced to.
+                  Claude Code keeps a local clone of the Implexa marketplace at <code className="text-xs bg-ink-800 px-1 rounded">~/.claude/plugins/marketplaces/implexa/</code>. It doesn&apos;t auto-pull on reinstall — so you get whatever version that local clone was last synced to.
                 </p>
                 <p>
                   <strong className="text-ink-100">Quick fix</strong>, in your terminal:
@@ -269,7 +269,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
                   No. Pick whichever surface you actually use day-to-day. Your agents and library live in our cloud — they&apos;re shared across all surfaces you install on, and surfaces you don&apos;t install on simply don&apos;t have local plugin commands.
                 </p>
                 <p className="text-xs text-ink-400">
-                  Tip: Cowork install also auto-registers Tukido as a Connector in Claude chat (Desktop). One install, two surfaces.
+                  Tip: Cowork install also auto-registers Implexa as a Connector in Claude chat (Desktop). One install, two surfaces.
                 </p>
               </div>
             </details>
@@ -349,7 +349,7 @@ function renderWelcomeBanner({
     body = (
       <>
         One more step to actually run it: connect Tukido to your own Claude or Codex below. Takes about 2 minutes. Once done, just say{' '}
-        <em className="text-ink-100">&ldquo;Tukido, run {fromSkillSlug || 'this agent'}&rdquo;</em> inside Claude and you&apos;re off.
+        <em className="text-ink-100">&ldquo;Implexa, run {fromSkillSlug || 'this agent'}&rdquo;</em> inside Claude and you&apos;re off.
       </>
     );
   } else if (welcomeRaw === 'joined') {

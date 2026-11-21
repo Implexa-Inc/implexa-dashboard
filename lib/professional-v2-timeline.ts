@@ -259,7 +259,7 @@ export function validateTimeline(
       if (boundToSource) {
         if (!isAuthoritativeDurationMs(mediaDurationMs)) {
           push(moment.id, 'source_duration_unknown',
-            `${label} cannot be checked: Tukido does not know how long the source video is yet. Open Tukido Desktop to verify it.`);
+            `${label} cannot be checked: Tukido does not know how long the source video is yet. Open Implexa Desktop to verify it.`);
         } else if (!withinSourceDuration(toMs(moment.startSeconds), toMs(moment.endSeconds), mediaDurationMs)) {
           push(moment.id, 'moment_outside_source_duration',
             `${label} runs past the end of the source video (${formatDurationMs(mediaDurationMs)}). A clip generated for it would have nowhere to go.`);

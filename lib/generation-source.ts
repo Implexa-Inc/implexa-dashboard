@@ -164,8 +164,8 @@ export const SOURCE_STATE_COPY: Record<Exclude<GenerationSourceState['state'], '
 }> = {
   needs_verification: {
     title: "Tukido needs to check this video's length before generating.",
-    body: 'Paid generation is bounded by the length of the source video, and only Tukido Desktop can measure it — it reads the file on your Mac, which the web app cannot. Open Tukido Desktop with this run and it will verify the video, then reload this page.',
-    action: 'Open Tukido Desktop to verify this video’s duration.',
+    body: 'Paid generation is bounded by the length of the source video, and only Implexa Desktop can measure it — it reads the file on your Mac, which the web app cannot. Open Implexa Desktop with this run and it will verify the video, then reload this page.',
+    action: 'Open Implexa Desktop to verify this video’s duration.',
   },
   ambiguous: {
     title: 'This run has more than one final video.',

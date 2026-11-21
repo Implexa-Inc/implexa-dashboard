@@ -132,26 +132,26 @@ export const CLIENT_REASONS = ['desktop_required', 'desktop_update_required', 'r
 export type RecorderReason = typeof DESKTOP_REASONS[number] | typeof CLIENT_REASONS[number];
 
 export const REASON_MESSAGES: Record<RecorderReason, string> = {
-  forbidden: 'Tukido Desktop only accepts recorder requests from its own app window. Reopen this page from Tukido Desktop and try again.',
-  not_linked: 'Sign in to Tukido Desktop with this account to use recordings.',
+  forbidden: 'Implexa Desktop only accepts recorder requests from its own app window. Reopen this page from Implexa Desktop and try again.',
+  not_linked: 'Sign in to Implexa Desktop with this account to use recordings.',
   recorder_busy: 'That recording is busy right now. Try again in a moment.',
   library_full: 'Your recordings library is full (10 GB). Delete a recording to make room.',
   disk_full: 'This Mac is out of disk space. Free some space and try again.',
-  media_tools_unavailable: 'Recording needs the media tools (ffmpeg) on this Mac, and Tukido Desktop could not find them. Update Tukido Desktop or install ffmpeg, then try again.',
+  media_tools_unavailable: 'Recording needs the media tools (ffmpeg) on this Mac, and Implexa Desktop could not find them. Update Implexa Desktop or install ffmpeg, then try again.',
   recording_not_found: 'This recording is no longer in your library on this Mac.',
   recording_not_ready: 'This recording is still being saved. Try again in a moment.',
-  moments_invalid: 'Tukido Desktop could not save these moments. Check each range is inside the recording and at most 30 seconds, then save again.',
+  moments_invalid: 'Implexa Desktop could not save these moments. Check each range is inside the recording and at most 30 seconds, then save again.',
   selection_cancelled: 'No file was chosen.',
   delete_cancelled: 'The recording was not deleted.',
   import_unsupported: 'That video could not be added: it is not an MP4, MOV, M4V or WebM file, or it could not be converted. Try another file.',
   import_too_long: 'That video is too long to add to your recordings library.',
   import_too_large: 'That video is too large to add to your recordings library.',
   recorder_failed: 'The recorder hit a problem. Your other recordings are unaffected. Try again.',
-  recorder_operation_invalid: 'Tukido Desktop did not recognise that recorder request. Update Tukido Desktop, then reload this page.',
-  desktop_required: 'Recording needs the Tukido desktop app. Open this page in Tukido Desktop to record, upload or play recordings.',
-  desktop_update_required: `Recording needs the Tukido desktop app with review recorder version ${REVIEW_RECORDER_CONTRACT_VERSION}. Update Tukido Desktop, then reload this page.`,
-  response_invalid: 'Tukido Desktop sent an answer this page could not verify, so nothing was changed here. Update Tukido Desktop and try again.',
-  request_invalid: 'That request could not be sent to Tukido Desktop.',
+  recorder_operation_invalid: 'Implexa Desktop did not recognise that recorder request. Update Implexa Desktop, then reload this page.',
+  desktop_required: 'Recording needs the Implexa desktop app. Open this page in Implexa Desktop to record, upload or play recordings.',
+  desktop_update_required: `Recording needs the Implexa desktop app with review recorder version ${REVIEW_RECORDER_CONTRACT_VERSION}. Update Implexa Desktop, then reload this page.`,
+  response_invalid: 'Implexa Desktop sent an answer this page could not verify, so nothing was changed here. Update Implexa Desktop and try again.',
+  request_invalid: 'That request could not be sent to Implexa Desktop.',
 };
 
 /** Cancelling a native dialog is the user's choice, not an error to display. */

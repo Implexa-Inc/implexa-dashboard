@@ -253,7 +253,7 @@ export default function CapabilityCard({ card, onRetry }: {
   async function openKeyEntry(provider: string) {
     setErr('');
     const bridge = desktopBridge();
-    if (!bridge?.openKeySetup) { setErr('Open the Tukido desktop app to add a key on this Mac.'); return; }
+    if (!bridge?.openKeySetup) { setErr('Open the Implexa desktop app to add a key on this Mac.'); return; }
     const res = await bridge.openKeySetup(provider, card.slug);
     if (!res?.ok) {
       setErr(res?.error === 'vault_unavailable'
@@ -390,7 +390,7 @@ export default function CapabilityCard({ card, onRetry }: {
                 if (a.kind === 'paste_key') {
                   return (
                     <div key={key} className="text-xs text-ink-400">
-                      Open the Tukido desktop app to add your key — it’s stored locally on your Mac, never on the web.
+                      Open the Implexa desktop app to add your key — it’s stored locally on your Mac, never on the web.
                     </div>
                   );
                 }

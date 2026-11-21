@@ -242,7 +242,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
             {loadError && <p role="status" className="mb-3 text-sm text-state-needs">{loadError}</p>}
             {unreadable > 0 && (
               <p role="status" className="mb-3 text-sm text-state-needs">
-                {unreadable === 1 ? '1 recording could not be read.' : `${unreadable} recordings could not be read.`} Updating Tukido Desktop may fix this.
+                {unreadable === 1 ? '1 recording could not be read.' : `${unreadable} recordings could not be read.`} Updating Implexa Desktop may fix this.
               </p>
             )}
             {recordings === null && !loadError && <div className="h-20 animate-pulse rounded bg-ink-800/50" aria-label="Loading recordings" />}

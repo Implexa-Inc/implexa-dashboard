@@ -102,7 +102,7 @@ function AccountRow({ conn }: { conn: ConnectionAccount }) {
         {broken && (
           <Link
             href={RECONNECT_HREF}
-            title="Connect this account in the Tukido desktop app — you sign in once in the Tukido browser, no API keys."
+            title="Connect this account in the Implexa desktop app — you sign in once in the Tukido browser, no API keys."
             className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap"
           >
             Set up

@@ -411,7 +411,7 @@ export default async function WorkflowDetailPage({
         </div>
       )}
 
-      <details className="proof-disclosure mb-6"><summary>Run history and checks</summary><div className="mt-5">
+      <details className="proof-disclosure mb-6"><summary><span>Run history and checks</span><span className="ml-3 inline-flex flex-wrap items-center gap-2 text-xs font-normal text-ink-300">{grade && <span>Delivered {Math.round(grade.rate * 100)}% across {grade.runs} real run{grade.runs === 1 ? '' : 's'}</span>}<RemoteSafetyBadge safety={safety} size="xs" /></span></summary><div className="mt-5">
       {/* Build evidence — whether this agent was assembled from parts that
           have actually delivered in real runs, not merely from semantic matches. */}
       {workflow.build_evidence && workflow.build_evidence.status !== 'pending' && (
@@ -634,7 +634,7 @@ export default async function WorkflowDetailPage({
           <BackLink fallback="/workflows" label="Back" />
         </nav>
 
-        {workflow.publisher_text_guidance_required&&<p className="mb-4 rounded-lg border border-amber-500/30 p-3 text-sm text-state-needs">The latest released training requires Codex and Tukido Desktop 0.4.160 or newer. Check this before installing or adopting it; Claude execution is not supported for this text guidance yet.</p>}
+        {workflow.publisher_text_guidance_required&&<p className="mb-4 rounded-lg border border-amber-500/30 p-3 text-sm text-state-needs">The latest released training requires Codex and Implexa Desktop 0.4.160 or newer. Check this before installing or adopting it; Claude execution is not supported for this text guidance yet.</p>}
 
         {/* Header */}
         <header className="mb-6">

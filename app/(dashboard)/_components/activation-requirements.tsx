@@ -88,7 +88,7 @@ function BrowserSessionAccess({ session, target, managed = false, onVerified }: 
       finally { setBusy(false); }
       return;
     }
-    if (!bridge?.connectAccount) { setNote('Open the Tukido desktop app to sign in and verify this account.'); return; }
+    if (!bridge?.connectAccount) { setNote('Open the Implexa desktop app to sign in and verify this account.'); return; }
     setBusy(true); setNote(null);
     try {
       const out = await bridge.connectAccount(session.domain);
@@ -111,7 +111,7 @@ function BrowserSessionAccess({ session, target, managed = false, onVerified }: 
       finally { setBusy(false); }
       return;
     }
-    if (!bridge?.verifyAccount) { setNote('Open the Tukido desktop app to verify this account.'); return; }
+    if (!bridge?.verifyAccount) { setNote('Open the Implexa desktop app to verify this account.'); return; }
     setBusy(true); setNote(null);
     try {
       const out = await bridge.verifyAccount(session.domain);

@@ -158,7 +158,7 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
             <ol className="mt-8 space-y-4">
               {[
                 ['Open the download', 'Double-click Implexa.dmg, then drag Implexa into Applications.'],
-                ['Launch Tukido', 'Open it from Applications. Sign in with this same account.'],
+                ['Launch Implexa', 'Open it from Applications. Sign in with this same account.'],
                 ['You’re in', 'The app connects your Claude or Codex and picks up where you left off — this page jumps you to your dashboard automatically.'],
               ].map(([t, d], i) => (
                 <li key={i} className="flex gap-3.5">

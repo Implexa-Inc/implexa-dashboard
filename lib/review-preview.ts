@@ -165,7 +165,7 @@ export function decidePreview(args: {
   if (!inDesktop) {
     return {
       state: 'desktop_required', kind, offerOpenInDesktop: true, offerExternal: false,
-      message: 'Local files can only be opened in Tukido Desktop. Your browser cannot read them.',
+      message: 'Local files can only be opened in Implexa Desktop. Your browser cannot read them.',
     };
   }
 
