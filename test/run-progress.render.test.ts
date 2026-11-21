@@ -8,7 +8,7 @@ test('the progress dial uses real steps and the recorded run estimate, without i
 });
 for(const state of ['waiting','stalled','failed'])test(`${state} uses its honest paused/stopped state and never an active orbit`,async()=>{
  const r=await render('run-steps-list.tsx',{steps,progress:{state,note:'Read the run details'}});
- try{assert.match(r.text(),state==='failed'?/Stopped at step 2 of 3/:/Step 2 of 3 · paused/);assert.equal(r.document.querySelector('.run-progress-orbit'),null);assert.equal(r.document.querySelector('.run-progress-steps li:nth-child(2) small')?.textContent,state==='failed'?'Failed':'Paused');assert.doesNotMatch(r.text(),/min left|usually take/);}finally{r.cleanup();}
+ try{assert.match(r.text(),state==='failed'?/Stopped at step 2 of 3/:state==='stalled'?/Step 2 of 3 · interrupted/:/Step 2 of 3 · paused/);assert.equal(r.document.querySelector('.run-progress-orbit'),null);assert.equal(r.document.querySelector('.run-progress-steps li:nth-child(2) small')?.textContent,state==='failed'?'Failed':state==='stalled'?'Interrupted':'Paused');assert.doesNotMatch(r.text(),/min left|usually take/);}finally{r.cleanup();}
 });
 test('unknown steps and missing estimate do not become invented step counts or a countdown',async()=>{
  const r=await render('run-steps-list.tsx',{steps:[],progress:{state:'queued'}});

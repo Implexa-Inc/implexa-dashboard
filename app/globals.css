@@ -597,3 +597,5 @@ html, body {
 
 .run-files-progress{padding:24px;border:1px solid var(--border-subtle);border-radius:var(--r-md);background:var(--bg-surface);margin-bottom:24px;}
 .run-files-progress h2{font:22px var(--font-display),Georgia,serif;}.run-files-progress>ul{border-color:var(--border-subtle);background:transparent;}.run-files-progress li{border-color:var(--border-subtle);}.run-files-progress button{color:var(--text-body);border-color:var(--border-control);background:var(--bg-surface);}
+
+.run-detail-rail{overflow-wrap:anywhere;}.run-control-panel [aria-label="Run cancellation"]{padding:0;border:0;border-radius:0;background:transparent;margin-top:12px;}.run-control-panel [aria-label="Run cancellation"]>.btn-outline,.run-control-panel [aria-label="Run cancellation"]>div>.btn-outline{width:100%;background:var(--action-danger);color:var(--on-action-danger);border-color:transparent;}.run-control-panel [aria-label="Run cancellation"] .btn-outline:hover{background:var(--action-danger-hover);}

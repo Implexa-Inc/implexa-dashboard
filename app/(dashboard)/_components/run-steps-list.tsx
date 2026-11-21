@@ -48,6 +48,8 @@ export type ProgressPresentation = {
 
 function duration(ms:number){
   const seconds=Math.max(0,Math.floor(ms/1000));
+  if(seconds>=86400)return `${Math.floor(seconds/86400)}d ${Math.floor(seconds/3600)%24}h`;
+  if(seconds>=3600)return `${Math.floor(seconds/3600)}h ${Math.floor(seconds/60)%60}m`;
   return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
 }
 
@@ -66,8 +68,8 @@ export default function RunStepsList({steps,live=false,compact=false,heading='St
   const currentPosition=current?steps.indexOf(current):0;
   const waiting=state==='waiting'||state==='stalled',failed=state==='failed',moving=state==='running';
   const tone=failed?'failed':waiting?'waiting':state==='completed'?'completed':moving?'running':'queued';
-  const label=total&&current?`${failed?'Stopped at step':'Step'} ${currentPosition+1} of ${total}${waiting?' · paused':''}`:state==='completed'?'Steps complete':state==='queued'?'Waiting to start':failed?'Run stopped':waiting?'Waiting for you':'Getting started';
-  const title=current?.label||(current?`Step ${current.index}`:state==='completed'?'All steps complete':state==='queued'?'Waiting to start':failed?'Run stopped':waiting?'Waiting for you':'Working on your result');
+  const label=total&&current?`${failed?'Stopped at step':'Step'} ${currentPosition+1} of ${total}${state==='waiting'?' · paused':state==='stalled'?' · interrupted':''}`:state==='completed'?'Steps complete':state==='queued'?'Waiting to start':failed?'Run stopped':state==='stalled'?'Progress interrupted':waiting?'Waiting for you':'Getting started';
+  const title=current?.label||(current?`Step ${current.index}`:state==='completed'?'All steps complete':state==='queued'?'Waiting to start':failed?'Run stopped':state==='stalled'?'Progress interrupted':waiting?'Waiting for you':'Working on your result');
   const elapsed=progress?.elapsedMs;
   const estimate=progress?.expectedMs;
   const remaining=typeof elapsed==='number'&&typeof estimate==='number'&&estimate>0?estimate-elapsed:null;
@@ -82,14 +84,14 @@ export default function RunStepsList({steps,live=false,compact=false,heading='St
       <div className="run-progress-copy"><p className="run-progress-label">{label}</p><h2>{title}</h2>
         {progress?.note&&<p className="run-progress-note"><i aria-hidden="true"/>{progress.note}</p>}
         <div className="run-progress-times">
-          {waiting?<div><b>Paused</b><span>{state==='waiting'?'Waiting for your input':'Check the recorded run status'}</span></div>:failed?<div><b>Stopped</b><span>Review the details beside this progress</span></div>:moving&&remaining!==null?<div><b>{remaining>0?`About ${Math.max(1,Math.ceil(remaining/60000))} min left`:'Taking longer than estimated'}</b><span>Based on this run’s estimate</span></div>:null}
+          {waiting?<div><b>{state==='stalled'?'Interrupted':'Paused'}</b><span>{state==='waiting'?'Waiting for your input':'Check the recorded run status'}</span></div>:failed?<div><b>Stopped</b><span>Review the details beside this progress</span></div>:moving&&remaining!==null?<div><b>{remaining>0?`About ${Math.max(1,Math.ceil(remaining/60000))} min left`:'Taking longer than estimated'}</b><span>Based on this run’s estimate</span></div>:null}
           {typeof elapsed==='number'&&Number.isFinite(elapsed)&&<div><b>{duration(elapsed)}</b><span>elapsed</span></div>}
         </div>
       </div>{action}
     </div>
     {!!total&&<ol className="run-progress-steps">{steps.map(s=>{
       const active=s===current;const rowTone=active?failed?'failed':waiting?'waiting':moving?'running':s.status:s.status;
-      return <li key={s.index} className={`is-${rowTone}`}><span className="run-progress-marker" aria-hidden="true">{s.status==='done'?'✓':rowTone==='failed'||rowTone==='waiting'?'!':rowTone==='running'?<i/>:s.index}</span><div><b>{s.label||`Step ${s.index}`}</b>{active&&progress?.note&&<span>{progress.note}</span>}</div><small>{active?(failed?'Failed':waiting?'Paused':moving?'Now':''):''}</small></li>;
+      return <li key={s.index} className={`is-${rowTone}`}><span className="run-progress-marker" aria-hidden="true">{s.status==='done'?'✓':rowTone==='failed'||rowTone==='waiting'?'!':rowTone==='running'?<i/>:s.index}</span><div><b>{s.label||`Step ${s.index}`}</b>{active&&progress?.note&&<span>{progress.note}</span>}</div><small>{active?(failed?'Failed':state==='stalled'?'Interrupted':waiting?'Paused':moving?'Now':''):''}</small></li>;
     })}</ol>}
   </section>;
 }
