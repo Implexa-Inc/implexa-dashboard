@@ -160,7 +160,7 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
                 <button type="button" onClick={() => void reveal(artifact)} className="rounded border border-ink-700 px-2.5 py-1 text-ink-300 hover:bg-ink-800">Finder</button>
               </div>
             </li>
-          
+
   );
   return (
     <section className={progress||finished?'run-files-progress':'mb-6 rounded-lg border border-emerald-500/35 bg-emerald-500/[0.06] p-4'} aria-label={progress?'Files so far':'Files and artifacts'}>
