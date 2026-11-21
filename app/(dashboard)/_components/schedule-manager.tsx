@@ -139,14 +139,14 @@ export default function ScheduleManager({
             : routine!.status === 'paused'
               ? 'bg-amber-500/15 text-state-needs'
               : 'bg-rose-500/15 text-state-fail'
-        }`}>{routine!.status}</span>
+        }`}>{routine!.status==='paused'?'Off':routine!.status==='active'?'On':'Needs attention'}</span>
       </div>
 
       {editing ? (
         <SchedulePicker slug={slug} onSaved={onSaved} initial={initialFor(routine)} />
       ) : (
         <div className="mt-2 flex items-center gap-2 flex-wrap">
-          <button type="button" onClick={() => setEditing(true)} className={btn}>Edit schedule</button>
+          <button type="button" onClick={() => setEditing(true)} className={btn}>Edit</button>
           {routine!.status === 'active' && (
             <button type="button" onClick={() => setStatus('paused')} disabled={busy === 'pause'} className={btn}>
               {busy === 'pause' ? 'Pausing…' : 'Pause'}
@@ -154,12 +154,12 @@ export default function ScheduleManager({
           )}
           {routine!.status === 'paused' && (
             <button type="button" onClick={() => setStatus('active')} disabled={busy === 'resume'} className={btn}>
-              {busy === 'resume' ? 'Resuming…' : 'Resume'}
+              {busy === 'resume' ? 'Turning on…' : 'Turn on schedule'}
             </button>
           )}
-          <button type="button" onClick={makeOnDemand} disabled={busy === 'ondemand'} className={btn}>
-            {busy === 'ondemand' ? 'Removing…' : 'Make on-demand'}
-          </button>
+          <details className="text-xs"><summary>More schedule options</summary><button type="button" onClick={makeOnDemand} disabled={busy === 'ondemand'} className={btn}>
+            {busy === 'ondemand' ? 'Removing…' : 'Remove saved schedule'}
+          </button></details>
         </div>
       )}
 

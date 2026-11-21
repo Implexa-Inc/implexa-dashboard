@@ -923,7 +923,7 @@ export function ActivationCard({
           </h2>
           {setupSurface ? (
             <p className="text-sm text-ink-400 mt-1 leading-snug">
-              Connect what this agent needs. It is ready automatically when the required items are complete.
+              This agent is ready once the required items are done.
             </p>
           ) : checklist.summary ? (
             <p className="text-sm text-ink-400 mt-1 leading-snug">{checklist.summary}</p>
@@ -1005,7 +1005,7 @@ export function ActivationCard({
       <CapabilityGapsNotice gaps={checklist.capabilityGaps} />
 
       <div className="mt-5 flex items-start gap-3">
-        {setupSurface&&versionedSetup&&!isActive?<div role="status" className="text-sm text-ink-400">{activating?'Completing setup…':error?<><p className="text-state-fail">{error}</p><button type="button" className="btn-outline mt-3" disabled={!automaticReady} onClick={()=>{setError(null);setCompletionRetry(n=>n+1);}}>Try again</button></>:setupBlockedReason?setupBlockedReason:!boundSetupVersion?'The agent changed. Reload Setup.':statusUnavailable||checklist.setupReadAvailable!==true?'Setup status could not be checked. Reload to try again.':revisePending?'Setup will finish after the pending edit is ready.':'Complete the required items above. No separate activation step is needed.'}{suggestedCadence&&<p className="mt-2 text-xs">Suggested schedule: {suggestedCadence}. Setup does not start it; enable it in Schedule below.</p>}</div>:setupSurface && isActive && allSavedGranted ? null : isActive && allSavedGranted ? (
+        {setupSurface&&versionedSetup&&!isActive?<div role="status" className="text-sm text-ink-400">{activating?'Completing setup…':error?<><p className="text-state-fail">{error}</p><button type="button" className="btn-outline mt-3" disabled={!automaticReady} onClick={()=>{setError(null);setCompletionRetry(n=>n+1);}}>Try again</button></>:setupBlockedReason?setupBlockedReason:!boundSetupVersion?'The agent changed. Reload Setup.':statusUnavailable||checklist.setupReadAvailable!==true?'Setup status could not be checked. Reload to try again.':revisePending?'Setup will finish after the pending edit is ready.':'Complete the required items above.'}{suggestedCadence&&<p className="mt-2 text-xs">Suggested schedule: {suggestedCadence}. Setup does not start it; enable it in Schedule below.</p>}</div>:setupSurface && isActive && allSavedGranted ? null : isActive && allSavedGranted ? (
           // The moment of highest motivation must not dead-end at "Active."
           // (founder: "I activated this agent but what to do next, Im clueless").
           // Offer the first run right here; the schedule row above covers later.
@@ -1162,7 +1162,7 @@ export function ActivationCard({
               className={ready && !activating ? 'btn-success' : 'btn-outline opacity-50 cursor-not-allowed'}
               title={ready ? 'Switch this agent on' : 'Finish the steps above first'}
             >
-              {activating ? (guided ? 'Turning on…' : 'Activating…') : (setupSurface?'Complete legacy setup':guided ? 'Turn it on' : 'Activate')}
+              {activating ? (guided ? 'Turning on…' : 'Activating…') : (setupSurface?'Finish setup':guided ? 'Turn it on' : 'Activate')}
             </button>
             {error ? (
               <span className="text-xs text-state-fail">{error}</span>

@@ -27,3 +27,13 @@ test('a changed target while authentication is pending cannot send a stale compl
  const r=await render('activation-card.tsx',props,{exportName:'ActivationCard',auth:{getSession:()=>pending},backend:()=>({ok:true})});
  try{await r.rerender({...props,runInputs:{...props.runInputs,workflowVersionId:'44444444-4444-4444-8444-444444444444'}});await r.act(()=>release({data:{session:{access_token:'synthetic-jwt',user:{id:accountId}}}}));await flush(r);assert.equal(r.calls.backend.filter(c=>c.path.endsWith('/activate')).length,0);assert.ok(r.queryByText('The agent changed. Reload Setup.'));}finally{r.cleanup();}
 });
+
+test('an unread active Setup never claims ready and keeps completion inert',async()=>{
+ const r=await render('activation-card.tsx',{...props,checklist:{...checklist,state:'active',setupReadAvailable:false}},{exportName:'ActivationCard',auth,backend:()=>({ok:true})});
+ try{await flush(r);assert.ok(r.queryByText('Setup status unavailable'));assert.equal(r.queryByText(/^Ready to run$/),null);assert.equal(r.calls.backend.length,0);}finally{r.cleanup();}
+});
+test('an optional-only preferences card is readable without implying required answers or saving on read',async()=>{
+ const optional={key:'caption',question:'Caption style',kind:'choice',optional:true,options:['Small','Large']};
+ const r=await render('agent-setup-card.tsx',{slug:'ready-agent'},{auth,backend:()=>({schema:[optional],answers:{caption:'Small'},missing:[],complete:true,needs_setup:false,ready_to_run:true})});
+ try{await flush(r);assert.ok(r.queryByText('Your preferences'));assert.ok(r.queryByText('Remembered for next time.'));assert.equal(r.queryByText('Questions this agent needs answered'),null);assert.equal(r.calls.backend.filter(c=>(c.init as any)?.method==='POST').length,0);}finally{r.cleanup();}
+});

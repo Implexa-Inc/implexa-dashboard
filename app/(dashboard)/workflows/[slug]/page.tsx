@@ -30,7 +30,7 @@ import { getAgentDetail, agentActionContext, agentPageReadMode } from '@/lib/age
 import { remoteSafety } from '@/lib/remote-safety';
 import { loadInboxItems } from '@/lib/inbox';
 import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
-import AgentOverview from '../../_components/agent-overview';
+import AgentOverview,{AgentInputSummary} from '../../_components/agent-overview';
 import AgentPageHeader from '../../_components/agent-page-header';
 import AgentReadiness from '../../_components/agent-readiness';
 import { missingRequiredApiKeys } from '@/lib/agent-readiness-requirements';
@@ -505,6 +505,8 @@ export default async function WorkflowDetailPage({
         <AgentSetupCard slug={workflow.slug} source={workflow.source} />
 
       </div>
+
+      {!!workflow.input_contract?.fields.length&&<section className="card mb-6"><h2 className="mb-3">Each run</h2><p className="text-sm text-ink-400 mb-4">You provide these when you choose Run.</p><AgentInputSummary inputs={workflow.input_contract.fields}/></section>}
 
       {/* Schedule — edit / pause / make-on-demand inline, no navigating away. */}
       <div className="card mb-6">
