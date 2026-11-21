@@ -54,6 +54,7 @@ test('final quality card shows an integer or not assessed while historical bands
  const source=readFileSync('app/(dashboard)/_components/run-judgment-card.tsx','utf8');
  const js=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS}}).outputText;
  const localRequire=(id:string)=>id==='@/lib/judge-repair-state'?{judgeRepairState:()=>({phase:'none'})}
+  :id==='./judge-review-retry'?{JudgeReviewRetry:()=>null}
   :id==='next/link'?{default:()=>null}:id==='./judge-feedback-controls'?{default:()=>null}
   :id==='./manager-repair-checkpoint-retry'?{ManagerRepairCheckpointRetry:()=>null}:require(id);
  new Function('require','module','exports',js)(localRequire,mod,mod.exports);
