@@ -3,11 +3,11 @@ import { createContext, useContext, useEffect, useState, type ReactNode, type Di
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import LocalTime from '../../_components/local-time';
-import {WorkAttentionSync,useWorkAttentionBadge} from '../../_components/sidebar';
+import {WorkAttentionSync} from '../../_components/sidebar';
 import {humanize} from '@/lib/inbox-items';
 import type { NeedsYou } from '@/lib/needs-you';
 import type { ReviewQueue } from '@/lib/review';
-import {mergeWorkCount,type WorkView} from '@/lib/navigation';
+import {type WorkView} from '@/lib/navigation';
 import RunningAgents, { type LiveWorkRow } from '../../_components/running-agents';
 import WorkItemRow,{WorkDisplayNames} from '../../_components/work-item-row';
 import JudgeReviewCard from '../../_components/judge-review-dialog';
@@ -43,7 +43,6 @@ export function WorkList({view,needs,queue,names,reviewDetails,warning,delivered
   delivered?:ReactNode;productions?:ReactNode;loadingNeeds?:boolean;loadingReview?:boolean;
 }){
   const router=useRouter();
-  const retainedWork=useWorkAttentionBadge();
   const [revision,setRevision]=useState(0);
   const judgeIds=new Set(needs.homeAttention.flatMap(item=>item.runId?[item.runId]:[]));
   const reviews=queue.items.filter(item=>!judgeIds.has(item.rootRunId)&&!judgeIds.has(item.latestRunId));
@@ -84,12 +83,11 @@ export function WorkList({view,needs,queue,names,reviewDetails,warning,delivered
     const reviewCount=reviewRows.length;
     const activeCount=needsCount+reviewCount+running.length;
     const sourceNeeds={count:needsCount,complete:needsComplete};
-    const boundedNeeds=mergeWorkCount(retainedWork,sourceNeeds)!;
     const counts={
-      needs:boundedNeeds,
+      needs:sourceNeeds,
       review:{count:reviewCount,complete:!loadingReview&&!warning&&knownLive},
       running:{count:running.length,complete:knownLive},
-      activity:{count:needsComplete?activeCount:Math.max(activeCount,boundedNeeds.count),complete:needsComplete},
+      activity:{count:activeCount,complete:needsComplete},
     };
     const showNeeds=view==='activity'||view==='needs',showReview=view==='activity'||view==='review',showRunning=view==='activity'||view==='running';
     const viewKnown=view==='running'?knownLive:view==='review'?knownLive&&!loadingReview&&!warning:needsComplete;

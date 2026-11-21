@@ -130,7 +130,7 @@ test('both real shell surfaces retain attention on visiting Work, refresh after 
 
 
 
-test('only a complete Work count can reduce a previously known lower bound',()=>{
+test('a weaker shell background read cannot reduce a previously known lower bound',()=>{
  assert.deepEqual(mergeWorkCount({count:20,complete:true},{count:2,complete:false}),{count:20,complete:false});
  assert.deepEqual(mergeWorkCount({count:20,complete:false},null),{count:20,complete:false});
  assert.deepEqual(mergeWorkCount({count:20,complete:false},{count:23,complete:false}),{count:23,complete:false});
@@ -154,24 +154,25 @@ test('Work publishes one count to both menu surfaces and a slower shell response
   assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2);
   await React.act(async()=>finish?.(Response.json({ok:true,canTrain:true,work:{count:2,complete:false}})));
   assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2,'the independent shell read cannot overwrite the current page count');
-  await React.act(async()=>root.render(render(19)));
-  assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2);
+  await React.act(async()=>root.render(render(15)));
+  assert.equal(document.querySelectorAll('[aria-label="At least 15 need you"]').length,2);
   now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));
   assert.equal(calls,1,'Work already supplies attention; verified ownership does not need another whole attention read');
   await React.act(async()=>finish?.(Response.json({ok:false})));
-  assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2,'an unavailable background route does not contradict visible Work rows');
+  assert.equal(document.querySelectorAll('[aria-label="At least 15 need you"]').length,2,'an unavailable background route does not contradict visible Work rows');
   __setPathname('/workflows');await React.act(async()=>root.render(render(null)));
-  assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2,'leaving Work retains the last page count instead of jumping to the older shell read');
+  assert.equal(document.querySelectorAll('[aria-label="At least 15 need you"]').length,2,'leaving Work retains the last page count instead of jumping to the older shell read');
   now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));assert.equal(calls,2);
   await React.act(async()=>finish?.(Response.json({ok:true,canTrain:true,work:{count:2,complete:false}})));
-  assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2,'the lower partial read after leaving Work cannot erase the better session bound');
+  assert.equal(document.querySelectorAll('[aria-label="At least 15 need you"]').length,2,'the lower partial read after leaving Work cannot erase the better session bound');
   now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));
   await React.act(async()=>finish?.(Response.json({ok:true,canTrain:true,work:{count:0,complete:true}})));
   assert.equal(document.querySelectorAll('.app-nav-count').length,0,'a subsequent independent confirmed read can update the retained count');
   window.sessionStorage.setItem('tukido.work-attention:review-account','20');
   await React.act(async()=>root.render(null));
-  await React.act(async()=>root.render(render(0,true)));
-  assert.equal(document.querySelectorAll('.app-nav-count').length,0,'a cached UI hint cannot override a fresh complete count from the page');
+  await React.act(async()=>root.render(render(0,false)));
+  assert.equal(document.querySelectorAll('[aria-label="Needs-you status unavailable"]').length,2,'a cached UI hint cannot override a fresh partial zero from the page');
+  assert.equal(window.sessionStorage.getItem('tukido.work-attention:review-account'),null);
  }finally{await React.act(async()=>root.unmount());dom.window.close();Object.assign(globalThis,before);Date.now=realNow;}
 
 });

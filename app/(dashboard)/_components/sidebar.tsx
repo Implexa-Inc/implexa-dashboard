@@ -51,7 +51,6 @@ export function WorkAttentionSync({badge}:{badge:WorkAttentionBadge|undefined}){
 }
 
 const ShellState = createContext<ShellNavigationState | undefined>(undefined);
-export function useWorkAttentionBadge(){return useContext(ShellState)?.work;}
 
 /** One read for both surfaces after paint, with throttled focus/periodic refresh. */
 export function ShellNavigationProvider({ userId, children }: { userId: string; children: ReactNode }) {
@@ -59,7 +58,7 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
   const pageWork=useRef<WorkAttentionBadge>();
   const publishWork=useCallback((badge:WorkAttentionBadge|undefined)=>{
     pageWork.current=badge;
-    if(badge)setState(previous=>{const work=mergeWorkCount(previous?.work,badge);return previous?.work?.count===work?.count&&previous?.work?.complete===work?.complete?previous:{canTrain:previous?.canTrain??null,work};});
+    if(badge)setState(previous=>{const work=badge;return previous?.work?.count===work?.count&&previous?.work?.complete===work?.complete?previous:{canTrain:previous?.canTrain??null,work};});
   },[]);
   useEffect(() => {
     const controller = new AbortController();
@@ -71,7 +70,7 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
     // Per-account, per-tab UI hint. It carries no permissions or authentication.
     try {
       const cached=JSON.parse(window.sessionStorage.getItem(`tukido.work-attention:${userId}`)||'null');
-      if(Number.isSafeInteger(cached)&&cached>0)setState(previous=>previous?.work?.complete?previous:{canTrain:previous?.canTrain??null,work:mergeWorkCount(previous?.work,{count:cached,complete:false})});
+      if(Number.isSafeInteger(cached)&&cached>0)setState(previous=>pageWork.current?previous:{canTrain:previous?.canTrain??null,work:mergeWorkCount(previous?.work,{count:cached,complete:false})});
     } catch { /* Storage is optional; unreadable is never a zero. */ }
     try {
       const known = window.localStorage.getItem(roleKey);
@@ -100,11 +99,11 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
             } catch { /* UI hint only, never authorization */ }
           }
           setState((previous) => valid
-            ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work:mergeWorkCount(previous?.work,pageWork.current??work) }
-            : { canTrain: previous?.canTrain ?? null, work:mergeWorkCount(previous?.work,pageWork.current??null) });
+            ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work:pageWork.current??mergeWorkCount(previous?.work,work) }
+            : { canTrain: previous?.canTrain ?? null, work:pageWork.current??mergeWorkCount(previous?.work,null) });
         }
       } catch {
-        if (active) setState((previous) => ({ canTrain: previous?.canTrain ?? null, work:mergeWorkCount(previous?.work,pageWork.current??null) }));
+        if (active) setState((previous) => ({ canTrain: previous?.canTrain ?? null, work:pageWork.current??mergeWorkCount(previous?.work,null) }));
       } finally { inFlight = false; }
     }
     void refresh();
@@ -126,7 +125,7 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
     try {
       const key=`tukido.work-attention:${userId}`;
       if(value.count>0)window.sessionStorage.setItem(key,JSON.stringify(value.count));
-      else if(value.complete)window.sessionStorage.removeItem(key);
+      else window.sessionStorage.removeItem(key);
     } catch { /* UI continuity only; never authorization. */ }
   },[userId,state?.work?.count,state?.work?.complete]);
   // Navigation remounts do not create another read; the provider belongs to the
