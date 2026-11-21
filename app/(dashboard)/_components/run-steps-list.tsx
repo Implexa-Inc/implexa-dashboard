@@ -39,49 +39,66 @@ export function stepSummary(steps: StepListItem[]): { done: number; total: numbe
   return { done: steps.filter((s) => s.status === 'done').length, total: steps.length };
 }
 
-export default function RunStepsList({
-  steps,
-  live = false,
-  compact = false,
-  heading = 'Steps',
-  /** Rendered inside the header row — e.g. the trace's manual refresh. */
-  action = null,
-}: {
-  steps: StepListItem[];
-  live?: boolean;
-  compact?: boolean;
-  heading?: string | null;
-  action?: React.ReactNode;
-}) {
-  if (!steps?.length) return null;
-  const { done, total } = stepSummary(steps);
-  return (
-    <div className={compact ? '' : 'mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4'}>
-      {heading !== null && (
-        <div className="flex items-center gap-4 mb-4">
-          {!compact&&<svg className={`enso-progress ${steps.some(s=>s.status==='failed')?'has-failure':done===total?'is-complete':''}`} viewBox="0 0 100 100" role="img" aria-label={`${done} of ${total} steps complete`}>
-            <circle className="enso-track" cx="50" cy="50" r="40" fill="none" strokeWidth="6"/>
-            <circle className="enso-arc" cx="50" cy="50" r="40" fill="none" strokeWidth="6" strokeLinecap="round" pathLength="100" strokeDasharray={`${Math.max(1,done/total*96)} 100`} transform="rotate(-90 50 50)"/>
-            <text x="50" y="56" textAnchor="middle">{done}/{total}</text>
-          </svg>}
-          <div className="min-w-0 flex-1"><p className="text-sm font-medium text-ink-100">{live?'Working on your result':heading}</p>
-            <p className="mt-1 text-xs text-ink-400">{done} of {total} steps complete</p>
-            {live&&<p className="mt-1 text-sm text-state-running">{steps.find(s=>s.status==='running')?.label||'Waiting for the next step'}</p>}
-          </div>
-          {action}
+export type ProgressPresentation = {
+  state: 'queued' | 'running' | 'waiting' | 'stalled' | 'failed' | 'completed';
+  note?: string | null;
+  elapsedMs?: number | null;
+  expectedMs?: number | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  interruptedAt?: string | null;
+};
+
+function duration(ms:number){
+  const seconds=Math.max(0,Math.floor(ms/1000));
+  if(seconds>=86400)return `${Math.floor(seconds/86400)}d ${Math.floor(seconds/3600)%24}h`;
+  if(seconds>=3600)return `${Math.floor(seconds/3600)}h ${Math.floor(seconds/60)%60}m`;
+  return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
+}
+
+export default function RunStepsList({steps,live=false,compact=false,heading='Steps',action=null,progress}:{
+  steps:StepListItem[];live?:boolean;compact?:boolean;heading?:string|null;action?:React.ReactNode;progress?:ProgressPresentation;
+}){
+  const {done,total}=stepSummary(steps||[]);
+  // Production nodes retain their compact checklist and the same source rows.
+  if(compact){
+    if(!total)return null;
+    return <div>{heading!==null&&<div className="flex items-center gap-4 mb-4"><div className="min-w-0 flex-1"><p className="text-sm font-medium text-ink-100">{live?'Working on your result':heading}</p><p className="mt-1 text-xs text-ink-400">{done} of {total} steps complete</p>{live&&<p className="mt-1 text-sm text-state-running">{steps.find(s=>s.status==='running')?.label||'Waiting for the next step'}</p>}</div>{action}</div>}<ol className="space-y-1.5">{steps.map(s=><li key={s.index} className="flex items-center gap-2.5 text-xs"><StepIcon status={s.status}/><span className="text-[11px] font-mono text-ink-600 shrink-0">{s.index}/{total}</span><span className={s.status==='pending'?'text-ink-500 truncate':'text-ink-100 truncate'}>{s.label||`Step ${s.index}`}</span></li>)}</ol></div>;
+  }
+  if(!total&&!progress)return null;
+  const state=progress?.state||(live?'running':steps.some(s=>s.status==='failed')?'failed':done===total?'completed':'queued');
+  const current=steps.find(s=>s.status==='failed')||steps.find(s=>s.status==='running')||steps.find(s=>s.status==='pending');
+  const currentPosition=current?steps.indexOf(current):0;
+  const waiting=state==='waiting'||state==='stalled',failed=state==='failed',moving=state==='running';
+  const tone=failed?'failed':waiting?'waiting':state==='completed'?'completed':moving?'running':'queued';
+  const label=total&&current?`${failed?'Stopped at step':'Step'} ${currentPosition+1} of ${total}${state==='waiting'?' · paused':state==='stalled'?' · interrupted':''}`:state==='completed'?'Steps complete':state==='queued'?'Waiting to start':failed?'Run stopped':state==='stalled'?'Progress interrupted':waiting?'Waiting for you':'Getting started';
+  const title=current?.label||(current?`Step ${current.index}`:state==='completed'?'All steps complete':state==='queued'?'Waiting to start':failed?'Run stopped':state==='stalled'?'Progress interrupted':waiting?'Waiting for you':'Working on your result');
+  const elapsed=progress?.elapsedMs;
+  const estimate=progress?.expectedMs;
+  const isStopped=state==='stalled'||state==='failed';
+  const validDate=(value:string|null|undefined)=>typeof value==='string'&&Number.isFinite(Date.parse(value));
+  const stoppedAt=state==='stalled'&&validDate(progress?.interruptedAt)?progress!.interruptedAt:validDate(progress?.endedAt)?progress!.endedAt:null;
+  const recordedAt=stoppedAt||(validDate(progress?.startedAt)?progress!.startedAt:null);
+  const remaining=typeof elapsed==='number'&&typeof estimate==='number'&&estimate>0?estimate-elapsed:null;
+  return <section className={`run-progress-panel is-${tone}`} aria-label="Run progress">
+    <div className="run-progress-top">
+      <div className="run-progress-ring"><svg viewBox="0 0 100 100" role="img" aria-label={total?`${done} of ${total} steps complete`:'No steps reported yet'}>
+        <circle className="run-progress-track" cx="50" cy="50" r="40"/>
+        {done>0&&<circle className="run-progress-done" cx="50" cy="50" r="40" pathLength="100" strokeDasharray={`${done/total*96} 100`} transform="rotate(-90 50 50)"/>}
+        {current&&<circle className="run-progress-current" cx="50" cy="50" r="40" pathLength="100" strokeDasharray={`${Math.max(.5,96/total-1.2)} 100`} strokeDashoffset={-currentPosition*96/total-.6} transform="rotate(-90 50 50)"/>}
+        {moving&&current&&<g className="run-progress-orbit"><circle cx="50" cy="10" r="3.2"/></g>}
+      </svg><div className="run-progress-middle"><b>{total?done:'—'}</b><span>{total?`of ${total} done`:'No steps yet'}</span></div></div>
+      <div className="run-progress-copy"><p className="run-progress-label">{label}</p><h2>{title}</h2>
+        {progress?.note&&<p className="run-progress-note"><i aria-hidden="true"/>{progress.note}</p>}
+        <div className="run-progress-times">
+          {waiting?<div><b>{state==='stalled'?'Interrupted':'Paused'}</b><span>{state==='waiting'?'Waiting for your input':'Check the recorded run status'}</span></div>:failed?<div><b>Stopped</b><span>Review the details beside this progress</span></div>:moving&&remaining!==null?<div><b>{remaining>0?`About ${Math.max(1,Math.ceil(remaining/60000))} min left`:'Taking longer than estimated'}</b><span>Based on this run’s estimate</span></div>:null}
+          {isStopped?recordedAt&&<div><b><time dateTime={recordedAt} title={recordedAt}>{new Date(recordedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'})}</time></b><span>{stoppedAt?state==='stalled'?'interrupted':'stopped':'started'}</span></div>:typeof elapsed==='number'&&Number.isFinite(elapsed)&&<div><b>{duration(elapsed)}</b><span>elapsed</span></div>}
         </div>
-      )}
-      <ol className={compact ? 'space-y-1.5' : 'space-y-2'}>
-        {steps.map((s) => (
-          <li key={s.index} className={`flex items-center gap-2.5 ${compact ? 'text-xs' : 'text-sm'}`}>
-            <StepIcon status={s.status} />
-            <span className="text-[11px] font-mono text-ink-600 shrink-0">{s.index}/{total}</span>
-            <span className={s.status === 'pending' ? 'text-ink-500 truncate' : 'text-ink-100 truncate'}>
-              {s.label || `Step ${s.index}`}
-            </span>
-          </li>
-        ))}
-      </ol>
+      </div>{action}
     </div>
-  );
+    {!!total&&<ol className="run-progress-steps">{steps.map(s=>{
+      const active=s===current;const rowTone=active?failed?'failed':waiting?'waiting':moving?'running':s.status:s.status;
+      return <li key={s.index} className={`is-${rowTone}`}><span className="run-progress-marker" aria-hidden="true">{s.status==='done'?'✓':rowTone==='failed'||rowTone==='waiting'?'!':rowTone==='running'?<i/>:s.index}</span><div><b>{s.label||`Step ${s.index}`}</b>{active&&progress?.note&&<span>{progress.note}</span>}</div><small>{active?(failed?'Failed':state==='stalled'?'Interrupted':waiting?'Paused':moving?'Now':''):''}</small></li>;
+    })}</ol>}
+  </section>;
 }

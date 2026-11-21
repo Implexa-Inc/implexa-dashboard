@@ -926,6 +926,216 @@ export default async function RunDetailPage({
   const arrivedFromSupersededShell = typeof searchParams?.superseded === 'string'
     && UUID_RE.test(searchParams.superseded) ? searchParams.superseded : null;
 
+  const showProgressLayout = info.state !== 'completed' || held;
+  const heldRunControls = <>
+        {/* The ONE action surface for a held run — context-aware primary (Approve &
+            finish / Mark as done / Answer & continue), Request-changes on demand, a
+            quiet Dismiss, and power-user escapes under "⋯". Replaces the old banner +
+            Approve & finish + Mark done + always-open Continue box + Hide/Dismiss pile. */}
+        {heldApprovalSurface === 'paid_action' && (
+          <div className="mb-6">
+            <PaidActionApproval runId={r.id} view={paidActionApproval} />
+          </div>
+        )}
+        {stagePreview.state === 'ready' && <div className="mb-6"><StagePreviewReview summary={stagePreview.summary} /></div>}
+        {(heldApprovalSurface === 'unavailable' || heldApprovalSurface === 'generic' && effectiveHoldKind === 'approval_before_action' && stagePreview.state === 'unavailable') && (
+          <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-5" role="alert">
+            <p className="text-sm font-semibold text-ink-100">Approval details unavailable</p>
+            <p className="mt-2 text-sm leading-relaxed text-state-needs">
+              Tukido could not verify what this pending approval authorizes. No continuation is available until the exact hold details can be loaded.
+            </p>
+            <a href={`/runs/${encodeURIComponent(r.id)}`} className="btn-outline mt-3 inline-flex px-4 py-2 text-sm">Reload approval details</a>
+          </div>
+        )}
+        {heldApprovalSurface === 'generic' && (effectiveHoldKind !== 'approval_before_action' || stagePreview.state === 'not_applicable') && (
+          <div className="mb-6">
+            <RunActions
+              runId={r.id}
+              agentName={name}
+              reviewStatus={pending ? 'pending' : 'needs_input'}
+              holdKind={effectiveHoldKind}
+              hasShipStep={hasShipStep}
+              stepsState={stepsState}
+              claudeTaskId={claudeTaskId}
+              skillSlug={r.skill_slug}
+              workflowVersionId={runWorkflowVersionId}
+              approvalRecovery={approvalContinuationRecovery}
+              nonPaidApprovalVerified={paidActionApproval.state === 'not_applicable'}
+              reviewAmendment={reviewAmendment}
+            />
+          </div>
+        )}
+
+  </>;
+  const runProblem = <>
+        {!r.output_markdown && (showRunProblem ? (
+          // A stalled/failed run has no deliverable. Don't dead-end at a blank
+          // "no deliverable" line: say what happened + give the one action. This
+          // also fires for a run that A0's watchdog force-closed (run_close_reason
+          // set) even when info.attention is false — the exact case that used to
+          // render a bare, unexplained "Failed" with nothing else on the page.
+          <div className={`rounded-lg border p-5 ${
+            supersededByRelated ? 'border-ink-800 bg-ink-950/40' : 'border-amber-500/40 bg-amber-500/[0.06]'
+          }`}>
+            {/* When a related run is the authority for this production node,
+                the stall is a fact about an ABANDONED ATTEMPT, not about the
+                work — the banner above already says what actually happened. So
+                this stops being the page's conclusion and becomes a footnote.
+                Leading with "This run stalled" over a completed sibling is the
+                exact reading that made a successful production look broken. */}
+            <div className={`text-sm mb-1 ${supersededByRelated ? 'text-ink-300' : 'font-semibold text-ink-50'}`}>
+              {supersededByRelated
+                ? 'What this superseded attempt recorded before it was replaced'
+                : runProblemHeadline(recoveryPresentation, info.label === 'Failed')}
+            </div>
+            <p className="text-sm text-ink-300 leading-relaxed">{closeReasonExplanation ?? info.reason}</p>
+            {info.permissionBlocked && (
+              <p className="text-xs text-state-needs mt-2 leading-relaxed">
+                It was blocked on a permission it could not auto-approve (often a file write or a tool outside the
+                pre-approved set). Open the agent, grant it on the setup card, then run it again.
+              </p>
+            )}
+            {relatedRun && !productionLineage && (
+              <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-2.5 text-sm">
+                {/* Honest lead-in: only call it "good news" when the sibling is an
+                    actual clean success. A held run (needs_input/pending) or a
+                    sibling that's ALSO failed but wrote a real explanation (the
+                    founder's exact confusion — one silent timeout next to another
+                    run of the same agent that self-explained why it stopped) gets
+                    neutral framing instead of a false "finished" claim. */}
+                <span className="text-ink-200">
+                  {relatedRun.review_status === 'needs_input' || relatedRun.review_status === 'pending'
+                    ? 'This agent has a related run waiting on you — it explains what happened. '
+                    : relatedRun.run_state === 'failed'
+                      ? 'This agent has a related run with more detail on what happened. '
+                      : 'Good news — this agent already has a finished run. '}
+                </span>
+                <Link
+                  href={`/runs/${relatedRun.id}`}
+                  className="font-medium text-state-ok hover:underline inline-flex items-center gap-1"
+                >
+                  View the run to see the reason{relatedRun.review_status === 'needs_input' || relatedRun.review_status === 'pending' ? ' (needs you)' : ''} →
+                </Link>
+              </div>
+            )}
+            {/* The run may have finished its work and died before reporting it —
+                the trace above (or the step checklist) is the evidence. Never
+                auto-promoted: the user reads it and decides. Withheld entirely
+                when a DIFFERENT automatic recovery already delivered the real
+                answer for this run (alreadyRecoveredElsewhere) — the server would
+                refuse it anyway, but showing the button over a stale trace when
+                the real result already exists elsewhere is worse than showing
+                nothing. */}
+            {recovered.recoverable && (recovered.looksComplete ? (
+              <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-3">
+                <div className="text-sm font-semibold text-ink-100 mb-0.5">Work recovered — review and finalize</div>
+                <p className="text-sm text-ink-300 leading-relaxed">
+                  A validated deliverable ({recovered.deliverable?.relativePath}) exists for this run, which stopped
+                  without recording a result{recovered.stepCount ? ` after ${recovered.stepCount} step${recovered.stepCount === 1 ? '' : 's'}` : ''}.
+                  The trace indicates the work finished; review it before marking the run recovered — marking it done records the validated artifact as the result, never the trace.
+                </p>
+                <div className="mt-3">
+                  <FinalizeRecoveredButton runId={r.id} looksComplete />
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/[0.07] px-3 py-3">
+                <div className="text-sm font-semibold text-ink-100 mb-0.5">Partial work is preserved — continuation required</div>
+                <p className="text-sm text-ink-300 leading-relaxed">
+                  A validated deliverable ({recovered.deliverable?.relativePath}) exists, but this run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and stopped before the trace showed completion.
+                  Tukido will not offer “Mark as done.” Continue only through a typed recovery action that verifies and reuses the preserved work.
+                </p>
+                <PreservedWorkContinuation runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
+              </div>
+            ))}
+            {/* Transcript-only evidence is explained, never offered as "done": a
+                step trace is not a deliverable, and nothing validated was recovered. */}
+            {!recovered.recoverable && recovered.transcriptOnly && (
+              <div className="mt-3 rounded-md border border-ink-800 px-3 py-3" data-testid="transcript-only-notice">
+                <div className="text-sm font-semibold text-ink-100 mb-0.5">No deliverable was recovered</div>
+                <p className="text-sm text-ink-300 leading-relaxed">
+                  This run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and then stopped without a validated result.
+                  The step trace above is the agent&apos;s own narration, not a deliverable, so this run cannot be marked done.
+                </p>
+              </div>
+            )}
+            {/* Distinct from "Run again" below: same request, frozen inputs,
+                new fenced generation — and only when the backend proves no work
+                started. The component hides itself for every other failure. */}
+            {controlPlaneRetryRequestId && !supersededByRelated && !(recovered.recoverable && !recovered.looksComplete) && (
+              hasRetainedCreditOperation === null
+                ? <p role="alert" className="mt-3 text-sm text-ink-400">Saved media could not be checked. <a href={`/runs/${r.id}`} className="underline">Check again</a></p>
+                : hasRetainedCreditOperation
+                ? <PreservedWorkContinuation runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
+                : <ControlPlaneRetry requestId={controlPlaneRetryRequestId} runId={params.id} />
+            )}
+            <div className="mt-4 flex flex-wrap gap-3">
+              {/* Restarting a superseded attempt would race the run that is
+                  actually carrying this production node. */}
+              {!supersededByRelated
+                && !(recovered.recoverable && !recovered.looksComplete)
+                && !suppressDuplicateRetry(recoveryPresentation) && (
+                <StuckRunButton
+                  engine={executionContext?.executor || 'claude'}
+                  threadId={executionContext?.thread_id}
+                  workspace={executionContext?.workspace}
+                  runId={r.id}
+                  claudeTaskId={claudeTaskId}
+                  permissionCapability={info.permissionBlocked ? (NEEDS_BROWSER_GRANT_RE.test(r.output_markdown || '') ? 'computerUse' : 'browser') : null}
+                />
+              )}
+              {/* "Run again" is withheld once the parent has SETTLED this node
+                  as a success: it would duplicate work the production already
+                  finished and already paid for. More work is ordered from the
+                  production, not from a diagnostic page for one of its steps. */}
+              {!productionLineage?.suppressRunAgain && !suppressDuplicateRetry(recoveryPresentation) && (
+                <Link href={agentHref} className="btn-outline text-sm px-4 py-2">Run again</Link>
+              )}
+              {productionLineage && (
+                <Link href={`/runs/productions/${productionLineage.productionId}`} className="btn-outline text-sm px-4 py-2">
+                  Open the production
+                </Link>
+              )}
+              <Link href="/work" className="btn-outline text-sm px-4 py-2">Back to Work</Link>
+            </div>
+          </div>
+        ) : r.run_state === 'running' && runLiveness(r).state !== 'alive' ? (
+          // A RUNNING run with no deliverable used to fall through to the bare
+          // "No deliverable recorded" line below — which is true and useless. The
+          // founder sat on this exact page for 20 minutes watching a spinner while
+          // the row's own last_progress_at had never moved off started_at (run
+          // ec42bac6). We knew. We just didn't say. Say it.
+          <div className="rounded-lg border border-ink-800 bg-ink-950/60 p-5">
+            <div className="text-sm font-semibold text-ink-50 mb-1">{info.label === 'Not started' ? 'This run has not actually started' : 'No progress reported recently'}</div>
+            <p className="text-sm text-ink-300 leading-relaxed">{info.reason}</p>
+          </div>
+        ) : (
+          <p className="text-sm text-ink-400 italic">
+            {approvalContinuationRecovery
+              ? 'The review plan is ready; the final deliverable will be created after approval.'
+              // "No deliverable recorded" is true of THIS row and, on a run that
+              // was revised, the most misleading true sentence on the page. The
+              // pointer above says where the result is; this stops contradicting it.
+              : revisedResult
+                ? 'No written summary on this run — it was revised, and the delivered result is linked above.'
+                : 'No deliverable recorded for this run.'}
+          </p>
+        ))}
+
+  </>;
+  const runChecklist = <>
+        {/* Live per-step checklist: which of the chain's steps are done / running
+            / pending, updating on poll while in flight. Only when the run reported
+            structured step state (a chain/workflow via record_run_heartbeat). */}
+        {(stepsState.length > 0 || showProgressLayout) && (
+          <RunStepChecklist runId={r.id} initialSteps={stepsState} initialRunState={info.state}
+            presentation={held?'waiting':info.state} initialNote={progress?.current?.note||steps.at(-1)?.note}
+            startedAt={r.started_at} endedAt={r.completed_at} interruptedAt={r.stalled_at} expectedMs={r.expected_duration_ms} initialNow={Date.now()}/>
+        )}
+
+  </>;
+  const cancellation = <RunStopControl key={r.id} runId={r.id} runState={r.run_state ?? null} cancelRequestedAt={run?.cancel_requested_at} />;
+
   return (
     <main className="app-page">
       <div className="app-content">
@@ -965,7 +1175,7 @@ export default async function RunDetailPage({
           </NotInApp>
         )}
 
-        <header className="app-page-head mt-4">
+        <header className="app-page-head mt-4"><div className="run-detail-title">
           {/* The title itself is the primary way back to the agent now (founder
               ask: the small "open agent" text link below was too easy to miss).
               The Link lives INSIDE the h1 so the page keeps its heading landmark
@@ -994,13 +1204,21 @@ export default async function RunDetailPage({
               </NotInApp>
             )}
           </div>
-        </header>
+        </div></header>
 
+        <div className={showProgressLayout?'run-detail-layout':undefined} data-priority={held||showRunProblem||info.state==='stalled'?'true':undefined}>
+        {showProgressLayout&&<aside className="run-detail-rail" aria-label="Run actions">
+          {heldRunControls}
+          {runProblem}
+          <section className="run-control-panel"><h2>This run</h2><p>Follow progress here and review anything the agent needs from you.</p>{cancellation}</section>
+        </aside>}
+        <div className="run-detail-main">
+        {showProgressLayout&&runChecklist}
         {r.run_state==='completed'&&verifiedArtifacts.some(artifact=>artifact.role==='final_output')&&<div className="mb-6"><Link href={`/review/${r.id}`} className="btn-primary">Open result</Link></div>}
 
 
-        <RunStopControl key={r.id} runId={r.id} runState={r.run_state ?? null} cancelRequestedAt={run?.cancel_requested_at} />
-        <VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} />
+        {!showProgressLayout&&cancellation}
+        <VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} progress={showProgressLayout}/>
         {r.output_markdown ? (verifiedArtifacts.length ? <details className="proof-disclosure mb-6"><summary>Agent’s notes</summary><div className="prose prose-sm mt-4 max-w-none"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div></details>:<div className="prose prose-sm mb-6 max-w-none rounded-lg border border-ink-700 bg-ink-900 p-5"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div>) : null}
 
         {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-state-needs">{creativeGradeNotice}</p>}
@@ -1168,43 +1386,7 @@ export default async function RunDetailPage({
           </div>
         )}
 
-        {/* The ONE action surface for a held run — context-aware primary (Approve &
-            finish / Mark as done / Answer & continue), Request-changes on demand, a
-            quiet Dismiss, and power-user escapes under "⋯". Replaces the old banner +
-            Approve & finish + Mark done + always-open Continue box + Hide/Dismiss pile. */}
-        {heldApprovalSurface === 'paid_action' && (
-          <div className="mb-6">
-            <PaidActionApproval runId={r.id} view={paidActionApproval} />
-          </div>
-        )}
-        {stagePreview.state === 'ready' && <div className="mb-6"><StagePreviewReview summary={stagePreview.summary} /></div>}
-        {(heldApprovalSurface === 'unavailable' || heldApprovalSurface === 'generic' && effectiveHoldKind === 'approval_before_action' && stagePreview.state === 'unavailable') && (
-          <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-5" role="alert">
-            <p className="text-sm font-semibold text-ink-100">Approval details unavailable</p>
-            <p className="mt-2 text-sm leading-relaxed text-state-needs">
-              Tukido could not verify what this pending approval authorizes. No continuation is available until the exact hold details can be loaded.
-            </p>
-            <a href={`/runs/${encodeURIComponent(r.id)}`} className="btn-outline mt-3 inline-flex px-4 py-2 text-sm">Reload approval details</a>
-          </div>
-        )}
-        {heldApprovalSurface === 'generic' && (effectiveHoldKind !== 'approval_before_action' || stagePreview.state === 'not_applicable') && (
-          <div className="mb-6">
-            <RunActions
-              runId={r.id}
-              agentName={name}
-              reviewStatus={pending ? 'pending' : 'needs_input'}
-              holdKind={effectiveHoldKind}
-              hasShipStep={hasShipStep}
-              stepsState={stepsState}
-              claudeTaskId={claudeTaskId}
-              skillSlug={r.skill_slug}
-              workflowVersionId={runWorkflowVersionId}
-              approvalRecovery={approvalContinuationRecovery}
-              nonPaidApprovalVerified={paidActionApproval.state === 'not_applicable'}
-              reviewAmendment={reviewAmendment}
-            />
-          </div>
-        )}
+        {!showProgressLayout&&heldRunControls}
 
         {/* Caught needing browser / computer-use access → one-click "Grant browser
             access" that opens Claude with a grant-only prompt (it pops the macOS
@@ -1262,12 +1444,7 @@ export default async function RunDetailPage({
           </div>
         )}
 
-        {/* Live per-step checklist: which of the chain's steps are done / running
-            / pending, updating on poll while in flight. Only when the run reported
-            structured step state (a chain/workflow via record_run_heartbeat). */}
-        {(stepsState.length > 0 || info.state === 'queued' || info.state === 'running') && (
-          <RunStepChecklist runId={r.id} initialSteps={stepsState} initialRunState={info.state} />
-        )}
+        {!showProgressLayout&&runChecklist}
 
         {/* Live step trace: where the run is / where it got stuck. Only when the
             run reported step notes (on-demand + long runs via record_run_heartbeat).
@@ -1285,159 +1462,7 @@ export default async function RunDetailPage({
           />
         )}
 
-        {!r.output_markdown && (showRunProblem ? (
-          // A stalled/failed run has no deliverable. Don't dead-end at a blank
-          // "no deliverable" line: say what happened + give the one action. This
-          // also fires for a run that A0's watchdog force-closed (run_close_reason
-          // set) even when info.attention is false — the exact case that used to
-          // render a bare, unexplained "Failed" with nothing else on the page.
-          <div className={`rounded-lg border p-5 ${
-            supersededByRelated ? 'border-ink-800 bg-ink-950/40' : 'border-amber-500/40 bg-amber-500/[0.06]'
-          }`}>
-            {/* When a related run is the authority for this production node,
-                the stall is a fact about an ABANDONED ATTEMPT, not about the
-                work — the banner above already says what actually happened. So
-                this stops being the page's conclusion and becomes a footnote.
-                Leading with "This run stalled" over a completed sibling is the
-                exact reading that made a successful production look broken. */}
-            <div className={`text-sm mb-1 ${supersededByRelated ? 'text-ink-300' : 'font-semibold text-ink-50'}`}>
-              {supersededByRelated
-                ? 'What this superseded attempt recorded before it was replaced'
-                : runProblemHeadline(recoveryPresentation, info.label === 'Failed')}
-            </div>
-            <p className="text-sm text-ink-300 leading-relaxed">{closeReasonExplanation ?? info.reason}</p>
-            {info.permissionBlocked && (
-              <p className="text-xs text-state-needs mt-2 leading-relaxed">
-                It was blocked on a permission it could not auto-approve (often a file write or a tool outside the
-                pre-approved set). Open the agent, grant it on the setup card, then run it again.
-              </p>
-            )}
-            {relatedRun && !productionLineage && (
-              <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-2.5 text-sm">
-                {/* Honest lead-in: only call it "good news" when the sibling is an
-                    actual clean success. A held run (needs_input/pending) or a
-                    sibling that's ALSO failed but wrote a real explanation (the
-                    founder's exact confusion — one silent timeout next to another
-                    run of the same agent that self-explained why it stopped) gets
-                    neutral framing instead of a false "finished" claim. */}
-                <span className="text-ink-200">
-                  {relatedRun.review_status === 'needs_input' || relatedRun.review_status === 'pending'
-                    ? 'This agent has a related run waiting on you — it explains what happened. '
-                    : relatedRun.run_state === 'failed'
-                      ? 'This agent has a related run with more detail on what happened. '
-                      : 'Good news — this agent already has a finished run. '}
-                </span>
-                <Link
-                  href={`/runs/${relatedRun.id}`}
-                  className="font-medium text-state-ok hover:underline inline-flex items-center gap-1"
-                >
-                  View the run to see the reason{relatedRun.review_status === 'needs_input' || relatedRun.review_status === 'pending' ? ' (needs you)' : ''} →
-                </Link>
-              </div>
-            )}
-            {/* The run may have finished its work and died before reporting it —
-                the trace above (or the step checklist) is the evidence. Never
-                auto-promoted: the user reads it and decides. Withheld entirely
-                when a DIFFERENT automatic recovery already delivered the real
-                answer for this run (alreadyRecoveredElsewhere) — the server would
-                refuse it anyway, but showing the button over a stale trace when
-                the real result already exists elsewhere is worse than showing
-                nothing. */}
-            {recovered.recoverable && (recovered.looksComplete ? (
-              <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-3">
-                <div className="text-sm font-semibold text-ink-100 mb-0.5">Work recovered — review and finalize</div>
-                <p className="text-sm text-ink-300 leading-relaxed">
-                  A validated deliverable ({recovered.deliverable?.relativePath}) exists for this run, which stopped
-                  without recording a result{recovered.stepCount ? ` after ${recovered.stepCount} step${recovered.stepCount === 1 ? '' : 's'}` : ''}.
-                  The trace indicates the work finished; review it before marking the run recovered — marking it done records the validated artifact as the result, never the trace.
-                </p>
-                <div className="mt-3">
-                  <FinalizeRecoveredButton runId={r.id} looksComplete />
-                </div>
-              </div>
-            ) : (
-              <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/[0.07] px-3 py-3">
-                <div className="text-sm font-semibold text-ink-100 mb-0.5">Partial work is preserved — continuation required</div>
-                <p className="text-sm text-ink-300 leading-relaxed">
-                  A validated deliverable ({recovered.deliverable?.relativePath}) exists, but this run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and stopped before the trace showed completion.
-                  Tukido will not offer “Mark as done.” Continue only through a typed recovery action that verifies and reuses the preserved work.
-                </p>
-                <PreservedWorkContinuation runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
-              </div>
-            ))}
-            {/* Transcript-only evidence is explained, never offered as "done": a
-                step trace is not a deliverable, and nothing validated was recovered. */}
-            {!recovered.recoverable && recovered.transcriptOnly && (
-              <div className="mt-3 rounded-md border border-ink-800 px-3 py-3" data-testid="transcript-only-notice">
-                <div className="text-sm font-semibold text-ink-100 mb-0.5">No deliverable was recovered</div>
-                <p className="text-sm text-ink-300 leading-relaxed">
-                  This run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and then stopped without a validated result.
-                  The step trace above is the agent&apos;s own narration, not a deliverable, so this run cannot be marked done.
-                </p>
-              </div>
-            )}
-            {/* Distinct from "Run again" below: same request, frozen inputs,
-                new fenced generation — and only when the backend proves no work
-                started. The component hides itself for every other failure. */}
-            {controlPlaneRetryRequestId && !supersededByRelated && !(recovered.recoverable && !recovered.looksComplete) && (
-              hasRetainedCreditOperation === null
-                ? <p role="alert" className="mt-3 text-sm text-ink-400">Saved media could not be checked. <a href={`/runs/${r.id}`} className="underline">Check again</a></p>
-                : hasRetainedCreditOperation
-                ? <PreservedWorkContinuation runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
-                : <ControlPlaneRetry requestId={controlPlaneRetryRequestId} runId={params.id} />
-            )}
-            <div className="mt-4 flex flex-wrap gap-3">
-              {/* Restarting a superseded attempt would race the run that is
-                  actually carrying this production node. */}
-              {!supersededByRelated
-                && !(recovered.recoverable && !recovered.looksComplete)
-                && !suppressDuplicateRetry(recoveryPresentation) && (
-                <StuckRunButton
-                  engine={executionContext?.executor || 'claude'}
-                  threadId={executionContext?.thread_id}
-                  workspace={executionContext?.workspace}
-                  runId={r.id}
-                  claudeTaskId={claudeTaskId}
-                  permissionCapability={info.permissionBlocked ? (NEEDS_BROWSER_GRANT_RE.test(r.output_markdown || '') ? 'computerUse' : 'browser') : null}
-                />
-              )}
-              {/* "Run again" is withheld once the parent has SETTLED this node
-                  as a success: it would duplicate work the production already
-                  finished and already paid for. More work is ordered from the
-                  production, not from a diagnostic page for one of its steps. */}
-              {!productionLineage?.suppressRunAgain && !suppressDuplicateRetry(recoveryPresentation) && (
-                <Link href={agentHref} className="btn-outline text-sm px-4 py-2">Run again</Link>
-              )}
-              {productionLineage && (
-                <Link href={`/runs/productions/${productionLineage.productionId}`} className="btn-outline text-sm px-4 py-2">
-                  Open the production
-                </Link>
-              )}
-              <Link href="/work" className="btn-outline text-sm px-4 py-2">Back to Work</Link>
-            </div>
-          </div>
-        ) : r.run_state === 'running' && runLiveness(r).state !== 'alive' ? (
-          // A RUNNING run with no deliverable used to fall through to the bare
-          // "No deliverable recorded" line below — which is true and useless. The
-          // founder sat on this exact page for 20 minutes watching a spinner while
-          // the row's own last_progress_at had never moved off started_at (run
-          // ec42bac6). We knew. We just didn't say. Say it.
-          <div className="rounded-lg border border-ink-800 bg-ink-950/60 p-5">
-            <div className="text-sm font-semibold text-ink-50 mb-1">{info.label === 'Not started' ? 'This run has not actually started' : 'No progress reported recently'}</div>
-            <p className="text-sm text-ink-300 leading-relaxed">{info.reason}</p>
-          </div>
-        ) : (
-          <p className="text-sm text-ink-400 italic">
-            {approvalContinuationRecovery
-              ? 'The review plan is ready; the final deliverable will be created after approval.'
-              // "No deliverable recorded" is true of THIS row and, on a run that
-              // was revised, the most misleading true sentence on the page. The
-              // pointer above says where the result is; this stops contradicting it.
-              : revisedResult
-                ? 'No written summary on this run — it was revised, and the delivered result is linked above.'
-                : 'No deliverable recorded for this run.'}
-          </p>
-        ))}
+        {!showProgressLayout&&runProblem}
 
         {/* UNIVERSAL "Continue this run" — a FINISHED run must never dead-end.
             REGRESSION FIX (2026-07-18, founder hit this on a Done+Verified video
@@ -1514,6 +1539,8 @@ export default async function RunDetailPage({
         {/* Next agents to build — the run's own recommendations, right under its
             output (recommendation engine v1). Renders nothing when there are none. */}
         <NextAgentCards runId={r.id} recommendations={recommendations} />
+        </div>
+        </div>
       </div>
     </main>
   );

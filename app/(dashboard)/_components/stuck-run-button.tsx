@@ -41,7 +41,7 @@ export default function StuckRunButton({
   return (
     <div className={className}>
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={recover} className="btn-success text-xs px-3 py-1.5 inline-flex items-center gap-1 whitespace-nowrap">
+        <button type="button" onClick={recover} className="btn-outline text-xs px-3 py-1.5 inline-flex items-center gap-1 whitespace-nowrap">
           Open this task in {name} ↗
         </button>
         {permissionCapability && <button type="button" onClick={permissions} className="btn-outline text-xs px-3 py-1.5">Open {permissionCapability === 'computerUse' ? 'computer-use' : 'browser'} permissions</button>}
