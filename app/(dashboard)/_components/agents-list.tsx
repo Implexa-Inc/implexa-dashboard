@@ -60,7 +60,7 @@ function DotsIcon() {
  *                  rather than leaving the user to find out from an inbox.
  * Deactivate is only offered when there's a clock to stop.
  */
-function RowMenu({ onArchive, onDeactivate, canDeactivate, busy }: { onArchive: () => void; onDeactivate: () => void; canDeactivate: boolean; busy: boolean }) {
+function RowMenu({ onArchive, onDeactivate, canDeactivate, busy, trainingHref, lastRunHref }: { onArchive: () => void; onDeactivate: () => void; canDeactivate: boolean; busy: boolean;trainingHref?:string;lastRunHref?:string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -87,6 +87,9 @@ function RowMenu({ onArchive, onDeactivate, canDeactivate, busy }: { onArchive: 
       </button>
       {open && (
         <div role="menu" className="absolute right-0 top-full mt-1 z-20 min-w-[230px] rounded-md border border-ink-700 bg-ink-900 py-1 shadow-lg">
+          {trainingHref&&<Link role="menuitem" href={trainingHref+'?chat=edit'} onClick={()=>setOpen(false)} className="block px-3 py-2 text-sm text-ink-300 hover:bg-ink-800">Edit agent</Link>}
+          {trainingHref&&<Link role="menuitem" href={trainingHref} onClick={()=>setOpen(false)} className="block px-3 py-2 text-sm text-ink-300 hover:bg-ink-800">Train this agent</Link>}
+          {lastRunHref&&<Link role="menuitem" href={lastRunHref} onClick={()=>setOpen(false)} className="block px-3 py-2 text-sm text-ink-300 hover:bg-ink-800">Last run</Link>}
           {canDeactivate && (
             <button
               type="button"
@@ -95,7 +98,7 @@ function RowMenu({ onArchive, onDeactivate, canDeactivate, busy }: { onArchive: 
               onClick={() => { setOpen(false); onDeactivate(); }}
               className="w-full text-left px-3 py-1.5 text-sm text-ink-300 hover:bg-ink-800 hover:text-ink-100 disabled:opacity-50"
             >
-              <span className="block">Deactivate</span>
+              <span className="block">Pause</span>
               <span className="block text-[11px] text-ink-500">Stops its schedule. Stays on your list.</span>
             </button>
           )}
@@ -121,6 +124,8 @@ export type ListAgent = {
   slug: string;
   name: string;
   source: string;
+  /** From the authenticated owned library, never inferred from an unknown feed source. */
+  canTrain?:boolean;
   section: 'scheduled' | 'on_demand' | 'not_activated' | 'paused';
   category: { key: string; label: string; emoji: string };
   needsIntervention?: boolean;
@@ -306,20 +311,15 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy }: {
               Open
             </Link>
           )}
-          {/* Archive = remove from MY list (never deletes the shared agent).
-              Deactivate = stop its clock, keep it on the list. Neither is
-              offered for a not-yet-activated draft — there's nothing to remove
-              from a running roster yet, and no clock to stop; the row IS the
-              draft. Deactivate only appears when the agent HAS a live schedule
-              ('paused' rows are already stopped — Resume is their action). */}
-          {a.section !== 'not_activated' && (
-            <RowMenu
+          {/* Pause stops its schedule; Archive also hides it. Drafts may be archived too. */}
+          <RowMenu
               onArchive={() => onArchive(a)}
               onDeactivate={() => onDeactivate(a)}
               canDeactivate={a.section === 'scheduled'}
               busy={busy}
+              trainingHref={a.canTrain?`/training/${encodeURIComponent(a.slug)}`:undefined}
+              lastRunHref={a.lastRun?.id?`/runs/${encodeURIComponent(a.lastRun.id)}`:undefined}
             />
-          )}
         </div>
       </div>
     </li>
@@ -354,8 +354,6 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
   const [showArchived, setShowArchived] = useState(false);
   const [showPaused, setShowPaused] = useState(false);
   const [query, setQuery] = useState('');
-  const [readinessFilter, setReadinessFilter] = useState('');
-  const [engineFilter, setEngineFilter] = useState('');
 
   // Star / un-star. Optimistic (flip in place), best-effort backend — a favorite
   // is a pure display marker, so a failed write just reverts the star, never an
@@ -501,20 +499,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
   const shown = q
     ? byCat.filter((a) => a.name.toLowerCase().includes(q) || a.category.label.toLowerCase().includes(q))
     : byCat;
-  const discoveryReadinessStates = useMemo(
-    () => [...new Set(availableAgents.map((a) => a.readiness.state))].sort(),
-    [availableAgents],
-  );
-  const discoveryEngines = useMemo(
-    () => [...new Set(availableAgents.flatMap((a) => a.testedCompatibility.executionEngines))].sort(),
-    [availableAgents],
-  );
-  const availableShown = availableAgents.filter((a) => {
-    const matchesQuery = !q || `${a.name} ${a.job} ${a.builder.name}`.toLowerCase().includes(q);
-    const matchesReadiness = !readinessFilter || a.readiness.state === readinessFilter;
-    const matchesEngine = !engineFilter || a.testedCompatibility.executionEngines.includes(engineFilter);
-    return matchesQuery && matchesReadiness && matchesEngine;
-  });
+  const availableShown = availableAgents.filter((a) => !q || `${a.name} ${a.job} ${a.builder.name}`.toLowerCase().includes(q));
   // Favorites float to their own section at the very top (and are removed from the
   // sections below so a starred agent shows once). Newest-starred not tracked here;
   // order follows the roster.
@@ -548,38 +533,6 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
             className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm pl-8 pr-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
           />
       </div>
-
-      {availableAgents.length > 0 && (
-        <div className="mb-5 flex flex-wrap gap-3" aria-label="Filter available agents">
-          <label className="text-xs text-ink-400">
-            Readiness
-            <select
-              value={readinessFilter}
-              onChange={(event) => setReadinessFilter(event.target.value)}
-              className="ml-2 rounded-md border border-ink-700 bg-ink-900 px-2 py-1.5 text-ink-100 focus:border-brand-500/60 focus:outline-none"
-            >
-              <option value="">All states</option>
-              {discoveryReadinessStates.map((state) => <option key={state} value={state}>{state}</option>)}
-            </select>
-          </label>
-          <label className="text-xs text-ink-400">
-            Tested engine
-            <select
-              value={engineFilter}
-              onChange={(event) => setEngineFilter(event.target.value)}
-              className="ml-2 rounded-md border border-ink-700 bg-ink-900 px-2 py-1.5 text-ink-100 focus:border-brand-500/60 focus:outline-none"
-            >
-              <option value="">All engines</option>
-              {discoveryEngines.map((engine) => <option key={engine} value={engine}>{engine}</option>)}
-            </select>
-          </label>
-          {(readinessFilter || engineFilter) && (
-            <button type="button" onClick={() => { setReadinessFilter(''); setEngineFilter(''); }} className="text-xs text-action-accent hover:underline">
-              Clear filters
-            </button>
-          )}
-        </div>
-      )}
 
       {discoveryUnavailable && (
         <div role="status" className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-state-needs">

@@ -19,9 +19,7 @@ test('Agents is one outcome-first surface with available results and a query-pre
   assert.match(list, /placeholder="What outcome do you need\?"/);
   assert.match(list, /Build yours for free/);
   assert.match(list, /encodeURIComponent\(query\.trim\(\)\)/);
-  assert.match(list, /Filter available agents/);
-  assert.match(list, /Readiness/);
-  assert.match(list, /Tested engine/);
+  assert.doesNotMatch(list, /readinessFilter|engineFilter|Tested engine/, 'the founder removed Readiness and Tested-engine filters');
   assert.doesNotMatch(list, />\s*(Discover|Yours)\s*</, 'no pre-gate Discover/Yours tab chrome');
   assert.match(service, /\/api\/v2\/agents\/discovery/);
 });
