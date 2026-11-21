@@ -21,10 +21,11 @@
  * unaffected by a tab switch, so no label can go stale mid-transition.
  */
 
+import Link from 'next/link';
 import { useEffect, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-export type TabDef = { key: string; label: string; attention?: boolean };
+export type TabDef = { key: string; label: string; attention?: boolean; href?: string };
 
 export default function AgentTabs({
   tabs,
@@ -89,9 +90,10 @@ export default function AgentTabs({
 
   return (
     <div>
-      <div role="tablist" aria-label="Agent sections" className="flex gap-1 border-b border-ink-800 mb-6 overflow-x-auto">
+      <div role="tablist" aria-label="Agent sections" className="flex gap-1 border-b border-ink-800 mb-6 overflow-x-auto overflow-y-hidden">
         {tabs.map((t) => {
           const on = shown === t.key;
+          if(t.href)return <Link key={t.key} href={t.href} aria-current={on?'page':undefined} className={`agent-tab-link ${on?'agent-tab-current':''}`}>{t.label}</Link>;
           return (
             <button
               key={t.key}

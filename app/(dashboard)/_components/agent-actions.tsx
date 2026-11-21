@@ -107,7 +107,7 @@ const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in t
 // ./run-attachments. The per-run note rides the run-request `note` (a one-off
 // channel), never the saved standing note.
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, setupRouteClass = null, activeVersionNumber = null, inputContract = null, inputContractDigest = null, pendingUpdate = null,trainingTest:initialTrainingTest=null,presentation='agent',trainingChoices,runRequest,onQueued,openOnArrival=false }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, setupRouteClass = null, activeVersionNumber = null, inputContract = null, inputContractDigest = null, pendingUpdate = null,trainingTest:initialTrainingTest=null,presentation='agent',trainingChoices,runRequest,onQueued,openOnArrival=false,runLabel='▶ Run now' }: {
   /** Opens the existing input/review gate only; submission remains explicit. */
   openOnArrival?:boolean;
   slug: string;
@@ -151,7 +151,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   inputContractDigest?: string | null;
   pendingUpdate?: { version: number; state: string } | null;
   trainingTest?:PreparedTrainingTest|null;
-  presentation?:'agent'|'training';
+  presentation?:'agent'|'training'|'dock';
+  runLabel?:string;
   trainingChoices?:{pendingUnknown?:boolean;pending:boolean|null;canTest:boolean;delivered:boolean;savedAvailable:boolean;busy:boolean;onPending:()=>void;onSaved:()=>void};
   runRequest?:{nonce:string;binding:PreparedTrainingTest|null}|null;
   onQueued?:()=>void;
@@ -333,7 +334,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const router = useRouter();
   const arrivalHandled=useRef(false);
   useEffect(()=>{
-    if(!openOnArrival||arrivalHandled.current||presentation!=='agent')return;
+    if(!openOnArrival||arrivalHandled.current||presentation==='training')return;
     arrivalHandled.current=true;
     // Next's native-history integration updates the URL/search params without
     // re-fetching this agent page or leaving a replayable launch intent.
@@ -1277,13 +1278,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             : observingOpenRun ? 'Run another…'
             : state === 'running' ? 'Running…'
             : state === 'queued' ? 'Queued ✓'
-            : '▶ Run now'}
+            : runLabel}
         </button>
       )}
       {/* Secondary: supervise the run live instead of hands-off. Goes through the
           same pop-up (so the note rides into the watched session). Shown only
           before queuing so the paths stay mutually exclusive (no double-run). */}
-      {presentation!=='training' && isActive && !statusUnavailable && !revisePending && !pendingUpdate && blocking === 0 && !trainingTest && (state === 'idle' || state === 'error') && (
+      {presentation!=='training' && presentation!=='dock' && isActive && !statusUnavailable && !revisePending && !pendingUpdate && blocking === 0 && !trainingTest && (state === 'idle' || state === 'error') && (
         <button
           type="button"
           onClick={openWatch}
@@ -1292,13 +1293,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           Open in a session to watch ↗
         </button>
       )}
-      <span className={`text-[11px] text-ink-500 max-w-[320px] ${align === 'end' ? 'text-right' : 'text-left'}`}>
+      {(presentation!=='dock'||msg||revisePending)&&<span className={`text-[11px] text-ink-500 max-w-[320px] ${align === 'end' ? 'text-right' : 'text-left'}`}>
         {revisePending
           ? 'Being rewritten with your edit — runnable once the new version lands (usually a minute or two).'
           : (msg || (presentation==='training'?'':isActive
             ? (requiresLocal ? 'Runs in Claude Code, on your computer.' : 'Runs in your Claude.')
             : 'Activate once, then run it anytime.'))}
-      </span>
+      </span>}
       {/* The pre-run capability ask. A MODAL, not inline: this is a rare, occasional
           gate (most agents never trip it), and an inline block shoved the whole card
           layout down every time it happened — the founder's own call after seeing it
@@ -1540,6 +1541,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           See what that run produced →
         </Link>
       )}
+
       <div className="mt-4 flex items-center justify-end gap-3">
         <button type="button" onClick={() => setDupe(null)} className="btn-outline text-sm px-4 py-2">
           Cancel
@@ -1964,6 +1966,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           Start with settings collapsed next time (they stay one click away)
         </label>
       )}
+      {presentation==='dock'&&!trainingTest&&!pendingUpdate&&!observingOpenRun&&!betaTrial&&<details className="mt-5 text-sm"><summary>More run options</summary><div className="mt-3 space-y-2"><label className="flex items-center gap-2"><input type="radio" name="run-mode" checked={preRunMode==='queue'} onChange={()=>setPreRunMode('queue')}/>Run automatically</label><label className="flex items-center gap-2"><input type="radio" name="run-mode" checked={preRunMode==='watch'} onChange={()=>setPreRunMode('watch')}/>Open in a session to watch</label></div></details>}
       <div className="mt-4 flex items-center justify-end gap-3">
         <button
           type="button"

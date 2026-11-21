@@ -2,7 +2,10 @@
 
 import { useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import AgentOverview from './agent-overview';
+import AgentPageHeader from './agent-page-header';
+import AgentTabs from './agent-tabs';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import type { DiscoveredAgent } from '@/lib/agent-discovery';
@@ -35,7 +38,10 @@ function stableJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
+export default function AgentResume({ agent,surface='page',detailUnavailable=false }: { agent: DiscoveredAgent;surface?:'page'|'setup'|'action';detailUnavailable?:boolean }) {
+  const query=useSearchParams();
+  const activeTab=query.get('tab')==='setup'?'setup':query.get('tab')==='runs'?'runs':'overview';
+  const setupHref=`/workflows/${encodeURIComponent(agent.slug)}?tab=setup`;
   const projectedAuditionConfiguration = agent.auditionConfiguration;
   const ownerAuditionConfiguration = projectedAuditionConfiguration
     && Number.isInteger(projectedAuditionConfiguration.allowance)
@@ -87,12 +93,12 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
     ? <button disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/acquire`)} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Adding agent…' : agent.ownership === 'Owned' ? 'Finish setup' : 'Use agent'}</button>
     : agent.readiness.state === 'Needs setup'
       ? hasRequiredFile
-        ? <Link href={`/workflows/${encodeURIComponent(agent.slug)}/activate`} className="btn-primary px-4 py-2 text-sm">Finish setup</Link>
+        ? <Link href={setupHref} className="btn-primary px-4 py-2 text-sm">Finish setup</Link>
         : <button disabled={busy || missingRequired} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/finish-setup`, { inputBindings })} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Checking setup…' : 'Finish setup'}</button>
       : agent.readiness.state === 'Update available' && update
         ? <button disabled={busy || (update.authorityDiff.changesAuthority && !acceptedUpdate)} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/update`, { acceptAuthorityChange: acceptedUpdate })} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">Accept update</button>
         : agent.readiness.state === 'Ready'
-          ? <Link href={`/workflows/${encodeURIComponent(agent.slug)}?legacy=1`} className="btn-primary px-4 py-2 text-sm">Use agent</Link>
+          ? detailUnavailable?<button type="button" disabled className="btn-primary px-4 py-2 text-sm opacity-50">Run status unavailable</button>:<Link href={`/workflows/${encodeURIComponent(agent.slug)}?run=1`} className="btn-primary px-4 py-2 text-sm">Run</Link>
           : null;
   const auditionAction = agent.audition && agent.readiness.state === 'Ready' ? (
     <div className="mt-5 rounded-md border border-brand-500/30 bg-brand-500/5 p-4">
@@ -116,30 +122,8 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
   ) : (
     <div role="status" className="mt-5 rounded-md border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-state-needs">Free audition settings are unavailable, so no setting can be changed.</div>
   ) : null;
-  return (
-    <main className="app-page agent-resume-page"><article className="app-content">
-      <Link href="/workflows" className="text-sm text-ink-500 hover:text-ink-200">← Agents</Link>
-      <header className="mt-6 border-b border-ink-800 pb-7">
-        <div className="flex flex-wrap items-start justify-between gap-5"><div>
-          <div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-semibold text-ink-50">{agent.name}</h1><span className="rounded border border-ink-700 px-2 py-0.5 text-xs text-ink-300">{agent.ownership}</span><span className="rounded border border-sky-500/40 px-2 py-0.5 text-xs text-state-running">{agent.readiness.state}</span></div>
-          <p className="mt-3 max-w-2xl text-ink-200">{agent.job}</p><p className="mt-2 text-xs text-ink-500">Built by {agent.builder.name} · v{agent.version.number} · updated {new Date(agent.version.updatedAt).toLocaleDateString()}</p>
-        </div></div>
-        {agent.readiness.reason && <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">{agent.readiness.reason}</p>}
-        {error && <p role="alert" className="mt-3 text-sm text-state-fail">{error}</p>}
-        {auditionConfiguration}
-        {auditionAction}
-        {update && <div className="mt-4 rounded-md border border-ink-700 p-3 text-sm text-ink-300"><p className="font-medium">Update {update.fromVersion || 'current'} → {update.toVersion}</p><p className="mt-1 text-xs text-ink-500">Added capabilities: {update.authorityDiff.addedCapabilities.join(', ') || 'none'} · Removed capabilities: {update.authorityDiff.removedCapabilities.join(', ') || 'none'} · Added permissions: {update.authorityDiff.addedPermissions.join(', ') || 'none'} · Removed permissions: {update.authorityDiff.removedPermissions.join(', ') || 'none'}</p>{update.authorityDiff.changesAuthority && <label className="mt-3 flex items-start gap-2 text-xs"><input type="checkbox" checked={acceptedUpdate} onChange={(event) => setAcceptedUpdate(event.target.checked)} /><span>I accept the capability and permission changes for this exact version.</span></label>}</div>}
-        {agent.ownership === 'Owned' && <div className="mt-4 flex gap-3"><Link href={`/workflows/${agent.slug}?legacy=1&tab=setup`} className="text-sm text-action-accent hover:underline">Configure</Link><Link href={`/training/${encodeURIComponent(agent.slug)}`} className="text-sm text-action-accent hover:underline">Train</Link><Link href={`/training/${encodeURIComponent(agent.slug)}?chat=edit`} className="text-sm text-action-accent hover:underline">✦ Chat with AI</Link></div>}
-        {agent.acquisition && agent.acquisition.lifecycle !== 'uninstalled' && <div className="mt-5 border-t border-ink-800 pt-4"><p className="text-xs text-ink-500">Disabling or removing this agent pauses schedules. Prior runs, receipts, reviews, learning evidence, and version provenance stay intact.</p><div className="mt-3 flex flex-wrap items-center gap-3">{agent.acquisition.lifecycle === 'disabled' ? <button className="btn-outline px-3 py-1.5 text-xs" disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/enable`)}>Enable</button> : <button className="btn-outline px-3 py-1.5 text-xs" disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/disable`)}>Disable</button>}<label className="flex items-center gap-2 text-xs text-ink-400"><input aria-label="Confirm removing this agent without deleting history" type="checkbox" checked={confirmUninstall} onChange={(event) => setConfirmUninstall(event.target.checked)} />I understand this removes access, not history</label><button className="rounded border border-rose-500/40 px-3 py-1.5 text-xs text-state-fail disabled:opacity-50" disabled={busy || !confirmUninstall} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/uninstall`)}>Remove agent</button></div></div>}
-      </header>
-      <div className="grid gap-8 py-8 md:grid-cols-2">
-        <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">What it can and cannot do</h2><p className="mt-3 text-sm text-ink-300">{agent.limitations}</p></section>
-        <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Tested compatibility</h2><p className="mt-3 text-sm text-ink-300">{agent.testedCompatibility.executionEngines.length ? agent.testedCompatibility.executionEngines.join(', ') : 'No supported engine has been established.'}</p></section>
-
-        <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Required inputs</h2>{fields.length ? <ul className="mt-3 space-y-3">{fields.map((field) => <li key={field.key} className="text-sm text-ink-300"><label className="font-medium" htmlFor={`agent-input-${field.key}`}>{field.label}{field.required ? ' · required' : ' · optional'}</label><p className="text-xs text-ink-500">{field.description}</p>{field.kind === 'choice' ? <select id={`agent-input-${field.key}`} value={inputBindings[field.key] || ''} onChange={(event) => setInputBindings((current) => ({ ...current, [field.key]: event.target.value }))} className="mt-2 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm"><option value="">Choose…</option>{field.options?.map((option) => <option key={option} value={option}>{option}</option>)}</select> : field.kind === 'text' ? <input id={`agent-input-${field.key}`} value={inputBindings[field.key] || ''} onChange={(event) => setInputBindings((current) => ({ ...current, [field.key]: event.target.value }))} className="mt-2 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm" /> : <p id={`agent-input-${field.key}`} className="mt-2 text-xs text-state-needs">Choose and verify this file in the Desktop setup flow. Local paths are never sent to the server.</p>}</li>)}</ul> : <p className="mt-3 text-sm text-ink-500">No per-run inputs declared.</p>}</section>
-        <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Integrations and permissions</h2>{agent.requirements?.requirements.length ? <ul className="mt-3 space-y-3">{agent.requirements.requirements.map((requirement) => <li key={requirement.id} className="text-sm text-ink-300"><span className="font-medium">{requirement.setup.title}</span><p className="text-xs text-ink-500">{requirement.permission_category.replaceAll('_', ' ')} · {requirement.requirement_type.replaceAll('_', ' ')}</p><ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-ink-400">{requirement.setup.instructions.map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></li>)}</ul> : <p className="mt-3 text-sm text-ink-500">No integration requirements declared.</p>}</section>
-        {agent.examples?.length ? <section className="md:col-span-2"><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Examples</h2>{agent.examples.map((example, index) => <div key={index} className="mt-3 rounded-md border border-ink-800 p-4"><p className="text-sm font-medium text-ink-200">{example.title || 'Example result'}</p><p className="mt-2 whitespace-pre-wrap text-sm text-ink-400">{example.body}</p></div>)}</section> : null}
-        <details className="proof-disclosure md:col-span-2"><summary>Evidence and limits{evidenceChannels.status!=='ready'?' · unavailable':''}</summary><div className="mt-5">        <section className="md:col-span-2">
+  const hasEvidence=evidenceChannels.status==='ready'&&EVIDENCE_CHANNEL_KEYS.some(key=>{const channel=evidenceChannels.channels[key];return channel.status!=='unavailable'&&EVIDENCE_TYPE_KEYS.some(type=>channel.evidence[type].status==='evidence_available'&&channel.evidence[type].count>0);});
+  const evidenceSection=<>        <details className="proof-disclosure md:col-span-2"><summary>Evidence and limits{evidenceChannels.status!=='ready'?' · unavailable':''}</summary><div className="mt-5">        <section className="md:col-span-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Evidence by source</h2>
           <p className="mt-2 text-xs text-ink-500">Each source is counted separately for this exact version. Tukido does not combine them into a score, rating, or rank.</p>
           {evidenceChannels.status === 'ready' ? (
@@ -170,8 +154,37 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
             <p role="status" className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">Evidence by source is unavailable for this version, so none is shown. {evidenceChannels.reason}</p>
           )}
         </section></div></details>
-      </div>
-    <div className="agent-action-bar"><p className="min-w-0 truncate text-sm text-ink-100">{agent.name}</p><div>{action}</div></div>
-    </article></main>
-  );
+</>;
+  const setupContent=<section className="agent-setup-column" aria-label="Marketplace setup">
+    {error&&<p role="alert" className="text-state-fail">{error}</p>}
+        <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Required inputs</h2>{fields.length ? <ul className="mt-3 space-y-3">{fields.map((field) => <li key={field.key} className="text-sm text-ink-300"><label className="font-medium" htmlFor={`agent-input-${field.key}`}>{field.label}{field.required ? ' · required' : ' · optional'}</label><p className="text-xs text-ink-500">{field.description}</p>{field.kind === 'choice' ? <select id={`agent-input-${field.key}`} value={inputBindings[field.key] || ''} onChange={(event) => setInputBindings((current) => ({ ...current, [field.key]: event.target.value }))} className="mt-2 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm"><option value="">Choose…</option>{field.options?.map((option) => <option key={option} value={option}>{option}</option>)}</select> : field.kind === 'text' ? <input id={`agent-input-${field.key}`} value={inputBindings[field.key] || ''} onChange={(event) => setInputBindings((current) => ({ ...current, [field.key]: event.target.value }))} className="mt-2 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm" /> : <p id={`agent-input-${field.key}`} className="mt-2 text-xs text-state-needs">Choose and verify this file in the Desktop setup flow. Local paths are never sent to the server.</p>}</li>)}</ul> : <p className="mt-3 text-sm text-ink-500">No per-run inputs declared.</p>}</section>
+        <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Integrations and permissions</h2>{agent.requirements?.requirements.length ? <ul className="mt-3 space-y-3">{agent.requirements.requirements.map((requirement) => <li key={requirement.id} className="text-sm text-ink-300"><span className="font-medium">{requirement.setup.title}</span><p className="text-xs text-ink-500">{requirement.permission_category.replaceAll('_', ' ')} · {requirement.requirement_type.replaceAll('_', ' ')}</p><ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-ink-400">{requirement.setup.instructions.map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></li>)}</ul> : <p className="mt-3 text-sm text-ink-500">No integration requirements declared.</p>}</section>
+    <div id="published-settings">{auditionConfiguration}{auditionAction}</div>
+    {update && <div className="mt-4 rounded-md border border-ink-700 p-3 text-sm text-ink-300"><p className="font-medium">Update {update.fromVersion || 'current'} → {update.toVersion}</p><p className="mt-1 text-xs text-ink-500">Added capabilities: {update.authorityDiff.addedCapabilities.join(', ') || 'none'} · Removed capabilities: {update.authorityDiff.removedCapabilities.join(', ') || 'none'} · Added permissions: {update.authorityDiff.addedPermissions.join(', ') || 'none'} · Removed permissions: {update.authorityDiff.removedPermissions.join(', ') || 'none'}</p>{update.authorityDiff.changesAuthority && <label className="mt-3 flex items-start gap-2 text-xs"><input type="checkbox" checked={acceptedUpdate} onChange={(event) => setAcceptedUpdate(event.target.checked)} /><span>I accept the capability and permission changes for this exact version.</span></label>}</div>}
+    {agent.acquisition && agent.acquisition.lifecycle !== 'uninstalled' && <div className="mt-5 border-t border-ink-800 pt-4"><p className="text-xs text-ink-500">Disabling or removing this agent pauses schedules. Prior runs, receipts, reviews, learning evidence, and version provenance stay intact.</p><div className="mt-3 flex flex-wrap items-center gap-3">{agent.acquisition.lifecycle === 'disabled' ? <button className="btn-outline px-3 py-1.5 text-xs" disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/enable`)}>Resume agent</button> : <button className="btn-outline px-3 py-1.5 text-xs" disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/disable`)}>Pause agent</button>}<label className="flex items-center gap-2 text-xs text-ink-400"><input aria-label="Confirm removing this agent without deleting history" type="checkbox" checked={confirmUninstall} onChange={(event) => setConfirmUninstall(event.target.checked)} />I understand this removes access, not history</label><button className="rounded border border-rose-500/40 px-3 py-1.5 text-xs text-state-fail disabled:opacity-50" disabled={busy || !confirmUninstall} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/uninstall`)}>Remove agent</button></div></div>}
+    <div className="mt-6">{action}</div>
+    {!hasEvidence&&<div className="mt-6">{evidenceSection}</div>}
+  </section>;
+  if(surface==='setup')return setupContent;
+  if(surface==='action')return agent.readiness.state==='Available'?<>{error&&<p role="alert">{error}</p>}{action}</>:<Link href={setupHref} className="btn-primary px-4 py-2 text-sm">{agent.readiness.state==='Update available'?'Review update':'Finish setup'}</Link>;
+  const overview=<AgentOverview inputs={fields} output={agent.job} limitations={agent.limitations}
+    needs={<div className="card"><p>{agent.readiness.state}{agent.readiness.reason?` · ${agent.readiness.reason}`:''}</p><Link href={setupHref} className="agent-setup-link">Open setup →</Link></div>}
+    trust={hasEvidence?evidenceSection:undefined}
+  >        {agent.examples?.length ? <section className="md:col-span-2"><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Examples</h2>{agent.examples.map((example, index) => <div key={index} className="mt-3 rounded-md border border-ink-800 p-4"><p className="text-sm font-medium text-ink-200">{example.title || 'Example result'}</p><p className="mt-2 whitespace-pre-wrap text-sm text-ink-400">{example.body}</p></div>)}</section> : null}
+</AgentOverview>;
+  return <main className="app-page agent-resume-page"><article className="app-content">
+    <Link href="/workflows" className="text-sm text-ink-500 hover:text-ink-200">← Agents</Link>
+    <AgentPageHeader title={<h1>{agent.name}</h1>} description={agent.job}
+      byline={<><span>Trained by <b>{agent.builder.name}</b></span><span>·</span><span>Version {agent.version.number}</span><span>·</span><span>{agent.ownership==='Owned'?'Built by you':agent.ownership==='Hired'?'In your agents':'Available'}</span></>}
+      more={<><Link href={setupHref}>Setup and permissions</Link>{agent.ownership==='Owned'&&<><Link href={`/training/${encodeURIComponent(agent.slug)}`}>Train this agent</Link><Link href={`/training/${encodeURIComponent(agent.slug)}?chat=edit`}>Edit agent</Link><Link href={setupHref+'#published-settings'}>Free audition settings</Link></>}{agent.acquisition&&agent.acquisition.lifecycle!=='uninstalled'&&<><button type="button" disabled={busy} onClick={()=>mutate(`/api/v2/agents/discovery/${agent.id}/${agent.acquisition?.lifecycle==='disabled'?'enable':'disable'}`)}>{agent.acquisition.lifecycle==='disabled'?'Resume agent':'Pause agent'}</button><Link href={setupHref}>Manage access</Link></>}</>}
+    >{agent.readiness.reason&&<p role="status" className="agent-page-notice">{agent.readiness.reason}</p>}{error&&<p role="alert" className="text-state-fail">{error}</p>}</AgentPageHeader>
+    <div className="agent-sample-placeholder" role="img" aria-label="Sample preview unavailable"><span>Sample output</span><p>A sample preview is not available here yet.</p></div>
+    <AgentTabs active={activeTab} tabs={[
+      {key:'overview',label:'Overview',href:`/workflows/${encodeURIComponent(agent.slug)}`},
+      ...(agent.acquisition?[{key:'runs',label:'My runs',href:`/workflows/${encodeURIComponent(agent.slug)}?tab=runs`}]:[]),
+      ...(agent.ownership==='Owned'?[{key:'training',label:'Training',href:`/training/${encodeURIComponent(agent.slug)}`}]:[]),
+      {key:'setup',label:'Setup',href:setupHref},
+    ]} panel={activeTab==='setup'?setupContent:activeTab==='runs'?<p role="status">Run history could not be loaded. Reload to try again.</p>:overview}/>
+    <div className="agent-action-bar"><p className="min-w-0 text-sm text-ink-100">{agent.readiness.state==='Ready'?(detailUnavailable?'Run status unavailable':'Ready for your next run'):agent.readiness.state==='Available'?'Add this agent to get started':'Finish the required setup'}</p><div className="flex items-center gap-3"><Link href={setupHref} className="btn-outline px-4 py-2 text-sm">Setup</Link>{agent.readiness.state==='Ready'||agent.readiness.state==='Available'?action:<Link href={setupHref} className="btn-primary px-4 py-2 text-sm">Finish setup</Link>}</div></div>
+  </article></main>;
 }

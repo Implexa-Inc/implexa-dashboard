@@ -24,6 +24,7 @@ import Link from 'next/link';
 
 export type ReadinessProps = {
   slug: string;
+  setupHref?: string;
   isActive: boolean;
   /** Unanswered questions that BLOCK a run (required only). */
   blockingQuestions: number;
@@ -36,7 +37,7 @@ export type ReadinessProps = {
 };
 
 export default function AgentReadiness({
-  slug, isActive, blockingQuestions, optionalQuestions, requirementsSatisfied, missingServices = [],
+  slug, setupHref, isActive, blockingQuestions, optionalQuestions, requirementsSatisfied, missingServices = [],
 }: ReadinessProps) {
   // Ordered by what actually stops the user, most-blocking first. Only ONE state
   // renders — a stack of warnings is how the old panel became noise.
@@ -138,7 +139,7 @@ export default function AgentReadiness({
           {blocked ? `Answer ${blockingQuestions}` : 'Edit setup'}
         </button>
       ) : (
-        <Link href={`/workflows/${slug}/activate`} className="btn-outline text-sm px-4 py-2 flex-none">
+        <Link href={setupHref||`/workflows/${encodeURIComponent(slug)}?tab=setup`} className="btn-outline text-sm px-4 py-2 flex-none">
           Review setup
         </Link>
       )}
