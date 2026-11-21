@@ -7,7 +7,7 @@ import { readUserProfile } from '@/lib/profile-read';
 import { loadNeedsYou, type NeedsYou } from '@/lib/needs-you';
 import { loadInboxItems } from '@/lib/inbox';
 import { readMyWorkflows } from '@/lib/workflow-catalog';
-import { getReviewQueue, reviewQueueWarning, versionSummary, unresolvedIssueLabel, type ReviewQueue } from '@/lib/review';
+import { getReviewQueue, reviewQueueWarning, versionSummary, unresolvedIssueLabel } from '@/lib/review';
 import { reviewQueueForArea } from '@/lib/training-review-routing';
 import { resolveWorkView, AGENTS_MANAGE_HREF } from '@/lib/navigation';
 import { settleWithin } from '@/lib/landing';
@@ -47,7 +47,7 @@ async function NeedsSource(){
 }
 async function ReviewSource({jwt}:{jwt:string}){
   const [read,owned]=await Promise.all([
-    settleWithin<ReviewQueue|null>(getReviewQueue(),10_000,null),
+    getReviewQueue(),
     settleWithin(readMyWorkflows(jwt),10_000,{status:'unavailable' as const,reason:'timeout' as const}),
   ]);
   const queue=reviewQueueForArea(read??{items:[],truncated:false,total:null,visibleCount:0,sources:{review_endpoint:'unavailable'},live:false},owned,'work');

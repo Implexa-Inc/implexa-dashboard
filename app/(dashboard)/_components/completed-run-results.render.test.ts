@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {render} from '../../../lib/test/render.ts';
-const row=(n:number)=>({id:`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,skill_slug:`video-${n}`,status:'completed',ran_at:'2026-11-01T12:00:00.123456Z'});
+const row=(n:number)=>({id:`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,skill_slug:`video-${n}`,status:'completed',outputName:`result-${n}.mp4`,ran_at:'2026-11-01T12:00:00.123456Z'});
 const flush=async(r:any)=>r.act(()=>new Promise(resolve=>setTimeout(resolve,20)));
 test('recent results show three real permalinks, link to Delivered, and refresh only on a completion signal',async()=>{
  const paths:string[]=[];let fail=false;
@@ -11,6 +11,8 @@ test('recent results show three real permalinks, link to Delivered, and refresh 
  try{
   await flush(r);assert.equal(paths.length,1);
   assert.equal(r.document.querySelectorAll('.work-item-row').length,3);
+  assert.match(r.document.querySelector('.work-row-sub')?.textContent||'',/result-1.mp4/);
+  assert.ok(r.document.querySelector(`a.btn-outline[href="/runs/${row(1).id}"]`));
   assert.ok(r.document.querySelector(`a[href="/runs/${row(1).id}"]`));
   assert.equal(r.document.querySelector('a[href="/work?view=delivered"]')?.textContent,'See all →');
   assert.doesNotMatch(r.text(),/Video 4|More ↓/);

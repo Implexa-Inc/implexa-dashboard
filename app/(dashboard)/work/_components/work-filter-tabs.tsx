@@ -8,7 +8,7 @@ export default function WorkFilterTabs({current, counts = {}}: {
   return <nav aria-label="Work filters" className="work-filters"><ul>
     {WORK_VIEWS.map(view => {
       const count=counts[view];
-      return <li key={view}><Link href={workViewHref(view)} aria-current={current===view?'page':undefined}>
+      return <li key={view}><Link href={workViewHref(view)} prefetch={false} aria-current={current===view?'page':undefined}>
         {WORK_VIEW_LABELS[view]}{view!=='delivered' && count && <span className="work-filter-count" aria-label={!count.complete && count.count===0 ? 'Count unavailable' : `${count.complete?'':'At least '}${count.count} items`}>{!count.complete&&count.count===0?'?':`${count.count}${count.complete?'':'+'}`}</span>}
       </Link></li>;
     })}

@@ -721,12 +721,15 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
             : c.status==='finished' ? 'Delivered · open to review'
             : c.status==='verifying' ? 'Checking the result.'
             : c.status==='running' ? 'Working on your request.' : 'Getting ready to start.';
+          // Runtime status prose is diagnostic detail, not the name of the work.
+          const statusHeadline = !!c.headline && /^(?:needs? (?:you|attention|input|approval)|waiting (?:for|on)|(?:run |build |start )?failed|error|approval (?:needed|required))\s*[:—-]/i.test(c.headline);
+          const workHeadline = statusHeadline ? null : c.headline;
           const card = renderList ? (
-            <WorkItemRow agentSlug={c.headline?undefined:c.skillSlug} title={c.headline || agentNames[c.skillSlug] || humanize(c.skillSlug) || 'Agent'}
+            <WorkItemRow agentSlug={workHeadline?undefined:c.skillSlug} title={workHeadline || agentNames[c.skillSlug] || humanize(c.skillSlug) || 'Agent'}
               href={href} state={c.status === 'waiting_approval' || c.status === 'action_available' ? 'Needs approval'
                 : NOTIFY.has(c.status) ? (c.status === 'needs_attention' ? 'Needs input' : 'Failed')
                 : c.status === 'finished' ? 'Delivered' : c.status === 'built' ? 'Ready for review' : 'Running'}
-              detail={<>{c.headline ? `${agentNames[c.skillSlug]||humanize(c.skillSlug)} · ` : ''}{c.freshness !== 'fresh' ? freshnessNotice(c.freshness)
+              detail={<>{workHeadline ? `${agentNames[c.skillSlug]||humanize(c.skillSlug)} · ` : ''}{c.freshness !== 'fresh' ? freshnessNotice(c.freshness)
                 : c.runId && stoppingRunIds.has(c.runId) ? 'Stopping…' : plainStatus}
                 {c.currentStepIndex != null && c.totalSteps ? ` · Step ${Math.min(c.currentStepIndex || 1,c.totalSteps)} of ${c.totalSteps}${c.currentStepLabel ? ` · ${c.currentStepLabel}` : ''}` : ''}
                 {c.status === 'preparing_inputs' && c.bytesRead != null && c.totalBytes ? ` · ${Math.min(100,Math.floor(c.bytesRead / c.totalBytes * 100))}% verified` : ''}
@@ -735,7 +738,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               </>}
               progress={c.status === 'running' && c.currentStepIndex != null && c.totalSteps ? {value:Math.max(0,c.currentStepIndex-1),total:c.totalSteps} : undefined}
               when={c.finishedAt||c.since?<LocalTime iso={(c.finishedAt||c.since)!}/>:null}
-              actions={<>{href && <Link href={href} prefetch={false} className={c.status==='needs_attention' ? 'btn-primary work-row-action' : NOTIFY.has(c.status) ? 'btn-outline work-row-action' : 'work-row-open'}>{c.status === 'waiting_approval' || c.status === 'action_available' ? 'Review & approve' : NOTIFY.has(c.status) ? 'Open & resolve' : c.status === 'finished' || c.status === 'built' ? 'Open' : 'View progress'}</Link>}{controls}</>}/>
+              actions={<>{href && <Link href={href} prefetch={false} className="btn-outline work-row-action">{c.status === 'waiting_approval' || c.status === 'action_available' ? 'Review & approve' : NOTIFY.has(c.status) ? 'Open & resolve' : c.status === 'finished' || c.status === 'built' ? 'Open' : 'View progress'}</Link>}{controls}</>}/>
           ) : linkable ? (
             <Link href={href!} prefetch={compact ? false : undefined} className={`${cls} hover:border-ink-700 transition-colors`}>{body}</Link>
           ) : (
@@ -845,8 +848,9 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                 </div>
               )}
           </>);
-          const details = renderList ? (showRetry || showPreparationRetry || showStuck || queuedWait || c.failureReason || c.fallbackReason
+          const details = renderList ? (showRetry || showPreparationRetry || showStuck || queuedWait || c.failureReason || c.fallbackReason || statusHeadline
             ? <details className="work-row-details"><summary>Run details & recovery</summary>
+                {statusHeadline && <p>{c.headline}</p>}
                 {c.failureReason && <p>{visibleFailure(c.failureReason)}</p>}
                 {c.fallbackReason && <p>{c.fallbackReason}{c.resumeStep != null ? ` · Resuming from step ${c.resumeStep}` : ''}</p>}
                 {recovery}

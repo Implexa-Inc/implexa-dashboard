@@ -93,7 +93,7 @@ test('Needs-you rows sort newest first, use plain needs copy and retain bounded 
   assert.match(subs,/needs information/);
   assert.match(r.document.querySelector('.work-row-details')?.textContent||'',/Internal verification detail|This run stopped/);
   const inputAction=Array.from(r.document.querySelectorAll('button')).find(node=>node.textContent==='Provide information');
-  assert.ok(inputAction?.className.includes('btn-primary'));
+  assert.ok(inputAction?.className.includes('btn-outline'));
  }finally{r.cleanup();}
 });
 
@@ -111,5 +111,16 @@ test('the already-loaded caller names are shared with review and recent-result r
  try{
   await flush(r);
   const recent=r.document.querySelector('[aria-label="Recently delivered"] .work-row-title');assert.equal(recent?.textContent,'My private studio');
+ }finally{r.cleanup();}
+});
+
+test('status headlines stay in folded details while Work titles identify the agent',async()=>{
+ const headline='Needs you: semantic review at stage 5';
+ const r=await render('../work/_components/work-feed.tsx',{...base,names:{'video-agent':'My Video Studio'}},{exportName:'WorkList',fetch:fetchSummary,backend:path=>path.startsWith('/api/v2/scheduled-skills/live')?{items:[{...live,status:'needs_attention',headline}]}:{ok:true}});
+ try{
+  await flush(r);
+  assert.equal(r.document.querySelector('.work-row-title')?.textContent,'My Video Studio');
+  assert.match(r.document.querySelector('.work-row-details')?.textContent||'',/Needs you: semantic review at stage 5/);
+  assert.equal(r.document.querySelector('[aria-label="Work items"] .btn-primary'),null);
  }finally{r.cleanup();}
 });

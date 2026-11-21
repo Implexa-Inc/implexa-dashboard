@@ -7,6 +7,7 @@ test('Delivered uses shared rows and keeps the result overlay, feedback and cont
  try{
   await r.act(async()=>{});
   assert.equal(r.document.querySelectorAll('.work-item-row').length,1);
+  assert.match(r.document.querySelector('.work-row-sub')?.textContent||'',/The delivered output/);
   const open=r.queryByText('Open');assert.ok(open);
   await r.click(open!);
   assert.equal(r.calls.replace.at(-1),'/work?view=delivered&run=result-id');

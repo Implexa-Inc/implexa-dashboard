@@ -95,7 +95,7 @@ export default function JudgeReviewCard({ item, workRow = false, extraActions, e
   const who = item.agentName && item.agentName!==item.agentSlug ? item.agentName : item.agentSlug ? humanize(item.agentSlug) : 'An agent';
   const plainNeed = ACTION_UI[item.requiredAction]?.needSummary;
 
-  const trigger = (<button ref={triggerRef} type="button" onClick={() => setOpen(true)} className={`${workRow&&item.requiredAction!=='grant_permission'?'btn-primary':'btn-outline'} text-xs px-3 py-1.5 flex-none`}>
+  const trigger = (<button ref={triggerRef} type="button" onClick={() => setOpen(true)} className="btn-outline text-xs px-3 py-1.5 flex-none">
         {item.primaryAction.label}
       </button>);
   return (

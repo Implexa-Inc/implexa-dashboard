@@ -311,7 +311,7 @@ export default function InboxList({
     const cat = categorizeAgent([item.name, item.why]);
     const scheduled = item.source === 'scheduled';
     if (workRows) return <li key={item.id}><WorkItemRow agentSlug={item.slug} title={item.name}
-      detail={item.state.label==='Paused'?'Its schedule is paused. Open the agent to resume it.':item.state.state==='failed'?'This run did not finish. Open it to review the next step.':item.state.attention?'Your agent needs your input before it can continue.':item.pending?'A result is ready for your review.':item.state.label==='Partial'?'Partly delivered · open to see what remains.':'Delivered · open to review'}
+      detail={item.state.label==='Paused'?'Its schedule is paused. Open the agent to resume it.':item.state.state==='failed'?'This run did not finish. Open it to review the next step.':item.state.attention?'Your agent needs your input before it can continue.':item.pending?'A result is ready for your review.':item.state.label==='Partial'?'Partly delivered · open to see what remains.':line||'Open the delivered result.'}
       state={item.state.state === 'failed' ? 'Failed' : item.state.attention || item.state.label==='Paused' ? 'Needs input' : item.state.label.toLowerCase().includes('partial') ? 'Partly delivered' : item.pending ? 'Ready for review' : 'Delivered'}
       when={<LocalTime iso={item.ran_at}/>} actions={renderAction(item)}/></li>;
     return (
