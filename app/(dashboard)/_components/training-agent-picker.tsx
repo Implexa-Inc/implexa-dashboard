@@ -25,17 +25,17 @@ export default function TrainingAgentPicker({ owned,recordingId }: { owned: MyWo
 
   return (
     <>
-      <ul className="divide-y divide-ink-800">
+      <ul className="coach-agent-list">
         {[...bySlug.values()].map((a) => (
-          <li key={a.slug} className="transition-colors hover:bg-ink-900/30">
+          <li key={a.slug} className="card p-0 transition-colors hover:border-ink-500">
             <Link
               href={`/training/${encodeURIComponent(a.slug)}${recordingId?`?annotateRecording=${encodeURIComponent(recordingId)}`:''}`}
               className="flex items-center justify-between gap-5 rounded-lg px-4 py-6 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900"
             >
-              <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-950/40 text-emerald-200/80">✦</span><span className="min-w-0 flex-1">
+              <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ink-800 text-ink-200">✦</span><span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-ink-100">{a.name.trim() || a.slug}</span>
               </span>
-              <span className="shrink-0 text-xs text-ink-400">Edit / train →</span>
+              <span className="shrink-0 text-xs text-ink-400">Teach →</span>
             </Link>
           </li>
         ))}

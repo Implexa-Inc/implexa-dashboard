@@ -73,16 +73,14 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     owns: ['/work', '/review', '/inbox', '/runs', '/overview', '/connections', '/scheduled', '/generations'],
   },
   {
-    id: 'training', href: '/training', label: 'Training', icon: 'trending',
+    id: 'training', href: '/training', label: 'Coach', icon: 'trending',
     owns: ['/training'],
   },
 ];
 
-/** The two-account marketplace pilot changes labels, never route ownership. */
-export function primaryNavigation(marketplacePilot = false): readonly NavItem[] {
-  if (!marketplacePilot) return PRIMARY_NAV;
-  const labels = { agents: 'Rent/Build', work: 'Run', training: 'Edit/Train' };
-  return PRIMARY_NAV.map(item => ({ ...item, label: labels[item.id as keyof typeof labels] || item.label }));
+/** The same three product domains in the web app and Desktop, including the pilot. */
+export function primaryNavigation(_marketplacePilot = false): readonly NavItem[] {
+  return PRIMARY_NAV;
 }
 
 export const SECONDARY_NAV: readonly NavItem[] = [

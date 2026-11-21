@@ -178,10 +178,10 @@ function nextRunLabel(iso: string): string {
 function stateBadge(a: ListAgent): { label: string; cls: string } | null {
   const rs = a.lastRun?.runState;
   const st = a.lastRun?.status;
-  if (rs === 'stalled') return { label: 'Stalled', cls: 'border-amber-500/50 text-amber-700 dark:text-amber-300' };
-  if (st === 'failed' || rs === 'failed') return { label: 'Failed', cls: 'border-rose-500/50 text-rose-700 dark:text-rose-300' };
-  if (st === 'partial') return { label: 'Partial', cls: 'border-amber-500/50 text-amber-700 dark:text-amber-300' };
-  if (st === 'completed' || rs === 'completed') return { label: 'Ran ok', cls: 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300' };
+  if (rs === 'stalled') return { label: 'Needs attention', cls: 'border-amber-500/50 text-amber-700 dark:text-amber-300' };
+  if (st === 'failed' || rs === 'failed') return { label: 'Last run failed', cls: 'border-rose-500/50 text-rose-700 dark:text-rose-300' };
+  if (st === 'partial') return { label: 'Partly delivered', cls: 'border-amber-500/50 text-amber-700 dark:text-amber-300' };
+  if (st === 'completed' || rs === 'completed') return { label: 'Delivered', cls: 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300' };
   if (rs === 'running') return { label: 'Running', cls: 'border-sky-500/40 text-sky-700 dark:text-sky-300' };
   return null;
 }
@@ -214,7 +214,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
   }
 
   return (
-    <li className="card">
+    <li className="card agent-roster-row">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap group">
@@ -242,7 +242,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
               />
             ) : (
               <Link href={titleHref} className="text-base font-medium text-ink-50 hover:underline">
-                <span aria-hidden className="mr-1.5">{a.category.emoji}</span>{a.name}
+                {a.name}
               </Link>
             )}
             {!editing && (
@@ -256,7 +256,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
                 ✎
               </button>
             )}
-            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">{a.category.label}</span>
+
             {a.section === 'scheduled' && (
               <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-700 dark:text-emerald-300" title="Runs automatically on a schedule">⏰ Scheduled</span>
             )}
@@ -267,16 +267,11 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
               <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/40 text-sky-700 dark:text-sky-300">Draft</span>
             )}
             {badge && <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>}
-            {engine && (
-              <span
-                className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/30 text-sky-700 dark:text-sky-300"
-                title={`Last run used ${engine}`}
-              >
-                {engine}
-              </span>
-            )}
             <GradeBadge grade={a.grade} />
           </div>
+          {engine && (
+            <details title={`Last run used ${engine}`} className="mt-1 text-xs text-ink-400"><summary className="cursor-pointer">Run details</summary><p className="mt-2">{a.category.label} · {engine}</p></details>
+          )}
           {/* status line */}
           <p className="text-xs text-ink-500 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
             {a.needsIntervention && (
@@ -335,11 +330,11 @@ function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFav
   if (agents.length === 0) return null;
   return (
     <section className="mb-8">
-      <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">
+      <h2 className="text-lg font-medium text-ink-100 mb-3">
         {title} <span className="text-ink-500">({agents.length})</span>
         {subtitle && <span className="ml-2 normal-case tracking-normal text-ink-500 font-normal">{subtitle}</span>}
       </h2>
-      <ul className="space-y-3">{agents.map((a) => <Row key={`${spotlight ? 'act' : 'row'}-${a.slug}`} a={a} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug === a.slug} spotlight={spotlight} />)}</ul>
+      <ul className="agent-roster-list">{agents.map((a) => <Row key={`${spotlight ? 'act' : 'row'}-${a.slug}`} a={a} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug === a.slug} spotlight={spotlight} />)}</ul>
     </section>
   );
 }
@@ -609,7 +604,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
 
       {(q || availableShown.length > 0) && (
         <section className="mb-8" aria-labelledby="available-agent-results">
-          <h2 id="available-agent-results" className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">Agent results</h2>
+          <h2 id="available-agent-results" className="text-lg font-medium text-ink-100 mb-3">Agent results</h2>
           <ul className="space-y-3">
             {q && (
               <li className="card flex items-start justify-between gap-4">
@@ -668,7 +663,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
           scheduled + on-demand, scheduler-tagged — rows open the agent page). The
           two overlap on purpose: same agents, two doors. Then Need activation, then
           Paused. Scheduling is surfaced as a per-row ⏰ tag, not a list split. */}
-      <Section title="★ Favorites" subtitle="your starred agents" agents={favorites} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
+      <Section title="Favourites" subtitle="your starred agents" agents={favorites} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
       <Section title="Running & recently ran" subtitle="live activity · opens the run" agents={recentlyActive} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} spotlight />
       <Section title="Active agents" agents={activated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
       <Section title="Need activation" agents={notActivated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />

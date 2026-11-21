@@ -116,7 +116,7 @@ export default async function WorkflowDetailPage({
   if (searchParams.legacy !== '1'&&trainingTest.state!=='prepared') {
     const resume = await getAgentResume(params.slug, session.access_token);
     if (resume.status === 'found') return <AgentResume agent={resume.agent} />;
-    if (resume.status === 'unavailable') return <main className="min-h-screen px-4 py-10"><div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4"><h1 className="text-lg font-semibold text-ink-50">Agent unavailable</h1><p role="alert" className="mt-2 text-sm text-amber-200">{resume.reason} Marketplace readiness could not be verified, so running is disabled. Try again.</p></div></main>;
+    if (resume.status === 'unavailable') return <main className="app-page agent-resume-page"><div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4"><h1 className="text-lg font-semibold text-ink-50">Agent unavailable</h1><p role="alert" className="mt-2 text-sm text-amber-200">{resume.reason} Marketplace readiness could not be verified, so running is disabled. Try again.</p></div></main>;
   }
 
   const detailResult = await detailPromise;
@@ -129,7 +129,7 @@ export default async function WorkflowDetailPage({
   // case: a scheduled SKILL that genuinely is not in the workflow catalog.
   if (detailResult.status === 'unavailable') {
     return (
-      <main className="min-h-screen px-4 py-10">
+      <main className="app-page agent-resume-page">
         <div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4">
           <h1 className="text-lg font-semibold text-ink-50">Agent status unavailable</h1>
           <p role="alert" className="mt-2 text-sm text-amber-200">
@@ -163,8 +163,8 @@ export default async function WorkflowDetailPage({
     const pausable = sched.find((r) => (r.status === 'active' || r.status === 'paused') && isPausableRoutine(r)) || null;
     const niceName = params.slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     return (
-      <main className="min-h-screen px-4 py-10">
-        <div className="max-w-4xl mx-auto">
+      <main className="app-page agent-resume-page">
+        <div className="app-content">
           <nav className="text-sm text-ink-500 mb-6"><BackLink fallback="/workflows" label="Back" /></nav>
           <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0">
@@ -630,8 +630,8 @@ export default async function WorkflowDetailPage({
   ];
 
   return (
-    <main className="min-h-screen px-4 py-10">
-      <div className="max-w-4xl mx-auto">
+    <main className="app-page agent-resume-page">
+      <div className="app-content">
         <nav className="text-sm text-ink-500 mb-6">
           <BackLink fallback="/workflows" label="Back" />
         </nav>
@@ -695,7 +695,7 @@ export default async function WorkflowDetailPage({
                 {workflow.run_input_version_source === 'installed' && <ForkRunCta skillSlug={workflow.slug} source={workflow.source} versionId={workflow.workflow_version_id} />}
                 <AgentDefinitionReview definition={workflow.revision_contract ?? null} versionSource={workflow.definition_version_source ?? null} updateAvailable={!!workflow.update_available} revisePending={revisePending} statusUnavailable={lifecycleUnavailable} slug={workflow.slug} />
               </div>
-              <code className="text-xs text-ink-500 font-mono block mt-2">{workflow.slug}</code>
+              <details className="mt-2 text-xs text-ink-400"><summary className="cursor-pointer">Agent details</summary><code className="mt-2 block font-mono">{workflow.slug}</code></details>
               {revisePending && (
                 <div className="mt-3 flex items-start gap-2 rounded-md border border-violet-500/30 bg-violet-500/5 px-3 py-2 max-w-xl">
                   <span className="mt-0.5 inline-block h-2 w-2 flex-none rounded-full bg-violet-500 animate-pulse" aria-hidden />

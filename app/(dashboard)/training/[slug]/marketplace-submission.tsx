@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
-import {TrainingDialog,TrainingInfo,RunImage} from './training-workspace';
+import Link from 'next/link';
+import {TrainingInfo,RunImage} from './training-workspace';
 import type {ReviewArtifact} from '@/lib/review';
 
 type ToolOffer={id:string;mode:'customer_connects'|'included'|'not_offered';credits:number;markupPercent:number};
@@ -18,11 +19,11 @@ const field='mt-2 w-full rounded-xl border border-ink-700 bg-ink-950 p-3 text-sm
 const errors:Record<string,string>={listing_changed:'Your agent changed. Close and reopen this draft to use its current setup.',listing_revision_changed:'This draft was saved elsewhere. Close and reopen it before editing.',tested_publication_required:'Test and publish this version’s training before submitting.',sample_release_required:'Choose a sample and confirm you can show it.',tool_price_needs_refresh:'The tool rate needs a fresh check before this offer can be saved.',marketplace_submission_unavailable:'The listing could not be loaded or saved. Try again.',invalid_listing:'Check the listing fields and tool limits.',invalid_tool_price:'Use 60–10,000 whole API credits and 0–20% markup.'};
 
 export default function MarketplaceSubmission({slug,versionId}:{slug:string;versionId:string|null}){
- const [open,setOpen]=useState(false),[context,setContext]=useState<Context|null>(null),[listing,setListing]=useState<Listing|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState(''),[preview,setPreview]=useState(false),[revision,setRevision]=useState(0),[moreSamples,setMoreSamples]=useState(false),[submittedRevision,setSubmittedRevision]=useState<number|null>(null);
+ const [context,setContext]=useState<Context|null>(null),[listing,setListing]=useState<Listing|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState(''),[preview,setPreview]=useState(false),[revision,setRevision]=useState(0),[moreSamples,setMoreSamples]=useState(false),[submittedRevision,setSubmittedRevision]=useState<number|null>(null);
  const scope=useRef(0);
- useEffect(()=>{scope.current++;setOpen(false);setContext(null);setListing(null);},[slug,versionId]);
+ useEffect(()=>{void load();return()=>{scope.current++;};},[slug,versionId]);
  async function load(){
-  const captured=++scope.current;setOpen(true);setBusy(true);setError('');setNote('');setContext(null);setPreview(false);setMoreSamples(false);
+  const captured=++scope.current;setBusy(true);setError('');setNote('');setContext(null);setListing(null);setRevision(0);setSubmittedRevision(null);setPreview(false);setMoreSamples(false);
   try{const response=await fetch(`/api/agent-training/marketplace-submission?slug=${encodeURIComponent(slug)}`,{cache:'no-store'});const c=await response.json();
    if(captured!==scope.current)return;
    if(!response.ok||c.ok!==true||c.contractVersion!=='marketplace-submission.v1'||!c.agent?.versionId||(versionId&&c.agent.versionId!==versionId))throw Error(c.reason||'listing_changed');
@@ -61,12 +62,8 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
   }catch{if(captured===scope.current)setError('AI suggestions are unavailable right now. Your draft is unchanged; you can keep editing.');}
   finally{if(captured===scope.current)setBusy(false);}
  }
- return <>
-  <section aria-label="Marketplace submission" className="flex flex-wrap items-center justify-between gap-5 rounded-2xl border border-ink-700 p-6">
-   <div><h2 className="text-lg font-medium">Earn with your trained agent</h2><p className="mt-2 text-sm text-ink-400">Turn your training into a service others can rent.</p></div>
-   <button type="button" className="btn-primary" onClick={()=>void load()}>Prepare marketplace listing</button>
-  </section>
-  <TrainingDialog open={open} onClose={()=>{scope.current++;setOpen(false);setBusy(false);}} title={preview?'Preview your listing':'Prepare your marketplace listing'} maxWidth="max-w-3xl">
+ return <div className="listing-layout">
+  <section aria-label="Marketplace listing form" className="min-w-0 space-y-6">
    {busy&&!context&&<p role="status">Preparing your draft…</p>}
    {error&&<p role="alert" className="mb-4 text-sm text-amber-300">{error}</p>}
    {note&&<p role="status" className="mb-4 text-sm text-emerald-400">{note}</p>}
@@ -101,6 +98,22 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
     {!context.canSubmit&&<p className="text-sm text-amber-300">Test and publish this version’s training before submitting. You can save your draft now.</p>}
     <div className="flex flex-wrap gap-3 border-t border-ink-800 pt-5"><button type="button" className="btn-secondary" disabled={busy} onClick={()=>setPreview(!preview)}>{preview?'Edit listing':'Preview listing'}</button><button type="button" className="btn-secondary" disabled={busy} onClick={()=>void save('save')}>Save draft</button><button type="button" className="btn-primary" disabled={busy||!context.canSubmit||!listing.sampleReleaseConsent||listing.sampleIds.length===0} onClick={()=>void save('submit')}>{busy?'Saving…':'Submit for review'}</button></div>
    </fieldset>}
-  </TrainingDialog>
- </>;
+  </section>
+  <aside className="listing-preview card">
+   <p className="text-xs text-ink-400">Listing preview</p>
+   <h2 className="mt-3 text-2xl font-display">{listing?.name||'Your trained agent'}</h2>
+   {listing&&<><p className="mt-2 text-sm text-ink-400">{listing.studioName} · {listing.category}</p>
+    <dl className="mt-6 space-y-5 text-sm"><div><dt className="text-xs text-ink-400">Customer provides</dt><dd className="mt-1">{listing.input}</dd></div><div><dt className="text-xs text-ink-400">Customer receives</dt><dd className="mt-1">{listing.output}</dd></div><div><dt className="text-xs text-ink-400">Proposed service price</dt><dd className="mt-1 text-lg">{money(listing.servicePriceCents)} {listing.pricePeriod==='per_run'?'per run':'per month'}</dd></div></dl>
+    <p className="mt-6 border-t border-ink-700 pt-4 text-xs leading-5 text-ink-400">Private draft. Saving or submitting does not publish this agent, enable billing, or fund a tool.</p>
+   </>}
+  </aside>
+ </div>;
+}
+
+/** The training workspace stays light; draft reads begin only on the listing page. */
+export function MarketplaceSubmissionEntry({slug}:{slug:string;versionId?:string|null}) {
+ return <section aria-label="Marketplace submission" className="card flex flex-wrap items-center justify-between gap-5">
+  <div><h2 className="text-lg font-medium">Earn with your trained agent</h2><p className="mt-2 text-sm text-ink-400">Turn your training into a service others can rent.</p></div>
+  <Link className="btn-primary" href={`/training/${encodeURIComponent(slug)}/listing`}>Prepare marketplace listing</Link>
+ </section>;
 }

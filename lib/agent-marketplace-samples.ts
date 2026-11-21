@@ -21,5 +21,5 @@ export const marketplacePilotEnabled=(read:SampleRead)=>read.status==='ready'&&r
 // Preserve old pilot bookmarks, with activity and Training in their real domains.
 export function agentHomeView(read:SampleRead,tab?:string):'ordinary'|'rent'|'manage'|'running'|'training'{
  if(!marketplacePilotEnabled(read))return 'ordinary';
- return tab==='running'||tab==='training'||tab==='manage'?tab:'rent';
+ return tab==='running'||tab==='training'||tab==='rent'?tab:'manage';
 }

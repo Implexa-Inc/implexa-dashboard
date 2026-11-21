@@ -42,10 +42,13 @@ try{var q=new URLSearchParams(location.search).get('theme');
 if(q==='auto')localStorage.removeItem(k);else if(q==='light'||q==='dark')localStorage.setItem(k,q);}catch(e){}
 function night(){var h=new Date().getHours();return h>=19||h<6;}
 function apply(){var p=null;try{p=localStorage.getItem(k);}catch(e){}
+if(p!=='light'&&p!=='dark')p=null;
 var dark=p==='light'?false:p==='dark'?true:(mode==='clock'?night():true);
 d.classList.toggle('dark',dark);d.style.colorScheme=dark?'dark':'light';
 clearTimeout(t);if(mode==='clock'&&!p){var n=new Date(),b=new Date(n);b.setMinutes(0,0,0);
 b.setHours(n.getHours()<6?6:n.getHours()<19?19:30);t=setTimeout(apply,b-n+1000);}}
 apply();document.addEventListener('visibilitychange',function(){if(!document.hidden)apply();});
+document.addEventListener('tukido-theme-change',apply);
+if(typeof window!=='undefined')window.addEventListener('storage',function(e){if(e.key===k||e.key===null)apply();});
 })();`;
 }

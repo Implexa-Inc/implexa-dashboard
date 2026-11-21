@@ -9,8 +9,8 @@ const list = readFileSync(join(import.meta.dirname, 'agents-list.tsx'), 'utf8');
 const resume = readFileSync(join(import.meta.dirname, 'agent-resume.tsx'), 'utf8');
 const service = readFileSync(join(root, 'lib', 'agent-discovery.ts'), 'utf8');
 
-test('authenticated primary navigation is exactly Agents, Work, Training', () => {
-  assert.deepEqual(PRIMARY_NAV.map((item) => item.label), ['Agents', 'Work', 'Training']);
+test('authenticated primary navigation is exactly Agents, Work, Coach', () => {
+  assert.deepEqual(PRIMARY_NAV.map((item) => item.label), ['Agents', 'Work', 'Coach']);
   assert.equal(PRIMARY_NAV.some((item) => /Marketplace|Discover|Review|Home/.test(item.label)), false);
   assert.equal(existsSync(join(root, 'app', '(dashboard)', 'marketplace', 'page.tsx')), false);
 });

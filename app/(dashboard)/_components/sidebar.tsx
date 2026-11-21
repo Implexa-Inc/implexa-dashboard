@@ -25,12 +25,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogoMark } from '@/components/logo';
+import { Logo } from '@/components/logo';
 import { STATUS_PRESENTATION, relativeFromNow, type SetupStatus } from '@/lib/setup-status';
 import {
   primaryNavigation, SECONDARY_NAV, isNavItemActive, countNewerThan, mergeTimestamps, workSeenKey,
   type NavItem,
 } from '@/lib/navigation';
+
+import ThemeControl from '@/components/theme-control';
 
 type UserCtx = {
   marketplacePilot?: boolean;
@@ -116,14 +118,13 @@ export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: 
   const { pathname, badgeFor } = useShellNav(user, resultRunsAt, needsItemsAt);
 
   return (
-    <aside className="hidden md:flex md:flex-col md:sticky md:top-0 w-56 shrink-0 border-r border-ink-700 bg-ink-900/50 h-screen overflow-y-auto">
+    <aside className="hidden md:flex md:flex-col md:sticky md:top-0 app-sidebar shrink-0 border-r border-ink-700 h-screen overflow-y-auto">
       {/* Brand — resolves to the state-aware default landing (Work when
        * something needs you or is running, otherwise Agents), never to a Home
        * page of its own. */}
-      <div className="px-4 pt-6 pb-8">
+      <div className="px-6 pt-8 pb-10">
         <Link href="/start" className={`inline-flex items-center gap-2 rounded-md text-ink-50 ${FOCUS_RING}`}>
-          <LogoMark size={28} />
-          <span className="text-sm font-medium">Implexa</span>
+          <Logo height={27} />
         </Link>
       </div>
 
@@ -167,7 +168,8 @@ export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: 
       </nav>
 
       {/* User block at bottom */}
-      <div className="px-3 py-4 border-t border-ink-700">
+      <div className="px-5 py-5 border-t border-ink-700">
+        <div className="mb-5"><ThemeControl /></div>
         <div className="text-sm text-ink-100 font-medium truncate" title={user.displayName || user.email}>
           {user.displayName || user.email.split('@')[0]}
         </div>
@@ -276,7 +278,7 @@ function NavBadge({ count, label }: { count: number; label: string }) {
   if (count <= 0) return null;
   return (
     <span
-      className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold bg-brand-500 text-ink-950"
+      className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-medium bg-ink-800 text-ink-100"
       aria-label={`${count} new in ${label}`}
     >
       {count > 99 ? '99+' : count}
@@ -292,10 +294,10 @@ function NavLink({ item, active, badge = 0 }: { item: NavItem; active: boolean; 
       // forbids carrying meaning in colour alone; `aria-current` is how the
       // same fact reaches a screen reader and a Windows high-contrast theme.
       aria-current={active ? 'page' : undefined}
-      className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${FOCUS_RING} ${
+      className={`app-nav-link flex items-center gap-3 px-3 py-2 text-sm transition-colors ${FOCUS_RING} ${
         active
-          ? 'bg-brand-500/10 text-ink-50 font-medium border-l-2 border-brand-500'
-          : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100 border-l-2 border-transparent'
+          ? 'text-ink-50 font-medium'
+          : 'text-ink-300 hover:text-ink-100'
       }`}
     >
       <NavIcon icon={item.icon} />
@@ -321,8 +323,7 @@ export function MobileTopBar({ user, resultRunsAt = [], needsItemsAt = [] }: { u
     <div className="md:hidden sticky top-0 z-20 bg-ink-900 border-b border-ink-700">
       <div className="px-4 py-3 flex items-center justify-between gap-3">
         <Link href="/start" className={`inline-flex items-center gap-2 rounded-md text-ink-50 ${FOCUS_RING}`}>
-          <LogoMark size={24} />
-          <span className="text-sm font-medium">Implexa</span>
+          <Logo height={23} />
         </Link>
         <div className="flex items-center gap-2 text-xs">
           <span className="capitalize text-ink-300">{user.plan}</span>
