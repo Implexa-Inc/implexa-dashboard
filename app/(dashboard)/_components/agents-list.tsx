@@ -180,8 +180,8 @@ function stateBadge(a: ListAgent): { label: string; cls: string } | null {
   const st = a.lastRun?.status;
   if (rs === 'stalled') return { label: 'Progress interrupted', cls: 'border-amber-500/50 text-state-needs' };
   if (st === 'failed' || rs === 'failed') return { label: 'Last run failed', cls: 'border-rose-500/50 text-state-fail' };
-  if (st === 'partial') return { label: 'Partly delivered', cls: 'border-amber-500/50 text-state-needs' };
-  if (st === 'completed' || rs === 'completed') return { label: 'Delivered', cls: 'border-emerald-500/40 text-state-ok' };
+  if (st === 'partial') return { label: 'Partly finished', cls: 'border-amber-500/50 text-state-needs' };
+  if (st === 'completed' || rs === 'completed') return { label: 'Finished', cls: 'border-emerald-500/40 text-state-ok' };
   if (rs === 'running') return { label: 'Running', cls: 'border-sky-500/40 text-state-running' };
   return null;
 }
