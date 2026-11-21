@@ -266,3 +266,23 @@ html, body {
 @media (max-width: 1100px) { .listing-layout { grid-template-columns: minmax(0,1fr); } .listing-preview { position: static; } }
 
 @media (max-width: 1535px) { .training-companion { width: min(420px,calc(100vw - 24px)); left: auto; right: 12px; } }
+
+/* Recorded teaching: one player, a quiet moments rail, and the selected note
+   on the picture. Narrow screens keep the editor in the reading order. */
+.recording-workspace { position: relative; display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 24px; align-items: start; }
+.recording-stage { min-width: 0; }
+.recording-moments { min-width: 0; }
+.recording-moment { background: var(--bg-surface); border-color: var(--border-subtle); }
+.recording-moment.is-selected { border-color: var(--action-primary); }
+.recording-note { position: absolute; z-index: 12; left: 20px; top: 20px; width: min(340px,calc(100% - 364px)); max-height: min(500px,55vh); overflow: auto; padding: 20px; background: var(--bg-surface); border: 1px solid var(--border-control); border-radius: var(--r-md); box-shadow: var(--shadow-pop); }
+.recording-note[hidden] { display: none; }
+.recording-timeline { touch-action: none; }
+.recording-moment-bar { border: 1px solid var(--state-running-dot); background: var(--state-running-bg); color: var(--state-running-fg); font-size: 12px; }
+.recording-moment-bar.is-selected { border-color: var(--action-primary); background: var(--action-primary); color: var(--on-action-primary); }
+.recording-playhead { background: var(--text-strong); }
+.timeline-hover { pointer-events: none; position: absolute; z-index: 2; bottom: calc(100% + 6px); transform: translateX(-50%); border-radius: var(--r-xs); padding: 4px 8px; white-space: nowrap; background: var(--bg-inverse); color: var(--text-inverse); font: 12px var(--font-mono),monospace; }
+@media (max-width: 1279px) { .recording-workspace { grid-template-columns: minmax(0,1fr); } .recording-note { position: static; width: auto; max-height: none; padding: 16px 0 0; border: 0; box-shadow: none; } }
+.moment-resize { position: absolute; top: -1px; bottom: -1px; width: 12px; cursor: ew-resize; touch-action: none; }
+.moment-resize.start { left: -5px; } .moment-resize.end { right: -5px; }
+.moment-resize::after { content: ''; display: block; width: 3px; height: 50%; margin: auto; border-radius: 3px; background: currentColor; opacity: .7; }
+.playback-button[aria-label="Play"], .playback-button[aria-label="Pause"] { min-width: 92px; border-radius: var(--r-pill); background: var(--action-strong); color: var(--on-action-strong); padding: 10px 20px; border-color: transparent; }

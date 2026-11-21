@@ -44,6 +44,9 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const [moments, setMoments] = useState<Moment[]>([]);
   const [voiceDirty,setVoiceDirty]=useState<Set<string>>(()=>new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const noteSnapshot = useRef<{id:string;before:Moment|null}|null>(null);
+  const [hoverImage,setHoverImage]=useState<{second:number;url:string}|null>(null);
+  const [hoverMs,setHoverMs] = useState<number|null>(null);
   const [markStartMs, setMarkStartMs] = useState<number | null>(null);
   const [barDraft, setBarDraft] = useState<Range | null>(null);
   const [drawing, setDrawing] = useState(false);
@@ -64,6 +67,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const barRef = useRef<HTMLDivElement | null>(null);
   const playLineRef = useRef<HTMLDivElement | null>(null);
   const barGesture = useRef<{ anchorMs: number; startX: number; dragging: boolean } | null>(null);
+  const resizeGesture = useRef<{moment:Moment;edge:'startMs'|'endMs'}|null>(null);
   const loadSeq = useRef(0);
   const busyRef = useRef(false);
 
@@ -81,6 +85,20 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     [samples, durationMs],
   );
   const openSuggestions = suggestions.filter((s) => !moments.some((m) => rangesOverlap(m, s)));
+
+  // Hover decodes the already-open local preview in a separate media element.
+  // It never seeks playback or asks Desktop for another screenshot/token.
+  useEffect(()=>{
+    if(hoverMs===null||!preview)return;
+    const second=Math.floor(hoverMs/1000);
+    const video=document.createElement('video');video.muted=true;video.preload='metadata';
+    let live=true;
+    const capture=()=>{if(!live)return;try{const canvas=document.createElement('canvas');canvas.width=192;canvas.height=108;const context=canvas.getContext('2d');if(!context)return;context.drawImage(video,0,0,192,108);setHoverImage({second,url:canvas.toDataURL('image/jpeg',.65)});}catch{/* Time-only fallback when the local media cannot be sampled. */}};
+    const seekHover=()=>{video.currentTime=Math.min(second,Math.max(0,video.duration-.01));};
+    video.addEventListener('loadedmetadata',seekHover);video.addEventListener('seeked',capture);
+    const timer=window.setTimeout(()=>{video.src=preview.url;},180);
+    return()=>{live=false;window.clearTimeout(timer);video.removeEventListener('loadedmetadata',seekHover);video.removeEventListener('seeked',capture);video.removeAttribute('src');video.load();};
+  },[hoverMs===null?null:Math.floor(hoverMs/1000),preview]);
 
   // ── loading ────────────────────────────────────────────────────────────────
 
@@ -236,9 +254,10 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     if (!next) { setNotice('That range could not be marked.'); return; }
     momentsRef.current = next;
     setMoments(next);
+    noteSnapshot.current={id:momentId,before:null};
     setSelectedId(momentId);
     setNotice(null);
-    requestAnimationFrame(()=>document.getElementById(`${momentId}-feedback`)?.focus());
+    window.setTimeout(()=>document.getElementById(`${momentId}-feedback`)?.focus(),0);
   }, [durationMs, samples]);
 
   function addTrainingMoment(timeMs:number){
@@ -347,7 +366,28 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     setMoments((prev) => prev.filter((m) => m.momentId !== id));
     if (selectedId === id) { setSelectedId(null); setDrawing(false); }
   };
-  const selectMoment = (m: Moment) => { setSelectedId(m.momentId); seek(m.startMs); };
+  const selectMoment = (m: Moment) => {
+    if(voiceDirty.size || busyRef.current)return;
+    if(noteSnapshot.current?.id!==m.momentId)noteSnapshot.current={id:m.momentId,before:m};
+    setSelectedId(m.momentId); seek(m.startMs);
+  };
+  function cancelNote(){
+    const snapshot=noteSnapshot.current;
+    if(!snapshot||voiceDirty.size||busyRef.current)return;
+    const next=snapshot.before?momentsRef.current.map(m=>m.momentId===snapshot.id?snapshot.before!:m):momentsRef.current.filter(m=>m.momentId!==snapshot.id);
+    momentsRef.current=next;setMoments(next);setSelectedId(null);setDrawing(false);noteSnapshot.current=null;
+  }
+  async function doneNote(){
+    if(voiceDirty.size)return;
+    if(await save()){setSelectedId(null);setDrawing(false);noteSnapshot.current=null;}
+  }
+
+  function resizeMoment(moment:Moment,edge:'startMs'|'endMs',ms:number){
+    if(durationMs===null||voiceDirty.size||busyRef.current)return;
+    const snapped=Math.round(ms/SNAP_MS)*SNAP_MS;
+    const value=edge==='startMs'?Math.max(0,Math.min(moment.endMs,snapped),moment.endMs-MAX_MOMENT_MS):Math.min(durationMs,Math.max(moment.startMs,snapped),moment.startMs+MAX_MOMENT_MS);
+    patch(moment.momentId,current=>({...current,[edge]:value}));
+  }
 
   async function save() {
     if (busyRef.current || durationMs === null) return false;
@@ -427,17 +467,70 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const pctOf = (ms: number) => `${(ms / Math.max(1, durationMs)) * 100}%`;
   const full = moments.length >= MAX_MOMENTS;
 
+  const timeline = (
+<div
+        ref={barRef}
+        role="group"
+        aria-label="Recording timeline. Drag to mark a moment; click to seek."
+        onPointerDown={onBarDown}
+        onPointerMove={e=>{onBarMove(e);setHoverMs(Math.round(barMs(e.clientX)));}}
+        onPointerLeave={()=>setHoverMs(null)}
+        onPointerUp={onBarUp}
+        onPointerCancel={() => { barGesture.current = null; setBarDraft(null); }}
+        className="recording-timeline relative mt-3 h-16 cursor-text select-none rounded bg-ink-800/70"
+      >
+        {hoverMs!==null&&<output className="timeline-hover" style={{left:pctOf(hoverMs)}}>{hoverImage?.second===Math.floor(hoverMs/1000)&&<img src={hoverImage.url} alt="Timeline preview" className="mb-1 h-[108px] w-48 rounded object-contain"/>}{formatMs(hoverMs)}</output>}
+        {openSuggestions.map((s) => (
+          <button
+            key={`s-${s.startMs}`}
+            type="button"
+            title={`Suggested: the pointer rested here (${formatMs(s.startMs)}–${formatMs(s.endMs)}). Click to add.`}
+            disabled={full}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => createMoment({ startMs: s.startMs, endMs: s.endMs }, s.region)}
+            className="absolute top-1 bottom-1 rounded-sm border border-dashed border-amber-300/70 bg-amber-300/10 hover:bg-amber-300/25"
+            style={{ left: pctOf(s.startMs), width: `max(4px, ${pctOf(s.endMs - s.startMs)})` }}
+          />
+        ))}
+        {moments.map((m, i) => (
+          <div key={m.momentId} className={`recording-moment-bar absolute top-2 bottom-2 rounded-sm ${m.momentId===selectedId?'is-selected':''}`}
+            style={{left:pctOf(m.startMs),width:`max(28px, ${pctOf(m.endMs-m.startMs)})`}}>
+            <button type="button" className="h-full w-full" title={`Moment ${i+1}: ${formatMs(m.startMs)}–${formatMs(m.endMs)}`} aria-label={`Moment ${i+1} at ${formatMs(m.startMs)}`}
+              onPointerDown={e=>e.stopPropagation()} onClick={()=>selectMoment(m)}>{i+1}</button>
+            {(['startMs','endMs'] as const).map(edge=><button key={edge} type="button" className={`moment-resize ${edge==='startMs'?'start':'end'}`}
+              aria-label={`${edge==='startMs'?'Start':'End'} of moment ${i+1}`} title="Drag to adjust; arrow keys adjust by 0.1 second"
+              disabled={busy!==null||voiceDirty.size>0}
+              onPointerDown={e=>{e.stopPropagation();if(e.button!==0)return;selectMoment(m);resizeGesture.current={moment:m,edge};e.currentTarget.setPointerCapture?.(e.pointerId);}}
+              onPointerMove={e=>{e.stopPropagation();const g=resizeGesture.current;if(g?.moment.momentId===m.momentId&&g.edge===edge)resizeMoment(g.moment,edge,barMs(e.clientX));}}
+              onPointerUp={e=>{e.stopPropagation();resizeGesture.current=null;}}
+              onPointerCancel={e=>{e.stopPropagation();const g=resizeGesture.current;if(g)patch(g.moment.momentId,current=>({...current,startMs:g.moment.startMs,endMs:g.moment.endMs}));resizeGesture.current=null;}}
+              onKeyDown={e=>{if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;e.preventDefault();e.stopPropagation();selectMoment(m);resizeMoment(m,edge,m[edge]+(e.key==='ArrowLeft'?-SNAP_MS:SNAP_MS));}}/>) }
+          </div>
+        ))}
+        {barDraft && (
+          <div className="pointer-events-none absolute top-0 bottom-0 rounded-sm border-2 border-sky-300 bg-sky-300/20"
+            style={{ left: pctOf(barDraft.startMs), width: pctOf(barDraft.endMs - barDraft.startMs) }} />
+        )}
+        {markStartMs !== null && (
+          <div className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-rose-400" style={{ left: pctOf(markStartMs) }} />
+        )}
+        <div ref={playLineRef} className="recording-playhead pointer-events-none absolute top-0 bottom-0 w-px" style={{ left: pctOf(playheadMs) }} />
+      </div>
+  );
+
   return (
     <Shell embedded={embedded} back={back} title={detail.title || 'Recording'}>
       {error && <p role="alert" className="mb-3 rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-state-fail">{error}</p>}
 
       {embedded&&onClose&&<button type="button" className="text-xs text-ink-400 underline" onClick={onClose}>Close recording</button>}
       {embedded&&trainingReview}
+      <div className="recording-workspace">
+      <div className="recording-stage">
       <div className="relative">
         {previewError && <p role="status" className="rounded border border-ink-800 bg-ink-950 p-6 text-center text-sm text-ink-200">{previewError}</p>}
         {!preview && !previewError && <div className="h-64 animate-pulse rounded bg-ink-800/50" aria-label="Loading video" />}
         {preview && (
-          <ReviewPlaybackControls key={recordingId} mediaKey={recordingId} mediaRef={videoRef} onSeek={seek}>
+          <ReviewPlaybackControls key={recordingId} mediaKey={recordingId} mediaRef={videoRef} onSeek={seek} timeline={timeline}>
           <>
           <div className="relative">
             <video
@@ -496,59 +589,20 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
         </div>
       </div>
 
-      {/* The range bar: drag to mark (≤ 30 s, snapped to 100 ms); a click seeks. */}
-      <div
-        ref={barRef}
-        role="group"
-        aria-label="Recording timeline. Drag to mark a moment; click to seek."
-        onPointerDown={onBarDown}
-        onPointerMove={onBarMove}
-        onPointerUp={onBarUp}
-        onPointerCancel={() => { barGesture.current = null; setBarDraft(null); }}
-        className="relative mt-3 h-10 cursor-text select-none rounded bg-ink-800/70"
-      >
-        {openSuggestions.map((s) => (
-          <button
-            key={`s-${s.startMs}`}
-            type="button"
-            title={`Suggested: the pointer rested here (${formatMs(s.startMs)}–${formatMs(s.endMs)}). Click to add.`}
-            disabled={full}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => createMoment({ startMs: s.startMs, endMs: s.endMs }, s.region)}
-            className="absolute top-1 bottom-1 rounded-sm border border-dashed border-amber-300/70 bg-amber-300/10 hover:bg-amber-300/25"
-            style={{ left: pctOf(s.startMs), width: `max(4px, ${pctOf(s.endMs - s.startMs)})` }}
-          />
-        ))}
-        {moments.map((m, i) => (
-          <button
-            key={m.momentId}
-            type="button"
-            title={`Moment ${i + 1}: ${formatMs(m.startMs)}–${formatMs(m.endMs)}`}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => selectMoment(m)}
-            className={`absolute top-1 bottom-1 rounded-sm ${m.momentId === selectedId ? 'bg-sky-400/70 ring-1 ring-sky-200' : 'bg-sky-500/45 hover:bg-sky-500/60'}`}
-            style={{ left: pctOf(m.startMs), width: `max(4px, ${pctOf(m.endMs - m.startMs)})` }}
-          />
-        ))}
-        {barDraft && (
-          <div className="pointer-events-none absolute top-0 bottom-0 rounded-sm border-2 border-sky-300 bg-sky-300/20"
-            style={{ left: pctOf(barDraft.startMs), width: pctOf(barDraft.endMs - barDraft.startMs) }} />
-        )}
-        {markStartMs !== null && (
-          <div className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-rose-400" style={{ left: pctOf(markStartMs) }} />
-        )}
-        <div ref={playLineRef} className="pointer-events-none absolute top-0 bottom-0 w-px bg-white" style={{ left: pctOf(playheadMs) }} />
-      </div>
       <p className="mt-1.5 text-xs text-ink-500">
         {markStartMs !== null
           ? `Marking from ${formatMs(markStartMs)}. Press M again to end (at most ${MAX_MOMENT_MS / 1000} s), or Esc to cancel.`
           : `Drag on the bar to mark a moment, or press M to start and M again to end. Dashed marks are suggestions: click one to add it.`}
       </p>
       {barDraft && <p className="text-xs text-state-running">{formatMs(barDraft.startMs)}–{formatMs(barDraft.endMs)} ({seconds(barDraft.endMs - barDraft.startMs)})</p>}
-      <p className="mt-2 text-xs text-ink-500">Click the video to leave feedback. Drag to mark an area.</p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button type="button" className="btn-outline" disabled={full||busy!==null||voiceDirty.size>0} onClick={()=>{const ms=freezeForRegion();if(ms!==null)createMoment({startMs:ms,endMs:ms});}}>Mark this moment</button>
+        <p className="text-xs text-ink-500">Or click the picture. Drag to mark an area.</p>
+      </div>
       {notice && <p role="status" className="mt-2 text-xs text-ink-300">{notice}</p>}
 
-      <section aria-label="Moments" className="mt-8">
+      </div>
+      <section aria-label="Moments" className="recording-moments">
         <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-lg font-medium text-ink-100">Moments <span className="text-sm font-normal text-ink-500">{moments.length} of {MAX_MOMENTS}</span></h2>
           <button
@@ -572,13 +626,16 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
             const pointerBox = defaultRegionFromPointer(samples, m.startMs, m.endMs);
             const warnings = cardWarnings(m.card);
             return (
-              <li key={m.momentId} className={`rounded-lg border p-4 ${isSel ? 'border-sky-500/60 bg-ink-900/70' : 'border-ink-800 bg-ink-900/40'}`}>
+              <li key={m.momentId} className={`recording-moment rounded-lg border p-4 ${isSel ? 'is-selected' : ''}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <button type="button" onClick={() => selectMoment(m)} className="font-mono text-sm text-state-running hover:underline">
                     {i + 1}. {formatMs(m.startMs)}–{formatMs(m.endMs)} <span className="text-ink-500">({seconds(m.endMs - m.startMs)})</span>
                   </button>
                   <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => removeMoment(m.momentId)} className="text-xs text-ink-400 hover:text-state-fail">Delete</button>
                 </div>
+                {!isSel&&<button type="button" className="mt-2 block w-full text-left text-sm text-ink-300" onClick={()=>selectMoment(m)}>{m.card.whatToDo||'Add your feedback…'}</button>}
+                <div hidden={!isSel} className="recording-note" aria-label={`Edit moment ${i+1}`}>
+                <p className="mb-3 text-sm font-medium">Moment {i+1} · {formatMs(m.startMs)}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-400">
                   <span>Region: {m.region ? regionLabel(m.region) : 'none'}</span>
                   <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => { videoRef.current?.pause(); selectMoment(m); setRegionError(null); setDrawing(true); }} className="text-state-running hover:underline">Draw region</button>
@@ -589,6 +646,11 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                   {embedded&&<TrainerVoiceNote disabled={busy!==null} onDirtyChange={dirty=>setVoiceDirty(previous=>{const next=new Set(previous);if(dirty)next.add(m.momentId);else next.delete(m.momentId);return next.size===previous.size&&[...next].every(id=>previous.has(id))?previous:next;})} ownerId={ownerId} attach={{sourceKind:detail.origin==='recorded'?'recording':'upload',sourceRef:`${recordingId}:${m.momentId}`,mark:m.endMs>m.startMs?{startMs:m.startMs,endMs:m.endMs}:{frameMs:m.startMs,region:m.region||{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,CARD_FIELD_MAX-m.card.whatToDo.trim().length-(m.card.whatToDo.trim()?2:0))} onInsert={text=>patch(m.momentId,current=>({...current,card:{...current.card,whatToDo:[current.card.whatToDo.trim(),text].filter(Boolean).join('\n\n')}}))}/>}
                   {warnings.whatToDo&&<p data-testid="card-warning" className="mt-1 text-xs text-state-needs">{warnings.whatToDo.join(' ')}</p>}
                 </div>
+                <div className="mt-4 flex justify-end gap-2 border-t border-ink-700 pt-3">
+                  <button type="button" className="btn-ghost" disabled={busy!==null||voiceDirty.size>0} onClick={cancelNote}>Cancel</button>
+                  <button type="button" className="btn-success" disabled={busy!==null||voiceDirty.size>0} onClick={()=>void doneNote()}>{busy==='save'?'Saving…':'Done'}</button>
+                </div>
+                </div>
                 {onUseFeedback&&<button type="button" className="mt-3 text-xs text-ink-500 underline underline-offset-4" disabled={busy!==null||dirty||!CARD_FIELDS.some(field=>m.card[field].trim())} onClick={()=>onUseFeedback(recordingId,m)}>Turn into a learning</button>}
                 {CARD_FIELDS.some(field=>field!=='whatToDo'&&m.card[field].trim())&&<details className="mt-3 text-xs text-ink-400"><summary>Previously saved notes</summary>{CARD_FIELDS.filter(field=>field!=='whatToDo'&&m.card[field].trim()).map(field=><p key={field} className="mt-2 whitespace-pre-wrap"><strong>{CARD_FIELD_LABELS[field]}:</strong> {m.card[field]}</p>)}</details>}
               </li>
@@ -596,6 +658,8 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
           })}
         </ol>
       </section>
+
+      </div>
 
       {embedded&&trainingFrames&&durationMs!==null&&<section aria-label="Screenshots from your recording" className="my-4 space-y-3">
         <h3 className="font-medium">Add feedback to a screenshot</h3>
@@ -642,10 +706,10 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
 function Shell({ back, title, children,embedded=false }: {embedded?:boolean; back: ReactNode; title: string; children: ReactNode }) {
   if(embedded)return <section id="recording-annotation" tabIndex={-1} aria-label="Annotate your recording" className="space-y-4"><h2 className="text-lg font-medium">Annotate your recording</h2>{children}</section>;
   return (
-    <div className="min-h-screen px-6 py-10 lg:px-12">
-      <div className="mx-auto max-w-4xl">
+    <div className="app-page">
+      <div className="app-content">
         <div className="mb-4">{back}</div>
-        <h1 className="mb-5 truncate text-2xl font-semibold tracking-tight text-ink-50">{title}</h1>
+        <header className="app-page-head"><div><h1>Show the agent what to change</h1><p className="app-page-description">{title}</p></div></header>
         {children}
       </div>
     </div>
