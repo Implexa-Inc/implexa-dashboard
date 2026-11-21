@@ -510,7 +510,7 @@ html, body {
 .agent-collapsed-group>div {margin-top:18px;}
 .agent-sort {display:flex;justify-content:flex-end;margin-bottom:-29px;position:relative;z-index:1;font-size:12px;color:var(--text-muted);}
 .agent-sort select {margin-left:8px;background:transparent;color:var(--text-body);}
-@media(max-width:1100px){.agent-favorites-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.agent-roster-row{grid-template-columns:24px minmax(0,1fr) auto 32px;}.agent-row-name{grid-column:2;}.agent-state{grid-column:2;}.agent-when,.agent-row-grade{grid-column:2;}.agent-roster-row>.agent-run{grid-column:3;grid-row:1;}.agent-roster-row>.relative{grid-column:4;grid-row:1;}.agent-star{grid-row:1;}.agent-favorite-card>.agent-state{grid-column:1;}.agent-needs-grid{grid-template-columns:1fr;}}
+@media(max-width:1100px){.agent-favorites-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.agent-roster-row{grid-template-columns:24px minmax(0,1fr) auto 32px;}.agent-row-name{grid-column:2;}.agent-state{grid-column:2;}.agent-when,.agent-row-grade{grid-column:2;}.agent-roster-row>.agent-run{grid-column:3;grid-row:1;}.agent-roster-row>.relative{grid-column:4;grid-row:1;}.agent-star{grid-row:1;}.agent-favorite-card>.agent-state{grid-column:1;}.agent-needs-grid{grid-template-columns:1fr;}.agent-favorite-card>.agent-run{grid-column:2;grid-row:auto;}}
 
 .marketplace-collection {margin-top:24px;}
 .marketplace-view {margin-left:auto;display:flex;padding:3px;border:1px solid var(--border-subtle);border-radius:var(--r-sm);gap:3px;}
@@ -550,6 +550,6 @@ html, body {
  .agent-when small{display:inline;margin-left:6px;}
  .agent-favorite-card>.agent-row-name{grid-column:1/-1;grid-row:auto;}
  .agent-favorite-card>.agent-state{grid-column:1;grid-row:auto;}
- 
+ .agent-favorite-card>.agent-run{grid-column:2;grid-row:auto;}
  .agent-favorite-card .agent-last-run{display:block;margin-left:0;}
 }
