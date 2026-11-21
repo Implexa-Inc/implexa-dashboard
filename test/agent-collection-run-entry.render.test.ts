@@ -15,3 +15,16 @@ test('arrival cannot bypass unavailable status, inactive setup or a pending revi
   try{await flush(r);assert.equal(r.calls.backend.filter(c=>c.path.startsWith('/api/v2/agent-training/agents/')||c.path==='/api/v2/me/run-requests').length,0);assert.equal(r.document.querySelector('textarea'),null);}finally{r.cleanup();}
  }
 });
+
+test('the Run intent is consumed without adding history and preserves other URL inputs',async()=>{
+ const r=await render('agent-actions.tsx',{...props,openOnArrival:false},{backend});
+ try{
+  r.window.history.replaceState(null,'','/workflows/collection-agent?source=generated&run=1&legacy=1&tab=overview#agent');
+  const length=r.window.history.length;
+  await r.rerender(props);await flush(r);
+  assert.equal(new URL(r.window.location.href).searchParams.has('run'),false);
+  assert.equal(r.window.location.search,'?source=generated&legacy=1&tab=overview');assert.equal(r.window.location.hash,'#agent');
+  assert.equal(r.window.history.length,length,'consuming the intent must not add a Back entry');
+  assert.equal(r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests').length,0);
+ }finally{r.cleanup();}
+});

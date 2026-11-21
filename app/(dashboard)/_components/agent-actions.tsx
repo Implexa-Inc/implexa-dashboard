@@ -335,6 +335,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   useEffect(()=>{
     if(!openOnArrival||arrivalHandled.current||presentation!=='agent')return;
     arrivalHandled.current=true;
+    // Next's native-history integration updates the URL/search params without
+    // re-fetching this agent page or leaving a replayable launch intent.
+    const target=new URL(window.location.href);
+    if(target.searchParams.get('run')==='1'){
+      target.searchParams.delete('run');
+      window.history.replaceState(null,'',target.pathname+target.search+target.hash);
+    }
     void runNow().catch(error=>setMsg(error instanceof Error?error.message:'Could not open the run form.'));
     // Only an explicit collection navigation opens the form, never a later readiness change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
