@@ -10,8 +10,7 @@ test('Work badge counts the page actions, deduplicates Judge/live aliases and ex
     needGrant: [{ slug: 'agent-a' }], missed: [{ id: 'schedule-a' }], signIns: [{ domain: 'example.com' }],
     homeAttention: [{ attentionId: 'judge', runId: 'v2' }],
   }, [{ runId: 'v2', requestId: 'request', status: 'needs_attention' },
-      { runId: 'v2', requestId: 'request', status: 'needs_attention' },
-      { runId: 'queued', status: 'queued' }, { runId: 'done', status: 'finished' }], true);
+      { runId: 'v2', requestId: 'request', status: 'needs_attention' }], true);
   assert.deepEqual(badge, { count: 4, complete: true });
   const broadFeed = { ...empty, attentionItems: Array.from({ length: 70 }, (_, i) => ({ runId: `old-${i}`, attentionId: `old-${i}` })), stalled: [{ id: 'old-stall' }] };
   assert.equal(workAttentionBadge(broadFeed, [], true).count, 0, 'historical holds/stalls absent from the Work view do not inflate its badge');

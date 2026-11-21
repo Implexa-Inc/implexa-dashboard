@@ -31,9 +31,3 @@ export function parseLiveItems<T = unknown>(res: unknown): T[] | null {
   if (!Array.isArray(items)) return null;                 // missing, null, or wrong shape
   return items as T[];
 }
-
-/** Human-needed statuses shared by Work's live rows, notifications and badge. */
-export const LIVE_ATTENTION_STATUSES: ReadonlySet<string> = new Set([
-  'waiting_approval', 'needs_attention', 'fallback_blocked', 'start_failed',
-  'claim_expired', 'failed', 'action_available',
-]);

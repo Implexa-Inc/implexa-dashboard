@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
-import { parseLiveItems, LIVE_ATTENTION_STATUSES as NOTIFY } from '@/lib/live-feed';
+import { parseLiveItems } from '@/lib/live-feed';
 import {
   reduceLiveFeed,
   emptyContinuityState,
@@ -33,6 +33,7 @@ import { desktopBridge } from './run-attachments';
 
 // The statuses worth a native desktop notification (yellow/red — they need you).
 // action_available = a delivered run has a READY one-tap action (publish, etc.).
+const NOTIFY: ReadonlySet<string> = new Set(['waiting_approval', 'needs_attention', 'fallback_blocked', 'start_failed', 'claim_expired', 'failed', 'action_available']);
 // Statuses shown in the Home "Alerts" list — the notify set PLUS 'queued', so a
 // run you just kicked off appears there for parity with Active Agents (but queued
 // is NOT in NOTIFY, so it never fires a noisy desktop notification).

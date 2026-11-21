@@ -16,7 +16,7 @@ const fixture = {
 const modules: Record<string, string> = {
   '@/lib/supabase/server': `export function createClient(){return {auth:{getSession:async()=>({data:{session:globalThis.__shellRoute.session}}),getUser:async()=>({data:{user:globalThis.__shellRoute.verifiedId?{id:globalThis.__shellRoute.verifiedId}:null},error:null})}}}`,
   '@/lib/needs-you': `export async function loadNeedsYou(){return {needGrant:[],missed:[],signIns:[],homeAttention:[],attentionItems:Array.from({length:73},(_,i)=>({attentionId:'old'+i,runId:'old'+i})),stalled:[],total:73,partial:false,truncated:false,unavailableSources:[]}}`,
-  '@/lib/live-feed-server': `export async function getLiveFeed(){return {status:'ready',items:[]}}`,
+  '@/lib/live-feed-server': `export async function getLiveFeed(){return {status:'ready',items:[{runId:'queued',status:'queued'},{runId:'done',status:'finished'}]}}`,
   '@/lib/workflow-catalog': `export async function readMyWorkflows(){globalThis.__shellRoute.ownerReads++;return {status:'ready',workflows:globalThis.__shellRoute.ownsAgent?[{slug:'private-example',name:'Private example',source:'generated'}]:[]}}`,
   'next/cache': `export function unstable_cache(fn,keys){return async()=>{const cache=globalThis.__shellRoute.cache,key=JSON.stringify(keys);if(cache.has(key))return cache.get(key);const result=await fn();cache.set(key,result);return result;}}`,
 };

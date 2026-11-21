@@ -3,9 +3,8 @@ import { unstable_cache } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { loadNeedsYou } from '@/lib/needs-you';
 import { getLiveFeed } from '@/lib/live-feed-server';
-import { LIVE_ATTENTION_STATUSES } from '@/lib/live-feed';
 import { readMyWorkflows } from '@/lib/workflow-catalog';
-import { settleWithin } from '@/lib/landing';
+import { settleWithin, LIVE_NEEDS_YOU_STATUSES } from '@/lib/landing';
 import { workAttentionBadge, type ShellNavigationState } from '@/lib/navigation';
 
 export const dynamic = 'force-dynamic';
@@ -39,18 +38,19 @@ export async function GET() {
   ]);
   const ownershipKnown = typeof owned === 'boolean';
   const canTrain = owned;
-  const complete = !!needs && !needs.partial && !needs.truncated
-    && live?.status === 'ready';
+  const liveKnown = live?.status === 'ready' && live.items.every((item) => item && typeof item.status === 'string');
+  const actionable = live?.status === 'ready' ? live.items.filter((item) => item && LIVE_NEEDS_YOU_STATUSES.has(String(item.status))) : [];
+  const complete = !!needs && !needs.partial && !needs.truncated && liveKnown;
   const emptyNeeds = { needGrant: [], missed: [], signIns: [], homeAttention: [] };
   const state: ShellNavigationState = {
     canTrain,
     work: needs || live?.status === 'ready'
-      ? workAttentionBadge(needs ?? emptyNeeds, live?.status === 'ready' ? live.items : [], complete) : null,
+      ? workAttentionBadge(needs ?? emptyNeeds, actionable, complete) : null,
   };
   const unavailableSources = [
     ...(needs ? needs.unavailableSources : ['needs_you_timeout']),
     ...(live?.status !== 'ready' ? ['live_runs'] : []),
     ...(!ownershipKnown ? ['owner_roster'] : []),
   ];
-  return NextResponse.json({ ok: true, ...state, unavailableSources, knownSetupCount: needs ? needs.needGrant.length + needs.missed.length + needs.signIns.length : null, knownJudgeCount: needs?.homeAttention.length ?? null, knownLiveAttentionCount: live?.status === 'ready' ? live.items.filter((item) => LIVE_ATTENTION_STATUSES.has(String(item.status))).length : null }, { headers: { 'Cache-Control': 'private, no-store' } });
+  return NextResponse.json({ ok: true, ...state, unavailableSources, knownSetupCount: needs ? needs.needGrant.length + needs.missed.length + needs.signIns.length : null, knownJudgeCount: needs?.homeAttention.length ?? null, knownLiveAttentionCount: liveKnown ? actionable.length : null }, { headers: { 'Cache-Control': 'private, no-store' } });
 }

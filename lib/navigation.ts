@@ -1,4 +1,3 @@
-import { LIVE_ATTENTION_STATUSES } from './live-feed.ts';
 import { continuityKey } from './live-lifecycle-continuity.ts';
 /**
  * lib/navigation.ts — the ONE canonical description of the dashboard shell.
@@ -108,7 +107,9 @@ export function workAttentionBadge(
   live: ReadonlyArray<{ runId?: string | null; requestId?: string | null; status?: string | null }>,
   complete: boolean,
 ): WorkAttentionBadge {
-  const actionable = live.filter((item) => LIVE_ATTENTION_STATUSES.has(String(item.status)));
+  // Caller supplies only human-needed live rows, classified by the existing
+  // LIVE_NEEDS_YOU_STATUSES model; this function only deduplicates identities.
+  const actionable = live;
   const runAliases = new Map(actionable.filter((item) => item.runId).map((item) => [item.runId!, continuityKey({ runId: item.runId, requestId: item.requestId })!]));
   const keys = new Set([
     ...needs.needGrant.map((item) => `grant:${item.slug}`),
