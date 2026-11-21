@@ -628,3 +628,5 @@ html, body {
 .recording-moment-summary{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
 [data-variant="teaching"] .playback-button[aria-label="Play"],[data-variant="teaching"] .playback-button[aria-label="Pause"]{min-width:auto;border-radius:var(--r-sm);background:transparent;color:var(--text-body);padding:6px 10px;border-color:var(--border-control);}
 .playback-volume{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);}
+.recording-moment .recording-note .recording-moment-number{background:var(--action-primary);color:var(--on-action-primary);}
+.recording-note .btn-primary small{color:inherit;opacity:.8;}
