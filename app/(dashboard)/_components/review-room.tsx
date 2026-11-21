@@ -2452,7 +2452,7 @@ function ArtifactSurface({
     return (
       <div>
         {decision.kind === 'video' ? (
-          <ReviewPlaybackControls key={mediaKey} mediaKey={mediaKey} mediaRef={mediaRef} onSeek={onSeek}>
+          <ReviewPlaybackControls variant={spatial.readOnly?'finished':undefined} key={mediaKey} mediaKey={mediaKey} mediaRef={mediaRef} onSeek={onSeek}>
             {(revealOutside) => picture(revealOutside)}
           </ReviewPlaybackControls>
         ) : picture()}
