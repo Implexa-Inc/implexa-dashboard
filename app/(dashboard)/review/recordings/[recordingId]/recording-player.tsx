@@ -32,6 +32,15 @@ const pct = (n: number) => `${Math.round(n / (COORD_MAX / 100))}%`;
 const regionLabel = (r: Region) => `${pct(r.width)} × ${pct(r.height)} at (${pct(r.x)}, ${pct(r.y)})`;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 
+/** Keep the whole picture note visible when opening it from below the video. */
+function focusPictureNote(momentId:string){
+  window.setTimeout(()=>{
+    const field=document.getElementById(`${momentId}-feedback`);
+    field?.closest<HTMLElement>('.recording-note')?.scrollIntoView?.({block:'nearest'});
+    field?.focus({preventScroll:true});
+  },0);
+}
+
 export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embedded=false,onAnalyzeNarration,onAnalyzeTool,onUseFeedback,onDoneTeaching,onTrainerNarrationChange,trainerNarration=false,narrationUnavailable,onDirtyChange,onClose,onRecordingLoaded,trainingReview,trainingFrames }: { recordingId: string; ownerId:string;trainingSlug?:string;embedded?:boolean;onAnalyzeNarration?:(recordingId:string,momentId:string|null)=>void;onAnalyzeTool?:(recordingId:string,momentId:string|null)=>void;onUseFeedback?:(recordingId:string,moment:Moment)=>void;onDoneTeaching?:(recordingId:string,moments:Moment[])=>void;trainerNarration?:boolean;onTrainerNarrationChange?:(enabled:boolean)=>void;narrationUnavailable?:string;onDirtyChange?:(dirty:boolean)=>void;onClose?:()=>void;onRecordingLoaded?:(detail:RecordingDetail)=>void;trainingReview?:ReactNode;trainingFrames?:Array<{timeMs:number;image:string}> }) {
   const router = useRouter();
   const client = useMemo(() => createReviewRecorderClient(undefined,ownerId), [ownerId]);
@@ -270,7 +279,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     noteSnapshot.current={id:momentId,before:null};
     setSelectedId(momentId);
     setNotice(null);
-    window.setTimeout(()=>document.getElementById(`${momentId}-feedback`)?.focus(),0);
+    focusPictureNote(momentId);
   }, [durationMs, samples]);
 
   function addTrainingMoment(timeMs:number){
@@ -579,7 +588,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                 onAnnotate={onRegionAnnotate}
                 onNudgeDraft={() => {}}
                 onCancelDraft={() => setDrawing(false)}
-                onOpenIssue={id=>{const moment=moments.find(m=>m.momentId===id);if(moment){selectMoment(moment);document.getElementById(`${id}-feedback`)?.focus();}}}
+                onOpenIssue={id=>{const moment=moments.find(m=>m.momentId===id);if(moment){selectMoment(moment);focusPictureNote(id);}}}
               />
             )}
           </div>
