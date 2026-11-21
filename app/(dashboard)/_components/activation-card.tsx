@@ -866,6 +866,9 @@ export function ActivationCard({
   },[automaticReady,completionKey,completionRetry]); // Existing activation writer, once per reviewed version or explicit retry.
   useEffect(()=>{setActivated(checklist.state==='active');setSavedLocally(false);setError(null);setActivating(false);setOptIns(Object.fromEntries(tier2.filter(item=>item.granted).map(item=>[item.group,true])));},[completionKey]);
   const verifiedHandsFree = isActive && verification.verified && computerUseSatisfied && capabilityReady;
+  const setupReadUnknown=!!statusUnavailable||checklist.setupReadAvailable!==true;
+  const setupReady=!setupReadUnknown&&!setupBlockedReason&&!revisePending&&isActive&&allSavedGranted&&computerUseSatisfied&&(!showMacSetup||computerUseReady)&&checklist.readyToRun===true;
+
   const browserCheck = verification.checks.find((c) => c.key === 'browser' && c.status !== 'ok');
   // Override the green "Active" chip ONLY for a genuinely-active-but-unverified
   // agent — never mask 'needs_attention' or a not-yet-activated state.
@@ -911,7 +914,8 @@ export function ActivationCard({
   }
 
   return (
-    <div className={setupSurface ? 'card mb-6' : 'card max-w-2xl'}>
+    <div className={setupSurface ? 'card mb-6 agent-required-setup' : 'card max-w-2xl'}>
+      {setupSurface&&<div role="status" className={`agent-setup-readiness ${setupReadUnknown?'unknown':setupReady?'ready':'needed'}`}><strong>{setupReadUnknown?'Setup status unavailable':setupReady?'Ready to run':'Complete required setup'}</strong><span>{setupReadUnknown?'Reload to check what this agent needs.':setupReady?'Run whenever you’re ready. Scheduled runs are controlled separately below.':'The rows below show what still needs your attention.'}</span></div>}
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold text-ink-50 truncate">

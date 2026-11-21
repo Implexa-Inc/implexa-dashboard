@@ -663,3 +663,7 @@ html, body {
 
 .agent-resume-page .agent-page-header,.agent-resume-page .agent-sample-placeholder,.agent-resume-page .agent-page-stats,.agent-resume-page [role="tablist"]{max-width:820px;}.agent-resume-page .agent-action-bar{max-width:none;}
 .agent-setup-column{display:block;max-width:820px;}.agent-setup-column>.card{margin-bottom:24px;}
+
+.agent-setup-readiness{display:flex;gap:8px;flex-direction:column;border-radius:var(--r-sm);padding:16px;margin-bottom:24px;background:var(--bg-sunken);font-size:13px;line-height:1.5;}.agent-setup-readiness strong{font-size:15px;color:var(--text-strong);}.agent-setup-readiness.ready{border-left:3px solid var(--state-ok-dot);}.agent-setup-readiness.needed{border-left:3px solid var(--state-needs-dot);}.agent-setup-readiness.unknown{border-left:3px solid var(--border-subtle);}.agent-how-it-runs{margin-bottom:24px;}.agent-how-it-runs>h2{font-family:var(--font-display);font-size:24px;margin-bottom:16px;}.agent-how-it-runs>.card{margin-bottom:16px;}
+
+.agent-setup-column .card{max-width:none;}.agent-setup-column{padding-bottom:112px;}

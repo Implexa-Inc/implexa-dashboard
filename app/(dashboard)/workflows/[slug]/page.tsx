@@ -496,26 +496,6 @@ export default async function WorkflowDetailPage({
   const setupPanel = () => (
     <section className="agent-setup-column">
       {marketplaceAgent&&<AgentResume agent={marketplaceAgent} surface="setup"/>}
-      {/* Runs hands-free with */}
-      {workflow.capabilities.length > 0 && (
-        <div className="card mb-6">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-3">Runs hands-free with</h2>
-          <ul className="space-y-3">
-            {workflow.capabilities.map((cap) => (
-              <li key={cap.id} className="text-sm">
-                <div className="text-ink-100">{cap.name}</div>
-                <div className="text-xs text-ink-400 mt-0.5">{cap.why}</div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-
-
-      {/* Same run-input identity the header's <AgentActions/> gets — the card
-          renders its own Run now, and a Run button that can't build the envelope
-          is a refusal the user has no way to answer from that screen. */}
       {checklist && <ActivationCard checklist={checklist} surface="setup" setupBlockedReason={marketplaceAgent&&marketplaceAgent.readiness.state!=='Ready'?'Finish the marketplace setup or update above first.':undefined} runInputs={workflowRunInputs(workflow)} statusUnavailable={actionsBlocked} revisePending={revisePending} />}
 
       {/* The agent's config interview — answer its questions here so it runs
@@ -536,7 +516,6 @@ export default async function WorkflowDetailPage({
             </span>
           )}
         </div>
-        {scheduleRoutine?.status==='paused'&&<div className="mb-4"><AgentPauseToggle routineId={scheduleRoutine.id} initialStatus={scheduleRoutine.status}/></div>}
         {schedulesUnavailable ? (
           // NOT the on-demand state. ScheduleManager REPLACES any existing
           // routine on save, so offering the editor over an unread schedule
