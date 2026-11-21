@@ -12,7 +12,7 @@ export type GuidedTrainingChanges={ok:true;contractVersion:'guided-training-chan
  selectionCoverage?:{maxStandingReferences:2;eligibleTextByStage:Array<{stage:string;count:number}>};
  test:{snapshotDigest:string|null;scope:'private_candidate'|'public_projection'|null;status:'not_run'|'prepared'|'queued'|'running'|'delivered'|'stale'|'failed'|'cancelled'|'blocked';runId:string|null;requestId?:string|null;qualityScore:number|null;gaps:string[];canTest:boolean};
  activation?:{serving?:{mode:'activated_snapshot'|'legacy_accepted'|'snapshot_other_version';candidateDiffers:boolean;activeRecordIds?:string[]};canApplyWithoutTest?:boolean;canActivate:boolean;reason:string|null;servedSnapshotDigest:string|null;withdrawnSinceTest:number;stoppedSinceTest?:number;testRequestId:string|null};
- publication:{canPublish:boolean;reason:string|null;servedSnapshotDigest:string|null;proposedSnapshotDigest?:string|null;canPrepare?:boolean;
+ publication:{unpublishedActiveCount?:number|null;canPublish:boolean;reason:string|null;servedSnapshotDigest:string|null;proposedSnapshotDigest?:string|null;canPrepare?:boolean;
  qualifyingTestRequestId?:string|null;qualifyingRunId?:string|null;qualifyingSnapshotDigest?:string|null}};
 const id=(v:any)=>typeof v==='string'&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(v);
 const sha=(v:any)=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
@@ -53,6 +53,7 @@ export function guidedTrainingChanges(v:any,expected:{sessionId:string;workflowV
   ||!Number.isInteger(a.withdrawnSinceTest)||a.withdrawnSinceTest<0||!(a.testRequestId===null||id(a.testRequestId))
   ||a.stoppedSinceTest!==undefined&&(!Number.isInteger(a.stoppedSinceTest)||a.stoppedSinceTest<0)
   ||a.canActivate&&(!id(a.testRequestId)||t?.status!=='delivered'||!id(t?.runId)||t?.requestId!==a.testRequestId)))return false;
+ if(p?.unpublishedActiveCount!==undefined&&p.unpublishedActiveCount!==null&&(!Number.isSafeInteger(p.unpublishedActiveCount)||p.unpublishedActiveCount<0))return false;
  return !!t&&['not_run','prepared','queued','running','delivered','stale','failed','cancelled','blocked'].includes(t.status)&&[null,'private_candidate','public_projection'].includes(t.scope)&&(t.snapshotDigest===null||sha(t.snapshotDigest))&&(t.runId===null||id(t.runId))
   &&(t.requestId===undefined||t.requestId===null||id(t.requestId))
   &&(t.status!=='delivered'||id(t.runId)&&sha(t.snapshotDigest)&&t.scope!==null)

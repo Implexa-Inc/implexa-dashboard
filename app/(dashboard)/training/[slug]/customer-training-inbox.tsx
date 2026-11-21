@@ -5,7 +5,7 @@ import {TrainingInfo} from './training-workspace';
 import {deriveTrainingStages,type TrainingPropertyCode} from '@/lib/training-local-ingress';
 
 
-export default function CustomerTrainingInbox({slug,ownerId,sessionId,versionId,disabled,onStart,onSaved,onOwnExample}:{slug:string;ownerId:string;sessionId:string|null;versionId:string|null;disabled:boolean;onStart:()=>Promise<void>;onSaved:()=>void;onOwnExample:()=>void}){
+export default function CustomerTrainingInbox({slug,ownerId,sessionId,versionId,disabled,onStart,onSaved,onOwnExample,selectedId,onBlockingChange}:{onBlockingChange?:(blocked:boolean)=>void;selectedId?:string;slug:string;ownerId:string;sessionId:string|null;versionId:string|null;disabled:boolean;onStart:()=>Promise<void>;onSaved:()=>void;onOwnExample:()=>void}){
  const base=`${ownerId}:${slug}:${versionId}`,scope=useRef({base,sessionId,epoch:0});
  // Starting the first session is a handoff, not a new teaching context.
  // A different existing session or owner/version invalidates pending work.
@@ -36,10 +36,12 @@ export default function CustomerTrainingInbox({slug,ownerId,sessionId,versionId,
   if(value.contractVersion!=='customer-contribution-teaching.v1'||!UUID.test(value.recordId||'')||!/^[a-f0-9]{64}$/.test(value.recordDigest||''))throw Error('Save is unconfirmed. Retry this guidance.');
   if(live.current!==expected)return;pending.current=null;setItems(old=>old.map(x=>x.id===c.id?{...x,teaching:{recordId:value.recordId,recordDigest:value.recordDigest}}:x));setOpened(null);onSaved();
  });}
+ useEffect(()=>{onBlockingChange?.(!!pending.current);},[busy,identity,onBlockingChange]);
+ useEffect(()=>{const selected=items.find(c=>c.id===selectedId);if(selected&&opened!==selectedId&&!busy&&!pending.current)void review(selected);},[selectedId,items,busy]);
  if(loaded&&!items.length)return null;
  return <section aria-label="Customer training suggestions" className="space-y-3">
   {(items.length>0||error)&&<h3 className="text-lg font-medium">Suggestions from customers</h3>}
-  {items.map(c=><article key={c.id} className="space-y-3 rounded-xl border border-ink-700 p-4">
+  {items.filter(c=>!selectedId||c.id===selectedId).map(c=><article key={c.id} className="space-y-3 rounded-xl border border-ink-700 p-4">
    <p className="text-xs text-ink-500">Customer learning opportunity <TrainingInfo label="About customer suggestions">With the customer’s consent, AI extracts general guidance privately. Their note, screenshots and actual run are not shown to you. You decide whether to teach the suggestion.</TrainingInfo></p><p className="text-sm leading-6">A customer’s feedback may help improve future runs.</p>{c.teaching&&<p className="text-xs text-ink-400">Teaching suggestion saved</p>}
    {opened!==c.id?<button type="button" className="text-sm text-action-accent" disabled={busy||disabled} onClick={()=>void review(c)}>Review suggestion →</button>:<>
     {c.teaching?<button type="button" className="text-sm text-action-accent" onClick={onSaved}>Review saved training →</button>:!draft?<p className="text-sm text-ink-400">{busy?'Preparing a general suggestion…':c.canSuggest?'The suggestion could not be prepared. Try again or teach your own example.':'This feedback has not authorized AI drafting. Teach your own example instead.'}{c.canSuggest&&!busy&&<button type="button" className="ml-2 underline" onClick={()=>void review(c)}>Try again</button>}</p>:draft.status==='suggested'&&draft.guidance&&draft.scopeSuggestion?<>

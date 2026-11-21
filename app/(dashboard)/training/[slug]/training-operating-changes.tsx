@@ -6,17 +6,17 @@ import ImproveAgent from '../../_components/improve-agent';
 import {TrainingDialog} from './training-workspace';
 
 /** Canonical annotation results survive taste acceptance and the local extraction journal. */
-export default function TrainingOperatingChanges({sessionId,versionId,slug,refreshKey,disabled=false,onResume}:{sessionId:string;versionId:string;slug:string;refreshKey:number;disabled?:boolean;onResume?:(analysis:AnnotationGapAnalysis)=>void}){
+export default function TrainingOperatingChanges({sessionId,versionId,slug,refreshKey,disabled=false,onResume,onlyId,expectedDigest}:{expectedDigest?:string;onlyId?:string;sessionId:string;versionId:string;slug:string;refreshKey:number;disabled?:boolean;onResume?:(analysis:AnnotationGapAnalysis)=>void}){
  const [page,setPage]=useState<AnnotationGapPage|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  const [review,setReview]=useState<AnnotationGapAnalysis|null>(null),[reviewUnknown,setReviewUnknown]=useState(false);
  const identity=`${sessionId}:${versionId}`,current=useRef(identity),sequence=useRef(0);current.current=identity;
  async function load(append=false,signal?:AbortSignal,requestEventId?:string){
   const captured=identity,read=++sequence.current;setBusy(true);
   const cursor=append?page?.nextCursor:null;
-  const q=new URLSearchParams({sessionId,directionScopeContract:'training-direction-scope.v1',limit:requestEventId?'1':'20',...(requestEventId?{requestEventId}:cursor||{})});
+  const q=new URLSearchParams({sessionId,directionScopeContract:'training-direction-scope.v1',limit:requestEventId||onlyId?'1':'20',...(requestEventId||onlyId?{requestEventId:requestEventId||onlyId!}:cursor||{})});
   try{const response=await fetch(`/api/agent-training/annotation-gap-edit?${q}`,{cache:'no-store',signal});const value=await response.json();
    if(signal?.aborted||current.current!==captured||sequence.current!==read)return;
-   if(!response.ok||!annotationGapPage(value,versionId))throw Error('Agent improvement suggestions could not be loaded.');
+   if(!response.ok||!annotationGapPage(value,versionId)||onlyId&&!value.analyses.some(a=>a.analysisRequest.requestEventId===onlyId&&a.result?.analysisReceipt.resultDigest===expectedDigest))throw Error('Agent improvement suggestions could not be loaded.');
    if(requestEventId){const latest=value.analyses.find(a=>a.analysisRequest.requestEventId===requestEventId);
     if(!latest)throw Error('Proposal unavailable');
     setPage(previous=>previous?{...previous,analyses:previous.analyses.map(a=>a.analysisRequest.requestEventId===requestEventId?latest:a)}:value);
@@ -25,7 +25,7 @@ export default function TrainingOperatingChanges({sessionId,versionId,slug,refre
   }catch{if(!signal?.aborted&&current.current===captured&&sequence.current===read)setError('Agent improvement suggestions could not be loaded. Your feedback is saved.');}
   finally{if(current.current===captured&&sequence.current===read)setBusy(false);}
  }
- useEffect(()=>{setPage(null);setReview(null);setReviewUnknown(false);setError('');const controller=new AbortController();void load(false,controller.signal);return()=>controller.abort();},[identity,refreshKey]);
+ useEffect(()=>{setPage(null);setReview(null);setReviewUnknown(false);setError('');const controller=new AbortController();void load(false,controller.signal);return()=>controller.abort();},[identity,refreshKey,onlyId,expectedDigest]);
  async function dismiss(a:AnnotationGapAnalysis){
   const r=a.result;if(!r||busy||disabled)return;const captured=identity;setBusy(true);
   try{const response=await fetch(`/api/agent-training/annotation-gap-edit?sessionId=${encodeURIComponent(sessionId)}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'dismiss',analysisResultEventId:r.analysisReceipt.resultEventId,analysisResultDigest:r.analysisReceipt.resultDigest,supersedes:a.edit.review?{eventId:a.edit.review.eventId,digest:a.edit.review.digest}:null})});const value=await response.json();
@@ -33,7 +33,7 @@ export default function TrainingOperatingChanges({sessionId,versionId,slug,refre
   }catch{if(current.current===captured)setError('Could not confirm dismissal. Refresh suggestions before trying again.');}
   finally{if(current.current===captured)setBusy(false);}
  }
- const visible=page?.analyses.filter(a=>a.outcome!=='superseded'&&(a.outcome!=='answered'||a.edit.state!=='dismissed'&&(a.result?.analysisReceipt.setupState==='incomplete'||!!a.result?.operatingGap&&a.result.operatingGap.status!=='present')))||[];
+ const visible=page?.analyses.filter(a=>(!onlyId||a.analysisRequest.requestEventId===onlyId)&&a.outcome!=='superseded'&&(a.outcome!=='answered'||a.edit.state!=='dismissed'&&(a.result?.analysisReceipt.setupState==='incomplete'||!!a.result?.operatingGap&&a.result.operatingGap.status!=='present')))||[];
  if(!visible.length&&!error&&!page?.nextCursor)return null;
  const r=review?.result,target=r?.analysisReceipt.target;
  return <section className="space-y-3" aria-label="Suggested agent improvements">

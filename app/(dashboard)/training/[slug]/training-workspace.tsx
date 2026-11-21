@@ -117,9 +117,9 @@ export function TrainingImage({token,recordId,recordDigest,frameSha256,alt,enabl
 /** One source picker. Existing Training, recorder and Review Room still own each action. */
 export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,actions,onChat,chatExpanded=false,chatDisabled=false,onSelectRun,selectedRunId,sourceActive=false}:{slug:string;lastRunId?:string|null;runs?:TrainingRun[];runsUnavailable?:boolean;actions?:ReactNode;onChat?:()=>void;chatExpanded?:boolean;chatDisabled?:boolean;onSelectRun?:(run:TrainingRun)=>void;selectedRunId?:string|null;sourceActive?:boolean}){
  return <section className="space-y-4 py-3" aria-label="Teach this agent">
-  <div className="border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Show it</h3><p className="mt-2 text-sm text-ink-400">Mark up a result, or record your screen and explain how you work.</p></div>
+  <div className="border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Show it</h3><p className="mt-2 text-sm text-ink-400">Point at the screen and talk it through.</p><div className="training-best-for"><span>How to use a tool</span><span>A detailed step</span><span>A judgment call</span></div></div>
   <div id="training-recent-results"  className="rounded-xl border border-ink-800 bg-ink-900/20 p-4">
-   {<><div className="mb-3 flex items-baseline justify-between gap-4"><h2 className="text-sm font-medium text-ink-200">Recent results</h2><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/training/${encodeURIComponent(slug)}/runs`}>All runs →</Link></div>
+   {<><div className="mb-3 flex items-baseline justify-between gap-4"><h2 className="text-sm font-medium text-ink-200">Mark up a result</h2><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/training/${encodeURIComponent(slug)}/runs`}>All runs →</Link></div>
    {runs.length?<div className="flex snap-x gap-3 overflow-x-auto pb-1">{runs.map((run,index)=>{
     const content=<>
      {run.artifact?<RunImage artifact={run.artifact}/>:<span className="flex aspect-video items-center justify-center rounded-lg bg-ink-900 text-xs text-ink-500">No preview</span>}

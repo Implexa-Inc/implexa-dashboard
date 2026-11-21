@@ -26,14 +26,14 @@ function packet() {
   };
 }
 function reader({ signedIn = true, owned = true, rosterUnavailable = false, status = 200,
-  body = packet(), offline = false } = {}) {
+  body = packet(), offline = false, issueRun=RUN as string|null, issueReadError=false } = {}) {
   const calls: Array<{ url: string; init: any }> = [], rosterTokens: string[] = [];
   const module = { exports: {} as any };
   runInNewContext(code, { module, exports: module.exports, process: { env: {} }, URL, AbortSignal,
     require: (name: string) => name === 'next/server'
       ? { NextResponse: { json: (value: unknown, init: any = {}) => ({ value, status: init.status || 200, headers: init.headers }) } }
       : name === '@/lib/supabase/server'
-        ? { createClient: () => ({ auth: { getSession: async () => ({ data: { session: signedIn ? { access_token: 'server-session' } : null } }) } }) }
+        ? { createClient: () => ({ from: (table:string)=>{assert.equal(table,'run_review_issues');const chain:any={select:()=>chain,eq:()=>chain,neq:()=>chain,abortSignal:()=>chain,maybeSingle:async()=>({error:issueReadError?{}:null,data:issueRun?{run_id:issueRun}:null})};return chain;}, auth: { getSession: async () => ({ data: { session: signedIn ? { access_token: 'server-session' } : null } }) } }) }
         : name === '@/lib/workflow-catalog'
           ? { readMyWorkflows: async (token: string) => { rosterTokens.push(token); return rosterUnavailable
             ? { status: 'unavailable', reason: 'network' }
@@ -100,4 +100,14 @@ test('embedded review authenticates and rejects forged or ambiguous query scope 
     assert.equal(p.calls.length, 0);
     assert.equal(p.rosterTokens.length, 0);
   }
+});
+
+
+test('a chosen Training mark resolves only through authenticated RLS and the canonical owned packet',async()=>{
+ const issue='33333333-3333-4333-8333-333333333333',body:any=packet();body.session={id:issue,runId:RUN,state:'draft',selectedArtifactId:ARTIFACT,submittedRequestId:null,submittedIssueIds:null,compiledBrief:null,acceptedAt:null};body.issues=[{id:issue,sessionId:issue,runId:RUN,artifactId:ARTIFACT,kind:'content',anchor:{startMs:1000},body:'Teach a clearer visual relationship.',purpose:'training',status:'draft',reviewerResolution:null,createdAt:null,submittedRequestId:null}];
+ const good=reader({body});assert.equal((await good.GET(new Request(`https://dashboard.test/api/agent-training/run-review?slug=video-studio&issueId=${issue}`))).status,200);
+ const missing=reader({issueRun:null});assert.equal((await missing.GET(new Request(`https://dashboard.test/api/agent-training/run-review?slug=video-studio&issueId=${issue}`))).status,404);assert.equal(missing.calls.length,0);
+ const foreign=reader({body,owned:false});assert.equal((await foreign.GET(new Request(`https://dashboard.test/api/agent-training/run-review?slug=video-studio&issueId=${issue}`))).status,404);
+ const changed=reader();assert.equal((await changed.GET(new Request(`https://dashboard.test/api/agent-training/run-review?slug=video-studio&issueId=${issue}`))).status,404,'a missing mark cannot fall through to a different result');
+ const invalid=reader();assert.equal((await invalid.GET(new Request(`https://dashboard.test/api/agent-training/run-review?slug=video-studio&issueId=${issue}&runId=${RUN}`))).status,400);assert.equal(invalid.calls.length,0);
 });
