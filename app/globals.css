@@ -563,7 +563,6 @@ html, body {
 /* Run detail: one existing action surface in a sticky rail, never duplicated. */
 .run-detail-layout {display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:32px;align-items:start;}
 .run-detail-main,.run-detail-title {min-width:0;}
-.run-detail-title>h1 {font:var(--fs-page-title,36px) var(--font-display),Georgia,serif;font-weight:500;}
 .run-detail-rail {position:sticky;top:24px;display:flex;flex-direction:column;gap:20px;min-width:0;}
 .run-detail-rail>div:empty {display:none;}
 .run-detail-rail .mb-6 {margin-bottom:0;}
