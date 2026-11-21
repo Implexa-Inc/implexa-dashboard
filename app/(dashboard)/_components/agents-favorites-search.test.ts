@@ -32,16 +32,16 @@ test('a running favorite has one roster row and keeps its live result link', asy
   const {render}=await import('../../../lib/test/render.ts');
   const page=await render('agents-list.tsx',{agents:[{slug:'test-agent',name:'Test agent',source:'generated',section:'on_demand',category:{key:'video',label:'Video',emoji:''},favorite:true,lastRun:{id:'run-1',runState:'running',status:'running',ranAt:new Date().toISOString()}}]});
   try{
-    assert.equal(page.document.querySelectorAll('a[href="/workflows/test-agent?source=generated"]').length,1);
+    assert.equal(page.document.querySelectorAll('a.agent-run[href="/workflows/test-agent?source=generated"]').length,1);
     assert.equal(page.document.querySelectorAll('a[href="/runs/run-1"]').length,1);
     assert.doesNotMatch(page.text(),/Running & recently ran/);
-    assert.match(page.text(),/Favorites/);assert.match(page.text(),/View live/);
+    assert.match(page.text(),/Favorites/);assert.match(page.text(),/Last result/);assert.match(page.text(),/Run/);
   }finally{page.cleanup();}
 });
 
 test('search filters the roster client-side by name or category', () => {
   assert.match(SRC, /a\.name\.toLowerCase\(\)\.includes\(q\) \|\| a\.category\.label\.toLowerCase\(\)\.includes\(q\)/,
     'query matches name or category label');
-  assert.match(SRC, /placeholder="What outcome do you need\?"/, 'the outcome-first search input is rendered');
+  assert.match(SRC, /placeholder="Find one of your agents"/, 'the owned-agent search input is rendered');
   assert.match(SRC, /No agents match your search/, 'an empty-search state exists');
 });

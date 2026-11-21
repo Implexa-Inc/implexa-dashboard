@@ -19,7 +19,6 @@ export async function readMarketplaceSamples(load:()=>PromiseLike<{data:unknown;
 export const marketplacePilotEnabled=(read:SampleRead)=>read.status==='ready'&&read.listings.length>0;
 
 // Preserve old pilot bookmarks, with activity and Training in their real domains.
-export function agentHomeView(read:SampleRead,tab?:string):'ordinary'|'rent'|'manage'|'running'|'training'{
- if(!marketplacePilotEnabled(read))return 'ordinary';
+export function agentHomeView(tab?:string):'rent'|'manage'|'running'|'training'{
  return tab==='running'||tab==='training'||tab==='rent'?tab:'manage';
 }
