@@ -17,3 +17,13 @@ test('fresh partial Work rows can fall from 20 to 15 and update both tabs and th
   assert.equal(r.window.sessionStorage.getItem('tukido.work-attention:retained-review'),null,'fresh zero clears a stale hint even while one source stays partial');
  }finally{r.cleanup();}
 });
+
+test('live status arriving before needs does not lower the remembered menu count',async()=>{
+ const r=await render('../../../test/fixtures/work-retained-count.tsx',{...props,seed:{count:20,complete:false},loadingNeeds:true},{backend:()=>({items:[]}),fetch:(async(path:any)=>Response.json(String(path).includes('/api/runs/summary')?{rows:[],nextCursor:null}:{ok:true,canTrain:true,work:{count:2,complete:false}})) as any});
+ try{
+  await flush(r);assert.ok(r.document.querySelector('[aria-label="At least 20 need you"]'),'a settled live read cannot publish while the richer needs source is pending');
+  assert.equal(r.window.sessionStorage.getItem('tukido.work-attention:retained-review'),'20');
+  await r.rerender({...props,seed:{count:20,complete:false},loadingNeeds:false,needs:{...needs,needGrant:Array.from({length:15},(_,i)=>({slug:`agent-${i}`,name:`Agent ${i}`}))}});await flush(r);
+  assert.ok(r.document.querySelector('[aria-label="At least 15 need you"]'),'the settled partial needs source can reduce the remembered count');
+ }finally{r.cleanup();}
+});

@@ -93,7 +93,7 @@ export function WorkList({view,needs,queue,names,reviewDetails,warning,delivered
     const viewKnown=view==='running'?knownLive:view==='review'?knownLive&&!loadingReview&&!warning:needsComplete;
     const visibleCount=view==='needs'?needsCount:view==='review'?reviewCount:view==='running'?running.length:activeCount;
     return <>
-      <WorkAttentionSync badge={status!=='loading'||!loadingNeeds||!loadingReview?sourceNeeds:undefined}/>
+      <WorkAttentionSync badge={!loadingNeeds?sourceNeeds:undefined}/>
       <WorkFilterTabs current={view} counts={counts}/>
       {(status==='loading'||loadingNeeds||loadingReview)&&<p role="status" className="work-list-notice">{status==='loading'?'Checking active runs…':loadingNeeds&&loadingReview?'Checking actions and reviews…':loadingNeeds?'Checking actions…':'Checking reviews…'}</p>}
       {(status==='unavailable'||(!loadingNeeds&&(needs.partial||needs.truncated))||warning)&&<div role="status" className="work-read-warning">
