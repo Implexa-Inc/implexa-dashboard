@@ -94,7 +94,7 @@ export type ShellNavigationState = {
  * Work's actionable sources: setup rows and Judge cards from TodayFeed, plus
  * the same human-needed live statuses rendered by RunningAgents. The broader
  * needs-you endpoint also contains historical holds/stalls that this page does
- * not render; counting those produced a misleading 73+ badge for six actions.
+ * not render; counting those produced a misleading 73+ badge instead of the 20 rendered actions.
  * Partial reads are lower bounds, never an all-clear.
  */
 export function workAttentionBadge(
