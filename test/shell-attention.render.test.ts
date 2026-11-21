@@ -155,14 +155,17 @@ test('Work publishes one count to both menu surfaces and a slower shell response
   await React.act(async()=>finish?.(Response.json({ok:true,canTrain:true,work:{count:2,complete:false}})));
   assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2,'the independent shell read cannot overwrite the current page count');
   await React.act(async()=>root.render(render(19)));
-  assert.equal(document.querySelectorAll('[aria-label="At least 19 need you"]').length,2);
+  assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2);
   now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));
   assert.equal(calls,1,'Work already supplies attention; verified ownership does not need another whole attention read');
   await React.act(async()=>finish?.(Response.json({ok:false})));
-  assert.equal(document.querySelectorAll('[aria-label="At least 19 need you"]').length,2,'an unavailable background route does not contradict visible Work rows');
+  assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2,'an unavailable background route does not contradict visible Work rows');
   __setPathname('/workflows');await React.act(async()=>root.render(render(null)));
-  assert.equal(document.querySelectorAll('[aria-label="At least 19 need you"]').length,2,'leaving Work retains the last page count instead of jumping to the older shell read');
+  assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2,'leaving Work retains the last page count instead of jumping to the older shell read');
   now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));assert.equal(calls,2);
+  await React.act(async()=>finish?.(Response.json({ok:true,canTrain:true,work:{count:2,complete:false}})));
+  assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2,'the lower partial read after leaving Work cannot erase the better session bound');
+  now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));
   await React.act(async()=>finish?.(Response.json({ok:true,canTrain:true,work:{count:0,complete:true}})));
   assert.equal(document.querySelectorAll('.app-nav-count').length,0,'a subsequent independent confirmed read can update the retained count');
  }finally{await React.act(async()=>root.unmount());dom.window.close();Object.assign(globalThis,before);Date.now=realNow;}

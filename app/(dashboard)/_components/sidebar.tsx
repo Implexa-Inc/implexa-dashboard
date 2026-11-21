@@ -59,7 +59,7 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
   const pageWork=useRef<WorkAttentionBadge>();
   const publishWork=useCallback((badge:WorkAttentionBadge|undefined)=>{
     pageWork.current=badge;
-    if(badge)setState(previous=>previous?.work?.count===badge.count&&previous.work.complete===badge.complete?previous:{canTrain:previous?.canTrain??null,work:badge});
+    if(badge)setState(previous=>{const work=mergeWorkCount(previous?.work,badge);return previous?.work?.count===work?.count&&previous?.work?.complete===work?.complete?previous:{canTrain:previous?.canTrain??null,work};});
   },[]);
   useEffect(() => {
     const controller = new AbortController();
@@ -100,11 +100,11 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
             } catch { /* UI hint only, never authorization */ }
           }
           setState((previous) => valid
-            ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work:pageWork.current??mergeWorkCount(previous?.work,work) }
-            : { canTrain: previous?.canTrain ?? null, work:pageWork.current??mergeWorkCount(previous?.work,null) });
+            ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work:mergeWorkCount(previous?.work,pageWork.current??work) }
+            : { canTrain: previous?.canTrain ?? null, work:mergeWorkCount(previous?.work,pageWork.current??null) });
         }
       } catch {
-        if (active) setState((previous) => ({ canTrain: previous?.canTrain ?? null, work:pageWork.current??mergeWorkCount(previous?.work,null) }));
+        if (active) setState((previous) => ({ canTrain: previous?.canTrain ?? null, work:mergeWorkCount(previous?.work,pageWork.current??null) }));
       } finally { inFlight = false; }
     }
     void refresh();

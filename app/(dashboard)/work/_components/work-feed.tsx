@@ -3,11 +3,11 @@ import { createContext, useContext, useEffect, useState, type ReactNode, type Di
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import LocalTime from '../../_components/local-time';
-import {WorkAttentionSync} from '../../_components/sidebar';
+import {WorkAttentionSync,useWorkAttentionBadge} from '../../_components/sidebar';
 import {humanize} from '@/lib/inbox-items';
 import type { NeedsYou } from '@/lib/needs-you';
 import type { ReviewQueue } from '@/lib/review';
-import type { WorkView } from '@/lib/navigation';
+import {mergeWorkCount,type WorkView} from '@/lib/navigation';
 import RunningAgents, { type LiveWorkRow } from '../../_components/running-agents';
 import WorkItemRow,{WorkDisplayNames} from '../../_components/work-item-row';
 import JudgeReviewCard from '../../_components/judge-review-dialog';
@@ -43,6 +43,7 @@ export function WorkList({view,needs,queue,names,reviewDetails,warning,delivered
   delivered?:ReactNode;productions?:ReactNode;loadingNeeds?:boolean;loadingReview?:boolean;
 }){
   const router=useRouter();
+  const retainedWork=useWorkAttentionBadge();
   const [revision,setRevision]=useState(0);
   const judgeIds=new Set(needs.homeAttention.flatMap(item=>item.runId?[item.runId]:[]));
   const reviews=queue.items.filter(item=>!judgeIds.has(item.rootRunId)&&!judgeIds.has(item.latestRunId));
@@ -82,17 +83,19 @@ export function WorkList({view,needs,queue,names,reviewDetails,warning,delivered
     const needsCount=needRows.length;
     const reviewCount=reviewRows.length;
     const activeCount=needsCount+reviewCount+running.length;
+    const sourceNeeds={count:needsCount,complete:needsComplete};
+    const boundedNeeds=mergeWorkCount(retainedWork,sourceNeeds)!;
     const counts={
-      needs:{count:needsCount,complete:needsComplete},
+      needs:boundedNeeds,
       review:{count:reviewCount,complete:!loadingReview&&!warning&&knownLive},
       running:{count:running.length,complete:knownLive},
-      activity:{count:activeCount,complete:needsComplete},
+      activity:{count:needsComplete?activeCount:Math.max(activeCount,boundedNeeds.count),complete:needsComplete},
     };
     const showNeeds=view==='activity'||view==='needs',showReview=view==='activity'||view==='review',showRunning=view==='activity'||view==='running';
     const viewKnown=view==='running'?knownLive:view==='review'?knownLive&&!loadingReview&&!warning:needsComplete;
     const visibleCount=view==='needs'?needsCount:view==='review'?reviewCount:view==='running'?running.length:activeCount;
     return <>
-      <WorkAttentionSync badge={status!=='loading'||!loadingNeeds||!loadingReview?counts.needs:undefined}/>
+      <WorkAttentionSync badge={status!=='loading'||!loadingNeeds||!loadingReview?sourceNeeds:undefined}/>
       <WorkFilterTabs current={view} counts={counts}/>
       {(status==='loading'||loadingNeeds||loadingReview)&&<p role="status" className="work-list-notice">{status==='loading'?'Checking active runs…':loadingNeeds&&loadingReview?'Checking actions and reviews…':loadingNeeds?'Checking actions…':'Checking reviews…'}</p>}
       {(status==='unavailable'||(!loadingNeeds&&(needs.partial||needs.truncated))||warning)&&<div role="status" className="work-read-warning">
