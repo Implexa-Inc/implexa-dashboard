@@ -1127,8 +1127,10 @@ export default async function RunDetailPage({
         {/* Live per-step checklist: which of the chain's steps are done / running
             / pending, updating on poll while in flight. Only when the run reported
             structured step state (a chain/workflow via record_run_heartbeat). */}
-        {(stepsState.length > 0 || info.state === 'queued' || info.state === 'running') && (
-          <RunStepChecklist runId={r.id} initialSteps={stepsState} initialRunState={info.state} />
+        {(stepsState.length > 0 || showProgressLayout) && (
+          <RunStepChecklist runId={r.id} initialSteps={stepsState} initialRunState={info.state}
+            presentation={held?'waiting':info.state} initialNote={progress?.current?.note||steps.at(-1)?.note}
+            startedAt={r.started_at} endedAt={r.completed_at} expectedMs={r.expected_duration_ms} initialNow={Date.now()}/>
         )}
 
   </>;
@@ -1210,7 +1212,7 @@ export default async function RunDetailPage({
 
 
         {!showProgressLayout&&cancellation}
-        <VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} />
+        <VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} progress={showProgressLayout}/>
         {r.output_markdown ? (verifiedArtifacts.length ? <details className="proof-disclosure mb-6"><summary>Agent’s notes</summary><div className="prose prose-sm mt-4 max-w-none"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div></details>:<div className="prose prose-sm mb-6 max-w-none rounded-lg border border-ink-700 bg-ink-900 p-5"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div>) : null}
 
         {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-state-needs">{creativeGradeNotice}</p>}

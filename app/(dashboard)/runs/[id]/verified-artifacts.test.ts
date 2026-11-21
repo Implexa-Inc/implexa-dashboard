@@ -18,11 +18,11 @@ test('run detail surfaces only desktop-validated artifacts, separately from work
 });
 
 test('files are a first-class run section, not gated on a final markdown deliverable', () => {
-  const files = page.indexOf('<VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} />');
+  const files = page.indexOf('<VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id}');
   const outputBranch = page.indexOf("{r.output_markdown ? (");
   assert.ok(files >= 0 && outputBranch >= 0 && files < outputBranch,
     'the files section must render before and independently of the output-markdown branch');
-  assert.equal(page.match(/<VerifiedArtifacts artifacts=\{verifiedArtifacts\} runId=\{r\.id\} \/>/g)?.length, 1,
+  assert.equal(page.match(/<VerifiedArtifacts artifacts=\{verifiedArtifacts\} runId=\{r\.id\}[^>]*\/>/g)?.length, 1,
     'the run page should expose one stable artifacts surface, not a second buried copy');
 });
 

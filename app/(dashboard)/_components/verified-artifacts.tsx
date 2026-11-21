@@ -49,9 +49,9 @@ function roleLabel(role: string | null): string {
   return 'Verified file';
 }
 
-export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: VerifiedArtifact[]; runId?: string }) {
+export default function VerifiedArtifacts({ artifacts, runId, progress=false }: { artifacts: VerifiedArtifact[]; runId?: string; progress?: boolean }) {
   const router = useRouter();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(progress);
   const [refreshing, refresh] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [sourceReconnect, setSourceReconnect] = useState<{ required: boolean; label?: string } | null>(null);
@@ -146,14 +146,14 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
 
   const finalCount = artifacts.filter((artifact) => artifact.role === 'final_output').length;
   return (
-    <section className="mb-6 rounded-lg border border-emerald-500/35 bg-emerald-500/[0.06] p-4" aria-label="Files and artifacts">
+    <section className={progress?'run-files-progress':'mb-6 rounded-lg border border-emerald-500/35 bg-emerald-500/[0.06] p-4'} aria-label={progress?'Files so far':'Files and artifacts'}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink-50">Files &amp; artifacts</h2>
+          <h2 className="text-sm font-semibold text-ink-50">{progress?'Files so far':<>Files &amp; artifacts</>}</h2>
           <p className="mt-1 text-xs text-ink-400">
             {artifacts.length
               ? `Checked on this Mac by Tukido · ${finalCount} final ${finalCount === 1 ? 'output' : 'outputs'} · ${artifacts.length} total`
-              : 'No verified files yet. Refresh after this run creates or validates files.'}
+              : progress?'Your checked files will appear here as the agent makes them.':'No verified files yet. Refresh after this run creates or validates files.'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -202,7 +202,7 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
                 <div className="mt-0.5 truncate text-xs text-ink-500" title={artifact.relativePath}>
                   {roleLabel(artifact.role)}{size(artifact.sizeBytes) ? ` · ${size(artifact.sizeBytes)}` : ''}
                 </div>
-                <div className="mt-0.5 truncate font-mono text-[10px] text-ink-600" title={artifact.relativePath}>{artifact.relativePath}</div>
+                {progress?<details className="mt-1 text-xs text-ink-500"><summary>File details</summary><p className="break-all font-mono">{artifact.relativePath}</p></details>:<div className="mt-0.5 truncate font-mono text-[10px] text-ink-600" title={artifact.relativePath}>{artifact.relativePath}</div>}
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <button type="button" onClick={() => void open(artifact)} className="rounded border border-emerald-500/40 px-2.5 py-1 text-state-ok hover:bg-emerald-500/10 text-state-ok">Open</button>

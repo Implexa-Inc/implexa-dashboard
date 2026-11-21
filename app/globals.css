@@ -349,11 +349,6 @@ html, body {
 .proof-disclosure { border: 1px solid var(--border-subtle); border-radius: var(--r-md); padding: 16px 20px; background: var(--bg-surface); }
 .proof-disclosure > summary { cursor: pointer; font-size: 14px; color: var(--text-strong); }
 .activation-page { max-width: 880px; }
-.enso-progress { width: 100px; height: 100px; flex: none; overflow: visible; }
-.enso-track { stroke: var(--border-subtle); }
-.enso-arc { stroke: var(--state-running-dot); transition: stroke-dasharray 250ms var(--ease); }
-.enso-progress.has-failure .enso-arc { stroke: var(--state-fail-dot); }
-.enso-progress text { fill: var(--text-strong); font: 24px var(--font-display),Georgia,serif; }
 
 .settings-frame { display: grid; grid-template-columns: 200px minmax(0,1fr); gap: 48px; align-items: start; }
 .settings-nav { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 20px; }
@@ -372,7 +367,6 @@ html, body {
 @media (min-width: 1280px) { .recording-note[data-side="right"] { left: auto; right: 344px; } }
 [placeholder]::placeholder { color: var(--text-muted); opacity: 1; }
 .app-page h1 { font-weight: 500; }
-.enso-progress.is-complete .enso-arc { stroke: var(--state-ok-dot); }
 .app-dialog-backdrop { z-index: 100; }
 .agent-give-get { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 20px; }
 .agent-resume-page h2 { text-transform: none; letter-spacing: 0; color: var(--text-strong); font-size: 20px; font-weight: 500; }
@@ -577,3 +571,29 @@ html, body {
 .run-control-panel>h2 {font:22px var(--font-display),Georgia,serif;color:var(--text-strong);}
 .run-control-panel>p {font-size:13px;line-height:1.7;margin:8px 0 16px;color:var(--text-muted);}
 @media(max-width:1000px){.run-detail-layout{grid-template-columns:minmax(0,1fr);}.run-detail-rail{position:static;}}
+
+.run-progress-panel {--progress-color:var(--text-accent);padding:28px;border:1px solid var(--border-subtle);border-radius:var(--r-md);background:var(--bg-surface);margin-bottom:24px;}
+.run-progress-panel.is-waiting{--progress-color:var(--state-needs-dot);}.run-progress-panel.is-failed{--progress-color:var(--state-fail-dot);}.run-progress-panel.is-completed{--progress-color:var(--state-ok-dot);}
+.run-progress-top {display:flex;gap:24px;align-items:center;}
+.run-progress-ring {position:relative;width:150px;height:150px;flex:none;}
+.run-progress-ring svg{width:100%;height:100%;display:block;}
+.run-progress-ring circle{fill:none;stroke:var(--progress-color);stroke-width:9;stroke-linecap:round;}
+.run-progress-ring .run-progress-track{stroke:var(--bg-hover);}.run-progress-current{opacity:.45;}
+.run-progress-ring .run-progress-orbit circle{fill:var(--progress-color);stroke:none;}
+.run-progress-middle{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+.run-progress-middle b{font:44px/1 var(--font-display),Georgia,serif;color:var(--text-strong);}.run-progress-middle span{font-size:11px;color:var(--text-muted);margin-top:5px;}
+.run-progress-copy{min-width:0;flex:1;}.run-progress-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;}
+.run-progress-copy h2{font:28px/1.25 var(--font-display),Georgia,serif;color:var(--text-strong);margin-top:4px;overflow-wrap:anywhere;}
+.run-progress-note{font-size:13px;line-height:1.7;margin-top:8px;overflow-wrap:anywhere;}.run-progress-note i{display:inline-block;width:7px;height:7px;background:var(--progress-color);border-radius:50%;margin-right:8px;}
+.run-progress-times{display:flex;flex-wrap:wrap;gap:20px;margin-top:16px;}.run-progress-times b{font:18px var(--font-display),Georgia,serif;color:var(--text-strong);font-variant-numeric:tabular-nums;}.run-progress-times span{display:block;font-size:11px;color:var(--text-muted);margin-top:4px;}
+.run-progress-steps{margin-top:24px;list-style:none;padding:0;}.run-progress-steps li{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:12px;padding:12px 0;border-top:1px solid var(--border-subtle);align-items:start;}
+.run-progress-marker{width:24px;height:24px;border:1px solid var(--border-control);border-radius:50%;display:grid;place-items:center;font-size:11px;color:var(--text-muted);}.is-done>.run-progress-marker{background:var(--state-ok-bg);color:var(--state-ok-fg);border-color:transparent;}
+.run-progress-steps .is-running>.run-progress-marker,.run-progress-steps .is-waiting>.run-progress-marker,.run-progress-steps .is-failed>.run-progress-marker{color:var(--progress-color);border-color:var(--progress-color);}
+.run-progress-marker i{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;}
+.run-progress-steps b{font-size:13px;font-weight:500;color:var(--text-strong);}.run-progress-steps .is-pending b{color:var(--text-muted);font-weight:400;}.run-progress-steps li>div>span{display:block;font-size:12px;line-height:1.7;overflow-wrap:anywhere;}.run-progress-steps small{font-size:11px;color:var(--text-muted);padding-top:3px;}
+@media(prefers-reduced-motion:no-preference){.is-running .run-progress-orbit{transform-origin:50px 50px;animation:ensoOrbit 4s linear infinite;}.is-running .run-progress-current,.is-running .run-progress-note i{animation:ensoPulse 1.6s ease-in-out infinite;}.run-progress-marker i{animation:ensoOrbit 1.8s linear infinite;}}
+@keyframes ensoOrbit{to{transform:rotate(360deg);}}@keyframes ensoPulse{50%{opacity:.25;}}
+@media(max-width:600px){.run-progress-panel{padding:20px;}.run-progress-top{align-items:flex-start;flex-wrap:wrap;gap:16px;}.run-progress-ring{width:120px;height:120px;}.run-progress-copy{flex-basis:100%;}.run-progress-copy h2{font-size:26px;}.run-detail-layout{gap:24px;}}
+
+.run-files-progress{padding:24px;border:1px solid var(--border-subtle);border-radius:var(--r-md);background:var(--bg-surface);margin-bottom:24px;}
+.run-files-progress h2{font:22px var(--font-display),Georgia,serif;}.run-files-progress>ul{border-color:var(--border-subtle);background:transparent;}.run-files-progress li{border-color:var(--border-subtle);}.run-files-progress button{color:var(--text-body);border-color:var(--border-control);background:var(--bg-surface);}

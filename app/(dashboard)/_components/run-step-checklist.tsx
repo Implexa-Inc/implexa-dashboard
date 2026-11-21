@@ -22,7 +22,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import { isWatchableRunState, type RunStep } from '@/lib/run-state';
-import RunStepsList from './run-steps-list';
+import RunStepsList, {type ProgressPresentation} from './run-steps-list';
 
 const POLL_MS = 6000;
 
@@ -30,17 +30,43 @@ export default function RunStepChecklist({
   runId,
   initialSteps,
   initialRunState,
+  presentation,
+  initialNote,
+  startedAt,
+  endedAt,
+  expectedMs,
+  initialNow=0,
 }: {
   runId: string;
   initialSteps: RunStep[];
   /** Queue and execution are one live lifecycle; watch across that boundary. */
   initialRunState: string;
+  presentation?: ProgressPresentation['state'];
+  initialNote?: string | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  expectedMs?: number | null;
+  initialNow?: number;
 }) {
   const supabase = createClient();
   const router = useRouter();
   const [steps, setSteps] = useState<RunStep[]>(initialSteps);
   const [running, setRunning] = useState(initialRunState === 'running');
   const stop = useRef(false);
+  const [note,setNote]=useState(initialNote);
+  const [presentationState,setPresentationState]=useState(presentation);
+  useEffect(()=>{setPresentationState(presentation);setSteps(initialSteps);},[runId,presentation,initialSteps]);
+  const [now,setNow]=useState(initialNow);
+  useEffect(()=>{
+    setNote(initialNote);
+  },[runId,initialNote]);
+  useEffect(()=>{
+    if(!startedAt)return;
+    setNow(Date.now());
+    if(presentationState!=='running')return;
+    const clock=setInterval(()=>setNow(Date.now()),1000);
+    return()=>clearInterval(clock);
+  },[runId,startedAt,presentationState]);
 
   useEffect(() => {
     if (!isWatchableRunState(initialRunState)) return;
@@ -55,7 +81,9 @@ export default function RunStepChecklist({
         if (item) {
           let refreshedThisPoll = false;
           if (Array.isArray(item.steps_state)) setSteps(item.steps_state as RunStep[]);
+          if(typeof item.progress?.current?.note==='string')setNote(item.progress.current.note);
           const held = item.review_status === 'pending' || item.review_status === 'needs_input';
+          if(presentation&&['queued','running','stalled','failed','completed'].includes(item.run_state))setPresentationState(held?'waiting':item.run_state);
           const stillRunning = item.run_state === 'running' && !held;
           const stillWatchable = isWatchableRunState(item.run_state) && !held;
           setRunning(stillRunning);
@@ -85,9 +113,13 @@ export default function RunStepChecklist({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId, initialRunState]);
 
-  if (!steps?.length) return null;
+  if (!steps?.length&&!presentation) return null;
   // One renderer, shared with each Production node section: two implementations
   // of "which steps are done" is how the same run reads finished on one page
   // and stuck on the other.
-  return <RunStepsList steps={steps} live={running} />;
+  const start=Date.parse(startedAt||'');
+  const end=Date.parse(endedAt||'');
+  const clock=(presentationState==='completed'||presentationState==='failed')&&Number.isFinite(end)?end:now;
+  const elapsedMs=clock>0&&Number.isFinite(start)?Math.max(0,clock-start):null;
+  return <RunStepsList steps={steps} live={running} progress={presentation?{state:presentationState||presentation,note,elapsedMs,expectedMs}:undefined}/>;
 }
