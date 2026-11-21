@@ -18,7 +18,7 @@ test('customer reviews exact note and frame before explicit sharing; retries pre
   await r.click(r.getByText('Suggest general improvements'));assert.equal(requests.length,1);
   await r.click(r.getByText('Suggest general improvements'));assert.equal(requests.length,2);assert.equal(requests[0].headers['Idempotency-Key'],requests[1].headers['Idempotency-Key']);
   const sent=JSON.parse(requests[1].body);assert.equal(sent.consent,true);assert.equal(sent.excerpt,issue.body);assert.equal(sent.image,image);assert.equal(sent.ownerId,undefined);
-  assert.match(r.text(),/with the trainer for review/);await r.click(r.getByText('Withdraw this shared example'));assert.equal(JSON.parse(requests[2].body).action,'withdraw');
+  assert.match(r.text(),/with the trainer for review/);await r.click(r.getByText('Withdraw this suggestion'));assert.equal(JSON.parse(requests[2].body).action,'withdraw');
  }finally{r.cleanup();}
 });
 test('missing Desktop route leaves feedback private and makes zero share requests',async()=>{
