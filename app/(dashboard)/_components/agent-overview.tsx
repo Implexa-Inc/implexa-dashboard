@@ -6,7 +6,7 @@ export default function AgentOverview({inputs,output,signals=[],steps,needs,trus
 }){
  return <div className="agent-overview-content">
   {(inputs?.length||output)&&<section aria-label="What you give and get"><h2 className="agent-section-title">What you give, what you get</h2><div className="agent-give-get">
-   <div className="card"><h3>You give</h3>{inputs?.length?<ul>{inputs.map(field=><li key={field.key}><p>{field.label}<small>{field.required?'Required':'Optional'}</small></p>{field.description&&<details><summary>About this input</summary><p>{field.description}</p></details>}</li>)}</ul>:<p>No run inputs declared.</p>}</div>
+   <div className="card"><h3>You give</h3>{inputs?.length?<AgentInputSummary inputs={inputs}/>:<p>No run inputs declared.</p>}</div>
    <div className="card"><h3>You get</h3><p>{output}</p>{signals.length>0&&<ul>{signals.map(signal=><li key={signal}>{signal}</li>)}</ul>}</div>
   </div></section>}
   {steps&&<section aria-label="How it works">{steps}</section>}
@@ -16,3 +16,6 @@ export default function AgentOverview({inputs,output,signals=[],steps,needs,trus
   {children}
  </div>;
 }
+
+/** The same declared inputs on Overview and Setup, without opening a run form. */
+export function AgentInputSummary({inputs}:{inputs:Array<{key:string;label:string;required:boolean;description?:string|null}>}){return <ul className="agent-input-summary">{inputs.map(field=><li key={field.key}><p>{field.label}<small>{field.required?'Required':'Optional'}</small></p>{field.description&&<details><summary>About this input</summary><p>{field.description}</p></details>}</li>)}</ul>;}

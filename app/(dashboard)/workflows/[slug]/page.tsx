@@ -30,7 +30,7 @@ import { getAgentDetail, agentActionContext, agentPageReadMode } from '@/lib/age
 import { remoteSafety } from '@/lib/remote-safety';
 import { loadInboxItems } from '@/lib/inbox';
 import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
-import AgentOverview from '../../_components/agent-overview';
+import AgentOverview,{AgentInputSummary} from '../../_components/agent-overview';
 import AgentPageHeader from '../../_components/agent-page-header';
 import AgentReadiness from '../../_components/agent-readiness';
 import { missingRequiredApiKeys } from '@/lib/agent-readiness-requirements';
@@ -494,23 +494,19 @@ export default async function WorkflowDetailPage({
   );
 
   const setupPanel = () => (
-    <>
+    <section className="agent-setup-column">
       {marketplaceAgent&&<AgentResume agent={marketplaceAgent} surface="setup"/>}
-      {/* Runs hands-free with */}
-      {workflow.capabilities.length > 0 && (
-        <div className="card mb-6">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-3">Runs hands-free with</h2>
-          <ul className="space-y-3">
-            {workflow.capabilities.map((cap) => (
-              <li key={cap.id} className="text-sm">
-                <div className="text-ink-100">{cap.name}</div>
-                <div className="text-xs text-ink-400 mt-0.5">{cap.why}</div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {checklist && <ActivationCard checklist={checklist} surface="setup" setupBlockedReason={marketplaceAgent&&marketplaceAgent.readiness.state!=='Ready'?'Finish the marketplace setup or update above first.':undefined} runInputs={workflowRunInputs(workflow)} statusUnavailable={actionsBlocked} revisePending={revisePending} />}
 
+      {/* The agent's config interview — answer its questions here so it runs
+       * unattended (no stopping to ask in Claude Code). Renders nothing when
+       * the agent declares no questions. */}
+      <div id="agent-setup" className="mb-6 scroll-mt-20">
+        <AgentSetupCard slug={workflow.slug} source={workflow.source} />
+
+      </div>
+
+      {!!workflow.input_contract?.fields.length&&<section className="card mb-6"><h2 className="mb-3">Each run</h2><p className="text-sm text-ink-400 mb-4">You provide these when you choose Run.</p><AgentInputSummary inputs={workflow.input_contract.fields}/></section>}
 
       {/* Schedule — edit / pause / make-on-demand inline, no navigating away. */}
       <div className="card mb-6">
@@ -536,57 +532,17 @@ export default async function WorkflowDetailPage({
         )}
       </div>
 
-<details className="proof-disclosure mb-6"><summary>Technical details</summary><code className="mt-3 block break-all">{workflow.slug}</code>{workflow.vertical&&<p>Category: {workflow.vertical}</p>}{workflow.cadence&&<p>Cadence: {workflow.cadence}</p>}</details>
-      <AgentExecutorPreference slug={workflow.slug} />
-      {/* Same run-input identity the header's <AgentActions/> gets — the card
-          renders its own Run now, and a Run button that can't build the envelope
-          is a refusal the user has no way to answer from that screen. */}
-      {checklist && <ActivationCard checklist={checklist} surface="setup" runInputs={workflowRunInputs(workflow)} statusUnavailable={actionsBlocked} revisePending={revisePending} />}
-      <div className="mb-6">
-        <ImplexaJudgePolicy slug={workflow.slug} />
-      </div>
-      {/* The agent's config interview — answer its questions here so it runs
-       * unattended (no stopping to ask in Claude Code). Renders nothing when
-       * the agent declares no questions. */}
-      <div id="agent-setup" className="mb-6 scroll-mt-20">
-        <AgentSetupCard slug={workflow.slug} source={workflow.source} />
-        {/* The primary Activate/Run action lives up in the page header — far
-         * enough from this card that saving your answers here left you with no
-         * next step in view (founder feedback: "I have to click Done, go back,
-         * and then activate"). Mirror it right here so Save answers is
-         * immediately followed by the actual next action, no navigating away. */}
-        <div className="mt-3">
-          <AgentActions
-            trainingTest={trainingTest.state==='prepared'?trainingTest.binding:null}
-            slug={workflow.slug}
-            name={workflow.name}
-            isActive={isActive}
-            requiresLocal={checklist?.requiresLocal}
-            source={workflow.source}
-            nextRunAt={checklist?.nextRunAt}
-            pendingQuestions={checklist?.pendingQuestions}
-            blockingQuestions={checklist?.blockingQuestions}
-            claudeTaskId={pausableRoutine?.claude_task_id}
-            inFlight={inFlight}
-            revisePending={revisePending}
-            statusUnavailable={actionsBlocked}
-            workflowVersionId={workflow.workflow_version_id}
-            activeVersionNumber={workflow.version}
-            inputContract={workflow.input_contract}
-            inputContractDigest={workflow.input_contract_digest}
-            pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
-            align="start"
-          />
-        </div>
-      </div>
+
+      <section className="agent-how-it-runs"><h2>How it runs</h2><AgentExecutorPreference slug={workflow.slug}/><ImplexaJudgePolicy slug={workflow.slug}/></section>
+      <details className="proof-disclosure mb-6"><summary>Technical details</summary><code className="mt-3 block break-all">{workflow.slug}</code>{workflow.vertical&&<p>Category: {workflow.vertical}</p>}{workflow.cadence&&<p>Cadence: {workflow.cadence}</p>}</details>
 
       {!hasTrackRecord&&trustDetails}
       {/* Author-only Learning Influence v1 rule management. Selected publisher
           teachings and customer-private preferences use separate runtime paths. */}
       {detail!.canInspectOwnLearningInfluence === true && (
-        <div id="agent-learnings" className="mb-6 scroll-mt-20">
+        <details id="agent-learnings" className="proof-disclosure mb-6 scroll-mt-20"><summary>Advanced learning rules</summary>
           <AgentLearningsCard slug={workflow.slug} canInspectOwnLearningInfluence={detail!.canInspectOwnLearningInfluence} />
-        </div>
+        </details>
       )}
 
       {/* "Edit what the agent DOES" now lives in the header's Edit Agent pop-up
@@ -594,8 +550,8 @@ export default async function WorkflowDetailPage({
           where the click happens, instead of a tab-switch-and-scroll. */}
 
       {/* "Or have feedback? Tell Claude to change it." */}
-      <AgentFeedback slug={workflow.slug} name={workflow.name} statusUnavailable={lifecycleUnavailable} revisePending={revisePending} />
-    </>
+      <details className="proof-disclosure"><summary>Advanced edit handoff</summary><AgentFeedback slug={workflow.slug} name={workflow.name} statusUnavailable={lifecycleUnavailable} revisePending={revisePending}/></details>
+    </section>
   );
 
   const tabs: TabDef[] = [
@@ -638,12 +594,14 @@ export default async function WorkflowDetailPage({
           {revisePending&&<div role="status" className="agent-page-notice">Your edit is being prepared. Running is paused until it is ready.{<ReviseLandedPoller revisePending={revisePending}/>}</div>}
           {workflow.update_available?.input_contract_digest&&<AgentUpdateGate workflowId={workflow.id} update={{...workflow.update_available,input_contract_digest:workflow.update_available.input_contract_digest}}/>}
         </AgentPageHeader>
+        {activeTab==='overview'&&<>
         <div className="agent-sample-placeholder" role="img" aria-label="Sample preview unavailable"><span>Sample output</span><p>A sample preview is not available here yet.</p></div>
         <div className="agent-page-stats" aria-label="Recorded agent activity">
           <Stat label="Runs recorded" value={`${workflow.activity.run_count}`}/>
           <Stat label="Delivered" value={gradeUnavailable?'Unavailable':grade?`${Math.round(grade.rate*100)}% · ${grade.runs} checked runs`:'Not measured yet'}/>
           <Stat label="Last run" value={detail!.isUnavailable('latest_run')?'Unavailable':rel(workflow.activity.last_run_at)}/>
         </div>
+        </>}
 
         {/* Connection warning - an account this agent needs is signed out. Loud,
          * above the tabs, with a one-tap sign-in. Renders nothing when healthy. */}

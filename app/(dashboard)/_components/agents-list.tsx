@@ -129,6 +129,7 @@ export type ListAgent = {
   pendingQuestions?: number;
   nextRunAt?: string | null;
   scheduleNl?: string | null;
+  scheduleOff?:boolean;
   lastRun?: {
     id?: string;
     status: string;
@@ -215,7 +216,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, car
       {a.lastRun?.id&&<Link className="agent-last-run" href={`/runs/${encodeURIComponent(a.lastRun.id)}`}>Last result{card&&a.lastRun.ranAt?<> · <LocalTime iso={a.lastRun.ranAt}/></>:' →'}</Link>}
     </div>
     <span className={`agent-state ${isDraft?'border-ink-700 text-ink-400':badge?.cls||''}`}>{isDraft?'Draft':badge?.label}</span>
-    {!card&&<div className="agent-when"><span>{isDraft?'Not turned on':a.section==='scheduled'&&a.nextRunAt?`Next: ${nextRunLabel(a.nextRunAt)}`:a.lastRun?.ranAt?<><span>Ran </span><LocalTime iso={a.lastRun.ranAt}/></>:'Not run yet'}</span><small>{a.section==='scheduled'?(a.scheduleNl||'On a schedule'):a.section==='paused'?'Schedule paused':isDraft?'Saved for later':'On demand'}</small></div>}
+    {!card&&<div className="agent-when"><span>{isDraft?'Not turned on':a.section==='scheduled'&&a.nextRunAt?`Next: ${nextRunLabel(a.nextRunAt)}`:a.lastRun?.ranAt?<><span>Ran </span><LocalTime iso={a.lastRun.ranAt}/></>:'Not run yet'}</span><small>{a.section==='scheduled'?(a.scheduleNl||'On a schedule'):a.section==='paused'?'Schedule paused':isDraft?'Saved for later':a.scheduleOff?'Schedule off':'On demand'}</small></div>}
     {!card&&<div className="agent-row-grade">{a.grade?.hasGrade?<><span>{Math.round(a.grade.rate*100)}% delivered</span><small>of {a.grade.runs} runs</small></>:<span aria-label="No delivery history">—</span>}</div>}
     <Link href={isDraft||a.section==='paused'?detail:detail+'&run=1'} prefetch={false} className="btn-outline agent-run">{isDraft?'Turn on':a.section==='paused'?'Resume':'Run'}</Link>
     <RowMenu onArchive={()=>onArchive(a)} onDeactivate={()=>onDeactivate(a)} canDeactivate={a.section==='scheduled'} busy={busy} trainingHref={a.canTrain?`/training/${encodeURIComponent(a.slug)}`:undefined} lastRunHref={a.lastRun?.id?`/runs/${encodeURIComponent(a.lastRun.id)}`:undefined}/>
