@@ -662,3 +662,4 @@ html, body {
 .agent-overview-content{padding-bottom:112px;}.agent-resume-page .agent-action-bar{margin-bottom:0;}
 
 .agent-resume-page .agent-page-header,.agent-resume-page .agent-sample-placeholder,.agent-resume-page .agent-page-stats,.agent-resume-page [role="tablist"]{max-width:820px;}.agent-resume-page .agent-action-bar{max-width:none;}
+.agent-setup-column{display:block;max-width:820px;}.agent-setup-column>.card{margin-bottom:24px;}

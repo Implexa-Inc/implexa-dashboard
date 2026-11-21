@@ -158,6 +158,8 @@ export type ActivationChecklist = {
   optionalQuestions?: number;
   /** readyToRun === blockingQuestions === 0 && blockingCapabilityGaps === 0. */
   readyToRun?: boolean;
+  /** Strict setup-schema and saved-answer reads succeeded; absent is unknown. */
+  setupReadAvailable?: boolean;
   /**
    * Capabilities this agent needs but has NO viable tool for (every candidate
    * unavailable, or a stated preference contradicted itself). Server-derived

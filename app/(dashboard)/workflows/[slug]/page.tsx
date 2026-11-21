@@ -494,7 +494,7 @@ export default async function WorkflowDetailPage({
   );
 
   const setupPanel = () => (
-    <>
+    <section className="agent-setup-column">
       {marketplaceAgent&&<AgentResume agent={marketplaceAgent} surface="setup"/>}
       {/* Runs hands-free with */}
       {workflow.capabilities.length > 0 && (
@@ -511,6 +511,20 @@ export default async function WorkflowDetailPage({
         </div>
       )}
 
+
+
+      {/* Same run-input identity the header's <AgentActions/> gets — the card
+          renders its own Run now, and a Run button that can't build the envelope
+          is a refusal the user has no way to answer from that screen. */}
+      {checklist && <ActivationCard checklist={checklist} surface="setup" runInputs={workflowRunInputs(workflow)} statusUnavailable={actionsBlocked} revisePending={revisePending} />}
+
+      {/* The agent's config interview — answer its questions here so it runs
+       * unattended (no stopping to ask in Claude Code). Renders nothing when
+       * the agent declares no questions. */}
+      <div id="agent-setup" className="mb-6 scroll-mt-20">
+        <AgentSetupCard slug={workflow.slug} source={workflow.source} />
+
+      </div>
 
       {/* Schedule — edit / pause / make-on-demand inline, no navigating away. */}
       <div className="card mb-6">
@@ -536,49 +550,9 @@ export default async function WorkflowDetailPage({
         )}
       </div>
 
-<details className="proof-disclosure mb-6"><summary>Technical details</summary><code className="mt-3 block break-all">{workflow.slug}</code>{workflow.vertical&&<p>Category: {workflow.vertical}</p>}{workflow.cadence&&<p>Cadence: {workflow.cadence}</p>}</details>
-      <AgentExecutorPreference slug={workflow.slug} />
-      {/* Same run-input identity the header's <AgentActions/> gets — the card
-          renders its own Run now, and a Run button that can't build the envelope
-          is a refusal the user has no way to answer from that screen. */}
-      {checklist && <ActivationCard checklist={checklist} surface="setup" runInputs={workflowRunInputs(workflow)} statusUnavailable={actionsBlocked} revisePending={revisePending} />}
-      <div className="mb-6">
-        <ImplexaJudgePolicy slug={workflow.slug} />
-      </div>
-      {/* The agent's config interview — answer its questions here so it runs
-       * unattended (no stopping to ask in Claude Code). Renders nothing when
-       * the agent declares no questions. */}
-      <div id="agent-setup" className="mb-6 scroll-mt-20">
-        <AgentSetupCard slug={workflow.slug} source={workflow.source} />
-        {/* The primary Activate/Run action lives up in the page header — far
-         * enough from this card that saving your answers here left you with no
-         * next step in view (founder feedback: "I have to click Done, go back,
-         * and then activate"). Mirror it right here so Save answers is
-         * immediately followed by the actual next action, no navigating away. */}
-        <div className="mt-3">
-          <AgentActions
-            trainingTest={trainingTest.state==='prepared'?trainingTest.binding:null}
-            slug={workflow.slug}
-            name={workflow.name}
-            isActive={isActive}
-            requiresLocal={checklist?.requiresLocal}
-            source={workflow.source}
-            nextRunAt={checklist?.nextRunAt}
-            pendingQuestions={checklist?.pendingQuestions}
-            blockingQuestions={checklist?.blockingQuestions}
-            claudeTaskId={pausableRoutine?.claude_task_id}
-            inFlight={inFlight}
-            revisePending={revisePending}
-            statusUnavailable={actionsBlocked}
-            workflowVersionId={workflow.workflow_version_id}
-            activeVersionNumber={workflow.version}
-            inputContract={workflow.input_contract}
-            inputContractDigest={workflow.input_contract_digest}
-            pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
-            align="start"
-          />
-        </div>
-      </div>
+
+      <section className="agent-how-it-runs"><h2>How it runs</h2><AgentExecutorPreference slug={workflow.slug}/><ImplexaJudgePolicy slug={workflow.slug}/></section>
+      <details className="proof-disclosure mb-6"><summary>Technical details</summary><code className="mt-3 block break-all">{workflow.slug}</code>{workflow.vertical&&<p>Category: {workflow.vertical}</p>}{workflow.cadence&&<p>Cadence: {workflow.cadence}</p>}</details>
 
       {!hasTrackRecord&&trustDetails}
       {/* Author-only Learning Influence v1 rule management. Selected publisher
@@ -595,7 +569,7 @@ export default async function WorkflowDetailPage({
 
       {/* "Or have feedback? Tell Claude to change it." */}
       <AgentFeedback slug={workflow.slug} name={workflow.name} statusUnavailable={lifecycleUnavailable} revisePending={revisePending} />
-    </>
+    </section>
   );
 
   const tabs: TabDef[] = [

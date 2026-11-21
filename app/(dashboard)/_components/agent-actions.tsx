@@ -1232,8 +1232,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           Status unavailable
         </button>
       ) : !isActive ? (
-        <Link href={`/workflows/${slug}/activate`} className="btn-success text-sm px-4 py-2">
-          Activate
+        <Link href={`/workflows/${encodeURIComponent(slug)}?legacy=1&tab=setup`} className="btn-success text-sm px-4 py-2">
+          Finish setup
         </Link>
       ) : revisePending ? (
         // A rewrite is in flight — block Run now so the OLD version can't fire
