@@ -11,7 +11,10 @@ export function isContribution(v:any):v is Contribution{return !!v&&UUID.test(v.
  &&v.evidence.mediaType==='image/png'&&Number.isFinite(Date.parse(v.expiresAt));}
 export async function contributionRequest(body:Record<string,unknown>,key?:string){
  const r=body.action==='list'?await fetch(`/api/agent-training/customer-contributions?slug=${encodeURIComponent(String(body.slug))}`,{cache:'no-store'}):await fetch('/api/agent-training/customer-contributions',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',...(key?{'Idempotency-Key':key}:{})},body:JSON.stringify(body)});
- const value=await r.json();if(!r.ok||value?.ok!==true)throw Error(value?.reason==='contribution_withdrawn'?'This shared example has been withdrawn.':value?.reason==='contribution_already_prepared'?'This example already has a teaching suggestion. Review saved training.':'This action could not be confirmed. Your feedback is still saved.');return value;
+ const value=await r.json();if(!r.ok||value?.ok!==true){
+  const messages:Record<string,string>={contribution_withdrawn:'This suggestion has been withdrawn.',contribution_already_prepared:'This suggestion already has a teaching draft. Review saved training.',contribution_suggestion_preparing:'This suggestion is still being prepared. Try again shortly to open the same saved result.',contribution_suggestion_unavailable:'A general suggestion is unavailable. Teach with your own example instead.',customer_material_private:'Customer source material stays private. Open the general learning suggestion instead.',teaching_suggestion_rate_limited:'Please wait before preparing another suggestion.'};
+  throw Error(messages[value?.reason]||'This action could not be confirmed. Your feedback is still saved.');
+ }return value;
 }
 
 /** Source-free trainer contract; the customer's own consent preview keeps its original contract. */
