@@ -670,6 +670,7 @@ export function ActivationCard({
   runInputs,
   statusUnavailable,
   revisePending,
+  setupBlockedReason,
 }: {
   checklist: ActivationChecklist;
   proficiency?: 'novice' | 'beginner' | 'pro' | 'advanced' | null;
@@ -694,6 +695,8 @@ export function ActivationCard({
   statusUnavailable: boolean;
   /** Whether a known revise request is already queued or running. */
   revisePending: boolean;
+  /** Existing marketplace acquisition/update must finish before native completion. */
+  setupBlockedReason?:string;
 }) {
   const setupSurface = surface === 'setup';
   const expectedVersionId=runInputs?.workflowVersionId;
@@ -771,7 +774,7 @@ export function ActivationCard({
     const jwt = session?.access_token;
     if(setupSurface&&boundSetupVersion&&(!mounted.current||currentCompletion.current!==completionKey||session?.user?.id!==checklist.setupContext?.accountId))throw new Error('The account or agent changed. Reload Setup.');
     const result=await callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/activate`, {
-      jwt, method: 'POST', body: { optIns: opts, ...(workAround ? { workAround: true } : {}), ...(onDemand ? { onDemand: true } : {}),...(setupSurface&&boundSetupVersion?{completeSetup:true,expectedVersionId}: {}) },
+      jwt, method: 'POST', body: { optIns: opts, ...(workAround ? { workAround: true } : {}), ...(onDemand||setupSurface ? { onDemand: true } : {}),...(setupSurface&&boundSetupVersion?{completeSetup:true,expectedVersionId}: {}) },
     });
     if(result?.ok!==true)throw new Error('Setup could not be completed. Try again.');
     if (mounted.current&&currentCompletion.current===completionKey&&requiredTier2.some((item) => opts[item.group])) {
@@ -849,7 +852,7 @@ export function ActivationCard({
   // be delivered. undefined (older backend) never blocks, matching the rest
   // of this file's absent-field-means-verified convention.
   const capabilityReady = checklist.readyToRun !== false;
-  const automaticReady=setupSurface&&boundSetupVersion&&!statusUnavailable&&!revisePending&&!isActive&&!activating
+  const automaticReady=setupSurface&&boundSetupVersion&&!statusUnavailable&&!setupBlockedReason&&!revisePending&&!isActive&&!activating
     &&checklist.setupReadAvailable===true&&checklist.readyToRun===true
     &&Number(checklist.blockingQuestions??checklist.pendingQuestions??0)===0
     &&allLocalGranted&&computerUseSatisfied&&(!showMacSetup||computerUseReady)
@@ -859,7 +862,7 @@ export function ActivationCard({
     const attempt=completionKey+':'+completionRetry;
     if(completionAttempts.current.has(attempt))return;
     completionAttempts.current.add(attempt);
-    void activate(anyWorkedAround,forceOnDemand);
+    void activate(anyWorkedAround,true);
   },[automaticReady,completionKey,completionRetry]); // Existing activation writer, once per reviewed version or explicit retry.
   useEffect(()=>{setActivated(checklist.state==='active');setSavedLocally(false);setError(null);setActivating(false);setOptIns(Object.fromEntries(tier2.filter(item=>item.granted).map(item=>[item.group,true])));},[completionKey]);
   const verifiedHandsFree = isActive && verification.verified && computerUseSatisfied && capabilityReady;
@@ -998,7 +1001,7 @@ export function ActivationCard({
       <CapabilityGapsNotice gaps={checklist.capabilityGaps} />
 
       <div className="mt-5 flex items-start gap-3">
-        {setupSurface&&versionedSetup&&!isActive?<div role="status" className="text-sm text-ink-400">{activating?'Completing setup…':error?<><p className="text-state-fail">{error}</p><button type="button" className="btn-outline mt-3" disabled={!automaticReady} onClick={()=>{setError(null);setCompletionRetry(n=>n+1);}}>Try again</button></>:!boundSetupVersion?'The agent changed. Reload Setup.':statusUnavailable||checklist.setupReadAvailable!==true?'Setup status could not be checked. Reload to try again.':revisePending?'Setup will finish after the pending edit is ready.':'Complete the required items above. No separate activation step is needed.'}{suggestedCadence&&<p className="mt-2 text-xs">{forceOnDemand?'Runs on demand.':`Once ready, follows this schedule: ${suggestedCadence}.`} <button type="button" className="underline" onClick={()=>setForceOnDemand(!forceOnDemand)}>{forceOnDemand?'Use the suggested schedule':'Run on demand instead'}</button></p>}</div>:setupSurface && isActive && allSavedGranted ? null : isActive && allSavedGranted ? (
+        {setupSurface&&versionedSetup&&!isActive?<div role="status" className="text-sm text-ink-400">{activating?'Completing setup…':error?<><p className="text-state-fail">{error}</p><button type="button" className="btn-outline mt-3" disabled={!automaticReady} onClick={()=>{setError(null);setCompletionRetry(n=>n+1);}}>Try again</button></>:setupBlockedReason?setupBlockedReason:!boundSetupVersion?'The agent changed. Reload Setup.':statusUnavailable||checklist.setupReadAvailable!==true?'Setup status could not be checked. Reload to try again.':revisePending?'Setup will finish after the pending edit is ready.':'Complete the required items above. No separate activation step is needed.'}{suggestedCadence&&<p className="mt-2 text-xs">Suggested schedule: {suggestedCadence}. Setup does not start it; enable it in Schedule below.</p>}</div>:setupSurface && isActive && allSavedGranted ? null : isActive && allSavedGranted ? (
           // The moment of highest motivation must not dead-end at "Active."
           // (founder: "I activated this agent but what to do next, Im clueless").
           // Offer the first run right here; the schedule row above covers later.
@@ -1155,7 +1158,7 @@ export function ActivationCard({
               className={ready && !activating ? 'btn-success' : 'btn-outline opacity-50 cursor-not-allowed'}
               title={ready ? 'Switch this agent on' : 'Finish the steps above first'}
             >
-              {activating ? (guided ? 'Turning on…' : 'Activating…') : (guided ? 'Turn it on' : 'Activate')}
+              {activating ? (guided ? 'Turning on…' : 'Activating…') : (setupSurface?'Complete legacy setup':guided ? 'Turn it on' : 'Activate')}
             </button>
             {error ? (
               <span className="text-xs text-state-fail">{error}</span>

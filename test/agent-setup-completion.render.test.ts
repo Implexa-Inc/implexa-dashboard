@@ -6,10 +6,10 @@ const auth={getSession:async()=>({data:{session:{access_token:'synthetic-jwt',us
 const flush=async(r:any)=>r.act(()=>new Promise(resolve=>setTimeout(resolve,15)));
 test('the last required item completes Setup once through the existing activation writer, without starting work',async()=>{
  const r=await render('activation-card.tsx',props,{exportName:'ActivationCard',auth,backend:()=>({ok:true})});
- try{await flush(r);const calls=r.calls.backend.filter(c=>c.path.endsWith('/activate'));assert.equal(calls.length,1);assert.deepEqual(JSON.parse(JSON.stringify((calls[0].init as any).body)),{optIns:{},completeSetup:true,expectedVersionId:version});assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);await r.rerender(props);await flush(r);assert.equal(r.calls.backend.filter(c=>c.path.endsWith('/activate')).length,1);}finally{r.cleanup();}
+ try{await flush(r);const calls=r.calls.backend.filter(c=>c.path.endsWith('/activate'));assert.equal(calls.length,1);assert.deepEqual(JSON.parse(JSON.stringify((calls[0].init as any).body)),{optIns:{},onDemand:true,completeSetup:true,expectedVersionId:version});assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);await r.rerender(props);await flush(r);assert.equal(r.calls.backend.filter(c=>c.path.endsWith('/activate')).length,1);}finally{r.cleanup();}
 });
 test('unread answers, missing required input, unavailable lifecycle, pending edit and a mismatched version cannot auto-complete',async()=>{
- const cases=[{checklist:{...checklist,setupReadAvailable:false}},{checklist:{...checklist,blockingQuestions:1,readyToRun:false}},{statusUnavailable:true},{revisePending:true},{runInputs:{...props.runInputs,workflowVersionId:'44444444-4444-4444-8444-444444444444'}}];
+ const cases=[{setupBlockedReason:'Finish marketplace setup first.'},{checklist:{...checklist,setupReadAvailable:false}},{checklist:{...checklist,blockingQuestions:1,readyToRun:false}},{statusUnavailable:true},{revisePending:true},{runInputs:{...props.runInputs,workflowVersionId:'44444444-4444-4444-8444-444444444444'}}];
  for(const change of cases){const r=await render('activation-card.tsx',{...props,...change},{exportName:'ActivationCard',auth,backend:()=>({ok:true})});try{await flush(r);assert.equal(r.calls.backend.filter(c=>c.path.endsWith('/activate')).length,0);}finally{r.cleanup();}}
 });
 test('a required permission needs the user’s deliberate choice before completion',async()=>{

@@ -69,3 +69,8 @@ test('the archived panel keeps its live warning and explicit stop/restore action
  const r=await render('agents-list.tsx',{agents:[],archived:[{slug:'old-agent',name:'Archived agent',source:'generated',isLive:true}]});
  try{const toggle=r.document.querySelector('button[aria-controls="archived-agents"]')!;assert.ok(toggle.closest('.agent-collapsed-group'));assert.equal(toggle.getAttribute('aria-expanded'),'false');await r.click(toggle);assert.equal(toggle.getAttribute('aria-expanded'),'true');assert.match(r.text(),/Still live/);assert.ok(r.queryByText('Stop it'));assert.ok(r.queryByText('Restore'));assert.equal(r.calls.backend.length,0,'opening the archive never stops or restores an agent');}finally{r.cleanup();}
 });
+
+test('a ready agent whose schedule is off keeps a visible Run action',async()=>{
+ const r=await render('agents-list.tsx',{agents:[agent('ready-clock-off',{scheduleOff:true})]});
+ try{const row=r.document.querySelector('.agent-roster-row')!;assert.match(row.textContent||'',/Schedule off/);assert.equal(row.querySelector('a.agent-run')?.textContent,'Run');assert.match(row.querySelector('a.agent-run')?.getAttribute('href')||'',/run=1/);assert.equal(r.queryByText('Paused'),null);assert.equal(r.calls.backend.length,0);}finally{r.cleanup();}
+});

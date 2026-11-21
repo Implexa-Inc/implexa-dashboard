@@ -114,3 +114,8 @@ test('Train is offered only from the authenticated owned library, never an unkno
  assert.equal(agents.find(agent=>agent.slug==='owned')?.canTrain,true);
  assert.equal(agents.find(agent=>agent.slug==='unknown')?.canTrain,false);
 });
+
+test('Setup-ready agent with its clock off stays in the active roster instead of Paused',()=>{
+ const {agents}=buildRoster({feed:{status:'ready',active:[feedAgent('clock-off',{mode:'scheduled',scheduleOff:true})],needsActivation:[],drafts:[]},mine:[{slug:'clock-off',name:'Clock off agent',source:'generated'}],paused:[{skill_slug:'clock-off',status:'paused',trigger_type:'cron'}],categorize});
+ assert.equal(agents.length,1);assert.equal(agents[0].section,'on_demand');assert.equal(agents[0].scheduleOff,true);
+});

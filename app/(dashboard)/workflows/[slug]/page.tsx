@@ -516,7 +516,7 @@ export default async function WorkflowDetailPage({
       {/* Same run-input identity the header's <AgentActions/> gets — the card
           renders its own Run now, and a Run button that can't build the envelope
           is a refusal the user has no way to answer from that screen. */}
-      {checklist && <ActivationCard checklist={checklist} surface="setup" runInputs={workflowRunInputs(workflow)} statusUnavailable={actionsBlocked} revisePending={revisePending} />}
+      {checklist && <ActivationCard checklist={checklist} surface="setup" setupBlockedReason={marketplaceAgent&&marketplaceAgent.readiness.state!=='Ready'?'Finish the marketplace setup or update above first.':undefined} runInputs={workflowRunInputs(workflow)} statusUnavailable={actionsBlocked} revisePending={revisePending} />}
 
       {/* The agent's config interview — answer its questions here so it runs
        * unattended (no stopping to ask in Claude Code). Renders nothing when
@@ -536,6 +536,7 @@ export default async function WorkflowDetailPage({
             </span>
           )}
         </div>
+        {scheduleRoutine?.status==='paused'&&<div className="mb-4"><AgentPauseToggle routineId={scheduleRoutine.id} initialStatus={scheduleRoutine.status}/></div>}
         {schedulesUnavailable ? (
           // NOT the on-demand state. ScheduleManager REPLACES any existing
           // routine on save, so offering the editor over an unread schedule
@@ -558,9 +559,9 @@ export default async function WorkflowDetailPage({
       {/* Author-only Learning Influence v1 rule management. Selected publisher
           teachings and customer-private preferences use separate runtime paths. */}
       {detail!.canInspectOwnLearningInfluence === true && (
-        <div id="agent-learnings" className="mb-6 scroll-mt-20">
+        <details id="agent-learnings" className="proof-disclosure mb-6 scroll-mt-20"><summary>Advanced learning rules</summary>
           <AgentLearningsCard slug={workflow.slug} canInspectOwnLearningInfluence={detail!.canInspectOwnLearningInfluence} />
-        </div>
+        </details>
       )}
 
       {/* "Edit what the agent DOES" now lives in the header's Edit Agent pop-up
@@ -568,7 +569,7 @@ export default async function WorkflowDetailPage({
           where the click happens, instead of a tab-switch-and-scroll. */}
 
       {/* "Or have feedback? Tell Claude to change it." */}
-      <AgentFeedback slug={workflow.slug} name={workflow.name} statusUnavailable={lifecycleUnavailable} revisePending={revisePending} />
+      <details className="proof-disclosure"><summary>Advanced edit handoff</summary><AgentFeedback slug={workflow.slug} name={workflow.name} statusUnavailable={lifecycleUnavailable} revisePending={revisePending}/></details>
     </section>
   );
 
@@ -612,12 +613,14 @@ export default async function WorkflowDetailPage({
           {revisePending&&<div role="status" className="agent-page-notice">Your edit is being prepared. Running is paused until it is ready.{<ReviseLandedPoller revisePending={revisePending}/>}</div>}
           {workflow.update_available?.input_contract_digest&&<AgentUpdateGate workflowId={workflow.id} update={{...workflow.update_available,input_contract_digest:workflow.update_available.input_contract_digest}}/>}
         </AgentPageHeader>
+        {activeTab==='overview'&&<>
         <div className="agent-sample-placeholder" role="img" aria-label="Sample preview unavailable"><span>Sample output</span><p>A sample preview is not available here yet.</p></div>
         <div className="agent-page-stats" aria-label="Recorded agent activity">
           <Stat label="Runs recorded" value={`${workflow.activity.run_count}`}/>
           <Stat label="Delivered" value={gradeUnavailable?'Unavailable':grade?`${Math.round(grade.rate*100)}% · ${grade.runs} checked runs`:'Not measured yet'}/>
           <Stat label="Last run" value={detail!.isUnavailable('latest_run')?'Unavailable':rel(workflow.activity.last_run_at)}/>
         </div>
+        </>}
 
         {/* Connection warning - an account this agent needs is signed out. Loud,
          * above the tabs, with a one-tap sign-in. Renders nothing when healthy. */}

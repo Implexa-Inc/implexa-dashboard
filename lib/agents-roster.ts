@@ -75,7 +75,7 @@ export function buildRoster({ feed, mine, paused, categorize }: RosterInput): Ro
     const activated = a.state === 'active';
     const section: ListAgent['section'] = !activated
       ? 'not_activated'
-      : a.mode === 'scheduled' ? 'scheduled' : 'on_demand';
+      : a.mode === 'scheduled' && !a.scheduleOff ? 'scheduled' : 'on_demand';
     list.push({
       slug: a.slug,
       name: a.name,
@@ -88,6 +88,7 @@ export function buildRoster({ feed, mine, paused, categorize }: RosterInput): Ro
       pendingQuestions: a.pendingQuestions,
       nextRunAt: a.nextRunAt,
       scheduleNl: a.scheduleNl,
+      scheduleOff: a.scheduleOff === true,
       lastRun: a.lastRun,
       grade: a.grade,
     });
