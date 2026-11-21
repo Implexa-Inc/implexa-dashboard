@@ -47,3 +47,9 @@ test('source-bearing model responses are refused and never enable teaching',asyn
  const r=await render('../training/[slug]/customer-training-inbox.tsx',props,{fetch:(async(_url:any,init:any={})=>!init.method?list():response({...proposal,image:'PRIVATE-CUSTOMER-CANARY'})) as typeof fetch});
  try{await r.click(r.getByText('Review suggestion →'));assert.match(r.text(),/could not be verified/);assert.doesNotMatch(r.text(),/PRIVATE-CUSTOMER-CANARY/);assert.equal(r.document.querySelector('img'),null);assert.equal(r.queryByText('Review as training'),null);}finally{r.cleanup();}
 });
+
+test('a pending cached suggestion explains its status and retry only opens that contribution',async()=>{
+ const actions:any[]=[];
+ const r=await render('../training/[slug]/customer-training-inbox.tsx',props,{fetch:(async(_url:any,init:any={})=>{if(!init.method)return list();const body=JSON.parse(init.body);actions.push(body);return actions.length===1?{ok:false,json:async()=>({ok:false,reason:'contribution_suggestion_preparing'})}:response(proposal);}) as typeof fetch});
+ try{await r.click(r.getByText('Review suggestion →'));assert.match(r.text(),/same saved result/);assert.equal(r.document.querySelector('textarea'),null);const retry=[...r.document.querySelectorAll('button')].find(button=>button.textContent==='Try again')!;assert.ok(retry);await r.click(retry);assert.equal(r.document.querySelector('img'),null);assert.equal((r.document.querySelector('textarea') as HTMLTextAreaElement).value,Object.values(guidance).join(' '));assert.deepEqual(actions,[{action:'draft',id:c.id,shareDigest:H},{action:'draft',id:c.id,shareDigest:H}]);}finally{r.cleanup();}
+});
