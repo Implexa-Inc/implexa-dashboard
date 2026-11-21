@@ -630,3 +630,4 @@ html, body {
 .playback-volume{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);}
 .recording-moment .recording-note .recording-moment-number{background:var(--action-primary);color:var(--on-action-primary);}
 .recording-note .btn-primary small{color:inherit;opacity:.8;}
+@media(max-width:1100px){.recording-moment.is-selected>div:first-child>.recording-moment-select,.recording-moment.is-selected>.recording-moment-summary{display:none;}.recording-moment.is-selected>div:first-child{justify-content:flex-end;}}
