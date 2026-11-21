@@ -27,7 +27,7 @@ export default function CompletedRunResults({revision=0,names={}}:{revision?:num
  return <section className="work-recent" aria-label="Recently delivered">
   <div className="work-section-head"><h2>Recently delivered</h2><Link href="/work?view=delivered">See all →</Link></div>
   {rows.length>0&&<div className="work-rows">{rows.map(row=><WorkItemRow agentSlug={row.skill_slug} key={row.id} title={names[row.skill_slug]||name(row.skill_slug)} href={`/runs/${encodeURIComponent(row.id)}`}
-   detail={row.outputName||`Result from ${new Date(row.ran_at).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}`} state={row.status==='partial'?'Partly delivered':'Delivered'}
+   detail={[row.outputName||'Result',new Date(row.ran_at).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})].join(' · ')} state={row.status==='partial'?'Partly delivered':'Delivered'}
    when={<LocalTime iso={row.ran_at}/>}
    actions={<Link href={`/runs/${encodeURIComponent(row.id)}`} className="btn-outline work-row-action">Open</Link>}/>)}</div>}
   {loading&&<p role="status" className="work-list-notice">Loading results…</p>}
