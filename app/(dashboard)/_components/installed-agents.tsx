@@ -5,6 +5,7 @@ import {buildRoster} from '@/lib/agents-roster';
 import {categorizeAgent} from '@/lib/agent-category';
 import AgentsList from './agents-list';
 import RetryButton from './retry-button';
+import {CollectionReadError} from './collection-state';
 
 /** One request-local roster promise supplies both the count and the list. */
 export async function loadInstalledRoster(jwt:string){
@@ -24,7 +25,7 @@ export async function InstalledAgentCount({load}:{load:Promise<InstalledRoster>}
 export default async function InstalledAgents({load}:{load:Promise<InstalledRoster>}){
  const data=await load;const favorites=new Set(data.favorites);
  return <>
-  {!data.feedReady?<div role="alert" className="collection-read-error"><svg aria-hidden="true"><use href="/brand/tukido-icons.svg#alert"/></svg><h3>Couldn’t load your agents</h3><p>Your agents and schedules are unchanged. This page couldn’t reach Tukido.</p><RetryButton/></div>:!data.complete&&<div role="status" className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-state-needs"><p>Some agent details couldn’t be loaded. Your agents and schedules are unchanged.</p><RetryButton/></div>}
+  {!data.feedReady?<CollectionReadError title="Couldn’t load your agents" description="Your agents and schedules are unchanged. This page couldn’t reach Tukido."/>:!data.complete&&<div role="status" className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-state-needs"><p>Some agent details couldn’t be loaded. Your agents and schedules are unchanged.</p><RetryButton/></div>}
   <AgentsList agents={data.agents.map(a=>({...a,favorite:favorites.has(a.slug)}))} archived={data.dismissed.map(a=>({slug:a.slug,name:a.name,source:a.source,isLive:a.isLive}))} rosterKnown={data.complete}/>
  </>;
 }

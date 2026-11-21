@@ -33,6 +33,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import LocalTime from './local-time';
+import {CollectionEmpty} from './collection-state';
 import {useAgentCollectionCount} from './agent-home-frame';
 
 // Collection rows keep one Run action; less frequent lifecycle actions stay in the menu.
@@ -447,10 +448,10 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
       <Section title="All active agents" agents={activated} {...rowHandlers}/>
       <Section title="Drafts" subtitle="saved but not turned on" agents={notActivated} collapsible limit={3} {...rowHandlers}/>
       <Section title="Paused" agents={paused} collapsible limit={3} {...rowHandlers}/>
-      {shown.length===0&&rosterKnown&&<div className="collection-empty">
-        {q||activeCat?<><h3>No results</h3><p>{list.length===1?'Your agent doesn’t match':`None of your ${list.length} agents match`}{q?` “${query.trim()}”`:''}{activeCat?` in ${activeCat==='needs'?'Needs you':activeCat==='scheduled'?'On a schedule':categories.find(c=>c.key===activeCat)?.label||activeCat}`:''}.</p><button type="button" className="btn-outline" onClick={()=>{setQuery('');setCat('');}}>Clear search and filters</button></>:
-          <><div className="collection-empty-enso" aria-hidden="true"/><h3>No agents yet</h3><p>Agents you build or pick up from a trainer appear here, ready to run.</p><div><Link href="/create" className="btn-primary">Build an agent</Link> <Link href="/workflows?tab=rent" className="btn-outline">Find a trained agent</Link></div></>}
-      </div>}
+      {shown.length===0&&rosterKnown&&(q||activeCat?
+        <CollectionEmpty title="No results" description={<>{list.length===1?'Your agent doesn’t match':`None of your ${list.length} agents match`}{q?` “${query.trim()}”`:''}{activeCat?` in ${activeCat==='needs'?'Needs you':activeCat==='scheduled'?'On a schedule':categories.find(c=>c.key===activeCat)?.label||activeCat}`:''}.</>}><button type="button" className="btn-outline" onClick={()=>{setQuery('');setCat('');}}>Clear search and filters</button></CollectionEmpty>:
+        <CollectionEmpty enso title="No agents yet" description="Agents you build or pick up from a trainer appear here, ready to run."><div><Link href="/create" className="btn-primary">Build an agent</Link> <Link href="/workflows?tab=rent" className="btn-outline">Find a trained agent</Link></div></CollectionEmpty>)}
+
 
       {/* Archived — per-user hidden agents, restorable. The shared agents are
           untouched; this is just the caller's view.

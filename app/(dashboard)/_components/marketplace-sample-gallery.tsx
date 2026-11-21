@@ -6,6 +6,7 @@ import type {ApprovedRead} from '@/lib/approved-marketplace-listings';
 import type {AgentDiscoveryResult} from '@/lib/agent-discovery';
 import {categorizeAgent} from '@/lib/agent-category';
 import Modal from './modal';
+import {CollectionEmpty} from './collection-state';
 import RetryButton from './retry-button';
 
 /** One searchable catalog, retaining the existing admitted and listing contracts. */
@@ -38,7 +39,8 @@ export default function MarketplaceSampleGallery({listings,approved={status:'rea
    {shownSamples.map(a=><article className="marketplace-card" key={a.slug}>{art}<div className="marketplace-card-body"><span className="marketplace-meta">Sample listing</span><h3>{a.name}</h3><p>{a.outcome}</p><p className="marketplace-meta">You provide: {a.input}</p><p className="marketplace-trainer">Sample trainer · {a.owner.handle}</p><button type="button" onClick={()=>setSample(a)} className="btn-outline">Preview sample</button></div></article>)}
    <aside className="marketplace-build-card"><h3>Build yours, free</h3><p>Describe the work you want done. We’ll work out the steps together.</p><Link href="/create" className="btn-outline">Describe the job →</Link></aside>
   </div>}
-  {!count&&approved.status==='ready'&&discovery.status==='ready'&&<div className="collection-empty"><h3>No results</h3><p>{needle||category!=='all'?`No trained agents match${needle?` “${query.trim()}”`:''}${category!=='all'?` in ${categories.get(category)||category}`:''}.`:'No trained agents are listed yet. When trainers publish agents they appear here.'}</p>{(needle||category!=='all')&&<button type="button" className="btn-outline" onClick={()=>{setQuery('');setCategory('all');}}>Clear search and filters</button>}</div>}
+  {!count&&approved.status==='ready'&&discovery.status==='ready'&&<CollectionEmpty title="No results" description={needle||category!=='all'?`No trained agents match${needle?` “${query.trim()}”`:''}${category!=='all'?` in ${categories.get(category)||category}`:''}.`:'No trained agents are listed yet. When trainers publish agents they appear here.'}>{(needle||category!=='all')&&<button type="button" className="btn-outline" onClick={()=>{setQuery('');setCategory('all');}}>Clear search and filters</button>}</CollectionEmpty>}
+
   <Modal open={!!sample} onClose={()=>setSample(null)} title={sample?.name||'Sample listing'}>{sample&&<div className="space-y-4 text-sm"><p>Sample listing · illustrative, not available to run.</p><p>{sample.outcome}</p><p>You provide: {sample.input}</p><button type="button" onClick={()=>setSample(null)} className="btn-outline">Done</button></div>}</Modal>
  </section>;
 }
