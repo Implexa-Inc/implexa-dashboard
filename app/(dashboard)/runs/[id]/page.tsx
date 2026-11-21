@@ -927,8 +927,8 @@ export default async function RunDetailPage({
     && UUID_RE.test(searchParams.superseded) ? searchParams.superseded : null;
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-3xl mx-auto">
+    <main className="app-page">
+      <div className="app-content">
         <BackLink fallback="/work" label="Work" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
         {requiredTrainingHold && <div role="status" className="mt-4 rounded-lg border border-amber-500/40 px-4 py-3 text-sm text-ink-200">
           <p>Required reference training is missing. This run stopped before the worker started. Accept replacement training before starting a new run.</p>
@@ -965,7 +965,7 @@ export default async function RunDetailPage({
           </NotInApp>
         )}
 
-        <header className="mt-4 mb-6">
+        <header className="app-page-head mt-4">
           {/* The title itself is the primary way back to the agent now (founder
               ask: the small "open agent" text link below was too easy to miss).
               The Link lives INSIDE the h1 so the page keeps its heading landmark
@@ -985,7 +985,7 @@ export default async function RunDetailPage({
             <RunStateBadge info={info} size="xs" />
             <RunVerificationBadge status={verificationStatus} size="xs" />
             <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
-            <span className="text-xs text-ink-600 font-mono">{r.skill_slug}</span>
+
             {desktopAppLive() && (
               <NotInApp>
                 <a href={appRunUrl(r.id)} className="text-xs text-action-accent hover:underline">
@@ -996,6 +996,42 @@ export default async function RunDetailPage({
           </div>
         </header>
 
+        <RunStopControl key={r.id} runId={r.id} runState={r.run_state ?? null} cancelRequestedAt={run?.cancel_requested_at} />
+        <VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} />
+
+        {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-state-needs">{creativeGradeNotice}</p>}
+        <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id}
+          finalOutputSha256={finalReviewArtifactSha256} reviewPending={judgmentPending} />
+        {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
+        {judgmentReadUnavailable && <p className="text-sm text-state-needs">Final review status is unavailable. Refresh to check it again.</p>}
+        {failedJudgeRetry && (
+          <section className="card border-amber-500/30" aria-label="Final review recovery">
+            <h2 className="font-medium text-ink-100">Final review is incomplete</h2>
+            <p className="mt-1 text-sm text-ink-300">Your delivered work is unchanged.</p>
+            <ControlPlaneRetry requestId={failedJudgeRetry.requestId} runId={failedJudgeRetry.runId} />
+          </section>
+        )}
+        {judgment?.verdict === 'repair' && ['pending', 'consumed'].includes(repairRequest?.status || '') && (
+          <RunJudgmentPending phase="repair" requestStatus={(repairRequest?.status as 'pending' | 'consumed') || null} createdAt={repairRequest?.created_at || null} />
+        )}
+
+        {/* Share — prominent on ANY completed run with a deliverable, so the owner
+            can turn it into a public, forkable Run Card without hunting (founder
+            ask). Amber + share icon. The detailed URL/copy state expands in place. */}
+        {r.run_state === 'completed' && r.output_markdown && (
+          <div className="mb-6">
+            <RunShareButton runId={r.id} />
+          </div>
+        )}
+
+        {/* Files are a first-class part of EVERY run, not an appendix to a final
+            markdown answer. Keep this near the header for running, held, failed,
+            partial and completed runs alike. The component stays present at zero
+            so a tab opened before Desktop validation lands has an honest Refresh
+            path instead of permanently looking as though the run made no files. */}
+        <details className="proof-disclosure mb-6">
+          <summary>How it was made, and proof</summary>
+          <div className="mt-5 space-y-4">
         <EngineOverrideBanner
           originalPreference={engineRouting?.original_preference}
           selectedExecutor={engineRouting?.selected_executor}
@@ -1051,38 +1087,8 @@ export default async function RunDetailPage({
           )}
         </section>
 
-        {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-state-needs">{creativeGradeNotice}</p>}
-        <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id}
-          finalOutputSha256={finalReviewArtifactSha256} reviewPending={judgmentPending} />
-        {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
-        {judgmentReadUnavailable && <p className="text-sm text-state-needs">Final review status is unavailable. Refresh to check it again.</p>}
-        {failedJudgeRetry && (
-          <section className="card border-amber-500/30" aria-label="Final review recovery">
-            <h2 className="font-medium text-ink-100">Final review is incomplete</h2>
-            <p className="mt-1 text-sm text-ink-300">Your delivered work is unchanged.</p>
-            <ControlPlaneRetry requestId={failedJudgeRetry.requestId} runId={failedJudgeRetry.runId} />
-          </section>
-        )}
-        {judgment?.verdict === 'repair' && ['pending', 'consumed'].includes(repairRequest?.status || '') && (
-          <RunJudgmentPending phase="repair" requestStatus={(repairRequest?.status as 'pending' | 'consumed') || null} createdAt={repairRequest?.created_at || null} />
-        )}
-
-        {/* Share — prominent on ANY completed run with a deliverable, so the owner
-            can turn it into a public, forkable Run Card without hunting (founder
-            ask). Amber + share icon. The detailed URL/copy state expands in place. */}
-        {r.run_state === 'completed' && r.output_markdown && (
-          <div className="mb-6">
-            <RunShareButton runId={r.id} />
           </div>
-        )}
-
-        {/* Files are a first-class part of EVERY run, not an appendix to a final
-            markdown answer. Keep this near the header for running, held, failed,
-            partial and completed runs alike. The component stays present at zero
-            so a tab opened before Desktop validation lands has an honest Refresh
-            path instead of permanently looking as though the run made no files. */}
-        <RunStopControl key={r.id} runId={r.id} runState={r.run_state ?? null} cancelRequestedAt={run?.cancel_requested_at} />
-        <VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} />
+        </details>
 
         {/* THE REVISION POINTER (2026-08-23). Beside the files, not buried in the
             deliverable's else-chain, because a reviewed PARENT usually has its own

@@ -58,12 +58,16 @@ export default function RunStepsList({
   return (
     <div className={compact ? '' : 'mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4'}>
       {heading !== null && (
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-semibold text-ink-300">{heading}</span>
-          {live && (
-            <span className="text-[10px] uppercase tracking-wide font-semibold text-state-running bg-sky-500/15 rounded px-1.5 py-0.5">live</span>
-          )}
-          <span className="text-[11px] text-ink-500 ml-auto">{done}/{total} done</span>
+        <div className="flex items-center gap-4 mb-4">
+          {!compact&&<svg className={`enso-progress ${steps.some(s=>s.status==='failed')?'has-failure':''}`} viewBox="0 0 100 100" role="img" aria-label={`${done} of ${total} steps complete`}>
+            <circle className="enso-track" cx="50" cy="50" r="40" fill="none" strokeWidth="6"/>
+            <circle className="enso-arc" cx="50" cy="50" r="40" fill="none" strokeWidth="6" strokeLinecap="round" pathLength="100" strokeDasharray={`${Math.max(1,done/total*96)} 100`} transform="rotate(-90 50 50)"/>
+            <text x="50" y="56" textAnchor="middle">{done}/{total}</text>
+          </svg>}
+          <div className="min-w-0 flex-1"><p className="text-sm font-medium text-ink-100">{live?'Working on your result':heading}</p>
+            <p className="mt-1 text-xs text-ink-400">{done} of {total} steps complete</p>
+            {live&&<p className="mt-1 text-sm text-state-running">{steps.find(s=>s.status==='running')?.label||'Waiting for the next step'}</p>}
+          </div>
           {action}
         </div>
       )}

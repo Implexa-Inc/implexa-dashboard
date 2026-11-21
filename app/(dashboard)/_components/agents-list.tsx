@@ -137,7 +137,7 @@ export type ListAgent = {
     model?: string | null;
   } | null;
   grade?: { hasGrade: boolean; rate: number; label: 'reliable' | 'mixed' | 'unproven'; runs: number; confidence: number } | null;
-  /** True when this agent chains other agents (its name reads "A → B"). Shown as a ⛓ Chain tag. */
+  /** True when this agent chains other agents (its name reads "A → B"). Shown as a Chain tag. */
   isChain?: boolean;
   /** Starred by the user — floats to a "Favorites" section at the top. */
   favorite?: boolean;
@@ -194,11 +194,9 @@ function engineLabel(lastRun: ListAgent['lastRun']): string | null {
   return model ? `${name} · ${model}` : name;
 }
 
-function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spotlight = false }: { a: ListAgent; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busy: boolean; spotlight?: boolean }) {
+function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy }: { a: ListAgent; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busy: boolean }) {
   const detail = `/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`;
-  // In the activity spotlight the row title opens the RUN status/live page; in the
-  // roster it opens the agent's detail/setup page. Same agent, two doors.
-  const titleHref = spotlight && a.lastRun?.id ? `/runs/${a.lastRun.id}` : detail;
+  const titleHref = detail;
   const badge = a.section !== 'not_activated' ? stateBadge(a) : null;
   const engine = engineLabel(a.lastRun);
   const [editing, setEditing] = useState(false);
@@ -258,10 +256,10 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
             )}
 
             {a.section === 'scheduled' && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/40 text-state-ok" title="Runs automatically on a schedule">⏰ Scheduled</span>
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/40 text-state-ok" title="Runs automatically on a schedule">Scheduled</span>
             )}
             {(a.isChain ?? looksLikeChain(a.name)) && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-state-review" title="This agent runs several agents in sequence">⛓ Chain</span>
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-state-review" title="This agent runs several agents in sequence">Chain</span>
             )}
             {a.section === 'not_activated' && (
               <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/40 text-state-running">Draft</span>
@@ -328,7 +326,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spo
   );
 }
 
-function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFavorite, busySlug, spotlight = false, subtitle }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busySlug: string | null; spotlight?: boolean; subtitle?: string }) {
+function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFavorite, busySlug, subtitle }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busySlug: string | null; subtitle?: string }) {
   if (agents.length === 0) return null;
   return (
     <section className="mb-8">
@@ -336,7 +334,7 @@ function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFav
         {title} <span className="text-ink-500">({agents.length})</span>
         {subtitle && <span className="ml-2 normal-case tracking-normal text-ink-500 font-normal">{subtitle}</span>}
       </h2>
-      <ul className="agent-roster-list">{agents.map((a) => <Row key={`${spotlight ? 'act' : 'row'}-${a.slug}`} a={a} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug === a.slug} spotlight={spotlight} />)}</ul>
+      <ul className="agent-roster-list">{agents.map((a) => <Row key={a.slug} a={a} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug === a.slug} />)}</ul>
     </section>
   );
 }
@@ -527,22 +525,6 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
   // The full activated roster (scheduled + on-demand together, scheduler-tagged) —
   // favorites are pulled into their own section above, so exclude them here.
   const activated = [...scheduled, ...onDemand];
-  // Activity spotlight: agents running right now OR that ran in the last 24h.
-  // This OVERLAPS the roster on purpose — it's a live-pulse lens on the same
-  // agents (its rows open the RUN status page, not the agent page). Includes
-  // FAVORITES too (a running favorite still belongs in the live pulse). Running
-  // first, then most-recent.
-  const RECENT_MS = 24 * 60 * 60 * 1000;
-  const recentlyActive = shown
-    .filter((a) => a.section === 'scheduled' || a.section === 'on_demand')
-    .filter((a) => a.lastRun && (a.lastRun.runState === 'running' || (!!a.lastRun.ranAt && Date.now() - new Date(a.lastRun.ranAt).getTime() < RECENT_MS)))
-    .sort((x, y) => {
-      const xr = x.lastRun?.runState === 'running' ? 1 : 0;
-      const yr = y.lastRun?.runState === 'running' ? 1 : 0;
-      if (xr !== yr) return yr - xr;
-      return new Date(y.lastRun?.ranAt || 0).getTime() - new Date(x.lastRun?.ranAt || 0).getTime();
-    });
-
   const setCat = (key: string) => {
     const p = new URLSearchParams(params.toString());
     if (key) p.set('cat', key); else p.delete('cat');
@@ -654,20 +636,15 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
               onClick={() => setCat(activeCat === c.key ? '' : c.key)}
               className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${activeCat === c.key ? 'border-brand-500/50 bg-brand-500/10 text-action-accent' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
             >
-              <span aria-hidden className="mr-1">{c.emoji}</span>{c.label} <span className="text-ink-600">{c.n}</span>
+              {c.label} <span className="text-ink-600">{c.n}</span>
             </button>
           ))}
         </div>
       )}
 
-      {/* Roster model: an ACTIVITY spotlight (what's running / just ran — rows open
-          the run status page) on top of the full ROSTER (all activated agents,
-          scheduled + on-demand, scheduler-tagged — rows open the agent page). The
-          two overlap on purpose: same agents, two doors. Then Need activation, then
-          Paused. Scheduling is surfaced as a per-row ⏰ tag, not a list split. */}
+      {/* One row per agent. Live execution belongs in Work. */}
       <div className="mb-5 text-sm"><Link href="/workflows?tab=rent" className="text-action-accent hover:underline">Find a trained agent →</Link></div>
       <Section title="Favorites" subtitle="your starred agents" agents={favorites} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
-      <Section title="Running & recently ran" subtitle="live activity · opens the run" agents={recentlyActive} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} spotlight />
       <Section title="Active agents" agents={activated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
       <Section title="Need activation" agents={notActivated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
 
@@ -757,7 +734,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
                           className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/50 text-state-needs whitespace-nowrap"
                           title="Hidden from your list, but still running on its schedule."
                         >
-                          ⏰ Still live
+                          Still live
                         </span>
                       )}
                     </span>

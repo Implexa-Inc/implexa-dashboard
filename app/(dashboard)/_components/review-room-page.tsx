@@ -93,15 +93,15 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
   } catch { reviewLearningAvailable = false; }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6">
+    <div className="app-page"><div className="app-content">
       <div className="mb-4">
         <Link href={backHref} className="text-xs text-ink-500 hover:text-ink-300">← {trainingSlug?'Training':'Review'}</Link>
       </div>
 
-      <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+      <header className="app-page-head">
         <div className="min-w-0">
           {/* Agent name is the identity; the revision label is secondary context. */}
-          <h1 className="truncate text-xl font-semibold text-ink-100">{agentName}</h1>
+          <h1 className="text-ink-100">{agentName}</h1>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-400">
             {currentLabel && <span className="rounded bg-ink-800 px-1.5 py-0.5">{currentLabel}</span>}
             {packet.sources.judgment === 'unavailable' ? (
@@ -124,6 +124,30 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
         </div>
       )}
 
+      <ReviewRoom
+        trainingSlug={trainingSlug}
+        customerOwnerId={!ownerSlug?session.user.id:undefined}
+        runId={packet.run.id}
+        agentSlug={packet.run.slug}
+        agentName={agentName}
+        artifacts={packet.artifacts}
+        historicalCandidates={packet.historicalCandidates}
+        production={packet.production}
+        issues={packet.issues}
+        session={packet.session}
+        reviewArtifacts={packet.reviewArtifacts}
+        sources={packet.sources}
+        isApprovalHold={isApprovalHold}
+        // A generated-clip deep link (?artifact=) opens on that clip. The id is
+        // honored only if the packet actually contains it.
+        initialArtifactId={typeof searchParams?.artifact === 'string' ? searchParams.artifact : null}
+        versions={versions}
+        currentVersionLabel={currentLabel}
+      />
+
+      <details className="proof-disclosure mt-8">
+        <summary>How it was made, and proof</summary>
+        <div className="mt-5">
       <StageCompetenceProof proof={packet.competenceProof} />
 
       <StageManagerProof proof={packet.managerProof} />
@@ -154,27 +178,6 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
           </div>
         )}
       </section>
-
-      <ReviewRoom
-        trainingSlug={trainingSlug}
-        customerOwnerId={!ownerSlug?session.user.id:undefined}
-        runId={packet.run.id}
-        agentSlug={packet.run.slug}
-        agentName={agentName}
-        artifacts={packet.artifacts}
-        historicalCandidates={packet.historicalCandidates}
-        production={packet.production}
-        issues={packet.issues}
-        session={packet.session}
-        reviewArtifacts={packet.reviewArtifacts}
-        sources={packet.sources}
-        isApprovalHold={isApprovalHold}
-        // A generated-clip deep link (?artifact=) opens on that clip. The id is
-        // honored only if the packet actually contains it.
-        initialArtifactId={typeof searchParams?.artifact === 'string' ? searchParams.artifact : null}
-        versions={versions}
-        currentVersionLabel={currentLabel}
-      />
 
       {/* Distinct authorities, kept visually and semantically separate. */}
       <section className="mt-8 grid gap-4 md:grid-cols-3">
@@ -232,6 +235,9 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
           )}
         </div>
       </section>
+        </div>
+      </details>
+    </div>
     </div>
   );
 }

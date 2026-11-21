@@ -286,3 +286,12 @@ html, body {
 .moment-resize.start { left: -5px; } .moment-resize.end { right: -5px; }
 .moment-resize::after { content: ''; display: block; width: 3px; height: 50%; margin: auto; border-radius: 3px; background: currentColor; opacity: .7; }
 .playback-button[aria-label="Play"], .playback-button[aria-label="Pause"] { min-width: 92px; border-radius: var(--r-pill); background: var(--action-strong); color: var(--on-action-strong); padding: 10px 20px; border-color: transparent; }
+.agent-action-bar { position: sticky; z-index: 25; bottom: 0; margin-top: 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border: 1px solid var(--border-subtle); border-radius: var(--r-md); background: var(--bg-surface); box-shadow: var(--shadow-2); }
+.proof-disclosure { border: 1px solid var(--border-subtle); border-radius: var(--r-md); padding: 16px 20px; background: var(--bg-surface); }
+.proof-disclosure > summary { cursor: pointer; font-size: 14px; color: var(--text-strong); }
+.activation-page { max-width: 880px; }
+.enso-progress { width: 100px; height: 100px; flex: none; overflow: visible; }
+.enso-track { stroke: var(--border-subtle); }
+.enso-arc { stroke: var(--state-running-dot); transition: stroke-dasharray 250ms var(--ease); }
+.enso-progress.has-failure .enso-arc { stroke: var(--state-fail-dot); }
+.enso-progress text { fill: var(--text-strong); font: 24px var(--font-display),Georgia,serif; }

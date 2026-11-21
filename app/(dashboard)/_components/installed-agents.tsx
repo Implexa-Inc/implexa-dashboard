@@ -7,8 +7,6 @@ import {categorizeAgent} from '@/lib/agent-category';
 import {listAgentDiscovery} from '@/lib/agent-discovery';
 import {listChainOfferings} from '@/lib/agent-chain-offerings';
 import AgentsList,{type ArchivedAgent} from './agents-list';
-import RunningAgents from './running-agents';
-import ManageTips from './manage-tips';
 import RetryButton from './retry-button';
 import ChainSuggestions from './chain-suggestions';
 import ChainOfferingsSection from './chain-offerings-section';
@@ -75,14 +73,6 @@ export default async function InstalledAgents({jwt,pilot,insideRun=false}:{jwt:s
             <RetryButton />
           </div>
         )}
-
-        {/* Quiet, dismissible tips on getting hands-off agents (keep Claude
-            running, schedule browser agents, run from your phone). */}
-        {!insideRun&&<ManageTips />}
-
-        {/* Live "Running" section — polls /scheduled-skills/live, renders the
-            5-status pulsing-dot cards. Invisible when nothing is running. */}
-        {!insideRun&&<RunningAgents />}
 
         <AgentsList
           agents={list.map((a) => ({ ...a, favorite: favSet.has(a.slug) }))}

@@ -740,38 +740,7 @@ export default async function WorkflowDetailPage({
                   Active version: v{workflow.version}
                 </p>
               )}
-              <AgentActions
-                trainingTest={trainingTest.state==='prepared'?trainingTest.binding:null}
-                slug={workflow.slug}
-                name={workflow.name}
-                isActive={isActive}
-                requiresLocal={checklist?.requiresLocal}
-                source={workflow.source}
-                nextRunAt={checklist?.nextRunAt}
-                pendingQuestions={checklist?.pendingQuestions}
-                blockingQuestions={checklist?.blockingQuestions}
-                claudeTaskId={pausableRoutine?.claude_task_id}
-                inFlight={inFlight}
-                revisePending={revisePending}
-                statusUnavailable={actionsBlocked}
-                workflowVersionId={workflow.workflow_version_id}
-                activeVersionNumber={workflow.version}
-                inputContract={workflow.input_contract}
-                inputContractDigest={workflow.input_contract_digest}
-                pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
-              />
-              {pausableRoutine && (
-                <AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status} />
-              )}
-              {/* Desktop-first: open this agent in the app (gated until the app
-                  ships; web actions above remain the fallback). */}
-              {desktopAppLive() && (
-                <NotInApp>
-                  <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-action-accent hover:underline">
-                    Open in the Implexa app ↗
-                  </a>
-                </NotInApp>
-              )}
+
             </div>
           </div>
         </header>
@@ -816,6 +785,43 @@ export default async function WorkflowDetailPage({
           active={activeTab}
           panel={activeTab === 'runs' ? runsPanel() : activeTab === 'setup' ? setupPanel() : overviewPanel()}
         />
+        <div className="agent-action-bar" aria-label="Agent actions">
+          <div className="min-w-0"><p className="truncate text-sm font-medium text-ink-100">{workflow.name}</p>{typeof workflow.version==='number'&&<p className="text-xs text-ink-400">Version {workflow.version}</p>}</div>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+              <AgentActions
+                trainingTest={trainingTest.state==='prepared'?trainingTest.binding:null}
+                slug={workflow.slug}
+                name={workflow.name}
+                isActive={isActive}
+                requiresLocal={checklist?.requiresLocal}
+                source={workflow.source}
+                nextRunAt={checklist?.nextRunAt}
+                pendingQuestions={checklist?.pendingQuestions}
+                blockingQuestions={checklist?.blockingQuestions}
+                claudeTaskId={pausableRoutine?.claude_task_id}
+                inFlight={inFlight}
+                revisePending={revisePending}
+                statusUnavailable={actionsBlocked}
+                workflowVersionId={workflow.workflow_version_id}
+                activeVersionNumber={workflow.version}
+                inputContract={workflow.input_contract}
+                inputContractDigest={workflow.input_contract_digest}
+                pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
+              />
+              {pausableRoutine && (
+                <AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status} />
+              )}
+              {/* Desktop-first: open this agent in the app (gated until the app
+                  ships; web actions above remain the fallback). */}
+              {desktopAppLive() && (
+                <NotInApp>
+                  <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-action-accent hover:underline">
+                    Open in the Implexa app ↗
+                  </a>
+                </NotInApp>
+              )}
+          </div>
+        </div>
       </div>
     </main>
   );

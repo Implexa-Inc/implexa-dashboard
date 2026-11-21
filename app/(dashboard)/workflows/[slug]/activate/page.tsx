@@ -35,8 +35,8 @@ export default async function ActivateAgentPage({ params }: { params: { slug: st
   const runInputs = checklist ? await getWorkflowRunInputs(params.slug, checklist.source) : null;
 
   return (
-    <main className="min-h-screen px-6 lg:px-12 py-12">
-      <div className="max-w-2xl mx-auto">
+    <main className="app-page">
+      <div className="app-content activation-page">
         <BackLink fallback="/workflows" label="Back" className="inline-flex items-center gap-2 text-sm text-ink-500 hover:text-ink-200 mb-8 transition-colors" />
 
         {!checklist ? (
@@ -53,7 +53,7 @@ export default async function ActivateAgentPage({ params }: { params: { slug: st
         ) : (
           <>
             <OpenInAppBanner path={`/workflows/${params.slug}/activate`} verb="activate" />
-            <p className="text-xs uppercase tracking-wider text-ink-500 mb-3">Switch on</p>
+            <header className="app-page-head"><div><h1>Set up your agent</h1><p className="app-page-description">Connect what it needs, then choose how to run it.</p></div></header>
             {/* This route has no lifecycle envelope. Refuse permanent edits here
                 rather than pretending that no pending edit exists. */}
             <ActivationCard checklist={checklist} proficiency={proficiency} runInputs={runInputs} statusUnavailable revisePending={false} />
