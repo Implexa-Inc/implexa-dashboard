@@ -918,7 +918,11 @@ export function ActivationCard({
       )}
 
       {showMacSetup && <AgentMacSetup target={setupTarget} onReady={onMacAccessReady} />}
-      {setupSurface && setupTarget?.requiredRouteClass === 'browser' && <details className="text-xs text-ink-500">
+      {setupSurface && setupTarget && (setupTarget.requiredRouteClass === 'browser'
+        || setupTarget.requiredRouteClass === 'headless'
+          && ['machine_capability_contract', 'frozen_step_declarations'].includes(checklist.requirements?.source || '')
+          && checklist.requirements?.services.some(service => service.required === false
+            && service.accessMode === 'browser' && service.browserSession?.domain)) && <details className="text-xs text-ink-500">
         <summary>Advanced beta browser diagnostics</summary>
         <ManagedBrowserOwnerDeclaration key={setupTargetKey}
           target={{ accountId: setupTarget.accountId, slug: setupTarget.slug, versionId: setupTarget.versionId }} />
