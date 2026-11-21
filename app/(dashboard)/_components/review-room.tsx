@@ -1351,6 +1351,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     const view=props.finishedView;
     const canAccept=!historicalProvenanceUnavailable&&!issuesUnavailable&&!resolutionsUnavailable&&!proxyPreview
       &&acts.canAccept&&submitView.mode==='accept_result'&&submitView.primaryEnabled;
+    const canRequestChanges=!historicalProvenanceUnavailable&&!issuesUnavailable&&!resolutionsUnavailable&&activeIssues.length===0&&!['submitting','submitted'].includes(session?.state||'');
     return <div className="finished-run-layout">
       <section className="finished-result" aria-label="Your result">
         <HistoricalReviewCandidateNotice candidate={historicalCandidate} unavailable={historicalProvenanceUnavailable} carriedIssueCount={session?.carriedIssueIds?.length??0}/>
@@ -1367,7 +1368,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           {notice&&<p role="status">{notice}</p>}
           {accepted?<p className="text-state-ok">You accepted this result.</p>:canAccept?<button type="button" className="btn-primary" disabled={busy} onClick={()=>void onPrimary()}>{busy?'Accepting…':'Accept'}</button>:<p role="status">{historicalProvenanceUnavailable||issuesUnavailable||resolutionsUnavailable?'Review details could not be verified. Open the review before accepting.':proxyPreview?'The final result is not ready for acceptance.':'Open the review to check what is needed before accepting.'}</p>}
           {confirmDiscard&&<p role="alert">Your saved notes are unchanged. Open the review to decide what to keep before accepting.</p>}
-          <div className="finished-changes">{view.changes}</div>
+          <div className="finished-changes">{canRequestChanges?view.changes:<p className="text-sm text-ink-400">Open the Review Room to keep your saved notes together and continue this review.</p>}</div>
           <a className="finished-markup" href={view.reviewHref}><strong>Mark up the result instead</strong><span>Pin notes to exact moments in the Review Room →</span></a>
         </section>
         {view.checks}

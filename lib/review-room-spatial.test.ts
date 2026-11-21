@@ -712,9 +712,9 @@ test('finished result reuses the trusted viewer and session acceptance without m
 });
 
 test('finished acceptance stays unavailable when review authority or existing notes need attention',async()=>{
- const finishedView={reviewHref:`/review/${RUN_ID}`,changes:null};
+ const finishedView={reviewHref:`/review/${RUN_ID}`,changes:React.createElement('button',null,'DIRECT-CONTINUE')};
  for(const over of [{issues:[storedSpatialIssue]},{sources:{issues:'unavailable',artifacts:'ready',session:'ready',reviewer_resolutions:'ready',review_artifacts:'ready'}},{sources:{issues:'ready',artifacts:'ready',session:'ready',reviewer_resolutions:'unavailable',review_artifacts:'ready'}}]){
-  await mount({finishedView,...over});assert.equal(buttons().some(b=>b.textContent==='Accept'),false);
+  await mount({finishedView,...over});assert.equal(buttons().some(b=>b.textContent==='Accept'),false);assert.equal(buttons().some(b=>b.textContent==='DIRECT-CONTINUE'),false,'plain continuation cannot omit saved or unverified review notes');
  }
  assert.equal(calls.some(c=>c.body.action==='accept'||c.body.action==='submit'),false);
 });
