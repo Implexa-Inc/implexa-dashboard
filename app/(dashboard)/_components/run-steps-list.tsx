@@ -44,6 +44,9 @@ export type ProgressPresentation = {
   note?: string | null;
   elapsedMs?: number | null;
   expectedMs?: number | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  interruptedAt?: string | null;
 };
 
 function duration(ms:number){
@@ -72,6 +75,10 @@ export default function RunStepsList({steps,live=false,compact=false,heading='St
   const title=current?.label||(current?`Step ${current.index}`:state==='completed'?'All steps complete':state==='queued'?'Waiting to start':failed?'Run stopped':state==='stalled'?'Progress interrupted':waiting?'Waiting for you':'Working on your result');
   const elapsed=progress?.elapsedMs;
   const estimate=progress?.expectedMs;
+  const isStopped=state==='stalled'||state==='failed';
+  const validDate=(value:string|null|undefined)=>typeof value==='string'&&Number.isFinite(Date.parse(value));
+  const stoppedAt=state==='stalled'&&validDate(progress?.interruptedAt)?progress!.interruptedAt:validDate(progress?.endedAt)?progress!.endedAt:null;
+  const recordedAt=stoppedAt||(validDate(progress?.startedAt)?progress!.startedAt:null);
   const remaining=typeof elapsed==='number'&&typeof estimate==='number'&&estimate>0?estimate-elapsed:null;
   return <section className={`run-progress-panel is-${tone}`} aria-label="Run progress">
     <div className="run-progress-top">
@@ -85,7 +92,7 @@ export default function RunStepsList({steps,live=false,compact=false,heading='St
         {progress?.note&&<p className="run-progress-note"><i aria-hidden="true"/>{progress.note}</p>}
         <div className="run-progress-times">
           {waiting?<div><b>{state==='stalled'?'Interrupted':'Paused'}</b><span>{state==='waiting'?'Waiting for your input':'Check the recorded run status'}</span></div>:failed?<div><b>Stopped</b><span>Review the details beside this progress</span></div>:moving&&remaining!==null?<div><b>{remaining>0?`About ${Math.max(1,Math.ceil(remaining/60000))} min left`:'Taking longer than estimated'}</b><span>Based on this run’s estimate</span></div>:null}
-          {typeof elapsed==='number'&&Number.isFinite(elapsed)&&<div><b>{duration(elapsed)}</b><span>elapsed</span></div>}
+          {isStopped?recordedAt&&<div><b><time dateTime={recordedAt} title={recordedAt}>{new Date(recordedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'})}</time></b><span>{stoppedAt?state==='stalled'?'interrupted':'stopped':'started'}</span></div>:typeof elapsed==='number'&&Number.isFinite(elapsed)&&<div><b>{duration(elapsed)}</b><span>elapsed</span></div>}
         </div>
       </div>{action}
     </div>

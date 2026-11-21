@@ -31,3 +31,8 @@ test('progress files show checked artifacts immediately while retaining exact ex
  const r=await render('verified-artifacts.tsx',{progress:true,runId:'preview-run',artifacts:[{relativePath:'outputs/rough-cut.mp4',validatedPath:'/verified/work/outputs/rough-cut.mp4',role:'final_output',sizeBytes:2048}]},{bridge:{openPath:async(path:string)=>{calls.push(path);return{ok:true};}}});
  try{assert.match(r.text(),/Files so far/);assert.ok(r.document.querySelector('ul'));assert.equal(r.document.querySelector('details')?.open,false);assert.match(r.text(),/rough-cut.mp4/);await r.click(r.getByText('Open'));assert.deepEqual(calls,['/verified/work/outputs/rough-cut.mp4']);assert.equal(r.calls.backend.length,0);}finally{r.cleanup();}
 });
+
+test('interrupted runs show a recorded date instead of a misleading weeks-long elapsed timer',async()=>{
+ const r=await render('run-steps-list.tsx',{steps:[],progress:{state:'stalled',elapsedMs:2300000000,startedAt:'2026-10-26T12:00:00Z',interruptedAt:'2026-10-27T12:00:00Z'}});
+ try{assert.equal(r.document.querySelector('time')?.getAttribute('datetime'),'2026-10-27T12:00:00Z');assert.match(r.text(),/Oct 27, 2026/);assert.doesNotMatch(r.text(),/elapsed|26d|min left/);}finally{r.cleanup();}
+});

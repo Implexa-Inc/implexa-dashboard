@@ -34,6 +34,7 @@ export default function RunStepChecklist({
   initialNote,
   startedAt,
   endedAt,
+  interruptedAt,
   expectedMs,
   initialNow=0,
 }: {
@@ -45,6 +46,7 @@ export default function RunStepChecklist({
   initialNote?: string | null;
   startedAt?: string | null;
   endedAt?: string | null;
+  interruptedAt?: string | null;
   expectedMs?: number | null;
   initialNow?: number;
 }) {
@@ -121,5 +123,5 @@ export default function RunStepChecklist({
   const end=Date.parse(endedAt||'');
   const clock=(presentationState==='completed'||presentationState==='failed')&&Number.isFinite(end)?end:now;
   const elapsedMs=clock>0&&Number.isFinite(start)?Math.max(0,clock-start):null;
-  return <RunStepsList steps={steps} live={running} progress={presentation?{state:presentationState||presentation,note,elapsedMs,expectedMs}:undefined}/>;
+  return <RunStepsList steps={steps} live={running} progress={presentation?{state:presentationState||presentation,note,elapsedMs,expectedMs,startedAt,endedAt,interruptedAt}:undefined}/>;
 }

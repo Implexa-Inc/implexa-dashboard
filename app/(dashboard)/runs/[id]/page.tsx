@@ -1130,7 +1130,7 @@ export default async function RunDetailPage({
         {(stepsState.length > 0 || showProgressLayout) && (
           <RunStepChecklist runId={r.id} initialSteps={stepsState} initialRunState={info.state}
             presentation={held?'waiting':info.state} initialNote={progress?.current?.note||steps.at(-1)?.note}
-            startedAt={r.started_at} endedAt={r.completed_at} expectedMs={r.expected_duration_ms} initialNow={Date.now()}/>
+            startedAt={r.started_at} endedAt={r.completed_at} interruptedAt={r.stalled_at} expectedMs={r.expected_duration_ms} initialNow={Date.now()}/>
         )}
 
   </>;
