@@ -3400,3 +3400,25 @@ test('late home from an older version and typed version changes request reload r
   }finally{r.cleanup();}
  }
 });
+
+test('a background check superseded by teaching cannot raise a failure or replace the new source',async()=>{
+ for(const fails of [false,true]){
+  const h=harness(),prior=h.bridge.trainingLocal;let finish!:(value:any)=>void;
+  Object.assign(h.bridge,{trainingIntakeScopeContractVersion:'1'});
+  h.bridge.trainingLocal=async(operation,args)=>{
+   if(operation==='home')return new Promise(resolve=>{finish=resolve;});
+   if(operation==='scope')return {ok:true,scope:{agent:{name:'Video craft',currentVersionId:VERSION_A},session:{sessionId:SESSION,baseVersionId:VERSION_A,parentSessionId:null,terminal:false}}};
+   return prior(operation,args);
+  };
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+  try{
+   await chooseDirectUpload(r);assert.ok(r.document.querySelector('#recording-analysis'));
+   const value=fails?{ok:false,reason:'training_unavailable'}:await prior('home',{});
+   await r.act(async()=>{finish(value);await new Promise(resolve=>setTimeout(resolve,20));});
+   assert.ok(r.document.querySelector('#recording-analysis'));
+   assert.doesNotMatch(r.text(),/Checking saved training…|Saved training couldn’t be checked|Check training setup/);
+   assert.ok(r.getByText('Check saved training'));
+   assert.equal(h.calls.some(call=>['accept','delivery','annotate'].includes(call.operation)),false);
+  }finally{r.cleanup();}
+ }
+});

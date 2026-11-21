@@ -253,7 +253,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [trainingStatusRefresh,setTrainingStatusRefresh] = useState(0);
   const trainingAuthorityEpoch=useRef(0);
   const intakeReadEpoch=useRef(0);
-  const [homeCheck,setHomeCheck]=useState<'pending'|'complete'|'unavailable'|'stale'>('pending');
+  const [homeCheck,setHomeCheck]=useState<'pending'|'complete'|'unavailable'|'stale'|'idle'>('pending');
   function invalidateTrainingContinuity(){trainingAuthorityEpoch.current++;setActiveTraining(null);}
   const [publication,setPublication]=useState<{versionId:string;shared:boolean;publicUrl:string}|null>(null);
   const [publishConfirmed,setPublishConfirmed]=useState(false);
@@ -876,10 +876,10 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     async function runHomeCheck(){
       try{
         await checkTrainingHome();
-        if(live)setHomeCheck(currentHome()?'complete':'unavailable');
+        if(live)setHomeCheck(currentHome()?'complete':'idle');
       }catch(caught){
-        if(live)setHomeCheck(caught instanceof TrainingError&&caught.reason==='training_version_changed'?'stale':'unavailable');
-        if(!isolated)throw caught;
+        if(live)setHomeCheck(!currentHome()?'idle':caught instanceof TrainingError&&caught.reason==='training_version_changed'?'stale':'unavailable');
+        if(!isolated&&currentHome())throw caught;
       }
     }
     if(isolated){
@@ -2227,6 +2227,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </div>
     {installationId&&busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{installationId&&error && <p role="alert">{reasonLabel(error)}</p>}
     <div><TrainingDetails title="Training readiness & version details"><span id="training-readiness"/>
+    {homeCheck==='idle'&&<button type="button" className="text-sm underline" onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Check saved training</button>}
     {!installationId&&session&&currentVersion&&!versionChanged&&<div className="space-y-2">
       <button type="button" className="text-sm underline" onClick={()=>void loadSavedIntakes()}>Saved agent changes</button>
       {savedIntakes?.identity===changesIdentity.current&&<div className="space-y-2">
