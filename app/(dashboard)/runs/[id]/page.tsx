@@ -744,6 +744,7 @@ export default async function RunDetailPage({
   }
 
   let creativeGradeNotice: string | null = null;
+  let creativeGradePlainNotice: string | null = null;
   if (requiresCreativeReview && !judgment?.creative_grade) {
     try {
       const {data: policy, error: policyError} = await supabase.from('user_agent_judge_policies').select('mode')
@@ -754,6 +755,7 @@ export default async function RunDetailPage({
         ? 'Creative grade required, but this agent’s Judge is off. The delivered output remains available.'
         : judgmentPending ? 'Creative grade pending. Delivery and grading are separate.'
           : 'Creative grade required but not available yet. This output has no assessed creative grade.';
+      creativeGradePlainNotice=policyError?'The quality review settings could not be checked.':(!policy||policy.mode==='off')?'Quality review is turned off for this agent.':judgmentPending?'The quality review is still running.':'A visual quality score is not available yet.';
     } catch { /* Existing delivery is still readable when review metadata is unavailable. */ }
   }
 
@@ -1148,8 +1150,8 @@ export default async function RunDetailPage({
               higgsfieldCreditChoices={revisionCreditChoices}
               initialNote={judgment?.verdict === 'repair' ? (judgment.repair_prompt || judgment.next_action || '') : ''}
             />);
-  const judgmentPanel = <section className="finished-checks" aria-label="Checked before it reached you">{creativeGradeNotice && <p role="status" className="mb-4 text-sm text-state-needs">{creativeGradeNotice}</p>}
-        <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id}
+  const judgmentPanel = <section className="finished-checks" aria-label="Checked before it reached you">{showFinishedReview&&<><h2 className="finished-checks-title">Checked before it reached you</h2><p className="finished-check-count">{competencePacket.sources.verification!=='ready'?'Recorded checks could not be loaded.':competencePacket.verification.receipts.length?competencePacket.verification.receipts.every(receipt=>['pass','fail'].includes(receipt.status))?`${competencePacket.verification.receipts.filter(receipt=>receipt.status==='pass').length} of ${competencePacket.verification.receipts.length} recorded checks passed`:`${competencePacket.verification.receipts.length} checks recorded`:'No checks recorded for this result.'}</p></>}{creativeGradeNotice && <p role="status" className="mb-4 text-sm text-state-needs">{showFinishedReview?creativeGradePlainNotice:creativeGradeNotice}</p>}
+        <RunJudgmentCard presentation={showFinishedReview?'finished':undefined} judgment={judgment} repairRequest={repairRequest} currentRunId={r.id}
           finalOutputSha256={finalReviewArtifactSha256} reviewPending={judgmentPending} />
         {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
         {judgmentReadUnavailable && <p className="text-sm text-state-needs">Final review status is unavailable. Refresh to check it again.</p>}
@@ -1251,7 +1253,8 @@ export default async function RunDetailPage({
     session={competencePacket.session} reviewArtifacts={competencePacket.reviewArtifacts} sources={competencePacket.sources}
     isApprovalHold={false} versions={competencePacket.lineage.versions}
     finishedView={{reviewHref:`/review/${encodeURIComponent(r.id)}`,changes:continueBox,checks:judgmentPanel,
-      afterResult:<><VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} finished/>{judgment?.summary&&<section className="finished-good-to-know"><h2>Good to know before you use it</h2><p className="text-xs text-ink-500">The Judge’s notes · a machine assessment</p><p className="finished-notes-preview">{judgment.summary}</p><details><summary>Read full Judge notes</summary><p>{judgment.summary}</p></details></section>}</>}}/> : null;
+      fallbackResult:r.output_markdown?<div className="prose prose-sm max-w-none"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div>:undefined,
+      afterResult:<VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} finished/>}}/> : null;
 
   return (
     <main className="app-page">
@@ -1310,7 +1313,7 @@ export default async function RunDetailPage({
           </h1>
           <div className="flex items-center gap-2.5 mt-2 flex-wrap">
             {showFinishedReview?<span className="finished-review-state">{competencePacket.sources.session!=='ready'?'Review status unavailable':competencePacket.session?.state==='accepted'?'Accepted':competencePacket.session?.state==='submitted'?'Changes requested':'Ready for your review'}</span>:<RunStateBadge info={info} size="xs" />}
-            <RunVerificationBadge status={verificationStatus} size="xs" />
+            {!showFinishedReview&&<RunVerificationBadge status={verificationStatus} size="xs" />}
             <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
 
             {desktopAppLive() && (

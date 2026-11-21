@@ -149,10 +149,10 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
     <section className={progress||finished?'run-files-progress':'mb-6 rounded-lg border border-emerald-500/35 bg-emerald-500/[0.06] p-4'} aria-label={progress?'Files so far':'Files and artifacts'}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink-50">{finished?'Result files':progress?'Files so far':<>Files &amp; artifacts</>}</h2>
+          <h2 className="text-sm font-semibold text-ink-50">{finished?(artifacts.length>finalCount?'Also made':'Your files'):progress?'Files so far':<>Files &amp; artifacts</>}</h2>
           <p className="mt-1 text-xs text-ink-400">
             {artifacts.length
-              ? `Checked on this Mac by Tukido · ${finalCount} final ${finalCount === 1 ? 'output' : 'outputs'} · ${artifacts.length} total`
+              ? finished?`${artifacts.length} ${artifacts.length===1?'file':'files'} ready to open or download.`:`Checked on this Mac by Tukido · ${finalCount} final ${finalCount === 1 ? 'output' : 'outputs'} · ${artifacts.length} total`
               : progress?'Your checked files will appear here as the agent makes them.':'No verified files yet. Refresh after this run creates or validates files.'}
           </p>
         </div>

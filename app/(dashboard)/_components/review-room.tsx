@@ -34,7 +34,7 @@ import type { ReviewArtifact, ReviewIssue, ReviewProduction, ReviewSession, Revi
 import {
   decidePreview, interpretPreviewResult, requestPreview, revokePreview,
   desktopPreviewSupported, desktopReviewHref, inDesktopApp, parsePreviewUrl,
-  previewText, previewTextTruncated,
+  previewKind, previewText, previewTextTruncated,
   type PreviewDecision,
 } from '@/lib/review-preview';
 import {
@@ -82,7 +82,7 @@ import {
 
 export type ReviewRoomProps = {
   /** Finished-run summary reuses this viewer and the same session acceptance writer. */
-  finishedView?: {reviewHref:string;changes:ReactNode;afterResult?:ReactNode;checks?:ReactNode};
+  finishedView?: {reviewHref:string;changes:ReactNode;afterResult?:ReactNode;checks?:ReactNode;fallbackResult?:ReactNode};
   /** Reuses the same annotation writer; revision controls stay in Review Room. */
   trainingMode?: boolean;
   trainingOwnerId?: string;
@@ -1352,28 +1352,30 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     const canAccept=!historicalProvenanceUnavailable&&!issuesUnavailable&&!resolutionsUnavailable&&!proxyPreview
       &&acts.canAccept&&submitView.mode==='accept_result'&&submitView.primaryEnabled;
     const canRequestChanges=!historicalProvenanceUnavailable&&!issuesUnavailable&&!resolutionsUnavailable&&activeIssues.length===0&&!['submitting','submitted'].includes(session?.state||'');
+    const resultFiles=validated.filter(item=>item.role==='final_output');
+    const viewableResults=(resultFiles.length?resultFiles:validated).filter(item=>['video','audio','image','text','pdf'].includes(previewKind(item.relativePath)));
     return <div className="finished-run-layout">
       <section className="finished-result" aria-label="Your result">
         <HistoricalReviewCandidateNotice candidate={historicalCandidate} unavailable={historicalProvenanceUnavailable} carriedIssueCount={session?.carriedIssueIds?.length??0}/>
-        {validated.length>1&&<label className="finished-file-picker">Result file<select aria-label="Result file" value={selectedId??''} onChange={event=>setSelectedId(event.target.value)}>{validated.map(a=><option key={a.id} value={a.id}>{artifactOptionLabel(a,a.role==='review_input'?'Attached review file':(currentVersion?.label||props.currentVersionLabel||null))}</option>)}</select></label>}
-        {resultSurface}
-        {artifact&&<p className="finished-result-name">{artifact.relativePath.split('/').at(-1)}{proxyPreview&&' · Review proxy'}</p>}
-        {view.afterResult}
+        {viewableResults.length>1&&<label className="finished-file-picker">Result file<select aria-label="Result file" value={selectedId??''} onChange={event=>setSelectedId(event.target.value)}>{viewableResults.map(a=><option key={a.id} value={a.id}>{artifactOptionLabel(a,a.role==='review_input'?'Attached review file':(currentVersion?.label||props.currentVersionLabel||null))}</option>)}</select></label>}
+        {artifact?resultSurface:view.fallbackResult||resultSurface}
+        {proxyPreview&&<p className="finished-result-name">Review proxy</p>}
       </section>
       <aside className="finished-run-rail" aria-label="Review this result">
         <section className="finished-decision">
-          <h2>{accepted?'Accepted':'Happy with it?'}</h2>
+          <h2>{accepted?'Accepted':activeIssues.length?`You have ${activeIssues.length} saved ${activeIssues.length===1?'note':'notes'}`:!canAccept?'Review this result':'Happy with it?'}</h2>
           <p>Accepting marks your review complete. Nothing is published anywhere.</p>
           {error&&<p role="alert" className="text-state-fail">{error}</p>}
           {notice&&<p role="status">{notice}</p>}
           {accepted?<p className="text-state-ok">You accepted this result.</p>:canAccept?<button type="button" className="btn-primary" disabled={busy} onClick={()=>void onPrimary()}>{busy?'Accepting…':'Accept'}</button>:<p role="status">{historicalProvenanceUnavailable||issuesUnavailable||resolutionsUnavailable?'Review details could not be verified. Open the review before accepting.':proxyPreview?'The final result is not ready for acceptance.':'Open the review to check what is needed before accepting.'}</p>}
           {confirmDiscard&&<p role="alert">Your saved notes are unchanged. Open the review to decide what to keep before accepting.</p>}
           <div className="finished-changes">{canRequestChanges?view.changes:<p className="text-sm text-ink-400">Open the Review Room to keep your saved notes together and continue this review.</p>}</div>
-          <a className="finished-markup" href={view.reviewHref}><strong>{canRequestChanges?'Mark up the result instead':'Continue reviewing this result'}</strong><span>{!canRequestChanges&&activeIssues.length?`${activeIssues.length} saved ${activeIssues.length===1?'note':'notes'} stay together in the Review Room →`:'Pin notes to exact moments in the Review Room →'}</span></a>
+          <a className="finished-markup" href={view.reviewHref}><strong>{canRequestChanges?'Mark up the result instead':'Continue reviewing this result'}</strong><span>{!canRequestChanges&&activeIssues.length?`${activeIssues.length} saved ${activeIssues.length===1?'note stays':'notes stay'} together in the Review Room →`:'Pin notes to exact moments in the Review Room →'}</span></a>
         </section>
         {view.checks}
         <section className="finished-versions"><h2>Versions</h2>{sources.lineage==='unavailable'?<p>Version history unavailable.</p>:(props.versions?.length?props.versions:[{runId,label:'This result'}]).map(version=><a key={version.runId} aria-current={version.runId===runId?'page':undefined} href={version.runId===runId?`/runs/${encodeURIComponent(runId)}?keep=1`:`/runs/${encodeURIComponent(version.runId)}`}><span>{version.label}</span>{version.runId===runId&&<small>This one</small>}</a>)}</section>
       </aside>
+      <section className="finished-after-result" aria-label="Result files">{view.afterResult}</section>
       {cleanupDialog}
     </div>;
   }
