@@ -2003,6 +2003,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&trainingStep!==1&&<div className="flex items-center justify-between gap-4 border-b border-ink-800 p-5"><button type="button" onClick={()=>selectTrainingStep(1)} className="text-sm text-ink-400">← Ways to train</button><span className="text-sm font-medium">{trainingStep===2?'Review training':'Apply & test'}</span></div>}
     <div className={installationId?'':'space-y-6 p-5 sm:p-8'}>
     {homeCheck==='pending'&&<p role="status" className="text-sm text-ink-400">Checking saved training… You can keep teaching while this finishes.</p>}
+    {homeCheck==='idle'&&<p role="status" className="text-sm text-ink-400">Saved training check paused while you teach. <button type="button" className="underline" onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Check saved training</button></p>}
     {installationId&&homeCheck==='unavailable'&&<p role="status">Saved training couldn’t be checked. <button type="button" className="underline" onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry training check</button></p>}
     {intakeStatus&&<p role="status" className="text-sm text-ink-300">{intakeStatus}</p>}
     {reviewedIntake&&!reviewedIntake.recordingId&&intakePanel}
@@ -2227,7 +2228,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </div>
     {installationId&&busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{installationId&&error && <p role="alert">{reasonLabel(error)}</p>}
     <div><TrainingDetails title="Training readiness & version details"><span id="training-readiness"/>
-    {homeCheck==='idle'&&<button type="button" className="text-sm underline" onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Check saved training</button>}
+
     {!installationId&&session&&currentVersion&&!versionChanged&&<div className="space-y-2">
       <button type="button" className="text-sm underline" onClick={()=>void loadSavedIntakes()}>Saved agent changes</button>
       {savedIntakes?.identity===changesIdentity.current&&<div className="space-y-2">
