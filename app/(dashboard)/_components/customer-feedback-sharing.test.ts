@@ -14,16 +14,16 @@ test('customer reviews exact note and frame before explicit sharing; retries pre
  Object.defineProperty(r.window,'crypto',{value:webcrypto});
  try{
   await r.click(r.getByText('Suggest an improvement to the trainer'));assert.equal(requests.length,0);assert.equal(native.length,0);
-  await r.click(r.getByText('Review what will be shared'));assert.equal(native.length,1);assert.equal(requests.length,0);assert.equal(r.document.querySelector('img')?.getAttribute('src'),image);assert.match(r.text(),/Anthropic’s AI to draft guidance/);
-  await r.click(r.getByText('Share with the trainer'));assert.equal(requests.length,1);
-  await r.click(r.getByText('Share with the trainer'));assert.equal(requests.length,2);assert.equal(requests[0].headers['Idempotency-Key'],requests[1].headers['Idempotency-Key']);
+  await r.click(r.getByText('Review what will be shared'));assert.equal(native.length,1);assert.equal(requests.length,0);assert.equal(r.document.querySelector('img')?.getAttribute('src'),image);assert.match(r.text(),/Anthropic’s AI to analyze/);assert.match(r.text(),/cannot see your note, screenshot or actual run/);
+  await r.click(r.getByText('Suggest general improvements'));assert.equal(requests.length,1);
+  await r.click(r.getByText('Suggest general improvements'));assert.equal(requests.length,2);assert.equal(requests[0].headers['Idempotency-Key'],requests[1].headers['Idempotency-Key']);
   const sent=JSON.parse(requests[1].body);assert.equal(sent.consent,true);assert.equal(sent.excerpt,issue.body);assert.equal(sent.image,image);assert.equal(sent.ownerId,undefined);
-  assert.match(r.text(),/with the trainer for review/);await r.click(r.getByText('Withdraw this shared example'));assert.equal(JSON.parse(requests[2].body).action,'withdraw');
+  assert.match(r.text(),/trainer receives general guidance, not your source material/);await r.click(r.getByText('Withdraw this suggestion'));assert.equal(JSON.parse(requests[2].body).action,'withdraw');
  }finally{r.cleanup();}
 });
 test('missing Desktop route leaves feedback private and makes zero share requests',async()=>{
  let calls=0;const r=await render('customer-feedback-sharing.tsx',{issue,ownerId:U(1)},{fetch:(async()=>{calls++;throw Error('must not share');}) as typeof fetch});
- try{await r.click(r.getByText('Suggest an improvement to the trainer'));await r.click(r.getByText('Review what will be shared'));assert.match(r.text(),/Update Implexa Desktop/);assert.equal(calls,0);assert.equal(r.queryByText('Share with the trainer'),null);}finally{r.cleanup();}
+ try{await r.click(r.getByText('Suggest an improvement to the trainer'));await r.click(r.getByText('Review what will be shared'));assert.match(r.text(),/Update Implexa Desktop/);assert.equal(calls,0);assert.equal(r.queryByText('Suggest general improvements'),null);}finally{r.cleanup();}
 });
 
 test('switching annotations while native preview is pending does not leave the new note busy',async()=>{
