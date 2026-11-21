@@ -160,7 +160,7 @@ export default function LoginForm({
               disabled={!!loading}
               className="text-action-accent hover:underline disabled:opacity-50"
             >
-              {loading === 'magic' ? 'Sending…' : '🔮 Email me a magic link instead'}
+              {loading === 'magic' ? 'Sending…' : 'Email me a sign-in link'}
             </button>
             <Link href="/forgot-password" className="text-ink-400 hover:text-ink-200 hover:underline">
               Forgot password?
