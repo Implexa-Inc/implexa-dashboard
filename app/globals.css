@@ -17,8 +17,8 @@
  *   ink-300 muted text        ink-800 hover surfaces
  *   ink-400 captions          ink-900 cards       ink-950 page
  *
- * Which theme a user sees is decided in app/layout.tsx (THEME_MODE): dark for
- * everyone by default, or "clock" (light by day, dark 7pm–6am). `?theme=light`
+ * Which theme a user sees is decided in app/layout.tsx (THEME_MODE): "clock"
+ * by default (light by day, dark 7pm–6am), with a temporary dark rollback. `?theme=light`
  * / `?theme=dark` / `?theme=auto` previews and remembers a per-browser choice.
  *
  * Contrast (checked): ink-300/400 ≥ 4.8:1 on cards and page in both themes.

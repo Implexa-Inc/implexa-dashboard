@@ -84,7 +84,7 @@ export function RunJudgmentCard({
             <h2 className="text-sm font-semibold text-ink-100">Tukido Judge</h2>
             <span className={`text-xs font-medium ${s.text}`}>{verdictLabel}</span>
           </div>
-          <p className="text-sm text-ink-300 mt-2 leading-relaxed whitespace-pre-wrap">{judgment.summary}</p>
+          <details className="mt-2 text-sm"><summary className="cursor-pointer text-ink-300">Review notes</summary><p className="mt-2 leading-relaxed whitespace-pre-wrap text-ink-300">{judgment.summary}</p></details>
         </div>
         <span className="flex-none text-[10px] uppercase tracking-wide text-ink-500">AI review</span>
       </div>
@@ -93,10 +93,10 @@ export function RunJudgmentCard({
         <JudgeReviewRetry key={judgment.id} runId={currentRunId} judgmentId={judgment.id}
           finalOutputSha256={finalOutputSha256} pending={reviewPending} />}
 
-      {judgment.creative_grade && <section aria-label={scored ? 'Quality score' : 'Creative grade'} className="mt-4 rounded-lg border border-ink-700 p-3 space-y-2">
-        <h3 className="text-sm font-semibold text-ink-100">{scored
+      {judgment.creative_grade && <details aria-label={scored ? 'Quality score' : 'Creative grade'} className="mt-4 rounded-lg border border-ink-700 p-3 space-y-2">
+        <summary className="cursor-pointer text-sm font-medium text-ink-100">{scored
           ? assessedScore ? `Quality ${total}/100` : 'Quality not assessed'
-          : `Creative grade: ${judgment.creative_grade.overallBand}`}</h3>
+          : `Creative grade: ${judgment.creative_grade.overallBand}`}</summary>
         <p className="text-xs text-ink-400">{scored ? 'One model review, not calibrated.' : 'Uncalibrated AI assessment.'} Separate from technical delivery; an open quality gap is not a failed run.</p>
         <p className="text-sm text-ink-200">{judgment.creative_grade.summary}</p>
         {judgment.creative_grade.dimensions.map(d => <details key={d.id} className="text-sm">
@@ -108,7 +108,7 @@ export function RunJudgmentCard({
         <details className="text-xs text-ink-500"><summary>Review binding</summary>
           <p className="break-all">Output: {judgment.creative_grade.relativePath}<br />SHA-256: {judgment.creative_grade.artifactSha256}<br />Rubric: {judgment.creative_grade.rubricDigest}</p>
         </details>
-      </section>}
+      </details>}
 
       {judgment.next_action && judgment.verdict !== 'pass' && (
         <div className="mt-3 rounded-lg border border-ink-700 bg-ink-950/50 px-3 py-2.5">

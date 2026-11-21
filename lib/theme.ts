@@ -5,16 +5,15 @@
  * dark for everyone with no way to see the light theme).
  *
  * THEME_MODE (server env, read in the root layout):
- *   - unset / "dark"  → everyone gets dark (today's behavior, the default).
- *   - "clock"         → light by day, dark from 19:00 to 06:00 in the user's
+ *   - "dark"          → temporary rollback to dark for everyone.
+ *   - unset / "clock" → light by day, dark from 19:00 to 06:00 in the user's
  *                       local time (same rule as tukido.ai).
  * In either mode a browser may pin a choice with `?theme=light|dark`, and
  * `?theme=auto` clears it. That is how the light theme is previewed on the real
  * app without changing it for anyone else.
  *
- * Owner: founder. Removal condition for THEME_MODE: once the light theme has
- * been checked screen-by-screen (redesign step 3), "clock" becomes the
- * hard-coded behavior and the env var is deleted.
+ * Owner: founder. THEME_MODE remains a release rollback only; remove it after
+ * the signed app and web rollout have passed their post-launch appearance checks.
  */
 
 export type ThemeMode = 'dark' | 'clock';
@@ -22,7 +21,7 @@ export type ThemeMode = 'dark' | 'clock';
 export const THEME_STORAGE_KEY = 'tukido-theme';
 
 export function themeMode(env: Record<string, string | undefined> = process.env): ThemeMode {
-  return env.THEME_MODE === 'clock' ? 'clock' : 'dark';
+  return env.THEME_MODE === 'dark' ? 'dark' : 'clock';
 }
 
 /** Dark from 19:00 up to (not including) 06:00, local time. */

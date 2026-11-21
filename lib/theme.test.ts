@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isNightHour, themeBootScript, themeMode, THEME_STORAGE_KEY, type ThemeMode } from './theme.ts';
 
-test('THEME_MODE defaults to dark; only "clock" opts in', () => {
-  assert.equal(themeMode({}), 'dark');
+test('clock is the launch default; explicit dark remains a temporary rollback', () => {
+  assert.equal(themeMode({}), 'clock');
   assert.equal(themeMode({ THEME_MODE: 'dark' }), 'dark');
-  assert.equal(themeMode({ THEME_MODE: 'light' }), 'dark');
+  assert.equal(themeMode({ THEME_MODE: 'light' }), 'clock');
   assert.equal(themeMode({ THEME_MODE: 'clock' }), 'clock');
 });
 
