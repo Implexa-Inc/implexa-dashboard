@@ -12,7 +12,8 @@
  * Renders nothing when there's no live activity, so it's invisible at rest.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import WorkItemRow from './work-item-row';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
@@ -205,8 +206,12 @@ function elapsedMs(iso: string | null): number {
  */
 export type LiveState = { status: 'loading' | 'ready' | 'unavailable'; count: number };
 
-export default function RunningAgents({ alertsOnly = false, bare = false, onState, compact = false, onFinished, pollMs = POLL_MS }: {
+export type LiveWorkRow = { key: string; runId: string | null; status: string; needsYou: boolean; node: ReactNode };
+
+export default function RunningAgents({ alertsOnly = false, bare = false, onState, compact = false, onFinished, pollMs = POLL_MS, renderList }: {
   alertsOnly?: boolean;
+  /** Presentation seam only: the same poller, continuity and action handlers own every row. */
+  renderList?: (rows: LiveWorkRow[], state: LiveState['status']) => ReactNode;
   /** Compact Run rows reuse this same lifecycle, polling and action controls. */
   compact?: boolean;
   onFinished?: () => void;
@@ -515,26 +520,13 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
     onStateRef.current?.({ status: liveStatus, count: list.length });
   }, [liveStatus, list.length]);
 
-  if (!cards) return null;
-  if (list.length === 0) return null; // invisible at rest
+  if (!cards && !renderList) return null;
+  if (list.length === 0 && !renderList) return null; // invisible at rest
   const visibleLimit = compact ? 3 : 5;
-  const shown = showAll ? list : list.slice(0, visibleLimit);
+  const shown = renderList || showAll ? list : list.slice(0, visibleLimit);
 
-  return (
-    <section className={bare ? '' : 'mb-8'}>
-      {/* `bare` (2026-07-24 Home redesign): nested inside <TodayFeed>, which owns
-          the single "Today" heading. Home used to stack THREE headed sections
-          (Alerts / Set up / Results) that each answered "what needs me?" with a
-          different keying model — the page could even render its own "nothing
-          needs you" all-clear while a section above it listed work. One heading,
-          one answer. Standalone callers keep their own heading. */}
-      {!bare && (
-        <div className="flex items-baseline gap-2 mb-3">
-          <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Alerts' : 'Active Agents'} ({list.length})</h2>
-        </div>
-      )}
-      <div className="space-y-2">
-        {shown.map((c) => {
+  const renderedRows: LiveWorkRow[] = shown.map((c) => {
+
           const s = STATUS[c.status] ?? STATUS.running;
           // Where the card opens. With a real run row -> the run page (status-aware
           // step-trace / approve / retry). A queued or just-picked-up card has no
@@ -552,6 +544,59 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
             ? `/runs/${encodeURIComponent(c.runId)}`
             : (c.skillSlug ? `/workflows/${encodeURIComponent(c.skillSlug)}?tab=runs` : null);
           const linkable = !!href;
+          const controls = (<>
+              {(c.status === 'finished' || c.status === 'built' || c.status === 'failed') && c.runId && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismiss(c.runId!); }}
+                  title="Dismiss from alerts"
+                  aria-label="Dismiss this run from alerts"
+                  className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
+                >
+                  ✕
+                </button>
+              )}
+              {/* STALLED / held alerts (incl. the "An Agent" permission-stall phantoms)
+                  were un-clearable — give them a ✕ that REMOVES them for good
+                  (backend reviewed=dismissed), so a dead stall can't sit forever. */}
+              {(c.status === 'needs_attention' || c.status === 'waiting_approval') && c.runId && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismissHeld(c.runId!); }}
+                  title="Dismiss this alert"
+                  aria-label="Dismiss this alert"
+                  className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
+                >
+                  ✕
+                </button>
+              )}
+              {/* Cancel a QUEUED run before it's picked up (catch it before it
+                  spends). Opens a confirm; stops the drainer/Claude from running it. */}
+              {CANCELLABLE_STATUSES.has(c.status) && !c.runId && c.preparationCancelable !== false && cancellationTarget(c) && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancelKey(c.continuityKey); }}
+                  title="Cancel this request"
+                  aria-label="Cancel this request"
+                  className="shrink-0 text-[11px] font-medium text-state-fail hover:text-state-fail px-2 py-1 rounded border border-rose-500/30"
+                >
+                  Cancel request
+                </button>
+              )}
+              {/* Kill a RUNNING run that's already in flight. The × stays after the
+                  flag is set (shows "Stopping…") until the executor confirms the kill. */}
+              {c.status === 'running' && c.freshness === 'fresh' && (c.runId || c.requestId) && !(c.runId && stoppingRunIds.has(c.runId)) && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancelKey(c.continuityKey); }}
+                  title="Stop this run"
+                  aria-label="Stop this run"
+                  className="shrink-0 text-[11px] font-medium text-state-fail hover:text-state-fail px-2 py-1 rounded border border-rose-500/30"
+                >
+                  Stop run
+                </button>
+              )}
+          </>);
           const body = (
             <>
               {s.spin ? (
@@ -620,57 +665,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   </div>
                 ) : null}
               </div>
-              {(c.status === 'finished' || c.status === 'built' || c.status === 'failed') && c.runId && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismiss(c.runId!); }}
-                  title="Dismiss from alerts"
-                  aria-label="Dismiss this run from alerts"
-                  className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
-                >
-                  ✕
-                </button>
-              )}
-              {/* STALLED / held alerts (incl. the "An Agent" permission-stall phantoms)
-                  were un-clearable — give them a ✕ that REMOVES them for good
-                  (backend reviewed=dismissed), so a dead stall can't sit forever. */}
-              {(c.status === 'needs_attention' || c.status === 'waiting_approval') && c.runId && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismissHeld(c.runId!); }}
-                  title="Dismiss this alert"
-                  aria-label="Dismiss this alert"
-                  className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
-                >
-                  ✕
-                </button>
-              )}
-              {/* Cancel a QUEUED run before it's picked up (catch it before it
-                  spends). Opens a confirm; stops the drainer/Claude from running it. */}
-              {CANCELLABLE_STATUSES.has(c.status) && !c.runId && c.preparationCancelable !== false && cancellationTarget(c) && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancelKey(c.continuityKey); }}
-                  title="Cancel this request"
-                  aria-label="Cancel this request"
-                  className="shrink-0 text-[11px] font-medium text-state-fail hover:text-state-fail px-2 py-1 rounded border border-rose-500/30"
-                >
-                  Cancel request
-                </button>
-              )}
-              {/* Kill a RUNNING run that's already in flight. The × stays after the
-                  flag is set (shows "Stopping…") until the executor confirms the kill. */}
-              {c.status === 'running' && c.freshness === 'fresh' && (c.runId || c.requestId) && !(c.runId && stoppingRunIds.has(c.runId)) && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancelKey(c.continuityKey); }}
-                  title="Stop this run"
-                  aria-label="Stop this run"
-                  className="shrink-0 text-[11px] font-medium text-state-fail hover:text-state-fail px-2 py-1 rounded border border-rose-500/30"
-                >
-                  Stop run
-                </button>
-              )}
+              {controls}
               {linkable && (
                 <span className="shrink-0 text-lg leading-none text-ink-500 group-hover:text-ink-200 transition-colors" aria-hidden="true">›</span>
               )}
@@ -713,12 +708,25 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           const showPreparationRetry = c.status === 'failed' && !c.runId && !!c.requestId
             && (String(c.failureReason || '').startsWith('desktop_preparation_')
               || c.failureReason === 'run_enqueue_interrupted');
-          const card = linkable ? (
+          const card = renderList ? (
+            <WorkItemRow title={c.headline || humanize(c.skillSlug) || 'Agent'}
+              href={href} state={c.status === 'waiting_approval' || c.status === 'action_available' ? 'Needs approval'
+                : NOTIFY.has(c.status) ? (c.status === 'needs_attention' ? 'Needs input' : 'Failed')
+                : c.status === 'finished' ? 'Delivered' : c.status === 'built' ? 'Ready for review' : 'Running'}
+              detail={<>{c.headline ? `${humanize(c.skillSlug)} · ` : ''}{c.freshness !== 'fresh' ? freshnessNotice(c.freshness)
+                : c.runId && stoppingRunIds.has(c.runId) ? 'Stopping…' : visibleFailure(c.failureReason) || c.attention?.summary || (c.status === 'action_available' ? c.actionLabel : null) || s.label}
+                {c.currentStepIndex != null && c.totalSteps ? ` · Step ${c.currentStepIndex + 1} of ${c.totalSteps}${c.currentStepLabel ? ` · ${c.currentStepLabel}` : ''}` : ''}
+                {c.status === 'preparing_inputs' && c.bytesRead != null && c.totalBytes ? ` · ${Math.floor(c.bytesRead / c.totalBytes * 100)}% verified` : ''}
+              </>}
+              progress={c.status === 'running' && c.currentStepIndex != null && c.totalSteps ? {value:c.currentStepIndex,total:c.totalSteps} : undefined}
+              when={rel(c.finishedAt || c.since)}
+              actions={<>{href && <Link href={href} prefetch={false} className={NOTIFY.has(c.status) ? 'btn-outline work-row-action' : 'work-row-open'}>{c.status === 'waiting_approval' || c.status === 'action_available' ? 'Review & approve' : NOTIFY.has(c.status) ? 'Open & resolve' : c.status === 'finished' || c.status === 'built' ? 'Open' : 'View progress'}</Link>}{controls}</>}/>
+          ) : linkable ? (
             <Link href={href!} prefetch={compact ? false : undefined} className={`${cls} hover:border-ink-700 transition-colors`}>{body}</Link>
           ) : (
             <div className={cls}>{body}</div>
           );
-          return (
+          const node = (
             // The continuity identity is both React's reconciliation key and a
             // DOM attribute. The attribute is not decoration: a React key is
             // invisible to a rendered test, so without it "this card belongs to
@@ -830,9 +838,26 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               )}
             </div>
           );
-        })}
-      </div>
-      {list.length > visibleLimit && (
+          return { key, runId:c.runId, status:c.status, needsYou:NOTIFY.has(c.status), node };
+  });
+
+  return (
+    <section className={bare ? '' : 'mb-8'}>
+      {/* `bare` (2026-07-24 Home redesign): nested inside <TodayFeed>, which owns
+          the single "Today" heading. Home used to stack THREE headed sections
+          (Alerts / Set up / Results) that each answered "what needs me?" with a
+          different keying model — the page could even render its own "nothing
+          needs you" all-clear while a section above it listed work. One heading,
+          one answer. Standalone callers keep their own heading. */}
+      {!bare && (
+        <div className="flex items-baseline gap-2 mb-3">
+          <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Alerts' : 'Active Agents'} ({list.length})</h2>
+        </div>
+      )}
+      {renderList ? renderList(renderedRows, liveStatus) : <div className="space-y-2">
+        {renderedRows.map(row => row.node)}
+      </div>}
+      {!renderList && list.length > visibleLimit && (
         <button
           type="button"
           onClick={() => setShowAll((v) => !v)}
