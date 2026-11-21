@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import PageHeader from '@/components/page-header';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import EnginesClient, { type EngineReport } from './engines-client';
@@ -19,17 +19,15 @@ export default async function EnginesPage() {
   } catch { /* migration may not be applied yet; cards still render as disconnected */ }
 
   return (
-    <main className="app-page">
-      <div className="app-content">
-        <Link href="/settings" className="text-xs text-action-accent hover:underline">← Settings</Link>
-        <header className="mt-2 mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">AI engines</h1>
-          <p className="text-sm text-ink-300 mt-1 max-w-2xl leading-relaxed">
+    <section className="settings-page">
+      <div className="settings-page-content">
+        <PageHeader title="AI engines">
+          <p className="app-page-description">
             Claude and Codex are independent execution engines. Tukido can use either automatically, while each agent can be pinned to one in its Setup tab.
           </p>
-        </header>
+        </PageHeader>
         <EnginesClient reports={reports} />
       </div>
-    </main>
+    </section>
   );
 }

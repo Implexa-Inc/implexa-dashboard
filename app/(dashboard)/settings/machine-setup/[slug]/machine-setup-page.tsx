@@ -1,3 +1,4 @@
+import PageHeader from '@/components/page-header';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
@@ -20,17 +21,16 @@ export default async function MachineSetupPage({ slug, machineId = null, workflo
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-3xl mx-auto">
+    <section className="settings-page">
+      <div className="settings-page-content">
         <Link href={`/workflows/${encodeURIComponent(slug)}`} className="text-xs text-action-accent hover:underline">← Back to the agent</Link>
-        <header className="mt-2 mb-6">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Set up this computer</h1>
-          <p className="text-sm text-ink-300 mt-1 max-w-2xl leading-relaxed">
+        <PageHeader title="Set up this computer">
+          <p className="app-page-description">
             Each requirement below is checked on the selected computer, in the exact environment the agent runs in. Install or sign in yourself, then Recheck.
           </p>
-        </header>
+        </PageHeader>
         <MachineSetupClient slug={slug} machineId={machineId} workflowVersionId={workflowVersionId} />
       </div>
-    </main>
+    </section>
   );
 }

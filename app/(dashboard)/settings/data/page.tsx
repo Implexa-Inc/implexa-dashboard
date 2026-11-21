@@ -1,3 +1,4 @@
+import PageHeader from '@/components/page-header';
 /**
  * /settings/data — SkillRank data + consent management.
  *
@@ -12,7 +13,6 @@
  * pattern as /settings/account (server fetch, client form).
  */
 
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { callBackend } from '@/lib/api';
@@ -50,19 +50,15 @@ export default async function DataSettingsPage() {
   }
 
   return (
-    <main className="app-page">
-      <div className="max-w-2xl mx-auto">
-        <nav className="text-xs text-ink-500 mb-4">
-          <Link href="/settings" className="hover:underline">← Settings</Link>
-        </nav>
+    <section className="settings-page">
+      <div className="settings-page-content">
 
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Data & SkillRank preferences</h1>
-          <p className="text-sm text-ink-300 mt-2 leading-relaxed">
+        <PageHeader title="Data & privacy">
+          <p className="app-page-description">
             Tukido learns from how you work to recommend better skills over time.
             This is the data + consent control surface. You can change anything here at any time.
           </p>
-        </header>
+        </PageHeader>
 
         {loadError ? (
           <div className="card !border-red-500/30">
@@ -83,10 +79,10 @@ export default async function DataSettingsPage() {
           </p>
         </section>
       </div>
-    </main>
+    </section>
   );
 }
 
 export const metadata = {
-  title: 'Data & preferences — Tukido',
+  title: 'Data & privacy — Tukido',
 };

@@ -22,7 +22,7 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
 import { computeSetupStatus } from '@/lib/setup-status';
-import Sidebar, { MobileTopBar } from './_components/sidebar';
+import Sidebar, { MobileTopBar, ShellNavigationProvider } from './_components/sidebar';
 import UpdateBanner from './_components/update-banner';
 import AutoUpdateToast from './_components/auto-update-toast';
 import PersistIntent from './_components/persist-intent';
@@ -50,32 +50,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { data: org } = await supabase
     .from('organizations').select('plan')
     .eq('id', profile.organization_id).maybeSingle();
-
-  // Sidebar badges are "new since you last opened this page", not raw totals:
-  //   Results   = new runs since you last opened Results
-  //   Needs you = new held-for-review / stalled runs since you last opened it
-  // We hand the client sidebar the recent (bounded) timestamps; it compares them
-  // to a per-surface "last opened" marker in localStorage and clears the badge
-  // the instant you open that page. (The old badges counted ALL pending-review
-  // runs, so both showed the same number and never cleared on a visit.)
-  const badgeSince = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();
-  const [{ data: resultRows }, { data: needsRows }] = await Promise.all([
-    supabase
-      .from('skill_runs')
-      .select('ran_at')
-      .gte('ran_at', badgeSince)
-      .order('ran_at', { ascending: false })
-      .limit(100),
-    supabase
-      .from('skill_runs')
-      .select('ran_at')
-      .or('review_status.eq.pending,run_state.eq.stalled')
-      .gte('ran_at', badgeSince)
-      .order('ran_at', { ascending: false })
-      .limit(100),
-  ]);
-  const resultRunsAt = ((resultRows as { ran_at: string }[]) || []).map((r) => r.ran_at).filter(Boolean);
-  const needsItemsAt = ((needsRows as { ran_at: string }[]) || []).map((r) => r.ran_at).filter(Boolean);
 
   const setup = computeSetupStatus(profile.last_mcp_call_at, profile.last_hook_event_at);
 
@@ -120,8 +94,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const userCtx = {
     themeClock: themeMode() === 'clock',
-    // Scopes the shell's per-device "last opened Work" marker so two accounts
-    // on one machine cannot inherit each other's badge state.
+    // Background shell reads are scoped to this account.
     id:                profile.id,
     displayName:       profile.display_name,
     email:             profile.email,
@@ -134,15 +107,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
   };
 
   return (
-    <div className="flex min-h-screen">
+    <ShellNavigationProvider key={profile.id} userId={profile.id}><div className="flex min-h-screen">
       {/* First focusable element on every authed page — see skip-link.tsx. */}
       <SkipLink />
       {/* Persist a website build intent server-side on ANY authed page (incl.
           /install where onboarding lands), so it can never be lost. */}
       <Suspense fallback={null}><PersistIntent /></Suspense>
-      <Sidebar user={userCtx} resultRunsAt={resultRunsAt} needsItemsAt={needsItemsAt} />
+      <Sidebar user={userCtx} />
       <div className="flex-1 flex flex-col min-w-0">
-        <MobileTopBar user={userCtx} resultRunsAt={resultRunsAt} needsItemsAt={needsItemsAt} />
+        <MobileTopBar user={userCtx} />
         <UpdateBanner />
         {/* tabIndex={-1} so the skip link can actually move focus here; without
             it the browser scrolls but focus stays on the link. */}
@@ -155,6 +128,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* Desktop-app auto-update toast (bottom-left, "Restart to update"). Renders
           nothing on plain web — the capability lives on window.implexaDesktop. */}
       <AutoUpdateToast />
-    </div>
+    </div></ShellNavigationProvider>
   );
 }

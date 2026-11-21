@@ -12,7 +12,6 @@ import {
   WORK_VIEWS, DEFAULT_WORK_VIEW, parseWorkView, resolveWorkView, workViewHref,
   LEGACY_ROUTE_REDIRECTS, legacyDestination,
   resolveDefaultLanding, isCreateFabSuppressed, anySignal,
-  countNewerThan, mergeTimestamps, workSeenKey,
   DEFAULT_LANDING_ROUTE, postAuthDestination,
 } from './navigation.ts';   // explicit extension: node:test resolves ESM, not bundler-style
 
@@ -169,39 +168,6 @@ test('a carried build intent still reaches the ONE surface that consumes it', ()
     postAuthDestination({ intent: 'watch my competitors & brief me' }),
     '/overview?intent=watch%20my%20competitors%20%26%20brief%20me',
   );
-});
-
-// ── Badge scoping ────────────────────────────────────────────────────────────
-
-test('the Work seen-marker is scoped per account', () => {
-  // Two accounts on one device must not inherit each other's "last opened"
-  // time; the second would silently start with the first one's work marked
-  // seen. This device really does run more than one Implexa account.
-  assert.equal(workSeenKey('user-a'), 'implexa.seen.work:user-a');
-  assert.notEqual(workSeenKey('user-a'), workSeenKey('user-b'));
-});
-
-test('no account id means NO badge rather than a shared key', () => {
-  for (const id of [null, undefined, '', '   ']) {
-    assert.equal(workSeenKey(id), null, `"${String(id)}" must not fall back to a shared marker`);
-  }
-});
-
-test('the Work badge counts a run ONCE even though two queries return it', () => {
-  // resultRunsAt is "every run in the window"; needsItemsAt is "the stalled or
-  // awaiting-decision subset" — read from the same table. Concatenating them
-  // counts the overlap twice and the badge reads roughly double.
-  const a = '2026-08-11T10:00:00Z';
-  const b = '2026-08-11T11:00:00Z';
-  assert.deepEqual(mergeTimestamps([a, b], [a]), [a, b]);
-  assert.equal(countNewerThan(mergeTimestamps([a, b], [a, b]), Date.parse('2026-08-11T09:00:00Z')), 2);
-});
-
-test('countNewerThan ignores unparseable stamps and is timezone-format agnostic', () => {
-  const seen = Date.parse('2026-08-11T09:00:00Z');
-  assert.equal(countNewerThan(['2026-08-11T10:00:00+00:00', '2026-08-11T10:00:00Z'], seen), 2);
-  assert.equal(countNewerThan(['not-a-date', ''], seen), 0);
-  assert.equal(countNewerThan(['2026-08-11T08:00:00Z'], seen), 0, 'older than the marker is not new');
 });
 
 test('the global Create button stays out of review and contextual Training/creation surfaces', () => {

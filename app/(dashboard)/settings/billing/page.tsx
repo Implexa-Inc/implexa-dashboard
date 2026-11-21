@@ -1,3 +1,4 @@
+import PageHeader from '@/components/page-header';
 /**
  * Billing settings , plan + (for teams) seats + Stripe portal.
  *
@@ -57,16 +58,12 @@ export default async function BillingPage() {
   const isFoundingCreator = !!profile?.founding_creator_unlocked_at;
 
   return (
-    <main className="app-page">
-      <div className="max-w-2xl mx-auto">
-        <nav className="text-xs text-ink-500 mb-4">
-          <Link href="/settings" className="hover:underline">← Settings</Link>
-        </nav>
+    <section className="settings-page">
+      <div className="settings-page-content">
 
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Billing</h1>
-          {orgName && <p className="text-sm text-ink-400 mt-1">{orgName}</p>}
-        </header>
+        <PageHeader title="Billing & plan">
+          {orgName && <p className="app-page-description">{orgName}</p>}
+        </PageHeader>
 
         {/* Plan card */}
         <div className="card space-y-4 mb-6">
@@ -135,6 +132,6 @@ export default async function BillingPage() {
           </div>
         )}
       </div>
-    </main>
+    </section>
   );
 }

@@ -22,7 +22,7 @@ import { callBackend } from '@/lib/api';
 import InstallFlow from './install-flow';
 import HeroInstall from './hero-install';
 import { desktopAppLive, macDownloadUrl } from '@/lib/app-links';
-import { Logo } from '@/components/logo';
+import PageHeader from '@/components/page-header';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,16 +123,14 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
       <div className="app-content">
         {showWelcome && welcomeBanner}
 
-        <header className="mb-8 text-center">
-          <div className="mb-4 flex justify-center"><Logo height={18} /></div>
-          <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Run your agents</h1>
-          <p className="text-ink-300 mt-3 leading-relaxed max-w-xl mx-auto">
+        <PageHeader title="Run your agents">
+          <p className="app-page-description">
             One download. The app connects Tukido to your own Claude or Codex and runs your agents there, as you, free. That&apos;s it.
           </p>
-          <p className="text-ink-500 text-sm mt-3 leading-relaxed max-w-xl mx-auto">
+          <p className="app-page-description">
             Claude Code runs in the background, so you don&apos;t work there. Build, run, and approve every agent right here in Tukido.
           </p>
-        </header>
+        </PageHeader>
 
         {/* THE single primary action: the one-click app (live + notarized). It
          * connects Claude/Codex and sets up the extension, so it's all most
@@ -197,7 +195,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
          * action-oriented — link to /settings or external repos as needed.
          * Adding entries: prepend new ones (most recent friction first).
          * ────────────────────────────────────────────────────────── */}
-        <section className="mt-16 max-w-3xl mx-auto">
+        <section className="mt-16">
           <h2 className="text-xs uppercase tracking-wider text-ink-400 font-bold mb-3">Frequently asked</h2>
           <div className="space-y-2">
 
@@ -307,7 +305,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
           </div>
         </section>
 
-        <footer className="mt-12 text-center text-xs text-ink-400 max-w-xl mx-auto leading-relaxed">
+        <footer className="mt-12 text-xs text-ink-400 leading-relaxed">
           <p>
             Once connected, try the wedge first: <code className="bg-ink-800 px-1 rounded">/implexa:run draft a cold outreach email</code>{' '}
             builds a small agent for that, picks the best building blocks, and runs it inline in your current session.{' '}
