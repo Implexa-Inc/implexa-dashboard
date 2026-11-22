@@ -238,7 +238,7 @@ export default function BuildingAgents() {
                     type="button"
                     onClick={() => setDismissed((p) => new Set(p).add(b.id))}
                     aria-label="Dismiss"
-                    className="text-ink-600 hover:text-ink-200 text-ui leading-none px-1"
+                    className="text-ink-500 hover:text-ink-200 text-ui leading-none px-1"
                   >
                     ✕
                   </button>

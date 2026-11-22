@@ -77,7 +77,7 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
  };
  if(!opened)return <section aria-labelledby="training-chat-heading" className="rounded border border-brand-500 p-4 space-y-3">
   <h2 id="training-chat-heading" className="text-lg font-semibold">Chat with AI</h2>
-  <p>Discuss this agent and turn a recording or feedback into reviewed improvements.</p>
+  <p className="text-reading">Discuss this agent and turn a recording or feedback into reviewed improvements.</p>
   <button type="button" disabled={!sessionId||busy} onClick={()=>setOpened(true)}>Open conversation</button>
  </section>;
  return <><ChatFrame hideHeader={plain} scrollKey={turns.at(-1)?.turnId+':'+turns.at(-1)?.status} embedded={embedded} subtitle={source?.localName||'Your agent'} onClose={onClose} details={<>  <details className="text-secondary text-ink-400"><summary className="cursor-pointer">Conversation context · {source?.localName||'Agent setup'}</summary>
@@ -102,10 +102,10 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
    const matches=t.versionId===versionId&&t.sourceId===selectedSourceId&&t.sourceSha256===(source?.metadata.sha256||null);
    const actionable=matches&&t.status==='answered'&&context?.agent.versionId===versionId&&context.availableActions.includes(t.action)&&!disabled&&canSend;
    return <li key={t.turnId} className="space-y-3">{!matches&&<p className="text-secondary text-ink-500">Earlier conversation</p>}
-    <ChatMessage role={t.sourceKind==='creation_notes'?'assistant':'user'}>{t.sourceKind==='creation_notes'&&<p className="text-secondary text-ink-500">Creation note</p>}<p className="whitespace-pre-wrap">{t.message}</p></ChatMessage>
-    {t.answer&&<ChatMessage role="assistant"><p className="whitespace-pre-wrap">{t.answer}</p></ChatMessage>}
+    <ChatMessage role={t.sourceKind==='creation_notes'?'assistant':'user'}>{t.sourceKind==='creation_notes'&&<p className="text-secondary text-ink-500">Creation note</p>}<p className="text-reading whitespace-pre-wrap">{t.message}</p></ChatMessage>
+    {t.answer&&<ChatMessage role="assistant"><p className="text-reading whitespace-pre-wrap">{t.answer}</p></ChatMessage>}
     {t.status==='pending'&&<p>{t.sourceKind==='creation_notes'?'Private note imported from the AI-prepared creation draft. No chat reply was requested.':'Reply not yet confirmed. Refresh reads the saved turn without calling Claude again.'}</p>}
-    {t.status==='failed'&&<p role="status">This reply could not be completed: {t.reason?.replaceAll('_',' ')}. Your message is preserved; no automatic retry was made.</p>}
+    {t.status==='failed'&&<p role="status" className="text-reading">This reply could not be completed: {t.reason?.replaceAll('_',' ')}. Your message is preserved; no automatic retry was made.</p>}
     {t.status==='stale'&&<p>This reply belongs to an earlier agent version. Its proposed action is unavailable.</p>}
     {t.canProposeEdit===true&&guided&&matches&&t.status==='answered'&&canSend&&<button type="button" className="rounded-xl border border-ink-700 px-4 py-3 text-ui text-action-accent" disabled={disabled||sending||editUnavailable} onClick={()=>setEditTurn(t)}>Review agent change →</button>}
     {t.action!=='none'&&(t.action==='test_agent'?actionable?guided?<button type="button" disabled={sending} onClick={()=>onAction(t.action,{versionId:t.versionId,sourceId:t.sourceId,sourceSha256:t.sourceSha256})}>Review the private update’s test</button>:<a href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>{names[t.action]}</a>:<span>Test entry unavailable for this earlier context.</span>:

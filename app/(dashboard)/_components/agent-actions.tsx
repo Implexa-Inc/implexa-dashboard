@@ -1363,9 +1363,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         title={versionRefusal?.title || 'This agent version is incomplete'}>
         {versionRefusal && (
           <div className="space-y-4 text-secondary text-ink-300" data-version-contract-cause={versionRefusal.cause || 'unknown'}>
-            <p>{versionRefusal.message}</p>
+            <p className="text-reading">{versionRefusal.message}</p>
             {!versionRefusal.retrySafe && (
-              <p className="text-ink-400">This is an agent publishing issue, not a problem with your computer or input. The agent’s publisher needs to provide a complete version. Nothing was queued, and your inputs are preserved.</p>
+              <p className="text-reading text-ink-400">This is an agent publishing issue, not a problem with your computer or input. The agent’s publisher needs to provide a complete version. Nothing was queued, and your inputs are preserved.</p>
             )}
             <div className="flex flex-wrap gap-2">
               {versionRefusal.retrySafe && (
@@ -1390,9 +1390,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       >
         {trainingGate?.state === 'training_required' ? (
           <div className="space-y-4 text-secondary text-ink-300">
-            {trainingGate.optional ? <p>
+            {trainingGate.optional ? <p className="text-reading">
               This version can run without reference training, but accepted decisions from its earlier version are available to carry forward. They will not guide this version until you carry them forward explicitly.
-            </p> : <><p>
+            </p> : <><p className="text-reading">
               This active Agent version is missing {trainingGate.requirements.missingPairs.length} required Manager reference-training route{trainingGate.requirements.missingPairs.length === 1 ? '' : 's'}. No run inputs were selected, verified, or prepared.
             </p>
             <ul className="list-disc pl-5 space-y-1">
@@ -1414,7 +1414,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
               <section className="rounded-md border border-brand-500/50 bg-brand-500/5 p-3 space-y-3">
                 <h3 className="font-semibold text-ink-100">{trainingGate.successorAdoption.contractVersion === 'manager-training-successor-adoption-preview.v2'
                   ? 'Bring your saved training forward' : 'Compatible training can be carried forward'}</h3>
-                <p>
+                <p className="text-reading">
                   {trainingGate.successorAdoption.contractVersion === 'manager-training-successor-adoption-preview.v2'
                     ? <>Your training from earlier versions is available for this version. Carry {trainingGate.successorAdoption.newlyAdoptableRecordCount} saved lesson{trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'} with their original examples. Earlier versions and runs stay unchanged.</>
                     : <>Tukido verified the same Agent task identity and unchanged Manager policy between these consecutive versions. You can carry {trainingGate.successorAdoption.newlyAdoptableRecordCount} accepted decision{trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'} spanning {trainingGate.successorAdoption.eligibleRouteCount} compatible reference route{trainingGate.successorAdoption.eligibleRouteCount === 1 ? '' : 's'}.</>}
@@ -1425,7 +1425,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                     <p className="mt-2">Compatible versions: {trainingGate.successorAdoption.ancestorRecovery.versionIds.map(id => id.slice(0, 8)).join(' → ')}. Training is added only to the current version.</p>
                   </details>
                 )}
-                <p>Each decision keeps its original immutable evidence and receives a separate adoption receipt for version {trainingGate.successorAdoption.targetWorkflowVersionId.slice(0, 8)}. Nothing is copied, widened, or silently accepted.</p>
+                <p className="text-reading">Each decision keeps its original immutable evidence and receives a separate adoption receipt for version {trainingGate.successorAdoption.targetWorkflowVersionId.slice(0, 8)}. Nothing is copied, widened, or silently accepted.</p>
                 <button type="button" className="btn-primary" disabled={trainingChecking}
                   onClick={() => {setTrainingGate(null);void openPreRun(preRunMode);}}>
                   {trainingChecking ? 'Checking training…' : 'Check and continue'}
@@ -1453,10 +1453,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         ) : (
           <div className="space-y-4 text-secondary text-ink-300">
             {trainingGate?.state==='unavailable'&&trainingGate.reason==='training_served_snapshot_version_mismatch'?<>
-              <p>This working definition differs from the version with your served training. Test the current private update in Training, then activate it when it delivers.</p>
+              <p className="text-reading">This working definition differs from the version with your served training. Test the current private update in Training, then activate it when it delivers.</p>
               <Link href={`/training/${encodeURIComponent(slug)}`} className="btn-primary" onClick={()=>setTrainingGate(null)}>Test this working update in Training</Link>
-            </>:<><p>Tukido could not verify Manager reference-training readiness for this exact active version. No run inputs were selected, verified, or prepared.</p>
-            <p>Reload and try again after Dashboard and the backend are updated. Run creation remains blocked on an unverifiable basis.</p>
+            </>:<><p className="text-reading">Tukido could not verify Manager reference-training readiness for this exact active version. No run inputs were selected, verified, or prepared.</p>
+            <p className="text-reading">Reload and try again after Dashboard and the backend are updated. Run creation remains blocked on an unverifiable basis.</p>
             {trainingTest&&<Link href={`/training/${encodeURIComponent(slug)}`} className="btn-primary" onClick={()=>setTrainingGate(null)}>Return to Training to prepare the current test</Link>}</>}
             <div className="flex justify-end gap-3">
               <button type="button" className="btn-outline" onClick={() => setTrainingGate(null)}>Close</button>
@@ -1481,7 +1481,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       )}
       {/* When does it run next (scheduled agents), grey + small. */}
       {isActive && !msg && nextRunAt && (
-        <span className={`text-secondary text-ink-600 ${align === 'end' ? 'text-right' : 'text-left'}`}>
+        <span className={`text-secondary text-ink-500 ${align === 'end' ? 'text-right' : 'text-left'}`}>
           Next run: {nextRunLabel(nextRunAt)}
         </span>
       )}
@@ -1642,7 +1642,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                   onChange={(next) => setSetupValues((v) => ({ ...v, [f.key]: next }))}
                   ariaLabel={f.question}
                   selectClassName="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
-                  inputClassName="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
+                  inputClassName="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none"
                 />
               ) : (
                 <input
@@ -1650,7 +1650,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                   value={setupValues[f.key] ?? ''}
                   onChange={(e) => setSetupValues((v) => ({ ...v, [f.key]: e.target.value }))}
                   placeholder={f.kind === 'file' ? 'Paste a file path or link' : 'Type your answer'}
-                  className={`w-full bg-ink-900 border border-ink-700 rounded-md text-micro px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none${f.kind === 'file' ? ' font-mono text-micro' : ''}`}
+                  className={`w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none${f.kind === 'file' ? ' font-mono text-ui' : ''}`}
                 />
               )}
               {/* An optional preference needs a visible way OUT, or a blank field
@@ -1727,7 +1727,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                   {origin === 'cleared' && savedPath && (
                     <span className="ml-2 text-secondary text-ink-400 border border-ink-700 rounded px-1.5 py-0.5">cleared for this run</span>
                   )}
-                  {field.kind==='choice'&&!brollBudget&&field.description.length>180?<details className="mt-1 text-secondary leading-relaxed text-ink-400"><summary className="cursor-pointer">About {field.label.toLowerCase()}</summary><p className="mt-2">{field.description}</p></details>:(
+                  {field.kind==='choice'&&!brollBudget&&field.description.length>180?<details className="mt-1 text-secondary leading-relaxed text-ink-400"><summary className="cursor-pointer">About {field.label.toLowerCase()}</summary><p className="text-reading mt-2">{field.description}</p></details>:(
                   <p className="text-reading text-ink-400 mt-1 ">{brollBudget
                     ? brollEstimate
                       ? `Aim for ${brollEstimate.minClips === brollEstimate.maxClips ? brollEstimate.minClips : `${brollEstimate.minClips}–${brollEstimate.maxClips}`} B-roll clips at 2–3 per minute. Budget roughly ${brollEstimate.estimatedCredits} credits if generating them all. Actual costs vary by model and clip length.`
@@ -1900,7 +1900,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           onChange={(e) => setStandingNote(e.target.value)}
           rows={3}
           placeholder="e.g. keep the b-roll punchy; never use stock-looking footage; the judge verifies each shot"
-          className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
+          className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none resize-y"
         />
       </div>
 
@@ -1916,7 +1916,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           rows={3}
           autoFocus={setupFields.length === 0}
           placeholder="e.g. make the b-roll punchier; lean on the second reference video; keep it under 30s"
-          className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
+          className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none resize-y"
         />
 
         {/* Attach a screenshot / file for THIS run. The picked file's absolute PATH

@@ -96,19 +96,19 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
   finally{if(active.current===identity)setBusy(false);}
  };
  const draftDetails=<div className="space-y-3">
-   <p>Send shares this conversation and the prepared draft with Claude Haiku 5.5. Attachments stay local until Build.</p>
+   <p className="text-reading">Send shares this conversation and the prepared draft with Claude Haiku 5.5. Attachments stay local until Build.</p>
    <button type="button" className="underline" disabled={!draftId||busy} onClick={()=>load(draftId)}>Refresh saved draft</button>
    {!!data?.recentDrafts?.length&&<label className="block">Private draft history<select aria-label="Private draft history" className="mt-1 w-full rounded border border-ink-700 bg-ink-950 p-2" disabled={busy} value={draftId} onChange={e=>{active.current=e.target.value;setDraftId(e.target.value);setData(null);setSelectedId(null);setQueued(false);setText('');pending.current=null;seed.current=null;resetFiles();try{sessionStorage.setItem(storageKey,e.target.value);}catch{}}}>
     {!data.recentDrafts.some(d=>d.draft_id===draftId)&&<option value={draftId}>Current draft</option>}{data.recentDrafts.map(d=><option key={d.draft_id} value={d.draft_id}>{new Date(d.updated_at).toLocaleString()}{d.withdrawn?' · Withdrawn':''}</option>)}
    </select></label>}
-   <p>Messages stay in your private history. Withdrawal stops further preparation and builds from this draft; it does not cancel queued work.</p><button type="button" className="underline" disabled={busy||data?.withdrawn||!data?.turns.length} onClick={withdraw}>Withdraw this draft from further use</button>
+   <p className="text-reading">Messages stay in your private history. Withdrawal stops further preparation and builds from this draft; it does not cancel queued work.</p><button type="button" className="underline" disabled={busy||data?.withdrawn||!data?.turns.length} onClick={withdraw}>Withdraw this draft from further use</button>
   </div>;
  const chatComposer=<ChatComposer voiceScope={draftId||'creation-start'} standalone={starting} details={starting?draftDetails:undefined} value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId} textareaRef={composer} placeholder={starting?CREATION_EXAMPLES[exampleIndex]:"Tell me what you’d like your agent to do…"} attachments={<fieldset disabled={busy||isBuilt}><AttachFiles hint={starting?'':undefined} files={files} canAttach={canAttach} canAttachFolder={canAttachFolder} onAttach={()=>attachFile()} onAttachFolder={()=>attachFolder()} onRemove={removeFile} error={attachError}/></fieldset>}/>;
  return <section className={starting?"mx-auto max-w-3xl space-y-4":"grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]"}>
   <aside className={starting?"min-w-0":"min-w-0 lg:sticky lg:top-6"}>{starting?chatComposer:<ChatFrame contentSized scrollKey={data?.turns.at(-1)?.turnId+':'+data?.turns.at(-1)?.status} title="Chat with AI" subtitle="Build your agent" details={draftDetails} composer={chatComposer}>
    {data&&!data.withdrawn&&data.totalTurns>data.turns.length&&<p className="text-secondary text-ink-500">Showing recent exchanges. Earlier messages are saved in this draft.</p>}
    <ol aria-label="Agent creation conversation" className="space-y-6">{data?.turns.map(t=><li key={t.turnId} className="space-y-3">
-    <ChatMessage role="user"><p className="whitespace-pre-wrap">{t.message}</p></ChatMessage>{t.reply&&<ChatMessage role="assistant"><p className="whitespace-pre-wrap">{t.reply}</p></ChatMessage>}
+    <ChatMessage role="user"><p className="text-reading whitespace-pre-wrap">{t.message}</p></ChatMessage>{t.reply&&<ChatMessage role="assistant"><p className="text-reading whitespace-pre-wrap">{t.reply}</p></ChatMessage>}
     {t.status==='pending'&&<p className="text-reading text-ink-400">Your message is saved. <button type="button" className="underline" disabled={busy} onClick={()=>load(draftId)}>Check for the reply</button></p>}
     {t.status==='failed'&&<p role="status" className="text-reading text-state-needs">Your message is saved, but the reply couldn’t be prepared. Try a new draft.</p>}
     {t.brief&&t.replyId!==selectedId&&<button type="button" className="text-ui text-ink-400 underline" disabled={busy||isBuilt} onClick={()=>choose(t)}>Use this saved draft</button>}

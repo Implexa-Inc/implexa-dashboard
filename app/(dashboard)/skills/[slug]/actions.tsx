@@ -219,7 +219,7 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
 
       {editing && canEditDraft && <section className="w-full space-y-2 rounded border border-ink-700 p-3">
         <p>Editing private draft version {currentVersion}. If it changes before saving, reload and review it again.</p>
-        <label className="block">Draft operating method<textarea aria-label="Draft operating method" className="block w-full min-h-64 rounded bg-ink-900 p-2 font-mono text-micro" value={draftContent} maxLength={30000} disabled={!!busy} onChange={event => setDraftContent(event.target.value)} /></label>
+        <label className="block">Draft operating method<textarea aria-label="Draft operating method" className="block w-full min-h-64 rounded bg-ink-900 p-2 font-mono text-ui" value={draftContent} maxLength={30000} disabled={!!busy} onChange={event => setDraftContent(event.target.value)} /></label>
         <p className="text-reading">Correct wording in this existing method. New tool procedures belong in a new demonstration. Saving uses the existing version history; it does not activate or share the draft.</p>
         <button disabled={!!busy || !draftContent.trim() || draftContent === currentContent} onClick={saveDraftWording}>Save draft wording</button>
         <button disabled={!!busy} onClick={() => setEditing(false)}>Cancel wording edit</button>

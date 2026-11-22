@@ -24,7 +24,7 @@ export default function AgentEditButton({ slug, statusUnavailable = false, revis
         disabled={statusUnavailable || revisePending}
         title={statusUnavailable ? 'Edit status is unavailable. Reload before queueing another edit.' : revisePending ? 'An edit is already queued.' : undefined}
         className={className||`text-ui underline underline-offset-2 ${statusUnavailable || revisePending
-          ? 'text-ink-600 cursor-not-allowed'
+          ? 'text-ink-500 cursor-not-allowed'
           : 'text-ink-400 hover:text-ink-200'}`}
       >
         {statusUnavailable ? 'Edit status unavailable' : revisePending ? 'Edit queued' : label}

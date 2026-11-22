@@ -27,7 +27,7 @@ export default function CapabilityGapsNotice({ gaps }: { gaps?: CapabilityGap[] 
           : 'Optional capability without a tool'}
       </p>
       {required.length > 0 && (
-        <p className="mt-0.5 text-reading text-state-needs leading-snug">
+        <p className="mt-0.5 text-reading text-state-needs ">
           It can’t produce part of its result until you pick a tool for{' '}
           {required.map((g) => g.capabilityLabel).join(', ')}. It won’t show as ready to run until then.
         </p>

@@ -434,7 +434,7 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Find one of your agents"
             aria-label="Search your agents"
-            className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui pl-8 pr-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
+            className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui pl-8 pr-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none"
           />
       </div>}
 

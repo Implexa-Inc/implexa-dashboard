@@ -54,7 +54,7 @@ export default async function TeamSettingsPage() {
       <div className="settings-page-content">
 
         <PageHeader title="Team">
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Invite teammates so the whole team can run your shared agents. Everyone&apos;s runs and results land in one place; each person&apos;s own runs stay private.
           </p>
         </PageHeader>

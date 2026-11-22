@@ -53,7 +53,7 @@ export default function OnboardingProgress({ steps }: { steps: OnboardingStep[] 
               className={`flex-none inline-flex items-center justify-center w-4 h-4 rounded-full text-secondary ${
                 s.done
                   ? 'bg-success-400/20 text-success-600 dark:text-success-400'
-                  : 'border border-ink-600 text-ink-600'
+                  : 'border border-ink-600 text-ink-500'
               }`}
               aria-hidden="true"
             >

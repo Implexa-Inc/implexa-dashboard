@@ -41,7 +41,7 @@ export default async function RunEnvironmentPage() {
       <div className="settings-page-content">
 
         <PageHeader title="Run environment">
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Where on-demand runs happen on this machine: the folder to work in and the browser that
             holds your logins. Private to you; never changes the shared agent.
           </p>
@@ -49,7 +49,7 @@ export default async function RunEnvironmentPage() {
 
         <div className="mb-6 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-4 text-secondary">
           <div className="font-medium text-ink-50 mb-1">You usually don&apos;t need to fill this in.</div>
-          <p className="text-ink-300 leading-relaxed">
+          <p className="text-reading text-ink-300 leading-relaxed">
             The first time you run an agent from Claude or Codex, it captures the folder it ran in (and the browser
             it used) automatically. These fields are just to <strong>view or override</strong> what was
             captured — handy if you run agents in more than one place. Easiest setup: just run an agent

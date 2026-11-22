@@ -114,7 +114,7 @@ export default function CliAuthApproval({
       <div className="card text-center">
         <div className="text-4xl mb-4" aria-hidden>✗</div>
         <h1 className="text-2xl font-semibold text-ink-50 mb-3">Login request denied.</h1>
-        <p className="text-ink-200 leading-relaxed">
+        <p className="text-reading text-ink-200 leading-relaxed">
           Your terminal will show a denied message. You can close this tab and re-run the install command if you want to try again.
         </p>
       </div>

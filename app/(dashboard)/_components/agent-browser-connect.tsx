@@ -139,7 +139,7 @@ export default function AgentBrowserConnect({
         Connect the browser ↗
       </button>
       {domains.length > 0 && (
-        <p className="text-reading text-ink-500 leading-snug">
+        <p className="text-reading text-ink-500 ">
           Opens {domains.slice(0, 3).join(', ')}{domains.length > 3 ? ` +${domains.length - 3} more` : ''} once, so runs never stop to ask.
         </p>
       )}

@@ -49,7 +49,7 @@ export default function OutcomeHandoffRow({ handoff }: { handoff: ProductionHand
           </span>
         </li>
 
-        <li aria-hidden="true" className="text-ink-600">→</li>
+        <li aria-hidden="true" className="text-ink-500">→</li>
         <li className="text-ink-200">
           {handoff.artifactName || (handoff.artifactKind ? handoff.artifactKind.replace(/_/g, ' ') : 'output')}
           {handoff.digestPrefix && (
@@ -57,12 +57,12 @@ export default function OutcomeHandoffRow({ handoff }: { handoff: ProductionHand
           )}
         </li>
 
-        <li aria-hidden="true" className="text-ink-600">→</li>
+        <li aria-hidden="true" className="text-ink-500">→</li>
         <li className={validated ? 'text-state-ok' : 'text-ink-400'}>
           {validated ? 'digest verified' : handoff.validationStatus === 'not_reached' ? 'never produced' : 'not validated'}
         </li>
 
-        <li aria-hidden="true" className="text-ink-600">→</li>
+        <li aria-hidden="true" className="text-ink-500">→</li>
         <li className="text-ink-200">
           {handoff.state === 'accepted'
             ? `handed to ${consumer}${handoff.consumerAgentName ? ` — ${handoff.consumerAgentName}` : ''}`
@@ -73,7 +73,7 @@ export default function OutcomeHandoffRow({ handoff }: { handoff: ProductionHand
 
         {handoff.state === 'accepted' && (
           <>
-            <li aria-hidden="true" className="text-ink-600">→</li>
+            <li aria-hidden="true" className="text-ink-500">→</li>
             <li className="text-ink-400">
               {consumer} dispatched{clock(handoff.dispatchedAt) ? ` ${clock(handoff.dispatchedAt)}` : ''}
             </li>

@@ -30,9 +30,9 @@ export default function RecordingLearningReview({fields,frame,origin,scope,disab
             onChange={event=>setLesson(current=>({...current,[key]:event.target.value}))}
             className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 p-2"/>
         </label>):<>
-          <p>{lesson.desiredBehavior}</p>
+          <p className="text-reading">{lesson.desiredBehavior}</p>
           <p className="text-ink-400">{lesson.process}</p>
-          <details className="text-ink-400"><summary>Why this was suggested</summary><p>{lesson.why}</p><p>{lesson.chosen}</p></details>
+          <details className="text-ink-400"><summary>Why this was suggested</summary><p className="text-reading">{lesson.why}</p><p className="text-reading">{lesson.chosen}</p></details>
         </>}
       </div>
     </div>

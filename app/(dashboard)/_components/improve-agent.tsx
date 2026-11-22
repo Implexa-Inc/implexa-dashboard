@@ -107,7 +107,7 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
             autoFocus
             placeholder="e.g. add a final step that posts the result to Instagram · make the research cover the last 30 days · also email me a summary"
             disabled={statusUnavailable || revisePending}
-            className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
+            className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none resize-y"
           />
           {error && <p className="text-secondary text-state-fail mt-1.5">{error}</p>}
           <div className="flex items-center justify-between mt-2.5">

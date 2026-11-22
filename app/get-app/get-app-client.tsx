@@ -128,7 +128,7 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
         <h1 className="text-2xl sm:text-3xl font-semibold text-ink-50 leading-tight">
           {firstName ? `${firstName}, get the app to start` : 'Get the app to start'}
         </h1>
-        <p className="mt-3 text-ink-400 leading-relaxed">
+        <p className="text-reading mt-3 text-ink-400 leading-relaxed">
           Tukido runs your agents inside your own Claude or Codex, on your machine — so the desktop app
           is where everything happens. {isMac ? 'Your download is starting now.' : ''}
         </p>
@@ -185,7 +185,7 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
             <button
               type="button"
               onClick={copyCurl}
-              className="mt-3 w-full text-left rounded-md bg-ink-950 border border-ink-700 px-3 py-2.5 font-mono text-micro text-ink-100 hover:border-ink-600 transition-colors"
+              className="mt-3 w-full text-left rounded-md bg-ink-950 border border-ink-700 px-3 py-2.5 font-mono text-ui text-ink-100 hover:border-ink-600 transition-colors"
             >
               {copied ? '✓ Copied' : CONNECT_CURL}
             </button>
@@ -206,7 +206,7 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
             <button
               type="button"
               onClick={copyCurl}
-              className="mt-2 w-full text-left rounded-md bg-ink-950 border border-ink-700 px-3 py-2.5 font-mono text-micro text-ink-100 hover:border-ink-600 transition-colors"
+              className="mt-2 w-full text-left rounded-md bg-ink-950 border border-ink-700 px-3 py-2.5 font-mono text-ui text-ink-100 hover:border-ink-600 transition-colors"
             >
               {copied ? '✓ Copied' : CONNECT_CURL}
             </button>

@@ -67,7 +67,7 @@ export default function RunStepTrace({
               <div className="min-w-0 flex-1">
                 {e.step && <span className="font-mono text-micro text-ink-500 mr-1.5">{e.step}</span>}
                 <span className="text-ink-200">{e.note || 'progress'}</span>
-                <span className="text-ink-600 text-secondary ml-2">{rel(e.at)}</span>
+                <span className="text-ink-500 text-secondary ml-2">{rel(e.at)}</span>
               </div>
             </li>
           );

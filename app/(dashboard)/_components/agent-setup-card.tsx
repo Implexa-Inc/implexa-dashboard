@@ -176,7 +176,7 @@ export default function AgentSetupCard({
   const optionalFields = setup.schema.filter(isOptional);
   const filled = (f: Field) => (values[f.key] ?? '').toString().trim() !== '';
   const allFilled = requiredFields.every(filled);
-  const inputCls = 'w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none';
+  const inputCls = 'w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none';
 
   async function chooseFile(key: string) {
     const b = desktopBridge();
@@ -267,7 +267,7 @@ export default function AgentSetupCard({
                   value={values[f.key] ?? ''}
                   onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
                   placeholder={inDesktop ? 'Or paste a file path' : '/path/to/your/file (you can also attach it in Claude)'}
-                  className={inputCls + ' font-mono text-micro'}
+                  className={inputCls + ' font-mono text-ui'}
                 />
                 {!inDesktop && (
                   <p className="text-reading text-ink-500">
@@ -316,7 +316,7 @@ export default function AgentSetupCard({
         <label className="block text-ui font-medium text-ink-100 mb-1">
           Notes for this agent <span className="text-ink-500 font-normal">(optional)</span>
         </label>
-        <p className="text-reading text-ink-400 mb-2 leading-snug">
+        <p className="text-reading text-ink-400 mb-2 ">
           Standing instructions honored on <strong>every</strong> run (tone, things to avoid, what to emphasize). You can also tweak this in the Run-now pop-up.
         </p>
         <textarea

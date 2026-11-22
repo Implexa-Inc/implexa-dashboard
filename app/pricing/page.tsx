@@ -84,7 +84,7 @@ export default async function PricingPage() {
       <header className="text-center mb-8">
         <div className="mb-4 flex justify-center"><Logo height={18} /></div>
         <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Pricing</h1>
-        <p className="text-ink-300 mt-3 max-w-2xl mx-auto leading-relaxed">
+        <p className="text-reading text-ink-300 mt-3 max-w-2xl mx-auto leading-relaxed">
           Build, run, and manage hundreds of agents on the Claude or Codex subscription you
           already have. Free for your one-person company. Pro when your team joins. We never
           charge for AI compute, because your agents run on yours.

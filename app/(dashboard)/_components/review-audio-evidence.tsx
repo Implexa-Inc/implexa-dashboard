@@ -17,7 +17,7 @@ export function ReviewAudioEvidence({ reviewedFile, anchorMs, onInsert }: {
   const preview = audioEvidenceText({ reviewedFile, anchorMs, refs, listening });
   return <details className="my-2 rounded border border-ink-700 p-2 text-secondary text-ink-300">
     <summary className="cursor-pointer">Clarify audio evidence and timestamps</summary>
-    <p className="my-2">The comment stays attached to the reviewed file. Add named references below; source and clip times do not move its anchor.</p>
+    <p className="text-reading my-2">The comment stays attached to the reviewed file. Add named references below; source and clip times do not move its anchor.</p>
     <p className="my-2">{AUDIO_LIMITATION}</p>
     <label className="block">How was this checked?
       <select aria-label="Audio listening status" className={inputClass} value={listening} onChange={e => setListening(e.target.value as Listening)}>
@@ -55,6 +55,6 @@ export function ReviewAudioEvidence({ reviewedFile, anchorMs, onInsert }: {
     <button type="button" className="rounded border border-ink-700 px-2 py-1" onClick={() => {
       onInsert(preview, inserted); setInserted(preview);
     }}>{inserted ? 'Update context in comment' : 'Add context to comment'}</button>
-    <p className="mt-2">Review the inserted text, describe the correction, then save the issue. Adding context does not submit or start a revision.</p>
+    <p className="text-reading mt-2">Review the inserted text, describe the correction, then save the issue. Adding context does not submit or start a revision.</p>
   </details>;
 }

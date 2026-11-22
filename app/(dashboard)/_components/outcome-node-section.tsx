@@ -188,7 +188,7 @@ export default function OutcomeNodeSection({ node }: { node: ProductionNode }) {
           {unopenable.map((artifact) => (
             <li key={artifact.id || artifact.digest || artifact.name} className="text-secondary text-ink-400">
               {artifact.name || 'Validated output'}
-              {artifact.digest && <span className="text-ink-600 font-mono ml-2">{artifact.digest.slice(0, 12)}</span>}
+              {artifact.digest && <span className="text-ink-500 font-mono ml-2">{artifact.digest.slice(0, 12)}</span>}
             </li>
           ))}
         </ul>

@@ -447,7 +447,7 @@ export default function RunActions({
             rows={3}
             autoFocus
             placeholder={needsInput ? 'Answer its question or add the missing inputs…' : 'What should it change? (e.g. punch up the hook)'}
-            className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
+            className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none resize-y"
           />
           <AttachFiles files={files} canAttach={canAttach} canAttachFolder={canAttachFolder}
             onAttach={attachFile} onAttachFolder={attachFolder} onRemove={removeFile} error={attachError}

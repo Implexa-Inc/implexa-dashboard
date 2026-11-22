@@ -170,7 +170,7 @@ export default async function AllConnectionsPage() {
     <section className="settings-page">
       <div className="settings-page-content">
         <PageHeader title="Connected accounts">
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Every account your agents drive in the Tukido browser, and which agents need what.
             You sign in once; agents use what you can, no API keys. Set-up happens on each agent&apos;s activation card.
           </p>

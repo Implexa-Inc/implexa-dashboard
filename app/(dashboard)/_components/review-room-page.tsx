@@ -173,7 +173,7 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
               {(reviewLearningProof.context.rules || []).map((rule) => {
                 const receipt = reviewLearningHandling.find((item) => item.rule_version_id === rule.id);
                 return <li key={rule.id} className="rounded border border-ink-800 px-3 py-2 text-secondary text-ink-300">
-                  <p>{rule.instruction}</p>
+                  <p className="text-reading">{rule.instruction}</p>
                   <p className="mt-1 text-ink-500">v{rule.version} · {rule.versionDigest.slice(0, 12)} · executor handling {receipt ? receipt.handling.replaceAll('_', ' ') : 'pending'}</p>
                   {receipt?.reason && <p className="mt-1 text-ink-500">Reason: {receipt.reason}</p>}
                   <p className="mt-1 text-ink-500">Applied is an executor report, not proof of causation or success.</p>

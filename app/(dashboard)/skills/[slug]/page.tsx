@@ -213,7 +213,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
                 />
               )}
             </div>
-            <p className="text-ink-200 mt-3">{actualSkill.description}</p>
+            <p className="text-reading text-ink-200 mt-3">{actualSkill.description}</p>
 
             {/* Social share row — visible for any skill the user might want to
               * push out. Lives below the description so the install / share

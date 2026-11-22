@@ -1429,11 +1429,11 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               <p className="text-secondary font-medium text-ink-200">
                 Reviewing {currentVersion?.label || props.currentVersionLabel || 'version unavailable'}
               </p>
-              <p className="mt-1 text-reading text-ink-500">
+              <p className="mt-1 text-secondary text-ink-500">
                 Started {reviewTimestamp(currentVersion?.startedAt)} · run {runId.slice(0, 12)}…
               </p>
               {latestFinalOutput ? (
-                <p className="mt-1 truncate text-reading text-state-ok" title={latestFinalOutput.relativePath}>
+                <p className="mt-1 truncate text-secondary text-state-ok" title={latestFinalOutput.relativePath}>
                   Latest validated final output: {latestFinalOutput.relativePath.split('/').at(-1)} · verified {reviewTimestamp(latestFinalOutput.validatedAt)} · sha256 {latestFinalOutput.sha256?.slice(0, 12)}…
                 </p>
               ) : (
@@ -1625,7 +1625,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               // disabled on an invalid end: a silently dead button teaches nothing,
               // and completeRange refuses in words without touching anything.
               onClick={finishRange}
-              className="rounded-md bg-action-strong px-3 py-1.5 font-mono text-micro font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover"
+              className="rounded-md bg-action-strong px-3 py-1.5 font-mono text-ui font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover"
             >
               {rangeEndButtonLabel(playheadMs)}
             </button>
@@ -2189,7 +2189,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                           rows={2}
                           maxLength={REVISION_NOTE_MAX}
                           placeholder="Optional. Adds context to the issues above — it doesn't replace them."
-                          className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-ui text-ink-100 placeholder:text-ink-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-ui text-ink-100 placeholder:text-ink-500 disabled:cursor-not-allowed disabled:opacity-50"
                         />
                         <span className="mt-1 block text-secondary leading-snug text-ink-500">
                           {submitView.noteHint
@@ -2321,7 +2321,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               )}
 
               {submitView.mode === 'accept_result' && (
-                <p className="text-reading leading-snug text-ink-500">{ACCEPT_DISCLAIMER}</p>
+                <p className="text-reading text-ink-500">{ACCEPT_DISCLAIMER}</p>
               )}
 
               {/* The backend's own guard, surfaced verbatim. Accept is only offered
@@ -2511,7 +2511,7 @@ function ArtifactSurface({
                   type="button"
                   onClick={() => onSeek(ms)}
                   title={i.body}
-                  className="rounded bg-ink-800 px-1.5 py-0.5 font-mono text-micro text-ink-300 hover:bg-ink-700"
+                  className="rounded bg-ink-800 px-1.5 py-0.5 font-mono text-ui text-ink-300 hover:bg-ink-700"
                 >
                   {formatMs(ms)}
                 </button>

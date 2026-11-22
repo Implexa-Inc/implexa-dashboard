@@ -83,7 +83,7 @@ export default async function RunCardPage({ params }: { params: { token: string 
             <ol className="mt-4 space-y-1.5 text-secondary">
               {card.stepsState.map((s) => (
                 <li key={s.index} className="flex items-start gap-2 text-ink-300">
-                  <span className={s.status === 'done' ? 'text-state-ok' : 'text-ink-600'}>
+                  <span className={s.status === 'done' ? 'text-state-ok' : 'text-ink-500'}>
                     {s.status === 'done' ? '✓' : '•'}
                   </span>
                   <span>{s.label}</span>
@@ -116,7 +116,7 @@ export default async function RunCardPage({ params }: { params: { token: string 
           <ForkRunCta skillSlug={card.skillSlug} />
         </div>
 
-        <p className="mt-6 text-center text-reading text-ink-600">
+        <p className="mt-6 text-center text-reading text-ink-500">
           Built and graded on real runs by Tukido · {card.viewCount} view{card.viewCount === 1 ? '' : 's'}
         </p>
       </div>

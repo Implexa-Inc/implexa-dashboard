@@ -214,8 +214,8 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
           What should the B-roll show?
           <textarea value={prompt} onChange={(e) => edit(setPrompt, e.target.value)} maxLength={700} rows={4}
             placeholder="Example: A clean aerial route map moving from Palo Alto to Pleasanton at sunrise, no text or logos."
-            className="mt-1 w-full resize-y rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100 placeholder:text-ink-600" />
-          <span className="mt-1 block text-secondary text-ink-600">
+            className="mt-1 w-full resize-y rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100 placeholder:text-ink-500" />
+          <span className="mt-1 block text-secondary text-ink-500">
             {prompt.length}/700 · the window must be 2–10 seconds, and must end at or before {formatDurationMs(source.mediaDurationMs)}
           </span>
         </label>

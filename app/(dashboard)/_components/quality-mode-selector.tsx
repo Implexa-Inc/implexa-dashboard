@@ -114,7 +114,7 @@ export default function QualityModeSelector({ value, onChange, compiledByMode, d
               ) : !markedUnavailable ? (
                 // No compiled proposal for this mode yet: say so instead of
                 // describing behavior nobody compiled.
-                <span className="mt-2 text-secondary text-ink-600">
+                <span className="mt-2 text-secondary text-ink-500">
                   Details appear once this mode is compiled for your request.
                 </span>
               ) : null}

@@ -147,8 +147,8 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
       {targetId && <p className="text-secondary break-all">Proposed definition: {targetId}</p>}
       {preview && !freshPurpose && !purposeChanged && <p className="mt-3">{preview.eligibleRecordCount} accepted records cover {preview.eligibleRouteCount} reference routes.</p>}
       {freshPurpose && <section className="mt-3 text-secondary">
-        <p>No training is carried from the current job. Existing customer installations stay on their current version until each customer explicitly reactivates.</p>
-        <p>Once applied, this update is available for customers to reactivate immediately, even before fresh training is released. Admit and release fresh training for this new job.</p>
+        <p className="text-reading">No training is carried from the current job. Existing customer installations stay on their current version until each customer explicitly reactivates.</p>
+        <p className="text-reading">Once applied, this update is available for customers to reactivate immediately, even before fresh training is released. Admit and release fresh training for this new job.</p>
         <p className="break-all">Source learning identity: {freshPurpose.acknowledgement.sourceLearningIdentityDigest}</p>
         <p className="break-all">Target learning identity: {freshPurpose.acknowledgement.targetLearningIdentityDigest}</p>
         <p className="break-all">Source policies: {freshPurpose.acknowledgement.sourcePolicySetDigest}</p>
@@ -158,7 +158,7 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
         <p>Required reference training: {preview.managerTrainingRequirements?.readiness}. Missing routes: {preview.managerTrainingRequirements?.missingPairs.length ?? 'unknown'}.</p>
       </section>}
       {preview?.managerPolicyRemap && <section className="mt-3 text-secondary">
-        <p>This proposal moves or consolidates Manager responsibilities. Only surviving same-label references may carry forward.</p>
+        <p className="text-reading">This proposal moves or consolidates Manager responsibilities. Only surviving same-label references may carry forward.</p>
         <ul>{preview.managerPolicyRemap.entries.map(entry => <li key={entry.from.order}>
           Stage {entry.from.order} {entry.from.label} → stage {entry.to.order} {entry.to.label} ({entry.disposition})
         </li>)}</ul>

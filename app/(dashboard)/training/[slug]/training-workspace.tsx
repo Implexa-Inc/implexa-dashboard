@@ -41,7 +41,7 @@ export function TrainingAttention({cards}:{cards:TrainingAction[]}){
 /** New bullet responses stay readable; older prose is preserved as plain text. */
 export function TrainingExplanation({text}:{text:string}){
  const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
- return lines.length>0&&lines.every(line=>line.startsWith('- '))?<ul className="list-disc space-y-2 pl-5">{lines.map((line,index)=><li key={index}>{line.slice(2)}</li>)}</ul>:<p className="whitespace-pre-wrap">{text}</p>;
+ return lines.length>0&&lines.every(line=>line.startsWith('- '))?<ul className="list-disc space-y-2 pl-5">{lines.map((line,index)=><li key={index}>{line.slice(2)}</li>)}</ul>:<p className="text-reading whitespace-pre-wrap">{text}</p>;
 }
 /** Applicability is labelled by the card, not repeated inside its saved sentence. */
 export function trainingApplicability(text:string){return text.replace(/^(?:applies\s+when\s*:?\s*)+/i,'');}

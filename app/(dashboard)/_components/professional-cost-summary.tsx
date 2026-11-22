@@ -64,7 +64,7 @@ export default function ProfessionalCostSummary({ cost, source }: Props) {
 
       <p className="mt-3 border-t border-ink-800 pt-3 text-secondary text-ink-300">{coverageSummary(cost)}</p>
 
-      <p className="mt-2 text-reading leading-snug text-ink-500">
+      <p className="mt-2 text-reading text-ink-500">
         {authoritative
           ? 'These are the figures Tukido compiled for this exact plan. Nothing here is calculated in your browser.'
           : 'These figures are this build’s own arithmetic over the pinned provider rate. Preview the plan to get Tukido’s compiled figures — those are the ones an approval uses, and if the two disagree the plan cannot be approved.'}

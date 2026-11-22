@@ -87,7 +87,7 @@ export default function AgentFeedback({ slug, statusUnavailable = false, reviseP
           disabled={statusUnavailable || revisePending}
           title={statusUnavailable ? 'Edit status is unavailable. Reload before queueing another edit.' : revisePending ? 'An edit is already queued.' : undefined}
           className={statusUnavailable || revisePending
-            ? 'self-start text-ui text-ink-600 cursor-not-allowed underline underline-offset-2'
+            ? 'self-start text-ui text-ink-500 cursor-not-allowed underline underline-offset-2'
             : 'self-start text-ui text-ink-400 hover:text-ink-200 underline underline-offset-2'}
         >
           {statusUnavailable ? 'Edit status unavailable' : revisePending ? 'Edit already queued' : 'Change how this agent works →'}
@@ -113,7 +113,7 @@ export default function AgentFeedback({ slug, statusUnavailable = false, reviseP
         autoFocus
         placeholder="Describe the change…"
         disabled={statusUnavailable || revisePending}
-        className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-none"
+        className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none resize-none"
       />
       <div className="mt-2 flex items-center gap-3">
         <button

@@ -180,7 +180,7 @@ export default function RunContinueBox({
         rows={3}
         aria-label="What should change?"
         placeholder={presentation==='finished'?'Say what to change, in your own words…':'Add instructions, feedback, or the missing inputs…'}
-        className="mt-3 w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
+        className="mt-3 w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none resize-y"
       />
       <AttachFiles
         files={files}

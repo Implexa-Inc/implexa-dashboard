@@ -54,7 +54,7 @@ export default async function DataSettingsPage() {
       <div className="settings-page-content">
 
         <PageHeader title="Data & privacy">
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Tukido learns from how you work to recommend better skills over time.
             This is the data + consent control surface. You can change anything here at any time.
           </p>

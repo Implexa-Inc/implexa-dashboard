@@ -79,11 +79,11 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
             ? <p>{view.temporalQa.status === 'unavailable' ? 'Temporal QA is unavailable; no measured pass is claimed.'
               : 'Provider-slot temporal QA is not applicable; there are no provider slots.'}</p>
             : <>
-              <p>Temporal QA passed for {view.temporalQa.passedSlotCount}/{view.temporalQa.slotCount} slots;
+              <p className="text-reading">Temporal QA passed for {view.temporalQa.passedSlotCount}/{view.temporalQa.slotCount} slots;
                 {' '}offset index proven on {view.temporalQa.offsetIndexProvenSlotCount}/{view.temporalQa.slotCount};
                 {' '}{view.temporalQa.notVisuallyResolvableSlotCount}/{view.temporalQa.slotCount} not visually resolvable.</p>
-              {view.temporalQa.status === 'failed' && <p>Rendered provider frames or narration did not correspond to the sealed sources within the frozen tolerance. This is a renderer/runtime/source issue, not a Compose creative finding. Master is not available; no automatic retry or new media spending is authorized.</p>}
-              {view.temporalQa.status === 'not_assessable' && <p>Temporal correspondence could not be assessed: insufficient provider visibility or an audio window too short for the fixed measurement. This is not a Compose semantic finding. Master is not available; no automatic retry or new media spending is authorized.</p>}
+              {view.temporalQa.status === 'failed' && <p className="text-reading">Rendered provider frames or narration did not correspond to the sealed sources within the frozen tolerance. This is a renderer/runtime/source issue, not a Compose creative finding. Master is not available; no automatic retry or new media spending is authorized.</p>}
+              {view.temporalQa.status === 'not_assessable' && <p className="text-reading">Temporal correspondence could not be assessed: insufficient provider visibility or an audio window too short for the fixed measurement. This is not a Compose semantic finding. Master is not available; no automatic retry or new media spending is authorized.</p>}
               {view.temporalQa.slots.map(s => <p key={`${s.sceneId}:${s.slotId}`}>
                 {s.sceneId} / {s.slotId}: {s.verdict}; {s.offsetEvidence === 'not_visually_resolvable'
                   ? 'offset not visually resolvable within ±2 source frames'

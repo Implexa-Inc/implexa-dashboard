@@ -76,7 +76,7 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
             choosing what it is charged at. */}
         <p className="text-right text-reading text-ink-400">
           {PINNED_PROVIDER.provider} · {PINNED_PROVIDER.model}
-          <span className="mt-0.5 block text-secondary text-ink-600">
+          <span className="mt-0.5 block text-secondary text-ink-500">
             {capability
               ? `${capability.strengths.join(', ')} · ${DEFAULT_RATIO}`
               : 'No verified rate for this engine in this build — Tukido will supply the figures.'}
@@ -94,7 +94,7 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-ui font-medium text-ink-200">
                   Moment {index + 1}
-                  <span className="ml-2 font-mono text-micro text-ink-600">{moment.id}</span>
+                  <span className="ml-2 font-mono text-micro text-ink-500">{moment.id}</span>
                 </h3>
                 <div className="flex gap-1">
                   <button
@@ -156,11 +156,11 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
                   rows={3} disabled={disabled} value={moment.prompt}
                   onChange={(e) => set(moment.id, { prompt: e.target.value })}
                   placeholder="Example: A clean aerial route map moving from Palo Alto to Pleasanton at sunrise, no text or logos."
-                  className="mt-1 w-full resize-y rounded-md border border-ink-700 bg-ink-900 px-2 py-1.5 text-ui text-ink-100 placeholder:text-ink-600 disabled:opacity-50"
+                  className="mt-1 w-full resize-y rounded-md border border-ink-700 bg-ink-900 px-2 py-1.5 text-ui text-ink-100 placeholder:text-ink-500 disabled:opacity-50"
                 />
                 {/* The room stated is the room actually left: variant and repair
                     instructions are appended before the provider sees the text. */}
-                <span className="mt-1 block text-secondary text-ink-600">
+                <span className="mt-1 block text-secondary text-ink-500">
                   {moment.prompt.trim().length}/{promptRoom} — variant and repair instructions are added to this before {PINNED_PROVIDER.model} receives it.
                 </span>
               </label>
@@ -180,7 +180,7 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
                       <option key={count} value={count}>{count}</option>
                     ))}
                   </select>
-                  <span className="mt-1 block text-secondary text-ink-600">
+                  <span className="mt-1 block text-secondary text-ink-500">
                     Alternative takes of THIS moment. They add choice, not timeline.
                   </span>
                 </label>
@@ -202,7 +202,7 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
                     <option value="ranked">Ranked — judge every take, keep the best</option>
                     <option value="off">Off — return every take, select nothing</option>
                   </select>
-                  <span className="mt-1 block text-secondary text-ink-600">
+                  <span className="mt-1 block text-secondary text-ink-500">
                     {moment.judgeMode === 'off'
                       ? 'Deterministic checks only. Nothing is selected for you.'
                       : 'Semantic evidence per take, then one selection for this moment.'}
@@ -220,7 +220,7 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
                       <option key={count} value={count}>{count}</option>
                     ))}
                   </select>
-                  <span className="mt-1 block text-secondary text-ink-600">
+                  <span className="mt-1 block text-secondary text-ink-500">
                     {repairAllowed
                       ? 'Contingent. Priced into the ceiling; spent only on a judged failure.'
                       : 'Needs a Judge — with judging off, nothing could decide a repair is warranted.'}

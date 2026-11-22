@@ -214,10 +214,10 @@ export default async function SharePreviewPage({ params }: { params: { token: st
               jwt={session?.access_token || null}
             />
           </div>
-          <p className="text-ink-200 mt-3 leading-relaxed">{skill.description}</p>
+          <p className="text-reading text-ink-200 mt-3 leading-relaxed">{skill.description}</p>
 
           {sharedBy.message && (
-            <blockquote className="mt-4 border-l-4 border-brand-500 pl-4 italic text-ink-200">
+            <blockquote className="text-reading mt-4 border-l-4 border-brand-500 pl-4 italic text-ink-200">
               "{sharedBy.message}"
             </blockquote>
           )}

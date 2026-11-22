@@ -152,7 +152,7 @@ export default function NextAgentCards({
                 onClick={() => dismiss(rec)}
                 aria-label="Dismiss suggestion"
                 title="Dismiss"
-                className="absolute top-3 right-3 text-ink-600 hover:text-ink-300 transition-colors text-ui leading-none"
+                className="absolute top-3 right-3 text-ink-500 hover:text-ink-300 transition-colors text-ui leading-none"
               >
                 ✕
               </button>

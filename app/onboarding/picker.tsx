@@ -106,7 +106,7 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
       </div>
 
       <div className="rounded-lg border border-brand-500/20 bg-brand-50 p-4 text-secondary">
-        <p className="text-ink-200 leading-relaxed">
+        <p className="text-reading text-ink-200 leading-relaxed">
           Join them to instantly see your team's saved skills and shared Playbooks.
           You can still create a separate workspace if you're working on something independent.
         </p>

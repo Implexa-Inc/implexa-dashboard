@@ -167,7 +167,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
 
         {availability && availability.state !== 'ready' && (
           <div role="status" className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-secondary text-state-needs">
-            <p>{availability.message}</p>
+            <p className="text-reading">{availability.message}</p>
             {availability.state === 'desktop_update_required' && (
               <a href="/get-app" className="mt-2 inline-block text-secondary text-state-needs underline">Get the update</a>
             )}
@@ -215,7 +215,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
             >
               {busy('record') ? 'Opening recorder…' : active?.state === 'permission_required' ? 'Open permission setup' : 'Record'}
             </button>
-            <p className="mt-2 text-reading leading-snug text-ink-500" data-testid="record-notice">{RECORD_NOTICE}</p>
+            <p className="mt-2 text-reading text-ink-500" data-testid="record-notice">{RECORD_NOTICE}</p>
           </section>
         </div>
 

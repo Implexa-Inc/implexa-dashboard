@@ -236,7 +236,7 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
               <span className="text-ink-500">{moment.durationSeconds}s · {moment.ratio}</span>
               <span className="ml-auto text-ink-300">{moment.maximumCredits} credits max</span>
             </div>
-            <p className="mt-1.5 whitespace-pre-wrap text-reading leading-snug text-ink-300">{moment.prompt}</p>
+            <p className="mt-1.5 whitespace-pre-wrap text-reading text-ink-300">{moment.prompt}</p>
             <p className="mt-1.5 text-reading text-ink-500">
               {moment.variantsRequested} take{moment.variantsRequested === 1 ? '' : 's'} at {moment.creditsPerTask} credits each ·
               {' '}Judge {moment.judgeMode === 'off' ? 'off — every take is returned, nothing is selected' : 'ranked — one take is selected'} ·
@@ -260,7 +260,7 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
                       </p>
                     )}
                     {/* The EXACT string the provider receives, not the source text. */}
-                    <p className="mt-1 whitespace-pre-wrap text-reading leading-snug text-ink-500">{task.promptText}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-reading text-ink-500">{task.promptText}</p>
                   </li>
                 );
               })}
@@ -334,7 +334,7 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
           {!decision.ok && !inFlight && !settled && (
             <p className="mt-2 text-reading text-state-needs">{decision.message}</p>
           )}
-          <p className="mt-2 text-reading leading-snug text-ink-500">
+          <p className="mt-2 text-reading text-ink-500">
             Approving authorizes this exact timeline and nothing else. It is not a payment —
             usage is recorded as the work actually runs.
             {editHref && ' Editing cancels this plan and reopens its moments in the builder, so it can never be approved after you change it.'}

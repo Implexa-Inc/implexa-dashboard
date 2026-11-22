@@ -103,7 +103,7 @@ export default function GenerationClipResults({ vm, artifacts, artifactsLive }: 
         })}
       </ul>
 
-      <p className="mt-3 text-reading leading-snug text-ink-500">
+      <p className="mt-3 text-reading text-ink-500">
         Regenerating a single clip isn&apos;t supported yet — the backend doesn&apos;t offer
         it. Comment on a clip and request fixes in the Review Room instead.
       </p>

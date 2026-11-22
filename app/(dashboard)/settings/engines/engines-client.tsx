@@ -134,7 +134,7 @@ function EngineCard({ engine, report }: { engine: 'claude' | 'codex'; report: En
       {notice && <p className="mt-3 text-secondary text-state-needs">{notice}</p>}
 
       <div className="mt-4 pt-4 border-t border-ink-800 flex flex-wrap gap-2 text-secondary text-ink-400">
-        <span>Capabilities:</span>{['browser', 'computerUse', 'automation', 'headless'].map((cap) => <span key={cap} className={caps[cap] ? 'text-state-ok' : 'text-ink-600'}>{cap === 'computerUse' ? 'computer use' : cap}</span>)}
+        <span>Capabilities:</span>{['browser', 'computerUse', 'automation', 'headless'].map((cap) => <span key={cap} className={caps[cap] ? 'text-state-ok' : 'text-ink-500'}>{cap === 'computerUse' ? 'computer use' : cap}</span>)}
       </div>
     </section>
   );

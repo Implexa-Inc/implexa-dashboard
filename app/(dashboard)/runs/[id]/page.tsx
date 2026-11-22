@@ -210,7 +210,7 @@ export default async function RunDetailPage({
           {existsElsewhere ? (
             <div className="card mt-4 text-secondary text-ink-300">
               <p className="font-medium text-ink-100 mb-1">This run is in a different Tukido account.</p>
-              <p className="leading-relaxed">
+              <p className="text-reading leading-relaxed">
                 You&apos;re signed in as <span className="text-ink-100">{profile.email}</span>, but this run lives under another account.
                 Your agents and their runs belong to whichever account is connected to your Claude or Codex, so open the dashboard signed in with that account to see it.
               </p>
@@ -1261,7 +1261,7 @@ export default async function RunDetailPage({
       <div className="app-content">
         <BackLink fallback="/work" label="Work" className="text-secondary text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
         {requiredTrainingHold && <div role="status" className="mt-4 rounded-lg border border-amber-500/40 px-4 py-3 text-secondary text-ink-200">
-          <p>Required reference training is missing. This run stopped before the worker started. Accept replacement training before starting a new run.</p>
+          <p className="text-reading">Required reference training is missing. This run stopped before the worker started. Accept replacement training before starting a new run.</p>
           <Link href={`/training/${encodeURIComponent(r.skill_slug)}`} className="mt-2 inline-block underline">Open Training</Link>
         </div>}
 

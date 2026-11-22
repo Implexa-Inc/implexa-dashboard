@@ -129,7 +129,7 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
           <ul className="mt-1.5 space-y-0.5">
             {step.fallbacks.map((fb) => (
               <li key={fb} className="text-secondary text-ink-500">
-                <span className="text-ink-600">no integration? </span>{fb}
+                <span className="text-ink-500">no integration? </span>{fb}
               </li>
             ))}
           </ul>

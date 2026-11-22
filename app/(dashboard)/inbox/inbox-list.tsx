@@ -465,7 +465,7 @@ export default function InboxList({
                   <RunStateBadge info={openItem.state} size="xs" />
                   <RunVerificationBadge status={openItem.verification} size="xs" />
                   <span className="text-secondary text-ink-500">{rel(openItem.ran_at)}</span>
-                  <span className="text-micro text-ink-600 font-mono truncate">{openItem.slug}</span>
+                  <span className="text-micro text-ink-500 font-mono truncate">{openItem.slug}</span>
                 </div>
               </div>
               <button
@@ -507,7 +507,7 @@ export default function InboxList({
                       : openItem.judgment.verdict === 'blocked' ? 'Blocked — needs you'
                       : openItem.judgment.verdict === 'repair' ? 'Repair suggested' : 'Couldn’t confirm'}
                   </span>
-                  <span className="text-secondary text-ink-600">AI review · separate from “Verified complete”</span>
+                  <span className="text-secondary text-ink-500">AI review · separate from “Verified complete”</span>
                 </div>
                 {openItem.judgment.summary && (
                   <p className="text-reading text-ink-300 mt-1.5 whitespace-pre-wrap">{openItem.judgment.summary}</p>

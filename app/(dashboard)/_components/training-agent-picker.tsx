@@ -17,7 +17,7 @@ function AgentRows({agents,recordingId,summary,covers,loading=false,onRetry,retr
   const href=`/training/${encodeURIComponent(agent.slug)}${recordingId?`?annotateRecording=${encodeURIComponent(recordingId)}`:''}`;
   return <li key={agent.slug} className="coach-agent-row">
    <div className="coach-agent-picture"><AgentSampleThumbnail cover={covers?.[facts?.id||agent.workflow_id||'']} icon="coach"/></div>
-   <div><h3><Link href={href} prefetch={false}>{agent.name.trim()||humanize(agent.slug)}</Link></h3>{oneLine(agent.description)&&<p>{oneLine(agent.description)}</p>}</div>
+   <div><h3><Link href={href} prefetch={false}>{agent.name.trim()||humanize(agent.slug)}</Link></h3>{oneLine(agent.description)&&<p className="text-reading">{oneLine(agent.description)}</p>}</div>
    {!recordingId&&facts&&<>
     <div className="coach-row-decisions">{facts.versionId===null?<span className="text-ink-400">No active version</span>:facts.decisions.length===0&&facts.decisionsComplete?<span className="text-ink-400">Nothing waiting</span>:<span className="coach-decision-pill"><b>{coachingCount(facts.decisions.length,facts.decisionsComplete)}</b> to decide</span>}</div>
     <div className="coach-row-learnings" title={facts.versionId===null?'No active version; lessons are not counted':facts.liveLessons===null?'Live training unavailable':`${facts.liveLessons} live lessons`}><span><b>{facts.versionId===null?'—':facts.liveLessons===null?'?':facts.liveLessons}</b>{facts.versionId===null?' · No active version':facts.lastTaughtAt?<> · taught <LocalTime iso={facts.lastTaughtAt}/></>:facts.liveLessons===null?' · Unknown':facts.liveLessons===0?' · Not taught yet':''}</span></div>

@@ -78,7 +78,7 @@ export default function OutcomeProductionTrace({
           const detail = detailLine(entry);
           return (
             <li key={`${entry.at}:${entry.type}:${entry.ordinal ?? 'parent'}:${index}`} className="flex items-start gap-3 text-secondary">
-              <span className="font-mono text-ink-600 shrink-0 tabular-nums">{clock(entry.at)}</span>
+              <span className="font-mono text-ink-500 shrink-0 tabular-nums">{clock(entry.at)}</span>
               <span
                 className={`shrink-0 rounded px-1.5 py-0.5 text-secondary font-medium ${
                   entry.ordinal === null

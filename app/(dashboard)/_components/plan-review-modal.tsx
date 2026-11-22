@@ -116,7 +116,7 @@ export default function PlanReviewModal({
             heading must not overclaim (2026-07-23 fix spec). */}
         <div className="mb-1 text-secondary font-semibold uppercase tracking-wide text-ink-500">{hasChanges ? 'Your plan' : 'Suggested setup'}</div>
         <h2 className="text-lg font-semibold text-ink-100">{plan?.proposedName || 'Your new agent'}</h2>
-        <p className="mt-1 text-reading text-ink-400 leading-snug">
+        <p className="mt-1 text-reading text-ink-400 ">
           Review the tools this agent will use. Accept the recommended setup in one click, or change any tool.
         </p>
 
@@ -166,7 +166,7 @@ export default function PlanReviewModal({
                         {(() => {
                           const also = alsoHandledLabels(plan.capabilities, cap);
                           return also.length ? (
-                            <p className="text-reading text-state-running mt-1 leading-snug">
+                            <p className="text-reading text-state-running mt-1 ">
                               {cap.recommendedTool?.label ?? 'This tool'} also handles {also.join(' and ')}.
                             </p>
                           ) : null;
@@ -199,7 +199,7 @@ export default function PlanReviewModal({
             </ul>
 
             {hasGap && (
-              <p className="mt-2 text-reading text-state-needs leading-snug">
+              <p className="mt-2 text-reading text-state-needs ">
                 A required capability has no available tool. You can still create the agent — it will flag the gap instead of substituting a different tool.
               </p>
             )}

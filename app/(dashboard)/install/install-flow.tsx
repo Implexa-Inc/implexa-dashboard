@@ -135,7 +135,7 @@ export default function InstallFlow({
             <span className="text-2xl leading-none mt-0.5">⚠️</span>
             <div className="flex-1 text-secondary">
               <p className="font-semibold text-ink-50 mb-1">Windows support is in beta</p>
-              <p className="text-ink-200 leading-relaxed mb-2">
+              <p className="text-reading text-ink-200 leading-relaxed mb-2">
                 Full Windows install support is coming soon. In the meantime, here&apos;s what works on Windows today:
               </p>
               <ul className="text-ink-200 space-y-1 list-disc pl-5 marker:text-state-needs">
@@ -234,7 +234,7 @@ export default function InstallFlow({
                 <span className="font-medium text-ink-100">Not a developer? You&apos;re fine — read this first.</span>
               </summary>
               <div className="px-3 pb-3 pt-1 border-t border-ink-700/60">
-                <p className="mb-2 mt-2">
+                <p className="text-reading mb-2 mt-2">
                   This is one safe command. The script handles everything — just answer{' '}
                   <code className="bg-ink-900 px-1 rounded">y</code> when prompted and paste your API key when it asks. It will:
                 </p>
@@ -244,7 +244,7 @@ export default function InstallFlow({
                   <li>Ask you to paste your API key (the one you copied above)</li>
                   <li>Configure Claude to capture skills</li>
                 </ol>
-                <p className="mt-2 text-ink-400">
+                <p className="text-reading mt-2 text-ink-400">
                   Takes ~3–5 min the first time (mostly downloads), instant on re-runs. You may be asked for your Mac password once — that&apos;s normal for installing system tools.
                 </p>
               </div>
@@ -288,7 +288,7 @@ export default function InstallFlow({
           </p>
           {surface === 'chat-desktop' ? (
             <div className="text-secondary text-ink-200 leading-relaxed space-y-3">
-              <p>
+              <p className="text-reading">
                 Plugin slash commands like <code className="bg-ink-800 px-1.5 py-0.5 rounded text-secondary">/implexa:setup</code> don&apos;t exist on Desktop Chat (plugins are only available in Cowork and Code). Instead, you talk to Tukido in natural language — Claude will call the right MCP tool behind the scenes.
               </p>
               <div className="bg-ink-800/40 border border-ink-700 rounded-md p-3 space-y-3">
@@ -355,7 +355,7 @@ function SurfaceContent({ surface, hasKey, keyPrefix, coworkHooksLive, installCu
       <>
         <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3 mb-4 text-secondary text-ink-200 leading-relaxed">
           <p className="font-medium text-ink-100 mb-1">⭐ Easiest path — full capture with a visual install.</p>
-          <p>
+          <p className="text-reading">
             Plugin install via the Customize panel inside Claude Code (Desktop). Same hook-based capture as the CLI version, but with a UI you click through instead of terminal commands.
           </p>
         </div>
@@ -409,7 +409,7 @@ function SurfaceContent({ surface, hasKey, keyPrefix, coworkHooksLive, installCu
          * commands below ONLY work in the CLI. */}
         <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3 mb-4 text-secondary text-ink-200 leading-relaxed">
           <p className="font-medium text-ink-100 mb-1">💡 Quick clarification</p>
-          <p>
+          <p className="text-reading">
             <strong>Claude Code (CLI)</strong> is the terminal version of Claude Code (you also have the visual Desktop app — see the previous tab). It runs in your <strong>terminal</strong>, not in a chat window. The <code className="bg-ink-900 px-1 rounded">/plugin</code> commands below only work inside Claude Code CLI — they won&apos;t work if you paste them into Claude chat (Desktop).
           </p>
         </div>
@@ -480,7 +480,7 @@ source ~/.zshrc`}
             Script didn&apos;t install the plugin? Run these two commands inside Claude Code.
           </summary>
           <div className="mt-2 pl-4 leading-relaxed space-y-2">
-            <p>
+            <p className="text-reading">
               Type each command one at a time inside Claude Code (paste, Enter, wait for the confirmation, then paste the next):
             </p>
             <p className="text-ink-300"><strong>1.</strong> Add the marketplace:</p>
@@ -514,7 +514,7 @@ source ~/.zshrc`}
       <>
         <div className="rounded-lg border border-success-400/40 bg-success-400/5 p-3 mb-3 text-secondary text-ink-200 leading-relaxed">
           <p className="font-medium text-ink-100 mb-1">⚡ Fastest install — under a minute.</p>
-          <p>
+          <p className="text-reading">
             Claude chat (Desktop) doesn&apos;t use plugins (those are Cowork + Claude Code only). Instead, you add Implexa as a <strong>Custom Connector</strong> — a remote MCP server. Just paste one URL with your API key in it.
           </p>
         </div>
@@ -584,14 +584,14 @@ source ~/.zshrc`}
         <details className="text-secondary text-ink-300 mt-4">
           <summary className="cursor-pointer hover:text-ink-100 select-none">Already use Cowork? You probably don&apos;t need this.</summary>
           <div className="mt-2 pl-4 leading-relaxed">
-            <p>Installing the Implexa plugin via Cowork automatically registers a matching Custom Connector in Claude chat. Check Customize → Connectors first — Implexa may already be there as <em>Implexa</em>.</p>
+            <p className="text-reading">Installing the Implexa plugin via Cowork automatically registers a matching Custom Connector in Claude chat. Check Customize → Connectors first — Implexa may already be there as <em>Implexa</em>.</p>
           </div>
         </details>
         <details className="text-secondary text-ink-300 mt-2">
           <summary className="cursor-pointer hover:text-ink-100 select-none">What does this connector give me?</summary>
           <div className="mt-2 pl-4 leading-relaxed space-y-1">
-            <p>All Implexa MCP tools — record-skill, list-org-skills, share-this, find-accounts, etc. — available via natural language in Claude chat.</p>
-            <p>Slash commands like <code className="bg-ink-800 px-1 rounded text-secondary">/implexa:run</code> don&apos;t exist here (those require the plugin system). Instead, just ask Claude things like <em>&ldquo;Implexa, run my triage skill&rdquo;</em> or <em>&ldquo;Implexa, record this workflow&rdquo;</em>.</p>
+            <p className="text-reading">All Implexa MCP tools — record-skill, list-org-skills, share-this, find-accounts, etc. — available via natural language in Claude chat.</p>
+            <p className="text-reading">Slash commands like <code className="bg-ink-800 px-1 rounded text-secondary">/implexa:run</code> don&apos;t exist here (those require the plugin system). Instead, just ask Claude things like <em>&ldquo;Implexa, run my triage skill&rdquo;</em> or <em>&ldquo;Implexa, record this workflow&rdquo;</em>.</p>
           </div>
         </details>
       </>
@@ -606,7 +606,7 @@ source ~/.zshrc`}
     <>
       <div className="rounded-lg border border-brand-500/40 bg-brand-500/5 p-3 mb-3 text-secondary text-ink-200 leading-relaxed">
         <p className="font-medium text-ink-100 mb-1">✨ Bonus: this also enables Claude chat.</p>
-        <p>
+        <p className="text-reading">
           Installing the Implexa plugin in Cowork automatically registers the Custom Connector in your Claude chat (Desktop) too — one install, both surfaces. No extra step for Claude chat.
         </p>
       </div>
@@ -648,7 +648,7 @@ source ~/.zshrc`}
         // full capture on Cowork too.
         <div className="rounded-lg border border-success-400/40 bg-success-400/5 p-3 mt-3 text-secondary text-ink-200 leading-relaxed">
           <p className="font-medium text-success-700 dark:text-success-400 mb-1">🎉 Cowork now supports hooks.</p>
-          <p>
+          <p className="text-reading">
             Anthropic shipped the fix — conversation-turn capture now works on Cowork too. Run Step 3 below to install the hooks (or skip if you&apos;ve already done it for CLI; same script).
           </p>
         </div>
@@ -656,7 +656,7 @@ source ~/.zshrc`}
         <details className="text-secondary text-ink-300 mt-3">
           <summary className="cursor-pointer hover:text-ink-100 select-none">Why no hooks step for Cowork?</summary>
           <div className="mt-2 pl-4 leading-relaxed">
-            <p>Anthropic&apos;s Cowork sandbox doesn&apos;t fire user-level hooks despite registering them. Tested on multiple fresh Macs — confirmed. So we&apos;ve removed the hooks installer step for Cowork to avoid wasting your time. You still get tool-call capture via MCP — just not conversation-turn capture. For full capture, use Claude Code CLI.</p>
+            <p className="text-reading">Anthropic&apos;s Cowork sandbox doesn&apos;t fire user-level hooks despite registering them. Tested on multiple fresh Macs — confirmed. So we&apos;ve removed the hooks installer step for Cowork to avoid wasting your time. You still get tool-call capture via MCP — just not conversation-turn capture. For full capture, use Claude Code CLI.</p>
             <p className="mt-2 text-ink-400">We&apos;ll detect the moment Anthropic ships the fix and update this page automatically.</p>
           </div>
         </details>

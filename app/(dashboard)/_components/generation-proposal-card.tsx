@@ -209,7 +209,7 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
                 Held in reserve — spent only if judging fails exactly one clip for this moment.
               </p>
             )}
-            <p className="mt-1.5 whitespace-pre-wrap text-reading leading-snug text-ink-400">{task.promptText}</p>
+            <p className="mt-1.5 whitespace-pre-wrap text-reading text-ink-400">{task.promptText}</p>
           </li>
         ))}
       </ul>
@@ -276,7 +276,7 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
               </button>
             )}
           </div>
-          <p className="mt-2 text-reading leading-snug text-ink-500">
+          <p className="mt-2 text-reading text-ink-500">
             Approving authorizes this exact set of clips and nothing else. It is not a
             payment — usage is recorded as the work actually runs.
           </p>

@@ -124,10 +124,10 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
         {showWelcome && welcomeBanner}
 
         <PageHeader title="Run your agents">
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             One download. The app connects Tukido to your own Claude or Codex and runs your agents there, as you, free. That&apos;s it.
           </p>
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Claude Code runs in the background, so you don&apos;t work there. Build, run, and approve every agent right here in Tukido.
           </p>
         </PageHeader>
@@ -205,7 +205,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
                 How do I fully uninstall or reset Tukido on this machine?
               </summary>
               <div className="px-4 pb-4 pt-1 text-secondary text-ink-200 leading-relaxed space-y-3 border-t border-ink-700/60">
-                <p>
+                <p className="text-reading">
                   One command. Reverses everything the install script set up: API key file, hooks, MCP wiring, Claude Code plugin, AND the launchctl-set env vars (those survive shell <code className="text-secondary bg-ink-800 px-1 rounded">unset</code> and re-leak into new Terminal tabs on macOS — biggest source of &ldquo;why does my fresh install still pick up the old account?&rdquo;).
                 </p>
                 <pre className="bg-ink-950 border border-ink-700 rounded-md p-3 text-micro text-ink-100 font-mono overflow-x-auto">curl -fsSL https://core.implexa.ai/uninstall.sh | bash</pre>
@@ -224,14 +224,14 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
                 I uninstalled + reinstalled the plugin but I&apos;m still on the old version. What gives?
               </summary>
               <div className="px-4 pb-4 pt-1 text-secondary text-ink-200 leading-relaxed space-y-3 border-t border-ink-700/60">
-                <p>
+                <p className="text-reading">
                   Claude Code keeps a local clone of the Implexa marketplace at <code className="text-secondary bg-ink-800 px-1 rounded">~/.claude/plugins/marketplaces/implexa/</code>. It doesn&apos;t auto-pull on reinstall — so you get whatever version that local clone was last synced to.
                 </p>
                 <p>
                   <strong className="text-ink-100">Quick fix</strong>, in your terminal:
                 </p>
                 <pre className="bg-ink-950 border border-ink-700 rounded-md p-3 text-micro text-ink-100 font-mono overflow-x-auto">cd ~/.claude/plugins/marketplaces/implexa && git pull origin main</pre>
-                <p>
+                <p className="text-reading">
                   Then reinstall the plugin (Customize → Personal plugins → uninstall + reinstall, OR CLI <code className="text-secondary bg-ink-800 px-1 rounded">/plugin install implexa@implexa</code>). You&apos;ll get the latest version.
                 </p>
                 <p className="text-secondary text-ink-400">
@@ -249,10 +249,10 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
                 Which runtime should I pick?
               </summary>
               <div className="px-4 pb-4 pt-1 text-secondary text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
-                <p><strong className="text-ink-100">Claude Code (CLI)</strong> is the most-tested install. Best capture, full plugin support, and what we run end-to-end QA against.</p>
+                <p className="text-reading"><strong className="text-ink-100">Claude Code (CLI)</strong> is the most-tested install. Best capture, full plugin support, and what we run end-to-end QA against.</p>
                 <p><strong className="text-ink-100">Codex (CLI)</strong> is fully supported as of v0.16. Same agents and library, same <code className="text-secondary bg-ink-800 px-1 rounded">/implexa:run</code> wedge. Use the second curl above.</p>
                 <p><strong className="text-ink-100">Claude Code (Desktop)</strong> if you prefer a visual install — same capture as the CLI version, just clicked-through.</p>
-                <p>All three give you the full 7 slash commands and 30+ MCP tools. Your agents and library are cloud-hosted and shared across whichever runtimes you install on.</p>
+                <p className="text-reading">All three give you the full 7 slash commands and 30+ MCP tools. Your agents and library are cloud-hosted and shared across whichever runtimes you install on.</p>
                 <p className="text-reading text-ink-400">Cursor, Gemini CLI, Cowork, and Claude chat work for read-only browsing but don&apos;t support full capture yet — pick Claude Code or Codex if you want to build and capture agents.</p>
               </div>
             </details>
@@ -263,7 +263,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
                 Do I need to install Tukido on every Claude surface?
               </summary>
               <div className="px-4 pb-4 pt-1 text-secondary text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
-                <p>
+                <p className="text-reading">
                   No. Pick whichever surface you actually use day-to-day. Your agents and library live in our cloud — they&apos;re shared across all surfaces you install on, and surfaces you don&apos;t install on simply don&apos;t have local plugin commands.
                 </p>
                 <p className="text-reading text-ink-400">
@@ -278,10 +278,10 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
                 Why doesn&apos;t Cowork get full capture?
               </summary>
               <div className="px-4 pb-4 pt-1 text-secondary text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
-                <p>
+                <p className="text-reading">
                   Anthropic&apos;s Cowork sandbox currently doesn&apos;t invoke user-level hooks the way Claude Code does. We&apos;ve reported the issue. Until they ship the fix, Cowork captures MCP tool calls (the bulk of useful data) but not conversation turns.
                 </p>
-                <p>
+                <p className="text-reading">
                   We&apos;ll detect the moment the fix lands automatically — the install page will flip itself to show hooks installation for Cowork too.
                 </p>
                 <p className="text-secondary text-ink-400">
@@ -306,7 +306,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
         </section>
 
         <footer className="mt-12 text-secondary text-ink-400 leading-relaxed">
-          <p>
+          <p className="text-reading">
             Once connected, try the wedge first: <code className="bg-ink-800 px-1 rounded">/implexa:run draft a cold outreach email</code>{' '}
             builds a small agent for that, picks the best building blocks, and runs it inline in your current session.{' '}
             Nothing to install per task, no SKILL.md copying.

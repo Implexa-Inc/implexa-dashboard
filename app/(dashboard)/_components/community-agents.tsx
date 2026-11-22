@@ -107,7 +107,7 @@ export default function CommunityAgents({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search agents…"
-              className="w-full sm:w-64 bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
+              className="w-full sm:w-64 bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none"
             />
           )}
       </div>

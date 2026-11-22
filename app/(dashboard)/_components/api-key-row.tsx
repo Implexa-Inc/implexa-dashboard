@@ -280,7 +280,7 @@ export function KeysList({ items, slug, trustLine, onChanged }: { items: KeyItem
         {items.map((it) => <KeyRow key={it.provider} item={it} slug={slug} onChanged={onChanged} />)}
       </ul>
       {!bridge?.openKeySetup && (
-        <p className="text-reading text-ink-500 mt-2 leading-snug">
+        <p className="text-reading text-ink-500 mt-2 ">
           Keys are stored locally on your Mac by the Implexa desktop app — open the app to add one. The agent still activates now; a key-dependent step will pause until it’s set.
         </p>
       )}

@@ -124,7 +124,7 @@ function Step({ done, label, hint }: { done: boolean; label: string; hint: strin
         <div className={`font-medium ${done ? 'text-ink-100 line-through opacity-70' : 'text-ink-100'}`}>
           {label}
         </div>
-        <div className="text-micro text-ink-400 font-mono mt-0.5">{hint}</div>
+        <div className="text-secondary text-ink-400 font-mono mt-0.5">{hint}</div>
       </div>
     </div>
   );

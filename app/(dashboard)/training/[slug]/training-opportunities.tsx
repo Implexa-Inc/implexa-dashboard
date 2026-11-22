@@ -50,7 +50,7 @@ export default function TrainingOpportunities({questions,sessionId,versionId,dis
     <div className="flex items-center justify-between gap-2"><button type="button" className="btn-primary text-ui" disabled={disabled||!!working||!answer.trim()} onClick={()=>void save(q.id)}>Save answer</button><button type="button" disabled={!!working||!!pending.current} className="text-ui text-ink-500" onClick={()=>{setSkipped(ids=>[...ids,q.id]);setOpened(null);}}>Skip</button></div>
     {working&&<p role="status" className="text-secondary text-ink-400">{working}…</p>}{error&&<p role="alert" className="text-secondary text-state-needs">{error.replaceAll('_',' ')}</p>}
    </>}
-   <details className="text-secondary text-ink-500"><summary className="cursor-pointer">Context</summary><p className="mt-2 whitespace-pre-wrap">{q.question}</p><p className="mt-2">{q.sceneElement}</p></details>
+   <details className="text-secondary text-ink-500"><summary className="cursor-pointer">Context</summary><p className="text-reading mt-2 whitespace-pre-wrap">{q.question}</p><p className="mt-2">{q.sceneElement}</p></details>
   </article>;})}</div>}
   {items.length>0&&<TrainingInfo label="About these suggestions">Answer sends this recorded question, scene description, stage and topic to Claude Haiku 5.5 to suggest choices. No video, images or other training are sent. Your submitted answer becomes a private suggestion for review. Finding guidance does not establish that it was applied.</TrainingInfo>}
  </section>;

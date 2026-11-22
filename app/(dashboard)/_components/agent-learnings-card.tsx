@@ -434,7 +434,7 @@ function AuthorAgentLearningsCard({ slug, initialPayload = null, initialSource =
                   {rule.evidenceIds.length} supporting evidence records · {rule.contradictionCount} contradictions · task {short(rule.scope.taskSignatureDigest)} · step {rule.scope.stepIndex == null ? 'agent task-wide' : rule.scope.stepIndex} · capability {rule.scope.capabilityIdentity || 'all'} · tool {rule.scope.toolIdentity || 'all'} · last supplied {rule.lastSuppliedRun ? short(rule.lastSuppliedRun) : 'never'} · last applied {rule.lastAppliedRun ? short(rule.lastAppliedRun) : 'never'}
                 </p>
                 {rule.compatibilityReceiptId && (
-                  <p className="mt-1 font-mono text-reading text-ink-600">compatibility {short(rule.compatibilityReceiptId)}</p>
+                  <p className="mt-1 font-mono text-reading text-ink-500">compatibility {short(rule.compatibilityReceiptId)}</p>
                 )}
                 {activeEditingId === rule.id && (
                   <div className="mt-3 rounded-md border border-sky-500/30 bg-sky-500/5 p-3">
@@ -492,7 +492,7 @@ function AuthorAgentLearningsCard({ slug, initialPayload = null, initialSource =
                   <div key={`${run.executionAttemptId}:${item.ruleVersionId}`} className="mt-2 text-secondary leading-relaxed text-ink-400">
                     <p>Suggested → approved → {run.suppliedAt ? `supplied to run ${short(run.runId)}` : 'supply pending'} → {run.handling ? run.handling.replaceAll('_', ' ') : 'handling pending'} → outcome {run.outcome}</p>
                     {run.handlingReason && <p className="text-ink-500">Executor reason: {run.handlingReason}</p>}
-                    <p className="font-mono text-reading text-ink-600">attempt {short(run.executionAttemptId)} · fence {run.fencingEpoch} · context {short(run.contextDigest)}</p>
+                    <p className="font-mono text-reading text-ink-500">attempt {short(run.executionAttemptId)} · fence {run.fencingEpoch} · context {short(run.contextDigest)}</p>
                     <p className="text-ink-500">Applied is the executor&apos;s handling report. It does not prove this rule caused the outcome.</p>
                   </div>
                 ))}

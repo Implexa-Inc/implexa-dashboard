@@ -76,7 +76,7 @@ function PermissionList({ items, optIns, onToggle, savingGroup }: {
               </div>
               {it.detail && <p className="text-secondary text-ink-500 mt-0.5 leading-snug">{it.detail}</p>}
               {required && (
-                <p className="text-reading text-state-needs mt-1 leading-snug">
+                <p className="text-reading text-state-needs mt-1 ">
                   Grant once to this agent. It stays available for its future runs until you revoke it.
                 </p>
               )}
@@ -315,7 +315,7 @@ function ConnectionsList({ items, onChanged, workedAround, onToggleWorkAround, s
         })}
       </ul>
       {!bridge?.connectAccount && (
-        <p className="text-reading text-ink-500 mt-2 leading-snug">
+        <p className="text-reading text-ink-500 mt-2 ">
           Open this page in the Tukido app to sign in with one click — the app keeps a dedicated browser workspace your agents use.
         </p>
       )}
@@ -380,7 +380,7 @@ function ToolsList({ items }: { items: ToolItem[] }) {
         {items.map((it) => <ToolRow key={it.key} item={it} />)}
       </ul>
       {!bridge?.installTool && (
-        <p className="text-reading text-ink-500 mt-2 leading-snug">
+        <p className="text-reading text-ink-500 mt-2 ">
           The agent installs anything missing the first time it runs. In the Tukido app you can install these ahead of time with one click.
         </p>
       )}
@@ -554,7 +554,7 @@ export function SchedulePicker({ slug, onSaved, initial }: { slug: string; onSav
         </span>
         {err && <span className="text-secondary text-state-fail">{err}</span>}
       </div>
-      <p className="text-reading text-ink-600 leading-snug">Condition triggers (“only when a new file appears”) are coming next.</p>
+      <p className="text-reading text-ink-500 ">Condition triggers (“only when a new file appears”) are coming next.</p>
     </div>
   );
 }
@@ -631,7 +631,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
         <>
           <PermissionList items={items} optIns={optIns} onToggle={onToggleOptIn} savingGroup={savingGroup} />
           {permissionNote && (
-            <p className="mt-2 text-reading text-state-ok leading-snug">{permissionNote}</p>
+            <p className="mt-2 text-reading text-state-ok ">{permissionNote}</p>
           )}
         </>
       )}
@@ -922,11 +922,11 @@ export function ActivationCard({
             {setupSurface ? 'Required setup' : checklist.name}
           </h2>
           {setupSurface ? (
-            <p className="text-reading text-ink-400 mt-1 leading-snug">
+            <p className="text-reading text-ink-400 mt-1 ">
               This agent is ready once the required items are done.
             </p>
           ) : checklist.summary ? (
-            <p className="text-reading text-ink-400 mt-1 leading-snug">{checklist.summary}</p>
+            <p className="text-reading text-ink-400 mt-1 ">{checklist.summary}</p>
           ) : null}
           {checklist.requiresLocal && (
             <p className="mt-2 inline-flex items-center gap-1.5 text-reading text-ink-400">
@@ -1015,7 +1015,7 @@ export function ActivationCard({
             ) : !computerUseSatisfied ? (
               <div className="rounded-md bg-amber-500/10 border border-amber-500/25 px-3 py-2.5">
                 <p className="text-reading text-state-needs font-medium">Active — Mac access needs setup</p>
-                <p className="text-reading text-state-needs mt-0.5 leading-snug">Open Permissions &amp; access above and grant Screen Recording plus Accessibility to Tukido before this agent reaches its web-app step.</p>
+                <p className="text-reading text-state-needs mt-0.5 ">Open Permissions &amp; access above and grant Screen Recording plus Accessibility to Tukido before this agent reaches its web-app step.</p>
               </div>
             ) : browserCheck ? (
               <div className="rounded-md bg-amber-500/10 border border-amber-500/25 px-3 py-2.5">
@@ -1042,7 +1042,7 @@ export function ActivationCard({
               <span className="text-secondary text-state-ok">✓ Active. Take it for its first run:</span>
             )}
             {showStallNudge && (
-              <p className="text-reading text-state-needs leading-snug max-w-md">
+              <p className="text-reading text-state-needs max-w-md">
                 Recommended: allow “{ungrantedOptional[0].label}” in Permissions above — without it a scheduled run can stall waiting on a prompt. (Allowing saves instantly.)
               </p>
             )}
@@ -1062,7 +1062,7 @@ export function ActivationCard({
                 an agent that genuinely declares no inputs runs fine and that is
                 the common case; what the user gets is the reason, in advance. */}
             {runInputs === null && (
-              <p className="text-reading text-state-needs leading-snug max-w-md">
+              <p className="text-reading text-state-needs max-w-md">
                 We couldn’t load what this agent asks for before a run. You can still start it —
                 but if it does ask for files or links, this run will be turned down until that
                 loads. Reload the page to try again.

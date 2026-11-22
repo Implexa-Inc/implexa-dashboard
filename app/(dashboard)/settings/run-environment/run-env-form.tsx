@@ -61,7 +61,7 @@ export default function RunEnvForm({
           value={workspaceRoot}
           onChange={(e) => setWorkspaceRoot(e.target.value)}
           disabled={saving}
-          className="input w-full font-mono text-micro"
+          className="input w-full font-mono text-ui"
           spellCheck={false}
           autoCapitalize="off"
         />

@@ -174,7 +174,7 @@ function ActionRow({
         ) : (
           <>
             {retryableApproval ? (
-              <p className="mt-1 text-reading text-state-needs leading-snug">
+              <p className="mt-1 text-reading text-state-needs ">
                 The previous continuation stopped safely before completing. Retry this approval through the protected recovery path.
               </p>
             ) : a.summary ? <p className="mt-1 text-secondary text-ink-400 leading-snug">{a.summary}</p> : null}
@@ -194,7 +194,7 @@ function ActionRow({
                   rows={2}
                   autoFocus
                   placeholder={a.blocker || 'Add the missing inputs or setup notes…'}
-                  className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-2.5 py-1.5 text-ink-100 placeholder:text-ink-600 focus:border-amber-500/50 focus:outline-none resize-y"
+                  className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-2.5 py-1.5 text-ink-100 placeholder:text-ink-500 focus:border-amber-500/50 focus:outline-none resize-y"
                 />
                 <div className="mt-2 flex items-center gap-3">
                   <button type="button" onClick={() => onAct(a)} disabled={!!busy}
@@ -217,7 +217,7 @@ function ActionRow({
           disabled={!!busy}
           title="Not needed"
           aria-label="Dismiss this action"
-          className="shrink-0 text-ink-600 hover:text-ink-300 text-ui leading-none px-1 pt-2 disabled:opacity-50"
+          className="shrink-0 text-ink-500 hover:text-ink-300 text-ui leading-none px-1 pt-2 disabled:opacity-50"
         >
           ✕
         </button>

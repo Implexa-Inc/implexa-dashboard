@@ -211,7 +211,7 @@ function CustomChainBuilder({
         {slots.map((sl, i) => (
           <div key={i}>
             <div className="flex items-center gap-2">
-              <span className="text-micro text-ink-600 w-4 tabular-nums">{i + 1}</span>
+              <span className="text-micro text-ink-500 w-4 tabular-nums">{i + 1}</span>
               <select
                 value={sl}
                 onChange={(e) => setSlot(i, e.target.value)}
@@ -249,7 +249,7 @@ function CustomChainBuilder({
         </button>
       </div>
       <div className="mt-5 flex items-center justify-end gap-3 border-t border-ink-800 pt-4">
-        {!valid && <span className="text-secondary text-ink-600 mr-auto">Pick at least 2 different agents.</span>}
+        {!valid && <span className="text-secondary text-ink-500 mr-auto">Pick at least 2 different agents.</span>}
         <button
           type="button"
           onClick={onCancel}

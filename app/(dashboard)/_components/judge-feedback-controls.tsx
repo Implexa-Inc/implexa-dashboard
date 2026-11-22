@@ -80,7 +80,7 @@ export default function JudgeFeedbackControls({
         )}
       </div>
       {error && <p className="mt-1 text-reading text-state-fail">{error}</p>}
-      <p className="mt-1 text-reading text-ink-600">Your feedback tunes the Judge. It doesn’t change this run.</p>
+      <p className="mt-1 text-reading text-ink-500">Your feedback tunes the Judge. It doesn’t change this run.</p>
     </div>
   );
 }

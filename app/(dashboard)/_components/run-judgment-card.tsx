@@ -85,7 +85,7 @@ export function RunJudgmentCard({
             <h2 className="text-ui font-semibold text-ink-100">{presentation==='finished'?assessedScore?`Judge: ${total}/100`:'Judge':'Tukido Judge'}</h2>
             <span className={`text-secondary font-medium ${s.text}`}>{verdictLabel}</span>
           </div>
-          <details className="mt-2 text-secondary"><summary className="cursor-pointer text-ink-300">Review notes</summary><p className="mt-2 leading-relaxed whitespace-pre-wrap text-ink-300">{judgment.summary}</p></details>
+          <details className="mt-2 text-secondary"><summary className="cursor-pointer text-ink-300">Review notes</summary><p className="text-reading mt-2 leading-relaxed whitespace-pre-wrap text-ink-300">{judgment.summary}</p></details>
         </div>
         {presentation!=='finished'&&<span className="flex-none text-secondary uppercase tracking-wide text-ink-500">AI review</span>}
       </div>
@@ -102,12 +102,12 @@ export function RunJudgmentCard({
         <p className="text-reading text-ink-200">{judgment.creative_grade.summary}</p>
         {judgment.creative_grade.dimensions.map(d => <details key={d.id} className="text-secondary">
           <summary>{d.id.replaceAll('_', ' ')} — {scored ? typeof d.score === 'number' ? `${d.score}/100` : 'not assessed' : d.band}</summary>
-          <p className="mt-1 text-ink-300">{d.explanation}</p>
+          <p className="text-reading mt-1 text-ink-300">{d.explanation}</p>
           {d.gaps.map((g, i) => <p key={i} className="mt-2 text-ink-300">{(g.timestampMs / 1000).toFixed(1)}s: {g.observation} {g.suggestion}</p>)}
         </details>)}
         <p className="text-secondary text-ink-400">Sampled stills at {judgment.creative_grade.coverage.timestampsMs.map(t => `${(t / 1000).toFixed(1)}s`).join(', ')}. {judgment.creative_grade.coverage.limitations}</p>
         <details className="text-secondary text-ink-500"><summary>Review binding</summary>
-          <p className="break-all">Output: {judgment.creative_grade.relativePath}<br />SHA-256: {judgment.creative_grade.artifactSha256}<br />Rubric: {judgment.creative_grade.rubricDigest}</p>
+          <p className="text-reading break-all">Output: {judgment.creative_grade.relativePath}<br />SHA-256: {judgment.creative_grade.artifactSha256}<br />Rubric: {judgment.creative_grade.rubricDigest}</p>
         </details>
       </details>}
 
@@ -129,7 +129,7 @@ export function RunJudgmentCard({
           ) : repair.phase === 'completed' && repair.repairedRunId ? (
             <p className="text-state-ok">Repair completed. <Link href={`/runs/${encodeURIComponent(repair.repairedRunId)}`} className="underline hover:text-state-ok">Open the repaired run and its fresh review →</Link></p>
           ) : (
-            <p className="text-state-needs">Automatic repair could not be queued. The instructions remain available below so you can continue manually.</p>
+            <p className="text-reading text-state-needs">Automatic repair could not be queued. The instructions remain available below so you can continue manually.</p>
           )}
         </div>
       )}

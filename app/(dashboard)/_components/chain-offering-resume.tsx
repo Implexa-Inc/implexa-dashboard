@@ -85,7 +85,7 @@ export default function ChainOfferingResume({ offering }: { offering: ChainOffer
               <span className="rounded border border-ink-700 px-2 py-0.5 text-secondary text-ink-300">Agent chain</span>
               {offering.privatePreview && <span className="rounded border border-violet-500/40 px-2 py-0.5 text-secondary text-state-review">Private preview</span>}
             </div>
-            <p className="mt-3 max-w-2xl text-ink-200">{offering.outcome}. You choose the outcome; the chain runs its two agents in order and hands off one typed {offering.handoffKind} between them.</p>
+            <p className="text-reading mt-3 max-w-2xl text-ink-200">{offering.outcome}. You choose the outcome; the chain runs its two agents in order and hands off one typed {offering.handoffKind} between them.</p>
             <p className="mt-2 text-secondary text-ink-500">Built by {offering.builder.name} · offering v{offering.version.number} · composition {offering.version.digest.slice(0, 12)}…</p>
           </div>
           {acquired

@@ -12,7 +12,7 @@ export const visualTeachingSelectable=(draft:Pick<VisualTeachingDraft,'relation'
 
 function SavedSourceNote({note}:{note:NonNullable<VisualTeachingDraft['sourceNote']>}){
  const long=note.body.length>240;
- return <div className="mt-3 rounded-lg border border-ink-800 p-3 text-secondary leading-5 text-ink-400"><p className="font-medium text-ink-300">{note.purpose==='revision'?'Sent for revision':'Training note'}</p><p className="mt-1 whitespace-pre-wrap">{long?`${note.body.slice(0,240)}…`:note.body}</p>{long&&<details className="mt-2"><summary className="cursor-pointer">Full saved note</summary><p className="mt-2 whitespace-pre-wrap">{note.body}</p></details>}</div>;
+ return <div className="mt-3 rounded-lg border border-ink-800 p-3 text-secondary leading-5 text-ink-400"><p className="font-medium text-ink-300">{note.purpose==='revision'?'Sent for revision':'Training note'}</p><p className="text-reading mt-1 whitespace-pre-wrap">{long?`${note.body.slice(0,240)}…`:note.body}</p>{long&&<details className="mt-2"><summary className="cursor-pointer">Full saved note</summary><p className="text-reading mt-2 whitespace-pre-wrap">{note.body}</p></details>}</div>;
 }
 const sameSourceNote=(a:VisualTeachingDraft['sourceNote'],b:VisualTeachingDraft['sourceNote'])=>!a&&!b||!!a&&!!b&&a.body===b.body&&a.purpose===b.purpose;
 
@@ -39,7 +39,7 @@ export default function TrainingDraftBundle({drafts,busy,onApply,onEdit,onExplai
       <div className="mt-3 rounded-lg bg-ink-950/50 p-3 text-secondary leading-5 text-ink-300"><p>{draft.relationOrigin==='owner'?'Your choice:':'Tukido suggests:'} <strong>{relation||'classification needs review'}</strong></p><p className="mt-1 text-ink-500">{draft.category}</p>{!selectable(draft)&&<p className="mt-2 text-state-needs">Review this example’s type before applying.</p>}</div>
       {explanationFor?.(draft.id)}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-secondary">{onExplain&&<button type="button" disabled={busy} className="text-ink-300" onClick={()=>onExplain(draft.id)}>✨ Explain</button>}<button type="button" disabled={busy} className="text-ink-300 underline underline-offset-4" onClick={()=>onEdit(draft.id)}>Review</button></div>
-      <details className="mt-3 text-secondary leading-5 text-ink-500"><summary className="cursor-pointer">Original example</summary><p className="mt-2 whitespace-pre-wrap">{draft.example}</p>{draft.sourceNote&&<SavedSourceNote note={draft.sourceNote}/>}</details>
+      <details className="mt-3 text-secondary leading-5 text-ink-500"><summary className="cursor-pointer">Original example</summary><p className="text-reading mt-2 whitespace-pre-wrap">{draft.example}</p>{draft.sourceNote&&<SavedSourceNote note={draft.sourceNote}/>}</details>
     </article>;})}</div>
     {applyContainer===undefined?applyAction:applyContainer?createPortal(applyAction,applyContainer):null}
     <Modal open={review!==null} onClose={()=>{if(!busy)setReview(null);}} title="Apply these lessons?" subtitle="Review how each example will be used." maxWidth="max-w-2xl">

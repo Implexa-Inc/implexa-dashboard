@@ -38,7 +38,7 @@ export default function AgentDefinitionReview({ slug, definition, versionSource,
     </button>
     <Modal open={open} onClose={() => setOpen(false)} title="Agent definition" maxWidth="max-w-3xl">
       <div className="space-y-4 text-secondary text-ink-200">
-        <p>Read-only snapshot from the authenticated agent page. Reload the page to refresh it. Opening this screen does not check, edit or run the agent.</p>
+        <p className="text-reading">Read-only snapshot from the authenticated agent page. Reload the page to refresh it. Opening this screen does not check, edit or run the agent.</p>
         {statusUnavailable && <p role="status">Edit status is unavailable. This snapshot cannot establish whether a revision is in progress.</p>}
         {revisePending && <p role="status">An edit is pending. The displayed version may be superseded when it lands.</p>}
         {!definition ? <p role="status">The exact versioned definition is unavailable. Display summaries are not a substitute.</p> : <>
@@ -70,7 +70,7 @@ export default function AgentDefinitionReview({ slug, definition, versionSource,
         </>}
         <section className="rounded border border-amber-500/30 p-3 space-y-2" aria-label="Check availability">
           <h3 className="font-medium">Read-only definition Check</h3>
-          <p>Saved reports may be loaded below. No saved report does not mean no issues were found. Operator attestations are not system-verified independent reviews.</p>
+          <p className="text-reading">Saved reports may be loaded below. No saved report does not mean no issues were found. Operator attestations are not system-verified independent reviews.</p>
           <p>Definition review is not execution verification.</p>
         </section>
         {slug && definition && <DefinitionCheckAction key={`${slug}:${definition.workflow_version_id}`} slug={slug} baseVersionId={definition.workflow_version_id} blocked={revisePending || statusUnavailable || updateAvailable || (versionSource !== 'live' && versionSource !== 'installed')} />}
@@ -137,7 +137,7 @@ export function DefinitionCheckAction({ slug, baseVersionId, blocked }: { slug: 
   return <section aria-label="Request definition Check" className="space-y-2">
     <button type="button" className="btn-secondary" disabled={busy} onClick={refresh}>Refresh Check status</button>
     <button type="button" className="btn-secondary" disabled={busy || blocked || !ready || (!!live && !uncertain)} onClick={enqueue}>{uncertain ? 'Resubmit same Check request' : request ? 'Request another Check' : 'Check definition'}</button>
-    <p role="status">{message}</p>
+    <p role="status" className="text-reading">{message}</p>
     {request && <p className="text-secondary break-all">Request: {request.requestId} — {request.state}</p>}
     {blocked && <p>Reload a current, editable agent page before requesting Check.</p>}
   </section>;
@@ -162,7 +162,7 @@ export function SavedDefinitionFindings({ slug, baseVersionId, previewBlocked }:
   }
   return <section className="space-y-3" aria-label="Saved definition findings">
     <button type="button" disabled={busy} className="btn-secondary" onClick={load}>{busy ? 'Loading…' : 'Load saved Check reports'}</button>
-    {message && <p role="status">{message}</p>}
+    {message && <p role="status" className="text-reading">{message}</p>}
     {result?.state === 'no_saved_report' && <p>No saved report for this exact version. This is not a passing Check.</p>}
     {result?.historical && <p>Historical definition — preview is disabled.</p>}
     {result?.truncated && <p>Showing the latest 20 reports. Older reports are not included.</p>}
@@ -224,8 +224,8 @@ function SavedFinding({ item, slug, baseVersionId, blocked }: { item: Finding; s
   }
   return <article className="rounded border border-ink-700 p-3 space-y-3">
     <h4>{item.finding.id}: {item.classification.status}</h4>
-    {item.classification.status === 'conflicting_assessments' && <p>Saved reviews disagree. An operator must import a new report and review it; adding another assessment here cannot clear the conflict.</p>}
-    <p>{item.finding.explanation}</p><p className="text-secondary">{item.provenance}</p>
+    {item.classification.status === 'conflicting_assessments' && <p className="text-reading">Saved reviews disagree. An operator must import a new report and review it; adding another assessment here cannot clear the conflict.</p>}
+    <p className="text-reading">{item.finding.explanation}</p><p className="text-secondary">{item.provenance}</p>
     {item.finding.plausibleCompliantInterpretation && <p>Possible compliant interpretation: {item.finding.plausibleCompliantInterpretation}</p>}
     {!!item.finding.missingEvidence?.length && <p>Evidence still needed: {item.finding.missingEvidence.join('; ')}</p>}
     {typeof item.assessment?.rationale === 'string' && <p>Assessment rationale: {item.assessment.rationale}</p>}
@@ -236,11 +236,11 @@ function SavedFinding({ item, slug, baseVersionId, blocked }: { item: Finding; s
       <button type="button" disabled={busy || applied || uncertain || !after.trim()} onClick={showPreview} className="btn-secondary">{busy ? 'Working…' : 'Preview replacement'}</button>
     </>}
     {blocked && <p>Preview unavailable for this page/version state. Reload before editing.</p>}
-    {message && <p role="status">{message}</p>}
+    {message && <p role="status" className="text-reading">{message}</p>}
     {preview && <section aria-label="Unreviewed draft preview"><h5>{applied ? 'Saved correction' : 'Unreviewed draft — not applied'}</h5><pre className="whitespace-pre-wrap">Before: {preview.change.before}</pre><pre className="whitespace-pre-wrap">After: {preview.change.after}</pre><p>The replacement still needs review. Preview alone cannot apply or run the agent.</p>
       {preview.previewDigest && !blocked && !applied && <>
         <label><input type="checkbox" checked={reviewed} disabled={busy || uncertain} onChange={e => setReviewed(e.target.checked)} /> I reviewed this exact replacement.</label>
-        <p>Apply creates a new version through the existing compiler gate. Other stages and the input, bundle, task, policy and permission contracts are preserved. Bases with unsupported additional authority refuse; this does not start a run or update your installed pin.</p>
+        <p className="text-reading">Apply creates a new version through the existing compiler gate. Other stages and the input, bundle, task, policy and permission contracts are preserved. Bases with unsupported additional authority refuse; this does not start a run or update your installed pin.</p>
         <button type="button" className="btn-primary" disabled={busy || !reviewed} onClick={applyPreview}>{uncertain ? 'Confirm same Apply result' : 'Apply exact correction'}</button>
       </>}
     </section>}

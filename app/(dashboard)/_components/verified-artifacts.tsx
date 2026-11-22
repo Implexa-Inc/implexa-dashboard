@@ -153,7 +153,7 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
                 <div className="mt-0.5 truncate text-secondary text-ink-500" title={artifact.relativePath}>
                   {roleLabel(artifact.role)}{size(artifact.sizeBytes) ? ` · ${size(artifact.sizeBytes)}` : ''}
                 </div>
-                {progress||finished?<details className="mt-1 text-secondary text-ink-500"><summary>File details</summary><p className="break-all font-mono">{artifact.relativePath}</p></details>:<div className="mt-0.5 truncate font-mono text-micro text-ink-600" title={artifact.relativePath}>{artifact.relativePath}</div>}
+                {progress||finished?<details className="mt-1 text-secondary text-ink-500"><summary>File details</summary><p className="break-all font-mono">{artifact.relativePath}</p></details>:<div className="mt-0.5 truncate font-mono text-micro text-ink-500" title={artifact.relativePath}>{artifact.relativePath}</div>}
               </div>
               <div className="flex items-center gap-2 text-secondary">
                 <button type="button" onClick={() => void open(artifact)} className="rounded border border-emerald-500/40 px-2.5 py-1 text-state-ok hover:bg-emerald-500/10 text-state-ok">Open</button>

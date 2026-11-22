@@ -60,7 +60,7 @@ export default async function ApiKeysPage({
         </nav>
 
         <PageHeader title="Devices & installs">
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Every device or session connected to your Tukido account.
             Revoke any you don&apos;t recognize. New installs created automatically
             when you run the install script — you don&apos;t need to generate

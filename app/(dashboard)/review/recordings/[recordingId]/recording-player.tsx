@@ -698,7 +698,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                 </div>
                 </div>
                 {onUseFeedback&&<button type="button" className="mt-3 text-ui text-ink-500 underline underline-offset-4" disabled={busy!==null||dirty||!CARD_FIELDS.some(field=>m.card[field].trim())} onClick={()=>onUseFeedback(recordingId,m)}>Turn into a learning</button>}
-                {CARD_FIELDS.some(field=>field!=='whatToDo'&&m.card[field].trim())&&<details className="mt-3 text-secondary text-ink-400"><summary>Previously saved notes</summary>{CARD_FIELDS.filter(field=>field!=='whatToDo'&&m.card[field].trim()).map(field=><p key={field} className="mt-2 whitespace-pre-wrap"><strong>{CARD_FIELD_LABELS[field]}:</strong> {m.card[field]}</p>)}</details>}
+                {CARD_FIELDS.some(field=>field!=='whatToDo'&&m.card[field].trim())&&<details className="mt-3 text-secondary text-ink-400"><summary>Previously saved notes</summary>{CARD_FIELDS.filter(field=>field!=='whatToDo'&&m.card[field].trim()).map(field=><p key={field} className="text-reading mt-2 whitespace-pre-wrap"><strong>{CARD_FIELD_LABELS[field]}:</strong> {m.card[field]}</p>)}</details>}
               </li>
             );
           })}
@@ -746,12 +746,12 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
 }
 
 function Shell({ back, title, children,embedded=false,fullPage=false,feedbackSaveUnavailable,initialMomentId,actions,description }: {embedded?:boolean;fullPage?:boolean;feedbackSaveUnavailable?:string;initialMomentId?:string; back: ReactNode; title: string; children: ReactNode;actions?:ReactNode;description?:ReactNode}) {
-  if(embedded)return <section id="recording-annotation" tabIndex={-1} aria-label="Annotate your recording" className="space-y-4">{fullPage?<PageHeader title="Show the agent what to change" actions={actions}><p className="app-page-description">{description||title}</p></PageHeader>:<header className="recording-header"><div><h2>Show the agent what to change</h2>{description&&<p>{description}</p>}</div><div>{actions}</div></header>}{children}</section>;
+  if(embedded)return <section id="recording-annotation" tabIndex={-1} aria-label="Annotate your recording" className="space-y-4">{fullPage?<PageHeader title="Show the agent what to change" actions={actions}><p className="text-reading app-page-description">{description||title}</p></PageHeader>:<header className="recording-header"><div><h2>Show the agent what to change</h2>{description&&<p className="text-reading">{description}</p>}</div><div>{actions}</div></header>}{children}</section>;
   return (
     <div className="app-page">
       <div className="app-content">
         <div className="mb-4">{back}</div>
-        <PageHeader title="Show the agent what to change" actions={actions}><p className="app-page-description">{description||title}</p></PageHeader>
+        <PageHeader title="Show the agent what to change" actions={actions}><p className="text-reading app-page-description">{description||title}</p></PageHeader>
         {children}
       </div>
     </div>

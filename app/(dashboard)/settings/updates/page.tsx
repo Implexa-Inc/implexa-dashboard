@@ -44,7 +44,7 @@ export default async function UpdatesPage() {
       <div className="settings-page-content">
 
         <PageHeader title="Updates">
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Keep your Implexa plugin and desktop app current. Updates ship new workflows, better recommendations, and fixes.
           </p>
         </PageHeader>

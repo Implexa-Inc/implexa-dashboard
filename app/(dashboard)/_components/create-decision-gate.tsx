@@ -160,7 +160,7 @@ export default function CreateDecisionGate({
   return (
     <Modal open onClose={onCancel} title={plan?.proposedName || 'Your new agent'} maxWidth="max-w-lg">
       <div className="mb-1 text-secondary font-semibold uppercase tracking-wide text-ink-500">One quick choice</div>
-      <p className="text-reading text-ink-100 leading-snug">{decision?.question}</p>
+      <p className="text-reading text-ink-100 ">{decision?.question}</p>
       {decision?.reason && <p className="mt-1 text-secondary text-state-needs leading-snug">{decision.reason}</p>}
       {decision?.needsConnection && (
         <p className="mt-1 text-secondary text-ink-500 leading-snug">Pick one to use — you’ll sign in to it when the agent first runs.</p>

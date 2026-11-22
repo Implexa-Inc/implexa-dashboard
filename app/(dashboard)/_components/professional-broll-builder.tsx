@@ -258,7 +258,7 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
         )}
       </div>
 
-      <p className="text-reading leading-snug text-ink-500">
+      <p className="text-reading text-ink-500">
         Compiling and saving never generate anything and never spend credits. Generation
         starts only from a separate approval of a saved plan, on that plan&apos;s own screen.
       </p>

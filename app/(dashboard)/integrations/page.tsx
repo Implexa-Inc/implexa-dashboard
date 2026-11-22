@@ -205,7 +205,7 @@ export default async function IntegrationsPage() {
                   <span className="text-xl shrink-0" aria-hidden="true">{m.icon}</span>
                   <div className="text-secondary font-medium text-ink-50 truncate">{m.name}</div>
                 </div>
-                <p className="text-reading text-ink-300 leading-snug">{m.note}</p>
+                <p className="text-reading text-ink-300 ">{m.note}</p>
               </div>
             ))}
           </div>

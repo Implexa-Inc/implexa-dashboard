@@ -92,7 +92,7 @@ export default async function ScheduledPage() {
         {items.length === 0 && (
           <section className="card text-secondary text-ink-300">
             <p className="mb-3">No scheduled skills yet.</p>
-            <p>
+            <p className="text-reading">
               From Claude Code, invoke{' '}
               <code className="bg-ink-900 px-1.5 py-0.5 rounded text-action-accent">/implexa:schedule</code>{' '}
               followed by a skill slug and a natural-language schedule, e.g.:

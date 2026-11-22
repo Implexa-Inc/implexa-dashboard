@@ -188,7 +188,7 @@ export default function RunFeedback({
                         value={val}
                         onChange={(e) => setVal(e.target.value)}
                         placeholder="A short note (optional)"
-                        className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
+                        className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none"
                       />
                     ) : (
                       <div className="flex flex-wrap gap-2">
@@ -239,7 +239,7 @@ export default function RunFeedback({
                 onChange={(e) => setFreeform(e.target.value)}
                 rows={2}
                 placeholder="Tell the agent anything — what to do differently, what you liked, a new instruction…"
-                className="mt-2.5 w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
+                className="mt-2.5 w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none resize-y"
               />
             </div>
           </div>

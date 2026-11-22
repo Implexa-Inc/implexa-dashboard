@@ -104,7 +104,7 @@ export default async function WorkflowDetailPage({
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
   const trainingTest=preparedTrainingTestQuery(searchParams.trainingPreparationId,searchParams.trainingPreparationDigest);
-  if(trainingTest.state==='invalid')return <main className="mx-auto max-w-3xl px-6 py-10"><h1 className="text-xl font-medium">Training test unavailable</h1><p role="alert" className="mt-3">This test link is incomplete. Return to Training and prepare the current private update again. Nothing has started.</p><Link href={`/training/${encodeURIComponent(params.slug)}`} className="mt-4 inline-block underline">Return to Training</Link></main>;
+  if(trainingTest.state==='invalid')return <main className="mx-auto max-w-3xl px-6 py-10"><h1 className="text-xl font-medium">Training test unavailable</h1><p role="alert" className="text-reading mt-3">This test link is incomplete. Return to Training and prepare the current private update again. Nothing has started.</p><Link href={`/training/${encodeURIComponent(params.slug)}`} className="mt-4 inline-block underline">Return to Training</Link></main>;
   const profile = await readUserProfile(supabase
     .from('users').select('id, organization_id').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');

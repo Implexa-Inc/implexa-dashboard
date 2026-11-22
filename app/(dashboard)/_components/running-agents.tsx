@@ -555,7 +555,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismiss(c.runId!); }}
                   title="Dismiss from alerts"
                   aria-label="Dismiss this run from alerts"
-                  className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-ui leading-none px-1"
+                  className="shrink-0 text-ink-500 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-ui leading-none px-1"
                 >
                   ✕
                 </button>
@@ -569,7 +569,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismissHeld(c.runId!); }}
                   title="Dismiss this alert"
                   aria-label="Dismiss this alert"
-                  className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-ui leading-none px-1"
+                  className="shrink-0 text-ink-500 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-ui leading-none px-1"
                 >
                   ✕
                 </button>
@@ -788,20 +788,20 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                           rather than reverting to a guess. */}
                       {c.attention?.summary ? (
                         <>
-                          <p className="text-reading font-medium text-state-needs leading-snug">
+                          <p className="text-reading font-medium text-state-needs ">
                             {c.attention.summary}
                           </p>
                           {c.attention.blockerMessage && (
-                            <p className="mt-1 text-reading text-state-needs leading-snug">
+                            <p className="mt-1 text-reading text-state-needs ">
                               Needs you: {c.attention.blockerMessage}
                             </p>
                           )}
                           {c.attention.nextAction && (
-                            <p className="mt-1 text-reading text-ink-500 leading-snug">{c.attention.nextAction}</p>
+                            <p className="mt-1 text-reading text-ink-500 ">{c.attention.nextAction}</p>
                           )}
                         </>
                       ) : (
-                        <p className="text-reading text-state-needs leading-snug">
+                        <p className="text-reading text-state-needs ">
                           This run stopped and needs you. Open it to see what Tukido found and what it needs —
                           the reason is on the run itself.
                         </p>
@@ -817,7 +817,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     </>
                   ) : (
                     <>
-                      <p className="text-reading text-state-needs leading-snug">
+                      <p className="text-reading text-state-needs ">
                         On the same step a while — if it’s waiting on a permission to continue, you can approve it now.
                       </p>
                       <StuckRunButton
@@ -835,16 +835,16 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               )}
               {queuedWait && (
                 <div className="mt-1.5 ml-7 rounded-md border border-sky-500/25 bg-sky-500/[0.06] px-3 py-2.5">
-                  <p className="text-reading font-medium text-state-running leading-snug">
+                  <p className="text-reading font-medium text-state-running ">
                     {queuedWait.headline}
                   </p>
                   {/* Only ever the backend's own declared block — never a guessed cause. */}
                   {queuedWait.block && (
-                    <p className="mt-1 text-reading text-state-running leading-snug">
+                    <p className="mt-1 text-reading text-state-running ">
                       Blocked: {queuedWait.block}
                     </p>
                   )}
-                  <p className="mt-1 text-reading text-ink-500 leading-snug">{queuedWait.detail}</p>
+                  <p className="mt-1 text-reading text-ink-500 ">{queuedWait.detail}</p>
                 </div>
               )}
           </>);

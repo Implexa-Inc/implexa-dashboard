@@ -62,7 +62,7 @@ export default function ReviseLandedPoller({ revisePending }: { revisePending: b
   // Still pending after the whole budget: say so plainly instead of silently
   // continuing to look busy.
   return (
-    <p className="mt-2 text-reading text-ink-500 leading-snug">
+    <p className="mt-2 text-reading text-ink-500 ">
       Still waiting on your Claude to pick this up. Reload the page to check again.
     </p>
   );
