@@ -3,7 +3,6 @@ import Link from 'next/link';
 import {redirect} from 'next/navigation';
 import PageHeader from '@/components/page-header';
 import {createClient} from '@/lib/supabase/server';
-import {readTrainingCoach} from '@/lib/training-coach-server';
 import {readMyWorkflows} from '@/lib/workflow-catalog';
 import {reviewQueueForArea} from '@/lib/training-review-routing';
 import {getReviewQueue} from '@/lib/review';
@@ -22,7 +21,7 @@ export default async function TrainingPage({searchParams}:{searchParams?:{view?:
  </div></main>;
 }
 async function CoachContents({jwt,review,recordingId,accountId}:{jwt:string;review:boolean;recordingId?:string;accountId:string}){
- if(!review){const summary=await readTrainingCoach(jwt,undefined,'training-coach-decisions.v2');if(summary.status!=='ready')return <TrainingFeedUnavailable reason="http_error"/>;const owned=summary.page.agents.map(agent=>({slug:agent.slug,name:agent.name,source:'generated',description:agent.description||'',updated_at:agent.lastTaughtAt}));return <TrainingAgentPicker key={accountId} owned={owned} recordingId={recordingId} partial={!summary.page.complete} summary={summary.page}/>;}
+
  const feed=await readMyWorkflows(jwt);
  if(feed.status!=='ready')return <TrainingFeedUnavailable reason={feed.reason}/>;
  const owned=feed.workflows.filter(agent=>agent.source==='generated');
@@ -30,6 +29,6 @@ async function CoachContents({jwt,review,recordingId,accountId}:{jwt:string;revi
  return <>
   {!!feed.unavailableEntries&&<p role="status" className="mb-5 text-sm text-ink-400">Some agent details couldn’t be loaded. Known agents are shown below. <RetryButton/></p>}
   {queue?<><Link href="/training" className="mb-5 inline-block text-sm text-ink-400">← All agents you train</Link><h2 className="mb-5 text-xl">Feedback from runs</h2><ReadyForReviewList queue={queue} nameBySlug={new Map(owned.map(agent=>[agent.slug,agent.name]))} training/></>:
-   <TrainingAgentPicker key={accountId} owned={owned} recordingId={recordingId} partial={!!feed.unavailableEntries}/>}
+   <TrainingAgentPicker key={accountId} countsReadKey={crypto.randomUUID()} owned={owned} recordingId={recordingId} partial={!!feed.unavailableEntries||feed.workflows.length>=500} loadSummary/>}
  </>;
 }

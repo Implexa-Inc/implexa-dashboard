@@ -1,0 +1,36 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store"
+  },
+  "body": {
+    "ok": true,
+    "agents": [
+      {
+        "id": "90000000-0000-4000-8000-000000000002",
+        "name": "owned",
+        "slug": "owned",
+        "listing": "not_listed",
+        "decisions": [
+          {
+            "id": "90000000-0000-4000-8000-000000000015",
+            "kind": "question",
+            "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source": "question",
+            "createdAt": "2026-11-22T11:45:08.241912-08:00",
+            "sessionId": null,
+            "versionId": "90000000-0000-4000-8000-000000000003"
+          }
+        ],
+        "versionId": "90000000-0000-4000-8000-000000000003",
+        "description": "Synthetic agent.",
+        "liveLessons": 0,
+        "lastTaughtAt": null,
+        "decisionsComplete": true
+      }
+    ],
+    "complete": true,
+    "contractVersion": "training-coach-decisions.v2",
+    "savedFeedbackReady": true
+  }
+}
