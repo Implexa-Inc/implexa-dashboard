@@ -22,10 +22,11 @@ const errors:Record<string,string>={listing_changed:'Your agent changed. Reload 
 
 export default function MarketplaceSubmission({slug,versionId}:{slug:string;versionId:string|null}){
  const [context,setContext]=useState<Context|null>(null),[listing,setListing]=useState<Listing|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState(''),[revision,setRevision]=useState(0),[moreSamples,setMoreSamples]=useState(false),[submittedRevision,setSubmittedRevision]=useState<number|null>(null);
+ const [dirty,setDirty]=useState(false);
  const scope=useRef(0);const [uploadBusy,setUploadBusy]=useState(false),[confirmSubmit,setConfirmSubmit]=useState(false),[confirmUnlist,setConfirmUnlist]=useState(false);
  useEffect(()=>{void load();return()=>{scope.current++;};},[slug,versionId]);
  async function load(){
-  const captured=++scope.current;setBusy(true);setError('');setNote('');setContext(null);setListing(null);setUploadBusy(false);setRevision(0);setSubmittedRevision(null);setMoreSamples(false);
+  const captured=++scope.current;setBusy(true);setError('');setNote('');setContext(null);setListing(null);setUploadBusy(false);setDirty(false);setRevision(0);setSubmittedRevision(null);setMoreSamples(false);
   try{const response=await fetch(`/api/agent-training/marketplace-submission?slug=${encodeURIComponent(slug)}`,{cache:'no-store'});const c=await response.json();
    if(captured!==scope.current)return;
    if(!response.ok||c.ok!==true||c.contractVersion!=='marketplace-submission.v1'||!c.agent?.versionId||(versionId&&c.agent.versionId!==versionId))throw Error(c.reason||'listing_changed');
@@ -45,10 +46,10 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
   if(captured!==scope.current)return;
   if(!response.ok||c.ok!==true||c.contractVersion!=='marketplace-submission.v1'||c.agent?.versionId!==context?.agent.versionId)throw Error('listing_changed');
   // Refresh custody/binding only. Never replace unsaved service text or pricing.
-  setContext(c);setListing(l=>{if(!l)return l;const ids=l.sampleIds.filter(id=>c.samples.some((x:{id:string})=>x.id===id));if(addedId&&!ids.includes(addedId)&&ids.length<3)ids.push(addedId);return {...l,sampleIds:ids,sampleReleaseConsent:false};});
+  setContext(c);setDirty(true);setListing(l=>{if(!l)return l;const ids=l.sampleIds.filter(id=>c.samples.some((x:{id:string})=>x.id===id));if(addedId&&!ids.includes(addedId)&&ids.length<3)ids.push(addedId);return {...l,sampleIds:ids,sampleReleaseConsent:false};});
  }
  function moveSample(id:string,direction:-1|1){if(!listing)return;const ids=[...listing.sampleIds],index=ids.indexOf(id),next=index+direction;if(index<0||next<0||next>=ids.length)return;[ids[index],ids[next]]=[ids[next],ids[index]];change('sampleIds',ids);}
- function change<K extends keyof Listing>(key:K,value:Listing[K]){setNote('');setListing(l=>l?{...l,[key]:value,...(key==='sampleIds'?{sampleReleaseConsent:false}:{})}:l);}
+ function change<K extends keyof Listing>(key:K,value:Listing[K]){setNote('');setDirty(true);setListing(l=>l?{...l,[key]:value,...(key==='sampleIds'?{sampleReleaseConsent:false}:{})}:l);}
  function toolChange(id:string,patch:Partial<ToolOffer>){if(listing)change('tools',listing.tools.map(t=>t.id===id?{...t,...patch}:t));}
  async function save(action:'save'|'submit'){
   if(!context||!listing||uploadBusy)return;const captured=scope.current;setBusy(true);setError('');setNote('');
@@ -56,7 +57,7 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
    if(captured!==scope.current)return;
    if(result.publication==='public_not_submitted')setContext(c=>c?{...c,publication:{shared:true,status:'public_not_submitted'}}:c);
    if(!response.ok||result.ok!==true||!result.submission||result.submission.revision!==revision+1)throw Error(result.reason||'marketplace_submission_unavailable');
-   setRevision(result.submission.revision);if(action==='submit'){setSubmittedRevision(result.submission.revision);setContext({...context,publication:{shared:true,status:'submitted'},submission:{...result.submission},submissionReview:{status:'ready',decision:null}});}setNote(action==='submit'?'Your agent is public and your listing is submitted for review.':'Draft saved.');
+   setDirty(false);setRevision(result.submission.revision);if(action==='submit'){setSubmittedRevision(result.submission.revision);setContext({...context,publication:{shared:true,status:'submitted'},submission:{...result.submission},submissionReview:{status:'ready',decision:null}});}setNote(action==='submit'?'Your agent is public and your listing is submitted for review.':'Draft saved.');
   }catch(e){if(captured===scope.current)setError(errors[(e as Error).message]||errors.marketplace_submission_unavailable);}
   finally{if(captured===scope.current){setBusy(false);setConfirmSubmit(false);}}
  }
@@ -73,7 +74,7 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
   if(!context)return;const captured=scope.current;setBusy(true);setError('');
   try{const response=await fetch(`/api/agent-training/marketplace-submission?slug=${encodeURIComponent(slug)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'suggest',bindingDigest:context.bindingDigest})});const result=await response.json();
    if(captured!==scope.current)return;if(!response.ok||result.ok!==true||result.bindingDigest!==context.bindingDigest)throw Error(result.reason||'listing_suggestion_unavailable');
-   setListing(l=>l?{...l,...result.copy}:l);setNote('AI suggested the wording. Review it before saving.');
+   setDirty(true);setListing(l=>l?{...l,...result.copy}:l);setNote('AI suggested the wording. Review it before saving.');
   }catch{if(captured===scope.current)setError('AI suggestions are unavailable right now. Your draft is unchanged; you can keep editing.');}
   finally{if(captured===scope.current)setBusy(false);}
  }
@@ -89,20 +90,20 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
     {context.review?.visibility==='hidden'&&<p className="text-sm text-state-needs">{context.review.hiddenReason==='agent_not_shared'?'This agent is private. Use the agent’s sharing settings before offering it to customers.':context.review.hiddenReason==='agent_or_sample_changed'?'The published agent or selected sample changed. Test and submit its current version for review.':'This listing is not currently available in the beta marketplace.'}</p>}
     {(context.publication?.shared||context.review?.decision==='approved')&&<button type="button" className="text-sm text-ink-400 underline" onClick={()=>setConfirmUnlist(true)}>Take down listing</button>}
     <p className="text-xs text-ink-500">Drafted from your agent’s setup. Edit anything below.</p>
-    <section className="card space-y-4"><ListingHeading number={1} done={!!(listing.name&&listing.studioName&&listing.category&&listing.input&&listing.output)}>Describe your service</ListingHeading>
-     <div className="flex items-center gap-2"><button type="button" className="text-sm text-action-accent" onClick={()=>void polish()}>✦ Suggest wording with AI</button><TrainingInfo label="About AI listing suggestions">Uses the saved service name, description, input labels and tool names with Tukido’s existing Claude service. It receives no training examples or keys, and changes only draft wording.</TrainingInfo></div>
+    <section className="card space-y-4"><ListingHeading number={1} done={!!(listing.name&&listing.studioName&&listing.category&&listing.input&&listing.output)}>What you’re offering</ListingHeading>
+     <div className="flex items-center gap-2"><button type="button" className="btn-secondary" onClick={()=>void polish()}>✦ Write it for me</button><TrainingInfo label="About AI listing suggestions">Uses the saved service name, description, input labels and tool names with Tukido’s existing Claude service. It receives no training examples or keys, and changes only draft wording.</TrainingInfo></div>
      <div className="grid gap-4 sm:grid-cols-2">{([['name','Service name'],['studioName','Studio name'],['category','Category']] as const).map(([key,label])=><label key={key} className="text-sm text-ink-300">{label}<input className={field} maxLength={key==='name'?120:key==='studioName'?100:80} value={listing[key]} onChange={e=>change(key,e.target.value)}/></label>)}</div>
      {([['input','Customer provides'],['output','Customer receives']] as const).map(([key,label])=><label key={key} className="block text-sm text-ink-300">{label}<textarea className={field} rows={2} maxLength={600} value={listing[key]} onChange={e=>change(key,e.target.value)}/></label>)}
 
     </section>
-    <section className="card space-y-4"><ListingHeading number={2} done={listing.sampleIds.length>0&&listing.sampleReleaseConsent}>Show what it makes</ListingHeading>
+    <section className="card space-y-4"><ListingHeading number={2} done={listing.sampleIds.length>0&&listing.sampleReleaseConsent}>Samples</ListingHeading>
      <p className="text-sm text-ink-400">Choose up to three examples. The first is your cover.</p>
      <MarketplaceSamples key={`${slug}:${context.agent.versionId}`} slug={slug} versionId={context.agent.versionId} uploads={context.uploads||[]} onChanged={refreshSamples} onBusy={setUploadBusy}/>
      {context.samples.length>0&&<div className="grid gap-3 sm:grid-cols-3">{[...context.samples].sort((a,b)=>{const ai=listing.sampleIds.indexOf(a.id),bi=listing.sampleIds.indexOf(b.id);return (ai<0?99:ai)-(bi<0?99:bi);}).filter((s,index)=>moreSamples||index<6||listing.sampleIds.includes(s.id)).map(sample=>{
       const selected=listing.sampleIds.indexOf(sample.id),uploaded=sample.kind==='uploaded';
       return <article key={sample.id} className="overflow-hidden rounded-xl border border-ink-700 p-3">
        {uploaded?<a href={sampleUrl(sample.id,'preview')} target="_blank" rel="noreferrer" aria-label={`Preview ${sample.name}`}><img src={sampleUrl(sample.id)} alt={sample.name} className="aspect-video w-full rounded-lg object-cover"/></a>:<RunImage artifact={sample}/>}
-       <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={selected>=0} disabled={busy||uploadBusy||selected<0&&listing.sampleIds.length>=3} onChange={e=>change('sampleIds',e.target.checked?[...listing.sampleIds,sample.id]:listing.sampleIds.filter(id=>id!==sample.id))}/><span className="min-w-0 break-all">{uploaded?sample.name:sample.relativePath.split('/').pop()}</span></label>
+       <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={selected>=0} disabled={busy||uploadBusy||selected<0&&listing.sampleIds.length>=3} onChange={e=>change('sampleIds',e.target.checked?[...listing.sampleIds,sample.id]:listing.sampleIds.filter(id=>id!==sample.id))}/><span className="min-w-0 truncate" title={uploaded?sample.name:sample.relativePath.split('/').pop()}>{uploaded?sample.name:sample.relativePath.split('/').pop()}</span></label>
        <p className="mt-2 text-xs text-ink-400">{uploaded?'Trainer-provided example':'Result from your agent'}{selected===0?' · Cover':''}</p>
        {selected>=0&&<div className="mt-3 flex gap-3 text-xs"><button type="button" disabled={selected===0||uploadBusy} onClick={()=>moveSample(sample.id,-1)} aria-label={`Move ${uploaded?sample.name:'result'} earlier`}>← Earlier</button><button type="button" disabled={selected===listing.sampleIds.length-1||uploadBusy} onClick={()=>moveSample(sample.id,1)} aria-label={`Move ${uploaded?sample.name:'result'} later`}>Later →</button></div>}
       </article>;
@@ -111,7 +112,7 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
      <label className="flex items-start gap-3 text-sm text-ink-400"><input type="checkbox" className="mt-1" checked={listing.sampleReleaseConsent} onChange={e=>change('sampleReleaseConsent',e.target.checked)}/>I can show these selected examples when this listing is approved.</label>
      <p className="text-xs text-ink-500">Uploads stay private until approval. Unlisting hides them; removing an upload deletes its stored copy. Uploaded examples do not count as agent test proof.</p>
     </section>
-    <section className="card space-y-4"><ListingHeading number={3} done={Number.isSafeInteger(listing.servicePriceCents)&&listing.servicePriceCents>=0}>Set your service price</ListingHeading>
+    <section className="card space-y-4"><ListingHeading number={3} done={Number.isSafeInteger(listing.servicePriceCents)&&listing.servicePriceCents>=0}>Your price</ListingHeading>
      <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm">Service price (USD)<input type="number" aria-label="Service price (USD)" min="0" max="10000" step="0.01" className={field} value={listing.servicePriceCents/100} onChange={e=>change('servicePriceCents',Math.round(Number(e.target.value)*100))}/></label><label className="text-sm">Charge per<select className={field} value={listing.pricePeriod} onChange={e=>change('pricePeriod',e.target.value as Listing['pricePeriod'])}><option value="per_run">Run</option><option value="per_month">Month</option></select></label></div>
     </section>
     <section className="card space-y-4"><ListingHeading number={4} done={listing.tools.every(t=>t.mode!=='included'||estimateTool(t,context.runwayPrice).valid)}>Tools for your customers</ListingHeading>{context.tools.map(tool=>{
@@ -125,10 +126,12 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
       </>}
      </article>;
     })}{context.tools.length===0&&<p className="text-sm text-ink-400">No external account tools declared for this version.</p>}</section>
-    <section className="card space-y-4"><ListingHeading number={5} done={context.canSubmit&&listing.sampleReleaseConsent&&listing.sampleIds.length>0}>Review and submit</ListingHeading>
+    <section className="card space-y-4"><ListingHeading number={5} done={context.canSubmit&&listing.sampleReleaseConsent&&listing.sampleIds.length>0}>Test and submit</ListingHeading>
+    {context.canSubmit&&<p className="text-sm text-ink-400">This version is ready to submit. Review your preview and selected examples first.</p>}
     {!context.canSubmit&&<p className="text-sm text-state-needs">Test and publish this version’s training before submitting. You can save your draft now.</p>}
-    <div className="listing-save-bar flex flex-wrap gap-3 border-t border-ink-800 pt-5"><a href="#listing-preview" className="btn-outline">Preview listing</a><button type="button" className="btn-secondary" disabled={busy||uploadBusy} onClick={()=>void save('save')}>Save draft</button><button type="button" className="btn-primary" disabled={busy||uploadBusy||!context.canSubmit||!listing.sampleReleaseConsent||listing.sampleIds.length===0} onClick={()=>setConfirmSubmit(true)}>{busy?'Saving…':'Submit for review'}</button></div>
+
     </section>
+    <div className="listing-save-bar" aria-label="Listing actions"><div className="listing-save-inner"><p role="status">{busy?'Saving…':dirty?'Unsaved changes':context.submission?.revision===revision?'Submitted for review':context.draft||note==='Draft saved.'?'Draft saved':'Not saved yet'}</p><div className="flex flex-wrap gap-3"><a href="#listing-preview" className="btn-outline">Preview listing</a><button type="button" className="btn-secondary" disabled={busy||uploadBusy} onClick={()=>void save('save')}>Save draft</button><button type="button" className="btn-primary" disabled={busy||uploadBusy||!context.canSubmit||!listing.sampleReleaseConsent||listing.sampleIds.length===0} onClick={()=>setConfirmSubmit(true)}>{busy?'Saving…':'Submit for review'}</button></div></div></div>
    </fieldset>}
   </section>
   <aside id="listing-preview" tabIndex={-1} className="listing-preview card">
@@ -136,7 +139,7 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
    {context&&listing&&(()=>{const cover=context.samples.find(s=>s.id===listing.sampleIds[0]);return cover?.kind==='uploaded'?<><img src={sampleUrl(cover.id)} alt="Listing cover" className="mt-4 aspect-video w-full rounded-lg object-cover"/><p className="mt-2 text-xs text-ink-500">Trainer-provided example</p></>:cover?<RunImage artifact={cover}/>:<div className="mt-4 flex aspect-video items-center justify-center rounded-lg bg-ink-900 text-sm text-ink-500">Choose your cover</div>;})()}
    <h2 className="mt-3 text-2xl font-display">{listing?.name||'Your trained agent'}</h2>
    {listing&&<><p className="mt-2 text-sm text-ink-400">{listing.studioName} · {listing.category}</p>
-    <dl className="mt-6 space-y-5 text-sm"><div><dt className="text-xs text-ink-400">Customer provides</dt><dd className="mt-1">{listing.input}</dd></div><div><dt className="text-xs text-ink-400">Customer receives</dt><dd className="mt-1">{listing.output}</dd></div><div><dt className="text-xs text-ink-400">Proposed service price</dt><dd className="mt-1 text-lg">{money(listing.servicePriceCents)} {listing.pricePeriod==='per_run'?'per run':'per month'}</dd></div></dl>
+    <dl className="mt-6 space-y-5 text-sm"><div><dt className="text-xs text-ink-400">Customer provides</dt><dd className="mt-1">{listing.input}</dd></div><div><dt className="text-xs text-ink-400">Customer receives</dt><dd className="mt-1">{listing.output}</dd></div><div><dt className="text-xs text-ink-400">Planned price</dt><dd className="mt-1 text-lg">{money(listing.servicePriceCents)} {listing.pricePeriod==='per_run'?'per run':'per month'}</dd></div></dl>
     <ul className="mt-5 space-y-3 text-sm">{context?.tools.map(tool=>{
      const offer=listing.tools.find(item=>item.id===tool.id);if(!offer)return null;
      const quote=estimateTool(offer,context.runwayPrice);

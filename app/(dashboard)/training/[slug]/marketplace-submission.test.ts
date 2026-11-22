@@ -49,7 +49,7 @@ test('conflict retains edits and switching versions closes the prior offer',asyn
  await r.rerender({...props,versionId:'12000000-0000-4000-8000-000000000002'});assert.equal(r.document.querySelector('[role="dialog"]'),null);
 });
 test('AI suggests editable wording without saving, changing price or granting a tool',async t=>{
- const {r,calls}=await setup(t);await r.click(r.getByText('✦ Suggest wording with AI'));
+ const {r,calls}=await setup(t);await r.click(r.getByText('✦ Write it for me'));
  assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'AI video wording');assert.equal((r.document.querySelector('[aria-label="Service price (USD)"]') as HTMLInputElement).value,'50');
  assert.equal((r.document.querySelector('[aria-label="Runway access"]') as HTMLSelectElement).value,'customer_connects');
  assert.deepEqual(calls.filter(c=>c.init.method==='POST').map(c=>JSON.parse(c.init.body)),[{action:'suggest',bindingDigest:'b'.repeat(64)}]);
