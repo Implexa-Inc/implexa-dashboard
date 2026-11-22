@@ -1,7 +1,8 @@
 {
   "status": 200,
   "headers": {
-    "Cache-Control": "no-store"
+    "cache-control": "no-store",
+    "content-type": "application/json"
   },
   "body": {
     "ok": true,

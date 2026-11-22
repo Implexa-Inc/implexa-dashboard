@@ -1,0 +1,11 @@
+{
+  "status": 503,
+  "headers": {
+    "Cache-Control": "no-store"
+  },
+  "body": {
+    "ok": false,
+    "unavailable": true,
+    "reason": "training_coach_unavailable"
+  }
+}

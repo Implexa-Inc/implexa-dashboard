@@ -112,3 +112,8 @@ test('real Coach server page renders the owner catalog without issuing or awaiti
   assert.deepEqual(reads,['/api/v2/me/workflows'],'the only blocking data request is the existing owner catalog');
  }
 });
+
+test('a fresh server catalog read gives the count loader a fresh lifecycle even if agent identities are unchanged',async()=>{
+ const invoke=async()=>{const shell=await coachList({}),contents=findContents(shell);return findContents(await contents.type(contents.props),picker);};
+ const first=await run(invoke,catalog),second=await run(invoke,catalog);assert.notEqual(first.key,second.key);assert.ok(first.key.startsWith(owner+':'));assert.equal(first.props.summary,undefined);assert.equal(second.props.summary,undefined);
+});

@@ -3,6 +3,10 @@
   "backendCommit": "bb3b3f63dd13eb15b39f1f3cff6aec48f1561c41",
   "producers": [
     {
+      "file": "scripts/marketplace-sample-media.postgres.test.js",
+      "sha256": "e3975c7253e87bd2800e06c4d49dd2520ddb2ff8126ac41bc4996b09eda06203"
+    },
+    {
       "file": "src/routes/agent-training.js",
       "sha256": "f82ee5e8d96a863bfed81767f04f4648edeb697423c425e3fbb370e3d0343ac0"
     },
@@ -79,9 +83,22 @@
     {
       "file": "lib/training-review-routing.ts",
       "sha256": "bebe288420595a558da0ca56908b0834aa1d53a94ea034b36e9e5c47951d992a"
+    },
+    {
+      "file": "app/api/agent-training/coach/route.ts",
+      "sha256": "48d7d6846485d7e6bb2fee516a540a3537d84572488fab23b94ad69f98b4d9a2"
+    },
+    {
+      "file": "lib/training-coach-server.ts",
+      "sha256": "22cf99a978e7583bd28193763b9e165fb9bbde55cf7a3c7b15de1b26d717dcc1"
+    },
+    {
+      "file": "lib/training-coach.ts",
+      "sha256": "b0e609260633ade88126ca37d8d1a990daf19de934ad68187cde2e6c054a87aa"
     }
   ],
   "entryPoints": [
+    "GET /api/agent-training/coach",
     "GET /api/v2/agent-training/coach",
     "GET /api/agent-training/run-review",
     "GET /api/v2/review/runs/:runId",
@@ -130,18 +147,38 @@
       "sha256": "9b31c305b3f17beeb9a7b5ed8bc2bee7acb46863d34efc189067bbb910648cff"
     },
     {
+      "file": "backend-coach-roster.json",
+      "sha256": "3832ecddfa4312bc603b46dc3f4641ba1eed0a344b69406e3ba54b2b5804e3da"
+    },
+    {
       "file": "coach-roster.json",
-      "sha256": "56015aed3a2bf81bf521c993c40efd86cf1046a6180a6d0a25a505263b92e5de"
+      "sha256": "f72e805fd93ef64d58fddd27ab1d287b918b118b09c153eec6cabaab84425bf4"
+    },
+    {
+      "file": "backend-coach-family.json",
+      "sha256": "3581861239a4dd84723a87f8fc985e1fdd9b7e3d323e07d007fc684fbb4d5b54"
     },
     {
       "file": "coach-family.json",
-      "sha256": "2c8f5e85950e6269da9362c4c865d69990df526a57cc585b26a81ba51301c6b3"
+      "sha256": "97717966dfb5d0cb9d4d26db22f5ec57b66865164e28f3fffe4089df91708d8b"
+    },
+    {
+      "file": "backend-coach-unversioned-family.json",
+      "sha256": "e236af8e1eb2e31e8a5e2b4eff419c8f3a3683f27750a22af99fa6728e9eaf32"
     },
     {
       "file": "coach-unversioned-family.json",
-      "sha256": "e236af8e1eb2e31e8a5e2b4eff419c8f3a3683f27750a22af99fa6728e9eaf32"
+      "sha256": "af568750bbd2bbe0eb3d0edaa40176d90fc08facfc3f9ef9a06a3ece3487ea5c"
+    },
+    {
+      "file": "backend-coach-unavailable.json",
+      "sha256": "033014f330357f157d529b4ce27650b19cb60da12686f36727e9b48fcead17d7"
+    },
+    {
+      "file": "coach-unavailable.json",
+      "sha256": "7e7f2588f266a6ccadb8ae864637cb03e8d355041e582827a2e9f72e26f28efa"
     }
   ],
   "networkForbiddenByThrowingFetch": true,
-  "coachFixtureScope": "Real SQL through0646 in disposable full-schema PostgreSQL, executed as service_role; actual service and HTTP handler. Synthetic input rows, including a question with bootstrap guards disabled, prove read projection only, not Manager receipt validity or production SQL authority."
+  "coachFixtureScope": "Disposable full-schema PostgreSQL every575\u2013646 migration, real service_role RPC + real backend service/GET + real Dashboard GET/server reader/validator. Existing storage platform fixture reused. Synthetic question rows with bootstrap guards disabled test projection only, not receipt validity/production authority; actual 503 from deliberately failed PostgreSQL read."
 }

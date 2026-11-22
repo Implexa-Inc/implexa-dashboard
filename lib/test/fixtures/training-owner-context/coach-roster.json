@@ -1,7 +1,8 @@
 {
   "status": 200,
   "headers": {
-    "Cache-Control": "no-store"
+    "cache-control": "no-store",
+    "content-type": "application/json"
   },
   "body": {
     "ok": true,
@@ -29,7 +30,7 @@
             "kind": "question",
             "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "source": "question",
-            "createdAt": "2026-11-22T11:36:10.059869-08:00",
+            "createdAt": "2026-11-22T11:45:08.241912-08:00",
             "sessionId": null,
             "versionId": "90000000-0000-4000-8000-000000000003"
           }
