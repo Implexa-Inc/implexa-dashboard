@@ -3,6 +3,18 @@
   "backendCommit": "bb3b3f63dd13eb15b39f1f3cff6aec48f1561c41",
   "producers": [
     {
+      "file": "src/routes/review.js",
+      "sha256": "8c04e7245eb1af810a188d609a909fbf07957e6e838bf153f2316e1fd3e02981"
+    },
+    {
+      "file": "src/services/run-review.service.js",
+      "sha256": "580fb6b5f4f5a8cfef2418d6bcdd118e85a0b3aed9ab5e650f3d651f1cb075b2"
+    },
+    {
+      "file": "src/services/review-db.fixture.js",
+      "sha256": "6ba9e16001c69b79bb4f87bf55c6339f1a322ad9b6aaab27dda706fca60973eb"
+    },
+    {
       "file": "src/routes/me.js",
       "sha256": "39ddc767777244d806f84b2f384b79aa9802f45194ee1c67ba94dbc16ab8e538"
     },
@@ -15,7 +27,27 @@
       "sha256": "c26dc1c73fa7e6f3c7a7e8b400bf97d0da6d32fe834adfb6372d0fe79a203669"
     }
   ],
+  "dashboardProducers": [
+    {
+      "file": "app/api/agent-training/run-review/route.ts",
+      "sha256": "92cc8f4c33f914ea983d055837a5167fcdb0107559eea30fee2e1a4b4b10d01d"
+    },
+    {
+      "file": "lib/review.ts",
+      "sha256": "02e4219da1e9fb028f14ee440b3f1a7477b509430c1e06e04284d7af8357210f"
+    },
+    {
+      "file": "lib/workflow-catalog.ts",
+      "sha256": "41627f04adcfcf8a1da2fa3be8f2c12abe12113cf76ef38d58b7fe37c6852ae3"
+    },
+    {
+      "file": "lib/training-review-routing.ts",
+      "sha256": "bebe288420595a558da0ca56908b0834aa1d53a94ea034b36e9e5c47951d992a"
+    }
+  ],
   "entryPoints": [
+    "GET /api/agent-training/run-review",
+    "GET /api/v2/review/runs/:runId",
     "GET /api/v2/me/workflows",
     "GET /api/v2/me/agents/:slug/detail"
   ],
@@ -51,6 +83,14 @@
     {
       "file": "owner-catalog-hidden.json",
       "sha256": "b66185a61ecb26b494dae7bac42940eb19e76cbb5ca85236f5539e1198ce22df"
+    },
+    {
+      "file": "review-packet.json",
+      "sha256": "5623a691ba35f3f9777c81fa59ccb2fc7a755bb1cfa573164388949e99da2bd4"
+    },
+    {
+      "file": "training-run-review.json",
+      "sha256": "9b31c305b3f17beeb9a7b5ed8bc2bee7acb46863d34efc189067bbb910648cff"
     }
   ],
   "networkForbiddenByThrowingFetch": true

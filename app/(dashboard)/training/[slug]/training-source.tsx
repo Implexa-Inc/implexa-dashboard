@@ -589,9 +589,17 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
   },[ownerId,slug,currentVersion,installationId]);
   const [demoText, setDemoText] = useState('');
   const [directDraftRetry,setDirectDraftRetry]=useState<{fingerprint:string;sessionId:string;versionId:string;sourceId:string;timeMs:number;rawAnnotation:string;request:FeedbackDraftRequest}|null>(null);
-  const directScopeReviewIsCurrent=!!directScopeReview&&directScopeReview.agentKey===`${ownerId}:${slug}`&&directScopeReview.sessionId===session&&directScopeReview.versionId===currentVersion&&directScopeReview.sourceId===selected?.sourceId&&directScopeReview.timeMs===time&&directScopeReview.rawAnnotation===demoText&&!versionChanged;
+  // A canonical note is immutable input, not an unfinished editor draft.
+  const canonicalDirectFeedback=annotationTarget?.kind==='feedback'&&queuedAuthorized&&!versionChanged
+    &&queuedFeedback?.annotation.annotationId===annotationTarget.annotationId
+    &&queuedFeedback.annotation.annotationDigest===annotationTarget.annotationDigest
+    &&session===annotationTarget.sessionId&&queuedFeedback.annotation.expectedActiveVersionId===currentVersion
+    &&queuedFeedback.annotation.sourceId===selected?.sourceId?queuedFeedback:null;
+  const directFeedbackRaw=annotationTarget?.kind==='feedback'?canonicalDirectFeedback?.annotation.rawAnnotation||'':demoText;
+  const directFeedbackText=annotationTarget?.kind==='feedback'?canonicalDirectFeedback?.feedback||'':directNote;
+  const directScopeReviewIsCurrent=!!directScopeReview&&directScopeReview.agentKey===`${ownerId}:${slug}`&&directScopeReview.sessionId===session&&directScopeReview.versionId===currentVersion&&directScopeReview.sourceId===selected?.sourceId&&directScopeReview.timeMs===time&&directScopeReview.rawAnnotation===directFeedbackRaw&&!versionChanged;
   const directDraftRetryIsCurrent=!!directDraftRetry&&directDraftRetry.sessionId===session&&directDraftRetry.versionId===currentVersion
-    &&directDraftRetry.sourceId===selected?.sourceId&&directDraftRetry.timeMs===time&&directDraftRetry.rawAnnotation===demoText;
+    &&directDraftRetry.sourceId===selected?.sourceId&&directDraftRetry.timeMs===time&&directDraftRetry.rawAnnotation===directFeedbackRaw;
   const [demoAnnotation, setDemoAnnotation] = useState<{ value: DemoAnnotation; previewIdentity: string } | null>(null);
   const pendingDemoSave = useRef<{ fingerprint: string; key: string } | null>(null);
   const [pendingDemoLink, setPendingDemoLink] = useState<{ annotation: DemoAnnotation; sessionId: string; recordId: string; recordDigest: string } | null>(null);
@@ -906,7 +914,8 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
         const source=saved.sources?.find(source=>source.sourceId===value.annotation.sourceId&&source.metadata.sha256===value.annotation.sourceSha256);
         if(!source)throw Error('Open this saved example on the computer where you created it. Your feedback is still saved.');
         const note=await readSavedFeedback(value,{...target,versionId:version},source.metadata);if(!live)return;
-        setQueuedFeedback(note);setDirectNote(note.feedback);setDemoText(note.annotation.rawAnnotation);
+        setQueuedFeedback(note);
+        if(runDirty||recordingDirty||recordingDraftBlocked())throw Error('Finish or discard your current note before opening saved feedback.');
         if(!source.token)throw Error('Open this saved example on the computer where you created it. Your feedback is still saved.');
         if(!chooseSource(source,false,true))return;
         const frame=await call('preview',{token:source.token,timeMs:note.annotation.timeMs});if(!live)return;
@@ -915,7 +924,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
         if(progress.annotation&&(progress.annotation.annotationId!==note.annotation.annotationId||progress.annotation.annotationDigest!==note.annotation.annotationDigest))throw Error('This saved note has conflicting recovery state.');
         progress.annotation=note.annotation;checkpointExtraction(window.localStorage,scope,progress);extractionProgress.current.set(note.fingerprint,progress);
         if(progress.suggestionStarted&&!progress.suggestion&&!progress.record&&!progress.linked)setDirectDraftRetry({fingerprint:note.fingerprint,sessionId:target.sessionId,versionId:version,sourceId:source.sourceId,timeMs:note.annotation.timeMs,rawAnnotation:note.annotation.rawAnnotation,request:retryFeedbackDraft(progress,note.fingerprint)});else setDirectDraftRetry(null);
-        setQueuedFeedback(note);setDirectNote(note.feedback);setDemoText(note.annotation.rawAnnotation);setRunSource(null);setActiveRecordingId(null);setDirectSource(true);setTime(note.annotation.timeMs);setPreview({token:source.token,timeMs:note.annotation.timeMs,image:frame.image});setHomeCheck('complete');
+        setQueuedFeedback(note);setRunSource(null);setActiveRecordingId(null);setDirectSource(true);setTime(note.annotation.timeMs);setPreview({token:source.token,timeMs:note.annotation.timeMs,image:frame.image});setHomeCheck('complete');
       });return()=>{live=false;};
     }
     if(target&&(target.kind==='image'||target.kind==='recording'&&target.sessionId&&target.sourceId)){
@@ -1076,6 +1085,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     });
   }
   async function sendSavedFeedbackToCoach(){
+    if(runDirty||recordingDirty||recordingDraftBlocked()){setError('Finish or discard your current note before sending saved feedback.');return;}
     if(annotationTarget?.kind!=='feedback'||!ownerId||!queuedFeedback||!selected?.token||!session||annotationTarget.sessionId!==session||annotationTarget.annotationId!==queuedFeedback.annotation.annotationId||annotationTarget.annotationDigest!==queuedFeedback.annotation.annotationDigest||!currentVersion||versionChanged||!coachFeedbackReady)return;
     const id=session,version=currentVersion,note=queuedFeedback,source={...selected,token:selected.token};
     await work('Sending your saved feedback to Coach',async()=>{
@@ -1090,6 +1100,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     });
   }
   async function dismissQueuedFeedback(){
+    if(runDirty||recordingDirty||recordingDraftBlocked()){setError('Finish or discard your current note before dismissing saved feedback.');return;}
     if(annotationTarget?.kind!=='feedback'||!ownerId||!session||!currentVersion||versionChanged)return;
     const target=annotationTarget,version=currentVersion;
     await work('Dismissing saved feedback',async()=>{
@@ -1181,15 +1192,16 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     progress.analysisContract=analysis.directionScopeContract==='training-direction-scope.v1'?'training-teaching-suggestion.v9':progress.analysisContract||'training-teaching-suggestion.v7';progress.analysisRequest=analysis.analysisRequest;
     progress.analysisOutcome=analysis.retry.state==='after_failure'?'failed':'pending';progress.suggestionStarted=true;
     checkpointExtraction(window.localStorage,`${ownerId}:${session}:${currentVersion}`,progress);extractionProgress.current.set(note.fingerprint,progress);
-    if(demoText===note.annotation.rawAnnotation&&selected?.sourceId===note.annotation.sourceId&&time===note.annotation.timeMs){
+    if(directFeedbackRaw===note.annotation.rawAnnotation&&selected?.sourceId===note.annotation.sourceId&&time===note.annotation.timeMs){
       setDirectDraftRetry({fingerprint:note.fingerprint,sessionId:session,versionId:currentVersion,sourceId:note.annotation.sourceId,timeMs:time,rawAnnotation:note.annotation.rawAnnotation,request:retryFeedbackDraft(progress,note.fingerprint)});
       setExtractionNote('Choose Review or retry analysis to continue.');
     }else await reopenSavedFeedback(note);
     selectTrainingStep(1);
   }
   async function extractDirectFeedback(newDraftRequest?:FeedbackDraftRequest,relationChoice?:TrainingRelation){
-    if(!selected?.token||!currentVersion||!session||!demoText.trim()||versionChanged)return;
-    const source={...selected,token:selected.token},version=currentVersion,id=session,rawAnnotation=demoText,frameTime=time;
+    if(annotationTarget?.kind==='feedback'&&(runDirty||recordingDirty||recordingDraftBlocked())){setError('Finish or discard your current note before extracting saved feedback.');return;}
+    if(!selected?.token||!currentVersion||!session||!directFeedbackRaw.trim()||versionChanged)return;
+    const source={...selected,token:selected.token},version=currentVersion,id=session,rawAnnotation=directFeedbackRaw,frameTime=time;
     setDirectExtractionRequested(false);
     await work('Finding the lesson in your example',async()=>{
       const fingerprint=queuedFeedback?.annotation.rawAnnotation===rawAnnotation&&queuedFeedback.annotation.sourceId===source.sourceId?queuedFeedback.fingerprint:await teachingDigest(new TextEncoder().encode(JSON.stringify({id,version,sourceId:source.sourceId,sourceSha256:source.metadata.sha256,rawAnnotation,frameTime})));
@@ -1213,7 +1225,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       const operating=(result.suggestion.contractVersion==='training-teaching-suggestion.v7'||result.suggestion.contractVersion==='training-teaching-suggestion.v9')?result.suggestion.operatingGap:null;
       if(result.status==='held'){
         if(operating){setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setExtractionNote(operating.status==='suggested'?'Your feedback suggests an agent setup change. Review the suggestion above.':operating.status==='present'?'This method is already in the agent. Your feedback is saved.':'Your feedback is saved. Tool or setup support needs review.');}
-        else{setHeldExtractions(previous=>[...previous.filter(item=>item.key!==fingerprint),{key:fingerprint,text:directNote,reason:result.reason}]);setExtractionNote('This lesson needs clarification. Your original feedback is saved.');}
+        else{setHeldExtractions(previous=>[...previous.filter(item=>item.key!==fingerprint),{key:fingerprint,text:directFeedbackText,reason:result.reason}]);setExtractionNote('This lesson needs clarification. Your original feedback is saved.');}
       }else{setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setDemoText('');setDirectNote('');setExtractionNote(operating?.status==='suggested'?'Your lesson and agent update are ready to review. Nothing is live yet.':operating?.status==='present'?'Your proposed lesson is ready. The requested method is already available.':'Your proposed lesson is ready to review. Nothing is live yet.');selectTrainingStep(2);}
       await load(id);await loadChanges();
       if(annotationTarget&&result.status!=='held')finishAnnotation();
@@ -2288,12 +2300,12 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     </TrainingDetails>
   </>;
   const annotationMedia=<>    {!installationId&&directSource&&!activeRunId&&!activeRecordingId&&selected?.token&&previewIsCurrent&&preview?.image&&<>
-      <TrainingImagePlayer key={`${selected.sourceId}:${time}:${annotationTarget?.kind==='feedback'?queuedFeedback?.fingerprint||'loading':'new'}`} initialSpatial={annotationTarget?.kind==='feedback'?queuedFeedback?.spatial||null:null} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directNote} onVoiceDirtyChange={setDirectVoiceDirty} doneUnavailable={coachFeedbackReady?undefined:coachBusy?'Checking whether notes can be sent to Coach…':'Saving notes to Coach is not ready. Your draft stays here; refresh after the update.'} disabled={!!busy||changesBusy||versionChanged}
+      <TrainingImagePlayer key={`${selected.sourceId}:${time}:${annotationTarget?.kind==='feedback'?queuedFeedback?.fingerprint||'loading':'new'}`} initialSpatial={annotationTarget?.kind==='feedback'?queuedFeedback?.spatial||null:null} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directFeedbackText} onVoiceDirtyChange={setDirectVoiceDirty} doneUnavailable={coachFeedbackReady?undefined:coachBusy?'Checking whether notes can be sent to Coach…':'Saving notes to Coach is not ready. Your draft stays here; refresh after the update.'} disabled={!!busy||changesBusy||versionChanged}
         onChange={(text,spatial)=>{if(annotationTarget?.kind==='feedback')return;setDirectNote(text);setDemoText(text.trim()||spatial?JSON.stringify({role:'trainer_commentary',sourceKind:'upload',sourceId:selected.sourceId,timeMs:time,spatial,feedback:text}):'');}}
         readOnly={annotationTarget?.kind==='feedback'} onDone={()=>{if(annotationTarget?.kind==='feedback')setDirectExtractionRequested(true);else void saveImageFeedback();}}/>
       {directDraftRetryIsCurrent&&<button type="button" className="text-sm text-state-needs underline" disabled={!!busy||suggesting||changesBusy||versionChanged} onClick={()=>setFeedbackRetry('direct')}>Review or retry analysis</button>}
       {playbackFallback&&<p role="status" className="text-xs text-ink-400">{playbackFallback}</p>}
-      {selected.metadata.durationMs>0&&<details className="text-xs text-ink-400"><summary className="cursor-pointer">Choose a different frame</summary><input aria-label="Training video frame" aria-valuetext={formatTrainingTime(time)} className="mt-3 w-full" type="range" min="0" max={selected.metadata.durationMs-1} value={time} disabled={!!busy||directVoiceDirty||!!directNote.trim()} onChange={event=>changeTime(Number(event.target.value))}/><button type="button" disabled={!!busy||directVoiceDirty||!!directNote.trim()} onClick={()=>void showPreview()}>Open this frame</button></details>}
+      {selected.metadata.durationMs>0&&<details className="text-xs text-ink-400"><summary className="cursor-pointer">Choose a different frame</summary><input aria-label="Training video frame" aria-valuetext={formatTrainingTime(time)} className="mt-3 w-full" type="range" min="0" max={selected.metadata.durationMs-1} value={time} disabled={!!busy||annotationTarget?.kind==='feedback'||directVoiceDirty||!!directNote.trim()} onChange={event=>changeTime(Number(event.target.value))}/><button type="button" disabled={!!busy||annotationTarget?.kind==='feedback'||directVoiceDirty||!!directNote.trim()} onClick={()=>void showPreview()}>Open this frame</button></details>}
     </>}
 
     {!installationId&&annotationTarget?.kind==='result'&&<TrainingRunPlayer key={annotationTarget.runId||annotationTarget.issueId} slug={slug} runId={annotationTarget.runId} issueId={annotationTarget.issueId} fullPage initialArtifactId={annotationTarget.artifactId} onLoadedRun={setRunSource} ownerId={ownerId} onTeach={(issue,artifact)=>void prepareRunTeaching([{issue,artifact}])} onDoneTeaching={()=>finishAnnotation()} onDirtyChange={setRunDirty}/>}
@@ -2404,7 +2416,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
   if(annotationTarget)return <main id="main-content" tabIndex={-1} className="app-page training-annotation-page"><div className="app-content">
     <Link className="training-breadcrumb" href={trainingAnnotationReturn(slug)}>← Train {agentName}</Link>
     {annotationTarget.kind!=='recording'&&<PageHeader title="Show the agent what to change"><p className="app-page-description">{agentName}</p></PageHeader>}
-    <AnnotationLeaveGuard dirty={(runDirty||recordingDirty||annotationTarget.kind!=='feedback'&&[directNote,demoText,chosen,why,process,behavior].some(value=>value.trim())||directVoiceDirty)||!!busy||suggesting||!!directScopeReview||!!runFeedbackRequest}/>
+    <AnnotationLeaveGuard onDiscard={()=>{setRunDirty(false);setRecordingDirty(false);setDirectVoiceDirty(false);setDirectNote('');setDemoText('');setChosen('');setWhy('');setProcess('');setBehavior('');}} dirty={(runDirty||recordingDirty||[directNote,demoText,chosen,why,process,behavior].some(value=>value.trim())||directVoiceDirty)||!!busy||suggesting||!!directScopeReview||!!runFeedbackRequest}/>
     {busy&&<p role="status" className="mb-4 text-sm text-ink-400">{busy}…</p>}
     {error&&<p role="alert" className="mb-4 text-sm text-state-needs">{reasonLabel(error)}</p>}
     {suggestionNote&&<p role="status" className="mb-4 text-sm text-ink-400">{suggestionNote}</p>}

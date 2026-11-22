@@ -5,7 +5,7 @@ import {inDesktopApp} from '@/lib/review-preview';
 import Modal from './modal';
 
 /** Full-page image/result drafts need the same link guard as recording notes. */
-export default function AnnotationLeaveGuard({dirty}:{dirty:boolean}){
+export default function AnnotationLeaveGuard({dirty,onDiscard}:{dirty:boolean;onDiscard?:()=>void}){
  const router=useRouter(),[href,setHref]=useState<string|null>(null);
  const traversal=useRef<null|(()=>void)>(null),allowTraversal=useRef(false);
  useEffect(()=>{
@@ -38,6 +38,6 @@ export default function AnnotationLeaveGuard({dirty}:{dirty:boolean}){
  },[dirty]);
  return <Modal open={href!==null} onClose={()=>{traversal.current=null;setHref(null);}} title="Leave without saving?">
   <p>Your current note or teaching is not finished. Keep editing to preserve it.</p>
-  <div className="mt-5 flex justify-end gap-3"><button type="button" className="btn-outline" onClick={()=>{traversal.current=null;setHref(null);}}>Keep editing</button><button type="button" className="btn-danger" onClick={()=>{const target=href,go=traversal.current;traversal.current=null;setHref(null);if(go)go();else if(target)router.push(target);}}>Leave without saving</button></div>
+  <div className="mt-5 flex justify-end gap-3"><button type="button" className="btn-outline" onClick={()=>{traversal.current=null;setHref(null);}}>Keep editing</button><button type="button" className="btn-danger" onClick={()=>{const target=href,go=traversal.current;onDiscard?.();traversal.current=null;setHref(null);if(go)go();else if(target)router.push(target);}}>Leave without saving</button></div>
  </Modal>;
 }
