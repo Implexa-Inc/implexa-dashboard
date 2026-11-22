@@ -31,7 +31,7 @@ import TrainingImagePlayer from './training-image-player';
 import TrainingDraftBundle,{visualTeachingSelectable} from './training-draft-bundle';
 import RecordingLearningReview from './recording-learning-review';
 import TrainingIntakePlan,{INTAKE_CONTRACT,METHOD_CONTRACT,readIntakePlan,type IntakePlan} from './training-intake-plan';
-import {readSavedFeedback,queueFeedbackAnnotation,extractFeedbackTeaching,savedDirectFeedback,savedFeedbackMatches,type SavedDirectFeedback,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
+import {readSavedFeedback,queueFeedbackAnnotation,extractFeedbackTeaching,savedDirectFeedback,type SavedDirectFeedback,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
 import type {ReviewArtifact,ReviewIssue} from '@/lib/review';
 import type {Moment,RecordingDetail} from '@/lib/review-recorder';
 import {TrainingDialog as Modal} from './training-workspace';
@@ -1142,7 +1142,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       if(annotationTarget&&completed&&!held)finishAnnotation();
     });
   }
-  const [savedFeedback,setSavedFeedback]=useState<SavedDirectFeedback[]>([]),[savedFeedbackUnreadable,setSavedFeedbackUnreadable]=useState(0),[reopenedFeedback,setReopenedFeedback]=useState<SavedDirectFeedback|null>(null);
+  const [savedFeedback,setSavedFeedback]=useState<SavedDirectFeedback[]>([]),[savedFeedbackUnreadable,setSavedFeedbackUnreadable]=useState(0);
   useEffect(()=>{
     let live=true;
     if(!ownerId||!session||!currentVersion||sessionVersion!==currentVersion||installationId){setSavedFeedback([]);setSavedFeedbackUnreadable(0);return;}
@@ -1153,30 +1153,22 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
   // A fresh positive exact Coach row can remove a duplicate recovery entry.
   // Absence from its bounded list never establishes a note's server state.
   const recoverableFeedback=savedFeedback.filter(note=>!coachAgent?.decisions.some(item=>item.source==='demo_annotation'&&item.id===note.annotation.annotationId&&item.digest===note.annotation.annotationDigest&&item.sessionId===session&&item.versionId===currentVersion));
-  const reopenedFeedbackIsCurrent=savedFeedbackMatches(reopenedFeedback,selected,time,currentVersion);
-  const initialFeedbackOpened=useRef(false);
-  useEffect(()=>{if(annotationTarget?.kind!=='image'||!annotationTarget.feedback||initialFeedbackOpened.current||!session||!currentVersion)return;const note=savedFeedback.find(note=>note.fingerprint===annotationTarget.feedback);if(note){initialFeedbackOpened.current=true;void reopenSavedFeedback(note);}},[savedFeedback,session,currentVersion]);
+  const initialFeedbackOpened=useRef('');
+  useEffect(()=>{
+    if(annotationTarget?.kind!=='image'||!annotationTarget.feedback||!session||!currentVersion)return;
+    const identity=`${ownerId}:${session}:${currentVersion}:${annotationTarget.feedback}`;
+    if(initialFeedbackOpened.current===identity)return;
+    const note=savedFeedback.find(note=>note.fingerprint===annotationTarget.feedback);
+    if(note){initialFeedbackOpened.current=identity;void reopenSavedFeedback(note);}
+  },[savedFeedback,session,currentVersion,ownerId,JSON.stringify(annotationTarget)]);
   async function reopenSavedFeedback(note:SavedDirectFeedback){
     if(!ownerId||!session||!currentVersion||versionChanged)return;
     if(directNote.trim()&&demoText!==note.annotation.rawAnnotation||directVoiceDirty||runDirty||recordingDirty||runFeedbackRequest){setError('Finish or discard your current note before reopening saved feedback.');return;}
-    if(!annotationTarget){router.push(trainingAnnotationHref(slug,{kind:'feedback',annotationId:note.annotation.annotationId,annotationDigest:note.annotation.annotationDigest,sessionId:session}));return;}
-    const id=session,version=currentVersion,source=sources.find(source=>source.sourceId===note.annotation.sourceId&&!!source.token);
-    if(!source?.token)return;
-    await work('Opening your saved feedback',async()=>{
-      const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Your saved note is preserved.');
-      const notes=await savedDirectFeedback(window.localStorage,{ownerId,sessionId:id,versionId:version,sources:[{...source,token:source.token!}]});
-      const saved=notes.notes.find(candidate=>candidate.fingerprint===note.fingerprint&&candidate.annotation.annotationId===note.annotation.annotationId&&candidate.annotation.annotationDigest===note.annotation.annotationDigest);
-      if(!saved)throw Error('This saved note changed. Reopen its current training history.');
-      const frame=await call('preview',{token:source.token,timeMs:saved.annotation.timeMs});
-      if(typeof frame.image!=='string'||await teachingDigest(teachingFrame(frame.image))!==saved.annotation.frameSha256)throw Error('The saved frame could not be verified. Your note is preserved.');
-      if(!chooseSource(source))return;
-      setRunSource(null);setActiveRecordingId(null);setDirectSource(true);setTime(saved.annotation.timeMs);
-      setPreview({token:source.token!,timeMs:saved.annotation.timeMs,image:frame.image});setDirectNote(saved.feedback);setDemoText(saved.annotation.rawAnnotation);setReopenedFeedback(saved);
-      const progress=extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,saved.fingerprint);
-      extractionProgress.current.set(saved.fingerprint,progress);
-      if(progress.suggestionStarted&&progress.annotation&&!progress.suggestion&&!progress.record&&!progress.linked)setDirectDraftRetry({fingerprint:saved.fingerprint,sessionId:id,versionId:version,sourceId:source.sourceId,timeMs:saved.annotation.timeMs,rawAnnotation:saved.annotation.rawAnnotation,request:retryFeedbackDraft(progress,saved.fingerprint)});
-      else setDirectDraftRetry(null);
-    });
+    const target={kind:'feedback' as const,annotationId:note.annotation.annotationId,annotationDigest:note.annotation.annotationDigest,sessionId:session};
+    // Local journal data is only a pointer. The full-page reader checks the
+    // canonical owner/version/source/digest before displaying or acting on it.
+    if(annotationTarget?.kind==='feedback'&&annotationTarget.annotationId===target.annotationId&&annotationTarget.annotationDigest===target.annotationDigest&&annotationTarget.sessionId===target.sessionId)setTrainingStatusRefresh(n=>n+1);
+    else router.push(trainingAnnotationHref(slug,target));
   }
   async function resumeOperatingAnalysis(analysis:AnnotationGapAnalysis){
     if(!ownerId||!session||!currentVersion||versionChanged||analysis.retry.state==='none')return;
@@ -1221,7 +1213,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       if(result.status==='held'){
         if(operating){setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setExtractionNote(operating.status==='suggested'?'Your feedback suggests an agent setup change. Review the suggestion above.':operating.status==='present'?'This method is already in the agent. Your feedback is saved.':'Your feedback is saved. Tool or setup support needs review.');}
         else{setHeldExtractions(previous=>[...previous.filter(item=>item.key!==fingerprint),{key:fingerprint,text:directNote,reason:result.reason}]);setExtractionNote('This lesson needs clarification. Your original feedback is saved.');}
-      }else{setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setDemoText('');setDirectNote('');setReopenedFeedback(null);setExtractionNote(operating?.status==='suggested'?'Your lesson and agent update are ready to review. Nothing is live yet.':operating?.status==='present'?'Your proposed lesson is ready. The requested method is already available.':'Your proposed lesson is ready to review. Nothing is live yet.');selectTrainingStep(2);}
+      }else{setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setDemoText('');setDirectNote('');setExtractionNote(operating?.status==='suggested'?'Your lesson and agent update are ready to review. Nothing is live yet.':operating?.status==='present'?'Your proposed lesson is ready. The requested method is already available.':'Your proposed lesson is ready to review. Nothing is live yet.');selectTrainingStep(2);}
       await load(id);await loadChanges();
       if(annotationTarget&&result.status!=='held')finishAnnotation();
     });
@@ -1346,7 +1338,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
           if(frame.image)setPreview({token:source.token,timeMs:0,image:frame.image});
           if(!annotationTarget){router.push(trainingAnnotationHref(slug,{kind:'image',sourceId:source.sourceId,sessionId:id}));return;}
         }else if(directUpload&&source.token){
-          setDirectSource(true);setReopenedFeedback(null);setConsent(false);setDirectNote('');setPlaybackFallback('');
+          setDirectSource(true);setConsent(false);setDirectNote('');setPlaybackFallback('');
           if(added.recordingId&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(added.recordingId)&&source.metadata.mediaType==='video/mp4'){
             recordingSources.current.set(`${id}:${version}:${added.recordingId}`,{sourceId:source.sourceId,token:source.token,version:version!,sessionId:id});
             setAutomaticReview(analyzeVideo?{recordingId:added.recordingId,phase:'queued'}:null);
@@ -1369,7 +1361,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     if(!keepRecording){setRunSource(null);if(activeRecordingId&&!recordingDirty)setActiveRecordingId(null);}
     showTeaching();
     if(questionAnswer){setDirectSource(false);setActiveRunId(null);}
-    setReopenedFeedback(null);setSelected(source); setTime(0); setPreview(null); setReviewed(null); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID());
+    setSelected(source); setTime(0); setPreview(null); setReviewed(null); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID());
     setSelectionPriority('50');setSelectionConditions({taskFacts:[],exceptions:[]});return true;
   }
   function toggleStage(stage: TrainingStage) {
@@ -2295,7 +2287,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     </TrainingDetails>
   </>;
   const annotationMedia=<>    {!installationId&&directSource&&!activeRunId&&!activeRecordingId&&selected?.token&&previewIsCurrent&&preview?.image&&<>
-      <TrainingImagePlayer key={`${selected.sourceId}:${time}:${reopenedFeedbackIsCurrent?reopenedFeedback?.fingerprint:'new'}`} initialSpatial={annotationTarget?.kind==='feedback'?queuedFeedback?.spatial||null:reopenedFeedbackIsCurrent?reopenedFeedback?.spatial||null:null} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directNote} onVoiceDirtyChange={setDirectVoiceDirty} doneUnavailable={coachFeedbackReady?undefined:coachBusy?'Checking whether notes can be sent to Coach…':'Saving notes to Coach is not ready. Your draft stays here; refresh after the update.'} disabled={!!busy||changesBusy||versionChanged}
+      <TrainingImagePlayer key={`${selected.sourceId}:${time}:${annotationTarget?.kind==='feedback'?queuedFeedback?.fingerprint||'loading':'new'}`} initialSpatial={annotationTarget?.kind==='feedback'?queuedFeedback?.spatial||null:null} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directNote} onVoiceDirtyChange={setDirectVoiceDirty} doneUnavailable={coachFeedbackReady?undefined:coachBusy?'Checking whether notes can be sent to Coach…':'Saving notes to Coach is not ready. Your draft stays here; refresh after the update.'} disabled={!!busy||changesBusy||versionChanged}
         onChange={(text,spatial)=>{if(annotationTarget?.kind==='feedback')return;setDirectNote(text);setDemoText(text.trim()||spatial?JSON.stringify({role:'trainer_commentary',sourceKind:'upload',sourceId:selected.sourceId,timeMs:time,spatial,feedback:text}):'');}}
         readOnly={annotationTarget?.kind==='feedback'} onDone={()=>{if(annotationTarget?.kind==='feedback')setDirectExtractionRequested(true);else void saveImageFeedback();}}/>
       {directDraftRetryIsCurrent&&<button type="button" className="text-sm text-state-needs underline" disabled={!!busy||suggesting||changesBusy||versionChanged} onClick={()=>setFeedbackRetry('direct')}>Review or retry analysis</button>}
