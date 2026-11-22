@@ -4,7 +4,7 @@ import type {DraftSpatial} from './review-timestamp-feedback.ts';
 import {demoAnnotationReceipt,scopedTeachingSuggestion,teachingDigest,teachingFrame,type DemoAnnotation,type ScopedTeachingSuggestion,annotationAnalysis,analysisRequestReceipt,type AnnotationAnalysis,type AnalysisRequestReceipt} from './training-teaching-draft.ts';
 import {deriveTrainingStages,TRAINING_PROPERTY_CODES,TRAINING_RELATIONS,type TrainingPropertyCode,type TrainingRelation,trainingDirectionFacts} from './training-local-ingress.ts';
 
-export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion|AnnotationAnalysis;analysisRequest?:AnalysisRequestReceipt;analysisOutcome?:'pending'|'failed';analysisContract?:'training-teaching-suggestion.v7'|'training-teaching-suggestion.v9';analysisIntent?:{retryOf:null|{requestEventId:string;requestDigest:string;acknowledgedUnknownPrior?:true}};record?:{recordId:string;recordDigest:string};linked?:boolean;suggestionStarted?:boolean;draftingRetries?:number;priorDraftOutcome?:'unconfirmed';retentionUntil?:string;reviewedRelation?:TrainingRelation};
+export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion|AnnotationAnalysis;analysisRequest?:AnalysisRequestReceipt;analysisOutcome?:'pending'|'failed';analysisContract?:'training-teaching-suggestion.v7'|'training-teaching-suggestion.v9';analysisIntent?:{retryOf:null|{requestEventId:string;requestDigest:string;acknowledgedUnknownPrior?:true}};record?:{recordId:string;recordDigest:string};linked?:boolean;dismissalReceipt?:{contractVersion:'training-demo-dismissal.v1';annotationId:string;annotationDigest:string;eventId:string};suggestionStarted?:boolean;draftingRetries?:number;priorDraftOutcome?:'unconfirmed';retentionUntil?:string;reviewedRelation?:TrainingRelation};
 type Source={sourceId:string;token:string;metadata:{sha256:string;durationMs:number;width?:number;height?:number}};
 type Reply={ok:boolean;[key:string]:any};
 type Send=(operation:'annotation'|'suggestion',body:unknown,key?:string)=>Promise<Reply>;
@@ -45,6 +45,8 @@ export async function savedDirectFeedback(storage:Pick<Storage,'length'|'key'|'g
         ||!/^[a-f0-9]{64}$/.test(a.frameSha256)||a.expectedActiveVersionId!==versionId
         ||typeof a.rawAnnotation!=='string'||!a.rawAnnotation.trim()||a.rawAnnotation.length>2000
         ||new TextEncoder().encode(a.rawAnnotation).length>8000)throw Error('invalid saved annotation');
+      const retired=progress.dismissalReceipt;
+      if(retired?.contractVersion==='training-demo-dismissal.v1'&&retired.annotationId===a.annotationId&&retired.annotationDigest===a.annotationDigest&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(retired.eventId))continue;
       const source=sources.find(source=>source.sourceId===a.sourceId&&source.metadata.sha256===a.sourceSha256);
       if(!source||!Number.isSafeInteger(source.metadata.durationMs)||source.metadata.durationMs<0||!Number.isSafeInteger(a.timeMs)||a.timeMs<0
         ||(source.metadata.durationMs===0?a.timeMs!==0:a.timeMs>=source.metadata.durationMs))throw Error('saved source unavailable');
@@ -55,6 +57,20 @@ export async function savedDirectFeedback(storage:Pick<Storage,'length'|'key'|'g
     }catch{unreadableCount++;}
   }
   return {notes:notes.sort((a,b)=>a.fingerprint.localeCompare(b.fingerprint)),unreadableCount};
+}
+/** Retire a profile-local recovery shortcut only after an exact dismissal
+ * acknowledgement. This cache grants no server-state, teaching or admission authority. */
+export function retireFeedbackRecovery(storage:Pick<Storage,'length'|'key'|'getItem'|'setItem'>,expected:{ownerId:string;sessionId:string;versionId:string;annotationId:string;annotationDigest:string},value:any){
+  const uuid=(v:unknown)=>typeof v==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(v);
+  if(![expected.ownerId,expected.sessionId,expected.versionId,expected.annotationId].every(uuid)||!/^[a-f0-9]{64}$/.test(expected.annotationDigest)||value?.ok!==true||value.contractVersion!=='training-demo-dismissal.v1'||value.annotationId!==expected.annotationId||value.annotationDigest!==expected.annotationDigest||!uuid(value.eventId))throw Error('The dismissal receipt could not retire this recovery shortcut.');
+  const scope=`${expected.ownerId}:${expected.sessionId}:${expected.versionId}`,prefix=`${JOURNAL_PREFIX}${scope}:`;
+  for(let i=0;i<storage.length;i++){
+    const key=storage.key(i);if(!key?.startsWith(prefix))continue;let progress:FeedbackExtractionProgress;
+    try{progress=extractionProgressFor(storage,scope,key.slice(prefix.length));}catch{continue;}
+    const a=progress.annotation;if(!a||a.annotationId!==expected.annotationId||a.annotationDigest!==expected.annotationDigest||a.expectedActiveVersionId!==expected.versionId)continue;
+    if(progress.dismissalReceipt?.contractVersion==='training-demo-dismissal.v1'&&progress.dismissalReceipt.eventId===value.eventId&&progress.dismissalReceipt.annotationId===a.annotationId&&progress.dismissalReceipt.annotationDigest===a.annotationDigest)continue;
+    progress.dismissalReceipt={contractVersion:'training-demo-dismissal.v1',annotationId:a.annotationId,annotationDigest:a.annotationDigest,eventId:value.eventId};checkpointExtraction(storage,scope,progress);
+  }
 }
 export type FeedbackDraftRequest={key:string;fingerprint:string;annotationId:string;annotationDigest:string;acknowledgedUnknownPrior?:true};
 /** This one-click authorization is never persisted. The extractor verifies it

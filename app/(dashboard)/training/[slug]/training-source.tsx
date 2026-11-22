@@ -31,7 +31,7 @@ import TrainingImagePlayer from './training-image-player';
 import TrainingDraftBundle,{visualTeachingSelectable} from './training-draft-bundle';
 import RecordingLearningReview from './recording-learning-review';
 import TrainingIntakePlan,{INTAKE_CONTRACT,METHOD_CONTRACT,readIntakePlan,type IntakePlan} from './training-intake-plan';
-import {readSavedFeedback,queueFeedbackAnnotation,extractFeedbackTeaching,savedDirectFeedback,type SavedDirectFeedback,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
+import {readSavedFeedback,retireFeedbackRecovery,queueFeedbackAnnotation,extractFeedbackTeaching,savedDirectFeedback,type SavedDirectFeedback,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
 import type {ReviewArtifact,ReviewIssue} from '@/lib/review';
 import type {Moment,RecordingDetail} from '@/lib/review-recorder';
 import {TrainingDialog as Modal} from './training-workspace';
@@ -1090,12 +1090,13 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     });
   }
   async function dismissQueuedFeedback(){
-    if(annotationTarget?.kind!=='feedback'||!session||!currentVersion||versionChanged)return;
+    if(annotationTarget?.kind!=='feedback'||!ownerId||!session||!currentVersion||versionChanged)return;
     const target=annotationTarget,version=currentVersion;
     await work('Dismissing saved feedback',async()=>{
       const scoped=await requireCurrentScope(target.sessionId);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Refresh Coach.');
       const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:target.sessionId,operation:'annotation'})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':`demo-dismiss:${target.annotationId}:${target.annotationDigest}`},body:JSON.stringify({action:'dismiss',annotationId:target.annotationId,annotationDigest:target.annotationDigest,expectedActiveVersionId:version})});
       const value=await response.json();if(!response.ok||!value.ok||value.contractVersion!=='training-demo-dismissal.v1'||value.annotationId!==target.annotationId||value.annotationDigest!==target.annotationDigest||!UUID.test(value.eventId||''))throw Error('This feedback could not be confirmed dismissed. Refresh and retry.');
+      try{retireFeedbackRecovery(window.localStorage,{ownerId:ownerId!,sessionId:target.sessionId,versionId:version,annotationId:target.annotationId,annotationDigest:target.annotationDigest},value);}catch{throw Error('Feedback was permanently dismissed on the server, but its recovery shortcut could not be updated in this browser. Retry to finish updating local history.');}
       setQueuedFeedback(null);setDismissFeedbackOpen(false);finishAnnotation();
     });
   }
