@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {queueFeedbackAnnotation,saveFeedbackAnnotation,readSavedFeedback,extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,savedDirectFeedback,savedFeedbackMatches,type FeedbackExtractionProgress,type FeedbackDraftRequest} from './training-feedback-extraction.ts';
+import {retireFeedbackRecovery,queueFeedbackAnnotation,saveFeedbackAnnotation,readSavedFeedback,extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,savedDirectFeedback,savedFeedbackMatches,type FeedbackExtractionProgress,type FeedbackDraftRequest} from './training-feedback-extraction.ts';
 const id='11111111-1111-4111-8111-111111111111',record='22222222-2222-4222-8222-222222222222';
 const sha='a'.repeat(64),source={sourceId:id,token:'native-token',metadata:{sha256:sha,durationMs:1000}};
 const image='data:image/png;base64,'+Buffer.alloc(40,1).toString('base64');
@@ -313,4 +313,20 @@ test('canonical mark-only image feedback reopens with its exact region and no in
  const note=await readSavedFeedback({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:id,annotationDigest:sha,annotation},expected,metadata);
  assert.equal(note.feedback,'');assert.deepEqual(note.spatial,spatial);assert.equal(note.annotation.rawAnnotation,rawAnnotation);
  for(const invalid of [null,{...spatial,geometry:{...spatial.geometry,width:2}}])await assert.rejects(readSavedFeedback({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:id,annotationDigest:sha,annotation:{...annotation,rawAnnotation:JSON.stringify({...JSON.parse(rawAnnotation),spatial:invalid})}},expected,metadata));
+});
+
+
+test('only an exact confirmed dismissal retires matching recovery pointers across reload without changing teaching state',async()=>{
+ const scope=`${id}:${id}:${id}`,rawAnnotation=JSON.stringify({role:'trainer_commentary',sourceKind:'upload',sourceId:id,timeMs:0,spatial:null,feedback:'Keep the actual route visible.'});
+ const fingerprint=hash(JSON.stringify({id,version:id,sourceId:id,sourceSha256:sha,rawAnnotation,frameTime:0}));
+ const values=new Map<string,string>(),storage={get length(){return values.size;},key:(i:number)=>[...values.keys()][i]||null,getItem:(k:string)=>values.get(k)||null,setItem:(k:string,v:string)=>{values.set(k,v);}};
+ const progress=extractionProgressFor(storage,scope,fingerprint);
+ await saveFeedbackAnnotation({source,timeMs:0,rawAnnotation,versionId:id,progress,check:async()=>{},checkpoint:()=>checkpointExtraction(storage,scope,progress),call:async()=>({ok:true,image}),send:async(op,body:any)=>{assert.equal(op,'annotation');assert.equal(body.action,'save');const {action,expectedActiveVersionId,...annotation}=body;return {ok:true,contractVersion:'training-demo-annotation.v1',annotationId:id,annotationDigest:sha,annotation:{...annotation,contractVersion:'training-demo-annotation.v1',targetVersionId:expectedActiveVersionId}};}});
+ const expected={ownerId:id,sessionId:id,versionId:id,annotationId:id,annotationDigest:sha},receipt={ok:true,contractVersion:'training-demo-dismissal.v1',annotationId:id,annotationDigest:sha,eventId:record};
+ const before=[...values];for(const patch of [{ok:false},{contractVersion:'unknown'},{annotationId:record},{annotationDigest:'b'.repeat(64)},{eventId:'invalid'}]){assert.throws(()=>retireFeedbackRecovery(storage,expected,{...receipt,...patch}));assert.deepEqual([...values],before);}
+ retireFeedbackRecovery(storage,{...expected,ownerId:record},receipt);retireFeedbackRecovery(storage,{...expected,sessionId:record},receipt);retireFeedbackRecovery(storage,{...expected,versionId:record},receipt);assert.deepEqual([...values],before,'other scopes are untouched');
+ assert.equal((await savedDirectFeedback(storage,{ownerId:id,sessionId:id,versionId:id,sources:[source]})).notes.length,1);
+ retireFeedbackRecovery(storage,expected,receipt);const retired=[...values];assert.deepEqual((await savedDirectFeedback(storage,{ownerId:id,sessionId:id,versionId:id,sources:[source]})).notes,[]);retireFeedbackRecovery(storage,expected,receipt);assert.deepEqual([...values],retired,'replaying the exact receipt is idempotent');
+ const stored=extractionProgressFor(storage,scope,fingerprint);assert.deepEqual(stored.annotation,progress.annotation);assert.equal(stored.linked,undefined);assert.equal(stored.record,undefined);assert.equal(stored.suggestionStarted,undefined);assert.equal(stored.dismissalReceipt?.eventId,record);
+ stored.dismissalReceipt={...stored.dismissalReceipt!,annotationDigest:'b'.repeat(64)};checkpointExtraction(storage,scope,stored);assert.equal((await savedDirectFeedback(storage,{ownerId:id,sessionId:id,versionId:id,sources:[source]})).notes.length,1,'mismatched cache cannot retire another note');
 });

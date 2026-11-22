@@ -3578,6 +3578,9 @@ test('image Done saves to Coach, reloads exact feedback, gates AI separately and
   const dialog=r.document.querySelector('[role="dialog"]')!;await r.click(dialog.querySelector('button.btn-primary')!);await flush();
   assert.equal(requests.length,4);assert.match(r.text(),/original feedback.*preserved/);assert.ok(r.document.querySelector('[aria-label="Saved teaching feedback"]'));
   await r.click(r.getByText('Dismiss feedback'));assert.equal(dismissed,false,'opening confirmation is not dismissal');assert.match(r.text(),/This cannot be undone/);await r.click(r.getByText('Keep feedback'));assert.equal(dismissed,false);await r.click(r.getByText('Dismiss feedback'));await r.click(r.getByText('Permanently dismiss feedback'));await flush();assert.equal(dismissed,true);assert.equal(r.calls.push.at(-1),'/training/video-craft');assert.equal(r.document.querySelector('.training-decision-card'),null);
+  const initialStorage=Object.fromEntries(Array.from({length:r.window.localStorage.length},(_,i)=>{const key=r.window.localStorage.key(i)!;return [key,r.window.localStorage.getItem(key)!];})),requestsBeforeReload=requests.length;
+  const reload=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,familyId:RECORD},{bridge:h.bridge,initialStorage,webCrypto:globalThis.crypto,fetch:fetcher});
+  try{await reload.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.equal(reload.queryByText('Continue your saved feedback'),null,'confirmed dismissal retires the recovery shortcut after reload');assert.equal(requests.length,requestsBeforeReload,'retirement never resends, extracts or dismisses automatically');}finally{reload.cleanup();}
   assert.equal(h.calls.some(c=>['annotate','accept','activate'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
