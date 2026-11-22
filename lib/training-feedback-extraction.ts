@@ -198,7 +198,7 @@ export async function readSavedFeedback(value:any,expected:{annotationId:string;
   }
   let spatial:DraftSpatial|null=null,moment:Moment|null=null,feedback:string,fingerprint:string;
   if(note.sourceKind==='upload'){
-    if(note.sourceId!==annotation.sourceId||note.timeMs!==annotation.timeMs||typeof note.feedback!=='string'||!note.feedback.trim())throw Error('The saved image note is incomplete.');
+    if(note.sourceId!==annotation.sourceId||note.timeMs!==annotation.timeMs||typeof note.feedback!=='string'||!note.feedback.trim()&&!note.spatial)throw Error('The saved image note is incomplete.');
     feedback=note.feedback;spatial=note.spatial??null;
     fingerprint=await teachingDigest(new TextEncoder().encode(JSON.stringify({id:expected.sessionId,version:expected.versionId,sourceId:annotation.sourceId,sourceSha256:annotation.sourceSha256,rawAnnotation:annotation.rawAnnotation,frameTime:annotation.timeMs})));
   }else{
