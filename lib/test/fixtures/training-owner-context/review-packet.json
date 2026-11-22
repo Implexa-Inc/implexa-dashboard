@@ -1,0 +1,100 @@
+{
+  "status": 200,
+  "headers": {},
+  "body": {
+    "ok": true,
+    "run": {
+      "id": "77777777-7777-4777-8777-777777777777",
+      "slug": "owned",
+      "runState": "succeeded",
+      "status": "completed",
+      "reviewStatus": "pending",
+      "holdKind": "review_delivered_result",
+      "startedAt": "2026-11-22T00:00:00Z"
+    },
+    "lineage": {
+      "rootRunId": "77777777-7777-4777-8777-777777777777",
+      "versions": [
+        {
+          "runId": "77777777-7777-4777-8777-777777777777",
+          "label": "Original",
+          "runState": "succeeded",
+          "status": "completed",
+          "startedAt": "2026-11-22T00:00:00Z"
+        }
+      ]
+    },
+    "artifacts": [
+      {
+        "id": "55555555-5555-4555-8555-555555555555",
+        "runId": "77777777-7777-4777-8777-777777777777",
+        "relativePath": "out/synthetic-result.mp4",
+        "role": "final_output",
+        "status": "validated",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "sizeBytes": 100,
+        "mtime": null,
+        "validatedAt": "2026-11-22T00:00:00Z"
+      }
+    ],
+    "judgment": null,
+    "verification": {
+      "receipts": []
+    },
+    "production": null,
+    "competenceProof": {
+      "contextStatus": "none",
+      "attemptContextId": null,
+      "contextDigest": null,
+      "workflowVersionId": null,
+      "bindings": [],
+      "supplyStatus": "not_required",
+      "handlingStatus": "not_required",
+      "receipts": []
+    },
+    "managerProof": {
+      "status": "none",
+      "stageCount": 0,
+      "stages": [],
+      "verificationStatus": "not_required"
+    },
+    "historicalCandidates": [],
+    "session": {
+      "id": "33333333-3333-4333-8333-333333333334",
+      "runId": "77777777-7777-4777-8777-777777777777",
+      "selectedArtifactId": "55555555-5555-4555-8555-555555555555",
+      "state": "draft",
+      "submittedRequestId": null,
+      "submittedIssueIds": null,
+      "compiledBrief": null,
+      "previousSessionId": null,
+      "carriedIssueIds": [],
+      "createdAt": "2026-11-22T00:00:00Z",
+      "submittedAt": null,
+      "acceptedAt": null
+    },
+    "reviewArtifacts": [],
+    "submission": null,
+    "issues": [],
+    "sources": {
+      "run": "ready",
+      "lineage": "ready",
+      "artifacts": "ready",
+      "judgment": "ready",
+      "verification": "ready",
+      "production": "ready",
+      "session": "ready",
+      "issues": "ready",
+      "evidence": "ready",
+      "submission": "ready",
+      "reviewer_resolutions": "ready",
+      "review_artifacts": "ready",
+      "competence_context": "ready",
+      "competence_handling": "ready",
+      "manager_context": "ready",
+      "manager_handling": "ready",
+      "historical_candidates": "ready",
+      "carry_membership": "ready"
+    }
+  }
+}
