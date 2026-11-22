@@ -716,4 +716,3 @@ export default async function WorkflowDetailPage({
     </main>
   );
 }
-
