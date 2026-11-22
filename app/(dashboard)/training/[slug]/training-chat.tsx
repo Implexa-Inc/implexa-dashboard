@@ -15,7 +15,7 @@ type Turn={turnId:string;versionId:string;sourceId:string|null;sourceSha256:stri
 type Context={directionScopeContract?:'training-direction-scope.v1';creativeDirectionOptions?:TrainingCreativeDirection[];agent:{id:string;name:string;slug:string;versionId:string};boundMethods:Array<{stageIndex:number;source:string;slug:string;contentDigest:string}>;
  researchMethodPresent:boolean;source:{sourceId:string;sha256:string}|null;availableActions:Action[]};
 type Reply={ok:boolean;reason?:string;contractVersion?:string;canSend?:boolean;turns?:Turn[];turn?:Turn;context?:Context|null;totalTurns?:number};
-export type TrainingChatRequest={key:string;target:{kind:'feedback'|'record';id:string;digest:string};prompt:string};
+export type TrainingChatRequest={key:string;target:{kind:'feedback'|'record';id:string;digest:string};prompt:string;quote?:string};
 const names:Record<Action,string>={none:'',analyse_tool_method:'Analyze the recording’s tool method',analyse_taste:'Analyze the recording’s taste',
  review_method:'Review the operating method',review_agent_update:'Review the agent update',review_teaching:'Review the teaching',test_agent:'Open the agent to test'};
 const validTurn=(v:Turn)=>v&&typeof v.turnId==='string'&&typeof v.versionId==='string'&&typeof v.message==='string'
@@ -26,7 +26,7 @@ const contextMatches=(v:Context|null|undefined,versionId:string|null,sourceId:st
  &&v.boundMethods.every(m=>typeof m.slug==='string'&&/^[a-f0-9]{64}$/.test(m.contentDigest))
  &&(v.directionScopeContract===undefined||v.directionScopeContract==='training-direction-scope.v1')
  &&Array.isArray(v.availableActions)&&v.availableActions.every(a=>Object.hasOwn(names,a));
-export default function TrainingChat({sessionId,versionId,slug,sources,selectedSourceId,disabled,busy=false,embedded=false,onAttach,onClose,onSelectSource,onAction,guided=false,automaticInclusion=false,request,onSaved,editUnavailable=false}:{
+export default function TrainingChat({sessionId,versionId,slug,sources,selectedSourceId,disabled,busy=false,embedded=false,onAttach,onClose,onSelectSource,onAction,guided=false,automaticInclusion=false,request,onSaved,editUnavailable=false,plain=false}:{plain?:boolean;
  sessionId:string;versionId:string|null;slug:string;sources:Source[];selectedSourceId:string|null;disabled:boolean;busy?:boolean;
  editUnavailable?:boolean;embedded?:boolean;onAttach?:()=>void;onClose?:()=>void;
  guided?:boolean;automaticInclusion?:boolean;request?:TrainingChatRequest|null;onSaved?:()=>void;
@@ -80,7 +80,7 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
   <p>Discuss this agent and turn a recording or feedback into reviewed improvements.</p>
   <button type="button" disabled={!sessionId||busy} onClick={()=>setOpened(true)}>Open conversation</button>
  </section>;
- return <><ChatFrame scrollKey={turns.at(-1)?.turnId+':'+turns.at(-1)?.status} embedded={embedded} subtitle={source?.localName||'Your agent'} onClose={onClose} details={<>  <details className="text-xs text-ink-400"><summary className="cursor-pointer">Conversation context · {source?.localName||'Agent setup'}</summary>
+ return <><ChatFrame hideHeader={plain} scrollKey={turns.at(-1)?.turnId+':'+turns.at(-1)?.status} embedded={embedded} subtitle={source?.localName||'Your agent'} onClose={onClose} details={<>  <details className="text-xs text-ink-400"><summary className="cursor-pointer">Conversation context · {source?.localName||'Agent setup'}</summary>
   <label className="block">Recording or image for this conversation<select className="block w-full rounded bg-ink-900 border p-2" value={selectedSourceId||''} disabled={sending||disabled} onChange={e=>onSelectSource(e.target.value)}>
    <option value="">Agent setup only</option>{sources.map((s,i)=><option key={s.sourceId} value={s.sourceId}>{s.localName||`Source ${i+1}`} · {s.metadata.mediaType}</option>)}
   </select></label>
@@ -94,8 +94,8 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
   <p className="text-xs leading-5 text-ink-400">Send shares your message, this agent’s setup, selected source’s saved notes and recent chat with Claude Haiku 5.5. No recording frames or transcript are sent by this chat. Text and replies stay in private Training history.</p>
   {guided&&<p className="text-xs leading-5 text-ink-400">{automaticInclusion?'Your standing policy adds clear taste suggestions to the private candidate.':'Automatic inclusion is off; clear preferences remain suggestions unless you explicitly include them.'} Tool-method preferences need explicit inclusion. No run, public release or served update happens on Send.</p>}
   </TrainingInfo></div>
-</>} composer=<ChatComposer voiceScope={`${sessionId}:${versionId}:${selectedSourceId}`} id="training-chat-message" value={text} onChange={setText} onSend={()=>void send()} disabled={disabled||!canSend} sending={sending} placeholder="Ask a question or explain what you’d change…" attachments={onAttach?<button type="button" disabled={disabled||sending} onClick={onAttach} className="rounded-lg px-3 py-1 text-xs text-ink-400 hover:text-ink-100">＋ Add an example</button>:undefined}/>>
-  {turns.length===0&&!loading&&<p className="text-ink-400">What would you like to change?</p>}
+</>} composer=<ChatComposer voiceScope={`${sessionId}:${versionId}:${selectedSourceId}`} id="training-chat-message" value={text} onChange={setText} onSend={()=>void send()} disabled={disabled||!canSend} sending={sending} placeholder="Explain what you’d change…" attachments={onAttach?<button type="button" disabled={disabled||sending} onClick={onAttach} className="rounded-lg px-3 py-1 text-xs text-ink-400 hover:text-ink-100">＋ Add an example</button>:undefined}/>>
+  {turns.length===0&&!loading&&<div className="training-chat-starters"><p>Try a small fix or a new idea.</p>{['Keep text brief and easy to read.','Use my brand colors in the animations.','Add a sound-effects step.','Use relevant photos before decorative motion.'].map(prompt=><button key={prompt} type="button" disabled={disabled||sending||!canSend} onClick={()=>setText(prompt)}>{prompt}</button>)}</div>}
   {loading&&<p role="status">Loading this conversation…</p>}
   {total>turns.length&&<p className="text-sm">Showing recent messages. Earlier exchanges remain in this private Training session’s history.</p>}
   <ol aria-label="Training conversation" className="space-y-6">{turns.map(t=>{
@@ -113,7 +113,7 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
    </li>;
   })}</ol>
   {!canSend&&sessionId&&!loading&&<p>Sending is unavailable until this session matches the active agent version.</p>}
-  {target&&<div className="rounded-lg border border-ink-700 p-3 text-xs">{target.kind==='feedback'?'Preparing a learning from the selected original feedback.':'Editing the selected teaching as a new private version.'} Nothing is sent until Send.<button type="button" disabled={sending} onClick={()=>{setTarget(null);pending.current=null;}}>Cancel selected target</button></div>}
+  {target&&<div className="rounded-lg border border-ink-700 p-3 text-xs">{request?.quote&&target.id===request.target.id&&target.digest===request.target.digest&&<blockquote className="mb-3 border-l-2 border-ink-600 pl-3 text-sm leading-6">{request.quote}</blockquote>}{target.kind==='feedback'?'Preparing a learning from the selected original feedback.':'Editing the selected teaching as a new private version.'} Nothing is sent until Send. <button type="button" disabled={sending} onClick={()=>{setTarget(null);pending.current=null;}}>Cancel</button></div>}
 
   {error&&<p role="alert" className="text-sm text-state-needs">{error.replaceAll('_',' ')}</p>}
  </ChatFrame><Modal open={!!editTurn} onClose={()=>setEditTurn(null)} title="Review agent change">{editTurn&&<ImproveAgent key={editTurn.turnId} slug={slug} bare initialNote={editTurn.message} statusUnavailable={disabled||editUnavailable||!canSend||editTurn.versionId!==versionId} trainingChatBinding={{sessionId,turnId:editTurn.turnId,expectedActiveVersionId:editTurn.versionId}}/>}</Modal></>;

@@ -39,3 +39,10 @@ test('one improvement section groups pending teachings and questions, and disapp
  const r=await render('../training/[slug]/training-opportunities.tsx',props);
  try{const section=r.document.querySelector('[aria-labelledby=training-opportunities-heading]')!;assert.match(section.textContent||'',/AI suggested Training improvements/);assert.match(section.textContent||'',/1 new teaching ready to review/);assert.match(section.textContent||'',/Should the presenter/);await r.click(r.getByText('Review training →'));assert.equal(reviews,1);await r.rerender({...props,questions:{...questions,items:[]}});assert.ok(r.getByText('Review training →'));assert.doesNotMatch(r.text(),/No new questions|Checking recent runs|Help your agent improve/);await r.rerender({...props,pendingCount:0,questions:{...questions,items:[]}});assert.equal(r.document.querySelector('section'),null);await r.rerender({...props,pendingCount:0,questions:null});assert.equal(r.document.querySelector('section'),null);}finally{r.cleanup();}
 });
+
+
+test('a selected Coach receipt opens choices without waiting for the first history page',async()=>{
+ const requests:any[]=[],blocked:boolean[]=[];
+ const r=await render('../training/[slug]/training-opportunities.tsx',{questions:{...questions,items:[]},selectedReceipt:{id:q.id,digest:H,versionId:U(2)},sessionId:U(6),versionId:U(2),disabled:false,onSaved:()=>{},onStart:async()=>{},onBlockingChange:(value:boolean)=>blocked.push(value)},{fetch:(async(_url:string,init:RequestInit)=>{requests.push(JSON.parse(String(init.body)));return {ok:true,json:async()=>({ok:true,presentation:p})};}) as any});
+ try{assert.equal(requests.length,1);assert.equal(requests[0].questionReceiptId,q.id);assert.equal(requests[0].questionReceiptDigest,H);assert.equal(requests[0].expectedActiveVersionId,U(2));assert.equal(requests[0].action,'present');assert.equal(r.document.querySelectorAll('input[type=radio]').length,3);assert.equal(blocked.at(-1),false);}finally{r.cleanup();}
+});

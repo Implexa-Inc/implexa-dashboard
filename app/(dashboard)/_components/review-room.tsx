@@ -84,6 +84,7 @@ export type ReviewRoomProps = {
   /** Reuses the same annotation writer; revision controls stay in Review Room. */
   trainingMode?: boolean;
   trainingOwnerId?: string;
+  initialTrainingIssueId?: string;
   customerOwnerId?: string;
   onTeachIssue?: (issue: ReviewIssue, artifact: ReviewArtifact) => void;
   onDoneTeaching?: (notes:Array<{issue:ReviewIssue;artifact:ReviewArtifact}>)=>void;
@@ -1054,6 +1055,18 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     if (target.seekMs !== null) seekTo(target.seekMs);
     setOpenedIssueId(spatial ? issue.id : null);
   }, [selectedId, seekTo]);
+
+  const initialTrainingJump=useRef<string|null>(null);
+  useEffect(()=>{
+    const id=props.trainingMode?props.initialTrainingIssueId:null;
+    if(!id||initialTrainingJump.current===id)return;
+    const issue=allIssues.find(i=>i.id===id&&i.purpose==='training'&&i.status!=='dismissed');
+    const target=issue&&issueClickTarget(issue,null);
+    if(!issue||!target?.artifactId||!validated.some(a=>a.id===target.artifactId))return;
+    initialTrainingJump.current=id;setSelectedId(target.artifactId);
+    setPendingSeek(target.seekMs===null?null:{artifactId:target.artifactId,seekMs:target.seekMs});
+    setOpenedIssueId(isSpatialAnchorV2(issue.anchor as never)?issue.id:null);
+  },[props.trainingMode,props.initialTrainingIssueId,allIssues,validated]);
 
   /**
    * Apply the pending seek WHEN THE NEW PLAYER REPORTS READY (loadedmetadata), not from
