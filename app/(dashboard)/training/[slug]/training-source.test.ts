@@ -3688,3 +3688,81 @@ test('an older saved-feedback URL redirects to the canonical reader before reope
   await r.rerender({...props,annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:SESSION}});await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.equal(reads,1);assert.equal(writes,0);assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).readOnly,true);
  }finally{r.cleanup();}
 });
+
+test('viewing canonical feedback does not create an unsaved draft or block the next result or image',async()=>{
+ for(const kind of ['image','recording','missing-media'] as const){
+  const f=await recoveryFixture(kind==='recording'?'recording':'image'),h=harness({previewImage:VALID_FRAME,...(kind==='missing-media'?{localToken:null}:{})});let writes=0;
+  const props={slug:'video-craft',ownerId:RECORD,familyId:RECORD,recentRuns:[{id:QUESTION,date:'2026-11-11T12:00:00Z',status:'Done',artifact:null}]};
+  const target={kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:SESSION};
+  const r=await render('../training/[slug]/training-source.tsx',{...props,annotationTarget:target},{bridge:h.bridge,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+   if(init.method==='POST'){writes++;return {ok:false,json:async()=>({ok:false})};}
+   if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};
+   if(String(url).includes('/teaching-suggestion?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:f.canonical})};
+   return {ok:false,json:async()=>({ok:false})};
+  }) as typeof fetch});
+  const flush=()=>r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));
+  try{
+   await flush();
+   if(kind!=='missing-media')assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,kind==='recording'?'What to do: Keep the route visible.\nWhy: Show the actual geography.':'Keep the route visible.');
+   else assert.match(r.text(),/computer where you created it/);
+   await r.click(r.getByText('← Train'));assert.equal(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'),null,'reading an immutable saved note is not editing');
+   await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);await flush();
+   assert.equal(r.calls.push.at(-1),`/training/video-craft/review/${QUESTION}`);assert.ok(r.document.querySelector('#training-run-player'));assert.doesNotMatch(r.text(),/Save or cancel your current note/);
+   await r.click(r.getByText('← Train'));await r.rerender({...props,annotationTarget:target});await flush();
+   if(kind!=='missing-media'){
+    await r.rerender({...props,annotationTarget:{kind:'recording',recordingId:RECORD,sourceId:SOURCE_ID,sessionId:SESSION}});await flush();
+    assert.ok(r.document.querySelector('#recording-annotation'),'a direct transition can open the recording view');assert.doesNotMatch(r.text(),/Save or discard your current annotation/);
+    await r.rerender({...props,annotationTarget:target});await flush();
+   }
+   await r.click(r.getByText('← Train'));
+   if(kind!=='missing-media'){
+    await r.click(r.getByText('Annotate source'));await flush();
+    assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'','a new image annotation never inherits the canonical text');
+   }
+   assert.equal(writes,0);assert.equal(h.calls.some(c=>['annotate','accept','activate','recording'].includes(c.operation)),false);
+  }finally{r.cleanup();}
+ }
+});
+
+test('canonical feedback never overwrites a genuine image draft and its leave guard stays active',async()=>{
+ const f=await recoveryFixture('image'),h=harness({previewImage:VALID_FRAME}),props={slug:'video-craft',ownerId:RECORD,familyId:RECORD};let writes=0;
+ const r=await render('../training/[slug]/training-source.tsx',props,{bridge:h.bridge,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+  if(init.method==='POST'){writes++;return {ok:false,json:async()=>({ok:false})};}
+  if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};
+  if(String(url).includes('/teaching-suggestion?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:f.canonical})};return {ok:false,json:async()=>({ok:false})};
+ }) as typeof fetch});
+ const flush=()=>r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));
+ try{
+  await flush();await r.click(r.getByText('Annotate source'));await flush();
+  await setTextarea(r,r.document.querySelector('textarea[aria-label="Your feedback on this image"]')!,'My actual unfinished note.');
+  await r.rerender({...props,annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:SESSION}});await flush();
+  assert.match(r.text(),/Finish or discard your current note before opening saved feedback/);
+  assert.equal(r.document.querySelector('textarea[aria-label="Your feedback on this image"]'),null,'the canonical source never replaces the source under a real draft');
+  await r.click(r.getByText('← Train'));assert.ok(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'));await r.click(r.getByText('Keep editing'));
+  await r.rerender({...props,annotationTarget:{kind:'image',sourceId:SOURCE_ID,sessionId:SESSION}});await flush();
+  assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'My actual unfinished note.');assert.equal(writes,0);
+ }finally{r.cleanup();}
+});
+
+test('canonical image and recording extraction keeps the exact saved annotation and recovery fingerprint',async()=>{
+ for(const kind of ['image','recording'] as const){
+  const f=await recoveryFixture(kind),h=harness({previewImage:VALID_FRAME}),posts:any[]=[];
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,familyId:RECORD,annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:SESSION}},{bridge:h.bridge,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+   if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};
+   if(String(url).includes('/teaching-suggestion?')){
+    if(init.method!=='POST')return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:f.canonical})};
+    const body=JSON.parse(init.body);posts.push(body);return {ok:false,json:async()=>({ok:false,reason:'teaching_suggestion_provider_unavailable'})};
+   }return {ok:false,json:async()=>({ok:false})};
+  }) as typeof fetch});
+  try{
+   await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.equal(posts.length,0);
+   await r.click(r.getByText('Extract training'));assert.equal(posts.length,0);
+   const dialog=r.document.querySelector('[role="dialog"][aria-label="Find training and agent improvements?"]')!;assert.ok(dialog);await r.click(dialog.querySelector('button.btn-primary')!);
+   await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));
+   assert.equal(posts.length,1);assert.equal(posts[0].mode,'demonstration','the canonical annotation is reused rather than saved again');assert.equal(posts[0].annotationId,QUESTION);assert.equal(posts[0].annotationDigest,DIGEST);assert.equal(posts[0].timeMs,f.canonical.timeMs);assert.equal(posts[0].frameSha256,f.canonical.frameSha256);
+   const progressKeys=Array.from({length:r.window.localStorage.length},(_,i)=>r.window.localStorage.key(i)!).filter(key=>key.startsWith('implexa:training-extraction:v1:'));
+   assert.equal(progressKeys.length,1);const progress=JSON.parse(r.window.localStorage.getItem(progressKeys[0])!).progress;assert.equal(progress.fingerprint,f.progress.fingerprint);assert.equal(progress.annotation.rawAnnotation,f.canonical.rawAnnotation);
+   assert.equal(h.calls.some(c=>['annotate','accept','activate'].includes(c.operation)),false);
+  }finally{r.cleanup();}
+ }
+});
