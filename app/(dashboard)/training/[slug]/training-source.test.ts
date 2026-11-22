@@ -3594,3 +3594,13 @@ test('legacy or unavailable Coach keeps image notes editable but prevents an unc
   }finally{r.cleanup();}
  }
 });
+
+test('a reopened mark-only image explains the empty note and permits only explicit extraction',async()=>{
+ for(const marked of [true,false]){
+  let done=0;const spatial=marked?{geometry:{kind:'rect',x:.1,y:.2,width:.4,height:.3},sourceFrame:{visualWidth:320,visualHeight:180}}:null;
+  const r=await render('../training/[slug]/training-image-player.tsx',{ownerId:RECORD,sourceId:SOURCE_ID,image:VALID_FRAME,timeMs:0,text:'',disabled:false,readOnly:true,initialSpatial:spatial,onChange:()=>assert.fail('a canonical note is immutable'),onDone:()=>{done++;}});
+  try{const textarea=r.document.querySelector('textarea')!;assert.equal(textarea.readOnly,true);assert.equal(textarea.value,'');const button=r.getByText('Extract training') as HTMLButtonElement;
+   assert.equal(button.disabled,!marked);assert.equal(done,0);if(marked){assert.match(r.text(),/marked region and no written note/);await r.click(button);assert.equal(done,1);}
+  }finally{r.cleanup();}
+ }
+});

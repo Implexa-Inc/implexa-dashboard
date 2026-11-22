@@ -303,3 +303,14 @@ test('save-to-Coach requires the exact queue receipt and retries the same saved 
  }};
  await assert.rejects(queueFeedbackAnnotation(args),/handoff.*unconfirmed/);assert.ok(progress.annotation);await queueFeedbackAnnotation(args);assert.equal(saves,1);assert.equal(queues,2);assert.equal(keys[1],keys[2]);assert.equal(progress.linked,undefined);assert.equal(progress.record,undefined);
 });
+
+
+test('canonical mark-only image feedback reopens with its exact region and no invented written instruction',async()=>{
+ const spatial={geometry:{kind:'rect',x:.1,y:.2,width:.4,height:.3},sourceFrame:{visualWidth:320,visualHeight:180}};
+ const rawAnnotation=JSON.stringify({role:'trainer_commentary',sourceKind:'upload',sourceId:id,timeMs:0,spatial,feedback:''});
+ const annotation={contractVersion:'training-demo-annotation.v1',sourceId:id,sourceSha256:sha,timeMs:0,frameSha256:sha,rawAnnotation,targetVersionId:id};
+ const expected={annotationId:id,annotationDigest:sha,sessionId:id,versionId:id},metadata={sha256:sha,durationMs:0,width:320,height:180};
+ const note=await readSavedFeedback({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:id,annotationDigest:sha,annotation},expected,metadata);
+ assert.equal(note.feedback,'');assert.deepEqual(note.spatial,spatial);assert.equal(note.annotation.rawAnnotation,rawAnnotation);
+ for(const invalid of [null,{...spatial,geometry:{...spatial.geometry,width:2}}])await assert.rejects(readSavedFeedback({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:id,annotationDigest:sha,annotation:{...annotation,rawAnnotation:JSON.stringify({...JSON.parse(rawAnnotation),spatial:invalid})}},expected,metadata));
+});
