@@ -67,7 +67,7 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
   try{const r=await fetch(`/api/agent-training/marketplace-submission?slug=${encodeURIComponent(slug)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'retract',makePrivate:true,...(reviewed?{submissionId:context.review!.submissionId,expectedReviewId:context.review!.id}:{expectedVersionId:context.agent.versionId})})});const v=await r.json();
    if(captured!==scope.current)return;
    if(!r.ok||!v.ok){if(v.publication==='listing_retracted_agent_still_public')setNote('The listing is hidden, but the agent is still public. Retry Take down to finish.');throw Error();}
-   setContext({...context,publication:{shared:false,status:'private'},review:context.review?{...context.review,decision:'owner_retracted',visibility:'hidden'}:undefined});setNote('Your agent and samples are no longer listed. Work already running is not cancelled.');
+   setContext({...context,publication:{shared:false,status:'private'},review:context.review?{...context.review,decision:'owner_retracted',visibility:'hidden'}:undefined});setNote('Your agent and samples are no longer listed. Existing customer setups and completed work are kept; work already running is not cancelled.');
   }catch{if(captured===scope.current)setError('Could not confirm taking down the agent. Reload to check its current status, then retry.');}finally{if(captured===scope.current){setBusy(false);setConfirmUnlist(false);}}
  }
  async function polish(){
@@ -149,7 +149,7 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
    </>}
   </aside>
  <Modal open={confirmSubmit} onClose={()=>{if(!busy)setConfirmSubmit(false);}} title="Make public and submit?"><p className="text-sm text-ink-300">Your agent’s published definition becomes public now. Your listing text and selected examples will appear in the marketplace after approval. Your runs, private training and settings stay private.</p><div className="mt-5 flex flex-wrap gap-3"><button type="button" disabled={busy} className="btn-primary" onClick={()=>void save('submit')}>{busy?'Submitting…':'Make public & submit'}</button><button type="button" disabled={busy} className="btn-outline" onClick={()=>setConfirmSubmit(false)}>Cancel</button></div></Modal>
- <Modal open={confirmUnlist} onClose={()=>{if(!busy)setConfirmUnlist(false);}} title="Take down this listing?"><p className="text-sm text-ink-300">Make this agent private and hide its listing and samples. Stored uploads are kept. This does not cancel work already running.</p><div className="mt-5 flex gap-3"><button type="button" disabled={busy} className="btn-primary" onClick={()=>void retract()}>Take down</button><button type="button" disabled={busy} className="btn-outline" onClick={()=>setConfirmUnlist(false)}>Cancel</button></div></Modal>
+ <Modal open={confirmUnlist} onClose={()=>{if(!busy)setConfirmUnlist(false);}} title="Take down this listing?"><p className="text-sm text-ink-300">Make this agent private and hide its public page, listing and samples. Stored uploads are kept. Existing customers keep their saved setup and completed work. Work already running is not cancelled.</p><div className="mt-5 flex gap-3"><button type="button" disabled={busy} className="btn-primary" onClick={()=>void retract()}>Take down</button><button type="button" disabled={busy} className="btn-outline" onClick={()=>setConfirmUnlist(false)}>Cancel</button></div></Modal>
  </div>;
 }
 
