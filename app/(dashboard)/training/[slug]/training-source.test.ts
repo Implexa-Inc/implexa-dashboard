@@ -3409,7 +3409,7 @@ test('Accept in the unified decision review activates only the displayed lesson 
  const h=harness(),chosen=NEW_SESSION,other=QUESTION,writes:any[]=[];let live:string[]=[];
  const record=(id:string)=>({recordId:id,recordDigest:DIGEST,summary:id===chosen?'Use a smooth connection between related ideas.':'Keep captions readable.',state:'candidate',included:true,admissionOrigin:'standing_policy',category:'taste',sourceKind:'trainer_feedback',policyReceiptId:TOKEN,policyReceiptDigest:DIGEST,sourceEventId:SOURCE_ID,sourceEventDigest:DIGEST,model:'claude-haiku-5-5',creativeDirections:[]});
  const guided=()=>({ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[record(chosen),record(other)],test:{snapshotDigest:null,scope:null,status:'not_run',runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canApplyWithoutTest:true,canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'activated_snapshot',candidateDiffers:true,activeRecordIds:live}},publication:{canPublish:false,reason:'publication_test_required',servedSnapshotDigest:null}});
- const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',familyId:RECORD,ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
   if(String(url).includes('/agent-training/coach'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v1',complete:true,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:'Video editing',versionId:VERSION_A,decisionsComplete:true,liveLessons:live.length,lastTaughtAt:live.length?'2026-11-21T12:00:00Z':null,listing:'not_listed',decisions:[chosen,other].filter(id=>!live.includes(id)).map(id=>({id,kind:'lesson',source:'record',sessionId:SESSION,versionId:VERSION_A,digest:DIGEST,createdAt:'2026-11-21T12:00:00Z'}))}]})};
   if(String(url).includes('/changes?')){if(init.method==='POST'){const body=JSON.parse(String(init.body));writes.push(body);assert.equal(body.recordId,chosen);assert.equal(body.recordDigest,DIGEST);assert.equal(body.recordAction,'add');live=[chosen];return {ok:true,json:async()=>({ok:true,contractVersion:'training-snapshot-activation.v1',activationId:TOKEN,activationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:'b'.repeat(64),testRequestId:null,recordId:chosen,recordDigest:DIGEST,recordAction:'add',candidateSnapshotDigest:DIGEST,replay:false})};}return {ok:true,json:async()=>guided()};}
   return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
@@ -3429,7 +3429,7 @@ for(const committed of [false,true])test(`an uncertain activation retry preserve
  const h=harness(),chosen=NEW_SESSION,other=QUESTION,writes:any[]=[];let live:string[]=[],admitted=false,fail=true;const activationKeys:string[]=[];
  const record=(id:string)=>({recordId:id,recordDigest:DIGEST,summary:id===chosen?'Use a smooth connection between related ideas.':'Keep captions readable.',state:id===chosen&&!admitted?'suggested':'candidate',included:id!==chosen||admitted,admissionOrigin:id===chosen&&!admitted?'none':'standing_policy',category:'taste',sourceKind:'trainer_feedback',policyReceiptId:TOKEN,policyReceiptDigest:DIGEST,sourceEventId:SOURCE_ID,sourceEventDigest:DIGEST,model:'claude-haiku-5-5',creativeDirections:[]});
  const guided=()=>({ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[record(chosen),record(other)],test:{snapshotDigest:null,scope:null,status:'not_run',runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canApplyWithoutTest:true,canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'activated_snapshot',candidateDiffers:true,activeRecordIds:live}},publication:{canPublish:false,reason:'publication_test_required',servedSnapshotDigest:null}});
- const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',familyId:RECORD,ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
   if(String(url).includes('/agent-training/coach'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v1',complete:true,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:'Video editing',versionId:VERSION_A,decisionsComplete:true,liveLessons:live.length,lastTaughtAt:live.length?'2026-11-21T12:00:00Z':null,listing:'not_listed',decisions:[chosen,other].filter(id=>!live.includes(id)).map(id=>({id,kind:'lesson',source:'record',sessionId:SESSION,versionId:VERSION_A,digest:DIGEST,createdAt:'2026-11-21T12:00:00Z'}))}]})};
   if(String(url).includes('/changes?')){if(init.method==='POST'){const body=JSON.parse(String(init.body));writes.push(body);if(body.action==='admit'){admitted=true;return {ok:true,json:async()=>({ok:true})};}activationKeys.push((init.headers as any)['Idempotency-Key']);if(fail){fail=false;if(committed)live=[chosen];throw Error('network');}assert.equal(body.recordId,chosen);assert.equal(body.recordDigest,DIGEST);assert.equal(body.recordAction,'add');live=[chosen];return {ok:true,json:async()=>({ok:true,contractVersion:'training-snapshot-activation.v1',activationId:TOKEN,activationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:'b'.repeat(64),testRequestId:null,recordId:chosen,recordDigest:DIGEST,recordAction:'add',candidateSnapshotDigest:DIGEST,replay:false})};}return {ok:true,json:async()=>guided()};}
   return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
@@ -3449,7 +3449,7 @@ test('Review all advances after Accept without automatically applying the next l
  const h=harness(),chosen=NEW_SESSION,other=QUESTION,writes:any[]=[];let live:string[]=[];
  const record=(id:string)=>({recordId:id,recordDigest:DIGEST,summary:id===chosen?'Use a smooth connection between related ideas.':'Keep captions readable.',state:'candidate',included:true,admissionOrigin:'standing_policy',category:'taste',sourceKind:'trainer_feedback',policyReceiptId:TOKEN,policyReceiptDigest:DIGEST,sourceEventId:SOURCE_ID,sourceEventDigest:DIGEST,model:'claude-haiku-5-5',creativeDirections:[]});
  const guided=()=>({ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[record(chosen),record(other)],test:{snapshotDigest:null,scope:null,status:'not_run',runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canApplyWithoutTest:true,canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'activated_snapshot',candidateDiffers:true,activeRecordIds:live}},publication:{canPublish:false,reason:'publication_test_required',servedSnapshotDigest:null}});
- const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',familyId:RECORD,ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
   if(String(url).includes('/agent-training/coach'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v1',complete:true,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:'Video editing',versionId:VERSION_A,decisionsComplete:true,liveLessons:live.length,lastTaughtAt:live.length?'2026-11-21T12:00:00Z':null,listing:'not_listed',decisions:[chosen,other].filter(id=>!live.includes(id)).map(id=>({id,kind:'lesson',source:'record',sessionId:SESSION,versionId:VERSION_A,digest:DIGEST,createdAt:'2026-11-21T12:00:00Z'}))}]})};
   if(String(url).includes('/changes?')){if(init.method==='POST'){const body=JSON.parse(String(init.body));writes.push(body);assert.equal(body.recordId,chosen);assert.equal(body.recordDigest,DIGEST);assert.equal(body.recordAction,'add');live=[chosen];return {ok:true,json:async()=>({ok:true,contractVersion:'training-snapshot-activation.v1',activationId:TOKEN,activationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:'b'.repeat(64),testRequestId:null,recordId:chosen,recordDigest:DIGEST,recordAction:'add',candidateSnapshotDigest:DIGEST,replay:false})};}return {ok:true,json:async()=>guided()};}
   return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
@@ -3469,7 +3469,7 @@ test('Review reopens the exact saved tool proposal without running analysis or q
  const h=harness(),requests:Array<{url:string;init:RequestInit}>=[];
  const item={id:QUESTION,kind:'agent_change',source:'recording_agent',sessionId:SESSION,versionId:VERSION_A,digest:DIGEST,createdAt:'2026-11-21T12:00:00Z',summary:'Research visual references before planning.'};
  const proposal={suggestionId:QUESTION,suggestionDigest:DIGEST,capability:'web_reference_research',limitations:[],proposedChange:'Research visual references before planning.',methodSelection:'pending_existing_binder',binding:{sourceId:SOURCE_ID,sourceSha256:DIGEST,targetVersionId:VERSION_A,excerptId:RECORD,excerptDigest:DIGEST,frames:[0,100,200].map(timeMs=>({timeMs,frameSha256:DIGEST}))}};
- const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',familyId:RECORD,ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
   requests.push({url:String(url),init});
   if(String(url).includes('/agent-training/coach'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v1',complete:true,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:null,versionId:VERSION_A,decisionsComplete:true,liveLessons:0,lastTaughtAt:null,listing:'not_listed',decisions:[item]}]})};
   if(String(url).includes('/teaching-suggestion?')){assert.notEqual(init.method,'POST');assert.match(String(url),new RegExp(`suggestionId=${QUESTION}`));return {ok:true,json:async()=>({ok:true,contractVersion:'training-saved-recording-agent.v1',sessionId:SESSION,proposal})};}
@@ -3480,5 +3480,34 @@ test('Review reopens the exact saved tool proposal without running analysis or q
   const dialog=r.document.querySelector('[role=dialog]')!;assert.match(dialog.textContent||'',/Research visual references before planning/);assert.match(dialog.textContent||'',/Draft baseline operating method/);
   assert.equal(requests.filter(x=>x.url.includes('/teaching-suggestion?')).length,1);assert.equal(requests.some(x=>x.init.method==='POST'),false);
   assert.equal([...dialog.querySelectorAll('button')].find(x=>x.textContent==='Request this agent update')?.hasAttribute('disabled'),true);
+ }finally{r.cleanup();}
+});
+
+test('one training workspace reads only its verified family and rejects a different family response',async()=>{
+ const h=harness(),calls:Array<{url:string;signal:AbortSignal}>=[];let wrong=false;
+ const props={slug:'video-craft',familyId:RECORD,ownerId:SOURCE_ID};
+ const r=await render('../training/[slug]/training-source.tsx',props,{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
+  if(String(url).includes('/agent-training/coach')){
+   calls.push({url:String(url),signal:init.signal as AbortSignal});
+   return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v1',complete:true,agents:[{id:wrong?NEW_SESSION:RECORD,slug:'video-craft',name:'Video craft',description:null,versionId:VERSION_A,decisionsComplete:true,liveLessons:0,lastTaughtAt:null,listing:'not_listed',decisions:[]}]})};
+  }
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+ }) as typeof fetch});
+ try{
+  assert.equal(calls.length,1);assert.equal(calls[0].url,`/api/agent-training/coach?familyId=${RECORD}`);
+  assert.doesNotMatch(r.text(),/Suggestions couldn’t load/);
+  wrong=true;await r.rerender({...props,ownerId:NEW_SESSION});
+  assert.equal(calls.length,2);assert.equal(calls[0].signal.aborted,true,'old account read is cancelled');
+  assert.match(r.text(),/Suggestions couldn’t load/,'a same-slug response from another family is refused');
+ }finally{r.cleanup();}
+});
+
+test('an unknown family never falls back to the expensive whole Coach roster',async()=>{
+ const h=harness(),calls:string[]=[];
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string)=>{calls.push(String(url));return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};}) as typeof fetch});
+ try{
+  assert.equal(calls.some(url=>url.includes('/agent-training/coach')),false);
+  assert.match(r.text(),/Suggestions couldn’t load/);
+  assert.equal((r.getByText('↑ Upload') as HTMLButtonElement).disabled,false,'independent teaching remains usable');
  }finally{r.cleanup();}
 });

@@ -146,3 +146,25 @@ test('removing an uploaded sample refreshes custody without discarding unsaved s
  assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'My unsaved service');assert.equal(r.document.querySelector('#listing-preview img'),null);
  await r.click(r.getByText('Save draft'));const saved=posts.find(x=>x.body.action==='save').body;assert.equal(saved.bindingDigest,'c'.repeat(64));assert.equal(saved.listing.name,'My unsaved service');assert.deepEqual(saved.listing.sampleIds,[]);assert.equal(saved.listing.sampleReleaseConsent,false);
 });
+
+test('private uploaded previews stay inside the signed-in page and close on scope changes',async()=>{
+ for(const mediaType of ['video/mp4','image/png']){
+  const calls:any[]=[],c=fixture();
+  const sample={id:'12000000-0000-4000-8000-000000000090',kind:'uploaded',name:'Owned example',mediaType,provenance:'trainer_uploaded',state:'ready'};
+  c.samples=[sample as any];
+  const props={slug:'studio',versionId:V};
+  const r=await render('../training/[slug]/marketplace-submission.tsx',props,{fetch:(async(url:string,init:any={})=>{calls.push({url,init});return {ok:true,json:async()=>c};}) as typeof fetch});
+  try{
+   const preview=r.document.querySelector('button[aria-label="Preview Owned example"]')!;
+   assert.ok(preview);assert.equal(r.document.querySelector('a[target="_blank"]'),null);
+   await r.click(preview);const dialog=r.document.querySelector('[role="dialog"]')!;
+   const media=dialog.querySelector(mediaType.startsWith('video/')?'video':'img')!;
+   assert.equal(media.getAttribute('src'),`/api/agent-training/marketplace-samples?id=${sample.id}&variant=preview`);
+   assert.equal(dialog.querySelector('video')?.hasAttribute('autoplay')||false,false);
+   await r.act(()=>media.dispatchEvent(new r.window.Event('error')));assert.match(dialog.textContent||'',/preview couldn’t load/);
+   await r.click(dialog.querySelector('button[aria-label="Close"]')!);assert.equal(r.document.querySelector('[role="dialog"]'),null);
+   await r.click(preview);await r.rerender({...props,slug:'different-owner-agent'});assert.equal(r.document.querySelector('[role="dialog"]'),null);
+   assert.equal(calls.some(call=>call.init.method==='POST'),false,'preview never saves or publishes');
+  }finally{r.cleanup();}
+ }
+});

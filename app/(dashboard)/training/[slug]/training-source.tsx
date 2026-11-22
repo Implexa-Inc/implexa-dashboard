@@ -186,7 +186,7 @@ function resolveBridge() {
   return candidate;
 }
 
-export default function TrainingSource({ slug, installationId, forkPermission,ownerId,recordingSelection,lastRunId,recentRuns=[],runsUnavailable=false,runContext,initialRecordingId,initialChat=false }: {initialChat?:boolean;initialRecordingId?:string; slug: string;runContext?:AgentActionContext;recentRuns?:TrainingRun[];runsUnavailable?:boolean;lastRunId?:string|null; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
+export default function TrainingSource({ slug, familyId, installationId, forkPermission,ownerId,recordingSelection,lastRunId,recentRuns=[],runsUnavailable=false,runContext,initialRecordingId,initialChat=false }: {initialChat?:boolean;initialRecordingId?:string; slug: string;familyId?:string;runContext?:AgentActionContext;recentRuns?:TrainingRun[];runsUnavailable?:boolean;lastRunId?:string|null; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
   const router=useRouter();
   const [retention] = useState(() => { const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCMilliseconds(0); return d.toISOString(); });
   const [view,setView]=useState<TrainingView>(recordingSelection?'teach':forkPermission?'settings':'start');
@@ -202,10 +202,11 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [decisionSelection,setDecisionSelection]=useState<CoachDecision|null>(null),[decisionReviewBusy,setDecisionReviewBusy]=useState(false),[decisionReviewError,setDecisionReviewError]=useState(''),[decisionChildBlocked,setDecisionChildBlocked]=useState(false),[decisionCloseNotice,setDecisionCloseNotice]=useState('');
   const [decisionImage,setDecisionImage]=useState<{id:string;digest:string;image:string}|null>(null);
   const decisionReviewEpoch=useRef(0);
-  const coachIdentity=`${ownerId}:${slug}`,coachCurrent=useRef(coachIdentity);coachCurrent.current=coachIdentity;
+  const coachIdentity=`${ownerId}:${slug}:${familyId}`,coachCurrent=useRef(coachIdentity);coachCurrent.current=coachIdentity;
   useEffect(()=>{if(installationId)return;const controller=new AbortController(),identity=coachIdentity;setCoachBusy(true);setCoachError(false);setCoachAgent(null);
-   void fetch('/api/agent-training/coach',{cache:'no-store',signal:controller.signal}).then(async response=>{const page=coachPage(await response.json());const agent=page?.agents.find(a=>a.slug===slug);if(!response.ok||!page||!agent)throw Error();if(!controller.signal.aborted&&coachCurrent.current===identity)setCoachAgent(agent);}).catch(()=>{if(!controller.signal.aborted&&coachCurrent.current===identity)setCoachError(true);}).finally(()=>{if(!controller.signal.aborted&&coachCurrent.current===identity)setCoachBusy(false);});return()=>controller.abort();
-  },[coachIdentity,coachRefresh,installationId]);
+   if(!familyId||!UUID.test(familyId)){setCoachError(true);setCoachBusy(false);return;}
+   void fetch(`/api/agent-training/coach?familyId=${encodeURIComponent(familyId)}`,{cache:'no-store',signal:controller.signal}).then(async response=>{const page=coachPage(await response.json());const agent=page?.agents.find(a=>a.slug===slug);if(!response.ok||!page||!agent||agent.id!==familyId)throw Error();if(!controller.signal.aborted&&coachCurrent.current===identity)setCoachAgent(agent);}).catch(()=>{if(!controller.signal.aborted&&coachCurrent.current===identity)setCoachError(true);}).finally(()=>{if(!controller.signal.aborted&&coachCurrent.current===identity)setCoachBusy(false);});return()=>controller.abort();
+  },[coachIdentity,coachRefresh,installationId,familyId]);
   const [activeRunId,setActiveRunId]=useState<string|null>(null),[runDirty,setRunDirty]=useState(false);
   const activeRunRef=useRef(activeRunId);activeRunRef.current=activeRunId;
   function setRunSource(id:string|null){activeRunRef.current=id;setActiveRunId(id);}
