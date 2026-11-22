@@ -14,16 +14,17 @@ const catalog=fixture('owner-catalog'),healthy=fixture('agent-detail'),failedDet
 const card=catalog.body.workflows[0],version=healthy.body.workflow.workflow_version_id;
 let ownedResponse:any,detailResponse:any;
 const reads:string[]=[];
-const link=()=>null,host=()=>null;
+const link=()=>null,host=()=>null,picker=()=>null,unavailable=()=>null;
 // Execute the real server pages and their real catalog/detail readers. Only the
 // auth/framework/UI boundary is stubbed; fetch returns deterministic failures.
 function page(entry:string){
- const built=buildSync({entryPoints:[resolve(root,entry)],absWorkingDir:root,bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',packages:'external',external:['@/lib/supabase/server','@/lib/review','./training-route-host']});
+ const built=buildSync({entryPoints:[resolve(root,entry)],absWorkingDir:root,bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',packages:'external',external:['@/lib/supabase/server','@/lib/review','./training-route-host','../_components/training-agent-picker']});
  const module={exports:{}};
  const load=(name:string)=>{
   if(name==='@/lib/supabase/server')return {createClient:()=>({auth:{getUser:async()=>({data:{user:{id:owner}}}),getSession:async()=>({data:{session:{user:{id:owner},access_token:'synthetic-session'}}})}})};
   if(name==='next/navigation')return {redirect:(url:string)=>{throw Error('redirect:'+url);},notFound:()=>{throw Error('not found');}};
   if(name==='next/link')return {__esModule:true,default:link};
+  if(name==='../_components/training-agent-picker')return {__esModule:true,default:picker,TrainingFeedUnavailable:unavailable};
   if(name==='./training-route-host')return {TrainingRouteConfig:host};
   if(name==='@/lib/review')return {getReviewPacket:()=>{throw Error('Unexpected run read');}};
   return require(name);
@@ -99,4 +100,15 @@ test('matching healthy detail and installation preferences keep their existing v
  for(const invoke of pages){const result=await run(invoke,catalog,healthy);assert.equal(result.type,host);assert.equal(result.props.value.runContext.workflowVersionId,version);assert.equal(result.props.value.runContext.statusUnavailable,false);}
  const result=await run(()=>train({params:{slug:'owned'},searchParams:{installationId:family}}),failedCatalog);
  assert.equal(result.type,host);assert.equal(result.props.value.installationId,family);assert.equal(result.props.value.familyId,undefined);assert.equal(result.props.value.runContext,undefined);assert.deepEqual(reads,[]);
+});
+
+const coachList=page('app/(dashboard)/training/page.tsx');
+function findContents(element:any,type?:any):any{if(type?element?.type===type:element?.type?.name==='CoachContents')return element;for(const child of [element?.props?.children].flat(Infinity)){const found=child&&typeof child==='object'?findContents(child,type):null;if(found)return found;}return null;}
+test('real Coach server page renders the owner catalog without issuing or awaiting the heavy summary',async()=>{
+ for(const source of [catalog,failedCatalog]){
+  const result=await run(async()=>{const shell=await coachList({});const contents=findContents(shell);assert.ok(contents);return contents.type(contents.props);},source);
+  if(source===catalog){const list=findContents(result,picker);assert.ok(list);assert.equal(list.props.loadSummary,true);assert.equal(list.props.owned[0].workflow_id,family);assert.equal(list.props.summary,undefined);}
+  else assert.equal(result.type,unavailable);
+  assert.deepEqual(reads,['/api/v2/me/workflows'],'the only blocking data request is the existing owner catalog');
+ }
 });

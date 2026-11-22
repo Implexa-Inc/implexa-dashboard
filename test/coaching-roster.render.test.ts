@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import test from 'node:test';import assert from 'node:assert/strict';import {render} from '../lib/test/render.ts';
 const agent=(n:number,source='generated')=>({slug:`agent-${n}`,name:`Agent ${n}`,description:`Useful output ${n}. More detail.`,source});
 test('Coach shows only trainer-owned harnesses, deduplicates them and keeps the recording target',async()=>{
@@ -25,9 +26,66 @@ test('closing the recording target dialog keeps the recording untouched and norm
  try{r.window.history.replaceState(null,'',`/training?recordingId=${recordingId}&view=mine#position`);await r.click(r.document.querySelector('[role="dialog"] button[aria-label="Close"]')!);assert.equal(r.document.querySelector('[role="dialog"]'),null);assert.equal(r.getByText('Train').getAttribute('href'),'/training/agent-1');assert.deepEqual(r.calls.replace,['/training?view=mine#position']);assert.equal(r.calls.backend.length,0);}finally{r.cleanup();}
 });
 
-test('Coach tiles and rows use pending decisions and live lessons without treating unknown as zero',async()=>{
- const id=(n:number)=>`80000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
- const summary={ok:true,contractVersion:'training-coach-decisions.v1',complete:false,agents:[{id:id(1),slug:'agent-1',name:'Agent 1',description:'A useful output.',versionId:id(2),decisionsComplete:false,liveLessons:null,lastTaughtAt:null,listing:'unknown',decisions:[{id:id(3),kind:'customer',source:'contribution',sessionId:null,versionId:id(2),digest:'a'.repeat(64),createdAt:'2026-11-21T12:00:00Z'}]}]};
- const r=await render('training-agent-picker.tsx',{owned:[agent(1)],summary,partial:true});
- try{const tiles=r.document.querySelector('[aria-label="Coaching summary"]')!;assert.deepEqual([...tiles.querySelectorAll('b')].map(n=>n.textContent),['1+','1+','0+']);const row=r.document.querySelector('#coach-waiting .coach-agent-row')!;assert.equal(row.querySelector('.coach-row-decisions b')?.textContent,'1+');assert.equal(row.querySelector('.coach-row-learnings b')?.textContent,'?');assert.match(row.textContent||'',/Unknown/);assert.equal(r.calls.backend.length,0);assert.ok(r.document.querySelector('#coach-waiting'));}finally{r.cleanup();}
+test('Coach tiles and rows use actual pending decisions and distinguish unversioned training from zero',async()=>{
+ const r=await render('training-agent-picker.tsx',{owned,loadSummary:true},{fetch:(async(url:any)=>String(url).includes('/coach?')?http(roster):{ok:false}) as typeof fetch});
+ try{await flush(r);const tiles=r.document.querySelector('[aria-label="Coaching summary"]')!;assert.deepEqual([...tiles.querySelectorAll('b')].map(n=>n.textContent),['1+','2','0']);const row=r.document.querySelector('.coach-agent-row')!;assert.equal(row.querySelector('.coach-row-decisions b')?.textContent,'1');assert.equal(row.querySelector('.coach-row-learnings b')?.textContent,'0');assert.equal(r.document.querySelector('#coach-waiting'),null,'counts do not move rows into a second list');assert.match(r.text(),/No active version/);assert.equal(r.calls.backend.length,0);}finally{r.cleanup();}
+});
+
+// Complete actual Coach HTTP producer output over disposable full-schema SQL;
+// see the pinned generator and provenance. Component-owned catalog props are synthetic.
+const producerRoot=new URL('../lib/test/fixtures/training-owner-context/',import.meta.url);
+const produced=(name:string)=>JSON.parse(readFileSync(new URL(name+'.json',producerRoot),'utf8'));
+const roster=produced('coach-roster'),family=produced('coach-family');
+const ready=family.body.agents[0],unversioned=roster.body.agents.find((a:any)=>a.versionId===null);
+const owned=[{workflow_id:ready.id,slug:ready.slug,name:'Ready agent',source:'generated',description:'Ready to teach.',updated_at:'2026-11-10T00:00:00Z'},{workflow_id:unversioned.id,slug:unversioned.slug,name:'Older agent',source:'generated',description:'An older harness.',updated_at:'2026-11-01T00:00:00Z'}];
+const http=(packet:any)=>({ok:packet.status>=200&&packet.status<300,status:packet.status,headers:packet.headers,json:async()=>packet.body});
+const flush=(r:any)=>r.act(()=>new Promise(resolve=>setTimeout(resolve,20)));
+
+test('catalog rows are usable before one background summary; actual returned facts never move them',async()=>{
+ let release:(v:any)=>void=()=>{};const waiting=new Promise(resolve=>{release=resolve;}),calls:string[]=[];
+ const r=await render('training-agent-picker.tsx',{owned,loadSummary:true},{fetch:(async(url:any)=>{calls.push(String(url));if(String(url).includes('/agent-training/coach?'))return waiting;return {ok:false};}) as typeof fetch});
+ try{
+  const names=()=>Array.from(r.document.querySelectorAll('.coach-agent-row h3')).map(n=>n.textContent);
+  assert.deepEqual(names(),['Ready agent','Older agent']);assert.match(r.text(),/Loading counts/);assert.equal(r.document.querySelector('.coach-agent-row .btn-outline')?.getAttribute('href'),'/training/owned');assert.doesNotMatch(r.text(),/Nothing waiting/);assert.equal(calls.filter(x=>x.includes('/coach?')).length,1);
+  await r.act(()=>release(http(roster)));await flush(r);assert.deepEqual(names(),['Ready agent','Older agent'],'summary order differs from catalog; rows do not repartition');assert.equal(r.document.querySelector('#coach-waiting'),null);assert.match(r.text(),/No active version/);assert.match(r.text(),/decisions and lessons aren’t counted/);
+  const oldRow=Array.from(r.document.querySelectorAll('.coach-agent-row')).find(n=>n.textContent?.includes('Older agent'))!;assert.doesNotMatch(oldRow.textContent||'',/Nothing waiting|0 to decide/);assert.equal(calls.filter(x=>x.includes('/coach?')).length,1,'no automatic per-family fanout');
+ }finally{release(http(roster));r.cleanup();}
+});
+
+test('failed summary leaves agents available; only an explicit row retry reads that exact family',async()=>{
+ const calls:string[]=[];const r=await render('training-agent-picker.tsx',{owned,loadSummary:true},{fetch:(async(url:any)=>{const path=String(url);calls.push(path);return path.includes('familyId=')?http(family):{ok:false,status:503};}) as typeof fetch});
+ try{
+  await flush(r);assert.match(r.text(),/Count unavailable/);assert.doesNotMatch(r.text(),/No agents to train yet|Nothing waiting/);assert.equal(r.document.querySelectorAll('.coach-agent-row').length,2);assert.equal(calls.filter(x=>x.includes('/coach?')).length,1);
+  const first=r.document.querySelector('.coach-agent-row')!;await r.click(first.querySelector('button')!);await flush(r);
+  const reads=calls.filter(x=>x.includes('/coach?'));assert.equal(reads.length,2);assert.equal(new URL(reads[1],'https://test.invalid').searchParams.get('familyId'),ready.id);assert.match(first.textContent||'',/Review 1/);assert.match(r.document.querySelectorAll('.coach-agent-row')[1].textContent||'',/Count unavailable/);
+ }finally{r.cleanup();}
+});
+
+test('wrong-family responses, duplicate catalog binding and unmount never supply stale counts or automatic retries',async()=>{
+ for(const bad of ['wrong-family','duplicate','network']){
+  const values=bad==='duplicate'?[owned[0],{...owned[0],workflow_id:unversioned.id}]:owned;const calls:string[]=[];
+  const r=await render('training-agent-picker.tsx',{owned:values,loadSummary:true},{fetch:(async(url:any)=>{const path=String(url);calls.push(path);if(!path.includes('/coach?'))return {ok:false};if(bad==='network')throw Error('synthetic transport failure');if(path.includes('familyId='))return http(produced('coach-unversioned-family'));return {ok:false,status:503};}) as typeof fetch});
+  try{await flush(r);const row=r.document.querySelector('.coach-agent-row')!;assert.match(row.textContent||'',/Count unavailable/);const retry=row.querySelector('button')!;
+   if(bad==='duplicate')assert.equal((retry as HTMLButtonElement).disabled,true);else if(bad==='wrong-family'){await r.click(retry);await flush(r);assert.match(row.textContent||'',/Count unavailable/);assert.doesNotMatch(row.textContent||'',/Nothing waiting|No active version/);}
+   assert.equal(calls.filter(x=>x.includes('/coach?')).length,bad==='wrong-family'?2:1);
+  }finally{r.cleanup();}
+ }
+});
+
+test('manual retry stays single-flight and a timed-out count becomes retryable again without a loop',async()=>{
+ let calls=0;const r=await render('training-agent-picker.tsx',{owned,loadSummary:true},{fetch:(async(url:any,init:any={})=>{
+  if(!String(url).includes('/coach?'))return {ok:false};calls++;if(!String(url).includes('familyId='))return {ok:false,status:503};
+  return new Promise((_resolve,reject)=>init.signal.addEventListener('abort',()=>reject(new Error('synthetic timeout')),{once:true}));
+ }) as typeof fetch});
+ try{
+  await flush(r);const first=r.document.querySelector('.coach-agent-row button')!;await r.click(first);assert.equal(calls,2);
+  assert.ok(Array.from(r.document.querySelectorAll('.coach-agent-row button')).every(b=>(b as HTMLButtonElement).disabled));
+  await r.act(()=>new Promise(resolve=>setTimeout(resolve,5100)));assert.equal(calls,2,'timeout never retries automatically');assert.equal((r.document.querySelector('.coach-agent-row button') as HTMLButtonElement).disabled,false);assert.match(r.text(),/Count unavailable/);
+ }finally{r.cleanup();}
+});
+
+test('leaving the roster aborts its one in-flight summary instead of delivering stale account facts',async()=>{
+ let signal:AbortSignal|undefined,release:(v:any)=>void=()=>{};const wait=new Promise(resolve=>{release=resolve;});let reads=0;
+ const r=await render('training-agent-picker.tsx',{owned,loadSummary:true},{fetch:(async(url:any,init:any={})=>{if(!String(url).includes('/coach?'))return {ok:false};reads++;signal=init.signal;return wait;}) as typeof fetch});
+ assert.equal(reads,1);assert.equal(signal?.aborted,false);r.cleanup();assert.equal(signal?.aborted,true);release(http(roster));assert.equal(reads,1);
 });

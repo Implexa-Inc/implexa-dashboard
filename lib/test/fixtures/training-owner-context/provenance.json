@@ -3,6 +3,42 @@
   "backendCommit": "bb3b3f63dd13eb15b39f1f3cff6aec48f1561c41",
   "producers": [
     {
+      "file": "src/routes/agent-training.js",
+      "sha256": "f82ee5e8d96a863bfed81767f04f4648edeb697423c425e3fbb370e3d0343ac0"
+    },
+    {
+      "file": "src/services/agent-training.service.js",
+      "sha256": "d4a21f4d56255452b3cab0674d7effb706830fc29ab990ef52e808b10013735f"
+    },
+    {
+      "file": "supabase/migrations/0640_training_coach_decision_read.sql",
+      "sha256": "2c21038da301079698a2a46b4f4bc3758268eb173737063f837288cdbd0f86e3"
+    },
+    {
+      "file": "supabase/migrations/0641_single_lesson_private_activation.sql",
+      "sha256": "d7619dbd109ebc38b28f669dacd9bc4c69c6a0be63a23857ddf45c4c6c05a9a8"
+    },
+    {
+      "file": "supabase/migrations/0642_agent_display_metrics.sql",
+      "sha256": "c9824370df41c64d866734782a98a790eb382aa93caa112c1c6b86cdab160291"
+    },
+    {
+      "file": "supabase/migrations/0643_marketplace_sample_media.sql",
+      "sha256": "5d9c905c6a12215a2979cc12a8419646dde7e5b5ba20e929bfdd1274dbe38a77"
+    },
+    {
+      "file": "supabase/migrations/0644_coach_currentness_candidate_scope.sql",
+      "sha256": "1caa3efdcefaddc8bc4b14eba7c3441ac6e0375e955d4d7276ab946f7764d656"
+    },
+    {
+      "file": "supabase/migrations/0645_coach_background_read_budget.sql",
+      "sha256": "134720d910081158e90e461727900c4c0809e3ddf5dacf11f4b4a48225ffb7d9"
+    },
+    {
+      "file": "supabase/migrations/0646_coach_saved_annotation_feedback.sql",
+      "sha256": "743ea48deddbbef00a6c3c20579393feaf7fd30cc474fc92c80cf3a057cccc7a"
+    },
+    {
       "file": "src/routes/review.js",
       "sha256": "8c04e7245eb1af810a188d609a909fbf07957e6e838bf153f2316e1fd3e02981"
     },
@@ -46,6 +82,7 @@
     }
   ],
   "entryPoints": [
+    "GET /api/v2/agent-training/coach",
     "GET /api/agent-training/run-review",
     "GET /api/v2/review/runs/:runId",
     "GET /api/v2/me/workflows",
@@ -91,7 +128,20 @@
     {
       "file": "training-run-review.json",
       "sha256": "9b31c305b3f17beeb9a7b5ed8bc2bee7acb46863d34efc189067bbb910648cff"
+    },
+    {
+      "file": "coach-roster.json",
+      "sha256": "56015aed3a2bf81bf521c993c40efd86cf1046a6180a6d0a25a505263b92e5de"
+    },
+    {
+      "file": "coach-family.json",
+      "sha256": "2c8f5e85950e6269da9362c4c865d69990df526a57cc585b26a81ba51301c6b3"
+    },
+    {
+      "file": "coach-unversioned-family.json",
+      "sha256": "e236af8e1eb2e31e8a5e2b4eff419c8f3a3683f27750a22af99fa6728e9eaf32"
     }
   ],
-  "networkForbiddenByThrowingFetch": true
+  "networkForbiddenByThrowingFetch": true,
+  "coachFixtureScope": "Real SQL through0646 in disposable full-schema PostgreSQL, executed as service_role; actual service and HTTP handler. Synthetic input rows, including a question with bootstrap guards disabled, prove read projection only, not Manager receipt validity or production SQL authority."
 }
