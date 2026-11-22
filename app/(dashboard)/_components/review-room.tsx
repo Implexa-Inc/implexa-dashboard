@@ -1548,13 +1548,13 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
         {props.trainingMode&&!latestFinalOutput&&<p role="status" className="mb-3 text-sm text-state-needs">The latest result could not be verified. Open Result details to choose a file.</p>}
 
+        {!props.trainingMode&&resultDetails}
         {sources.review_artifacts !== 'ready' && (
           <p role="status" className="mb-3 text-xs text-state-needs">
             Other review files are unavailable right now. Reload before attaching or sending them.
           </p>
         )}
 
-        {!props.trainingMode&&resultDetails}
         {resultSurface}
         {props.trainingMode?resultDetails:resultIdentity}
 

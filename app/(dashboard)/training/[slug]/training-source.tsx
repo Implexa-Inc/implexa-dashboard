@@ -501,7 +501,8 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
   const [consent, setConsent] = useState(false);
   const [directSource,setDirectSource]=useState(false),[uploadOpen,setUploadOpen]=useState(false),[discardDraftConfirmed,setDiscardDraftConfirmed]=useState(false);
   const [directVoiceDirty,setDirectVoiceDirty]=useState(false);
-  const [queuedAuthorized,setQueuedAuthorized]=useState(false);
+  const [queuedAuthorized,setQueuedAuthorized]=useState(false),[dismissFeedbackOpen,setDismissFeedbackOpen]=useState(false);
+  useEffect(()=>setDismissFeedbackOpen(false),[ownerId,currentVersion,annotationTarget?.kind==='feedback'?`${annotationTarget.sessionId}:${annotationTarget.annotationId}:${annotationTarget.annotationDigest}`:null]);
   const [queuedFeedback,setQueuedFeedback]=useState<Awaited<ReturnType<typeof readSavedFeedback>>|null>(null);
   const [directNote,setDirectNote]=useState(''),[directExtractionRequested,setDirectExtractionRequested]=useState(false);
   const [playbackFallback,setPlaybackFallback]=useState('');
@@ -1074,6 +1075,20 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       finishAnnotation();
     });
   }
+  async function sendSavedFeedbackToCoach(){
+    if(annotationTarget?.kind!=='feedback'||!ownerId||!queuedFeedback||!selected?.token||!session||annotationTarget.sessionId!==session||annotationTarget.annotationId!==queuedFeedback.annotation.annotationId||annotationTarget.annotationDigest!==queuedFeedback.annotation.annotationDigest||!currentVersion||versionChanged||!coachFeedbackReady)return;
+    const id=session,version=currentVersion,note=queuedFeedback,source={...selected,token:selected.token};
+    await work('Sending your saved feedback to Coach',async()=>{
+      const progress=extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,note.fingerprint);
+      if(progress.annotation&&(progress.annotation.annotationId!==note.annotation.annotationId||progress.annotation.annotationDigest!==note.annotation.annotationDigest))throw Error('The saved note changed. Refresh its exact server record.');
+      progress.annotation=note.annotation;checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress);extractionProgress.current.set(note.fingerprint,progress);
+      await queueFeedbackAnnotation({source,timeMs:note.annotation.timeMs,rawAnnotation:note.annotation.rawAnnotation,versionId:version,progress,
+        checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress),call:async(op,args)=>call(op,args),
+        check:async()=>{const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Your saved feedback is preserved.');},
+        send:async(op,body,key)=>{const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:id,operation:'annotation'})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':key!},body:JSON.stringify(body)});return response.json();}});
+      finishAnnotation();
+    });
+  }
   async function dismissQueuedFeedback(){
     if(annotationTarget?.kind!=='feedback'||!session||!currentVersion||versionChanged)return;
     const target=annotationTarget,version=currentVersion;
@@ -1081,7 +1096,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       const scoped=await requireCurrentScope(target.sessionId);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Refresh Coach.');
       const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:target.sessionId,operation:'annotation'})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':`demo-dismiss:${target.annotationId}:${target.annotationDigest}`},body:JSON.stringify({action:'dismiss',annotationId:target.annotationId,annotationDigest:target.annotationDigest,expectedActiveVersionId:version})});
       const value=await response.json();if(!response.ok||!value.ok||value.contractVersion!=='training-demo-dismissal.v1'||value.annotationId!==target.annotationId||value.annotationDigest!==target.annotationDigest||!UUID.test(value.eventId||''))throw Error('This feedback could not be confirmed dismissed. Refresh and retry.');
-      setQueuedFeedback(null);finishAnnotation();
+      setQueuedFeedback(null);setDismissFeedbackOpen(false);finishAnnotation();
     });
   }
   async function saveImageFeedback(){
@@ -1135,11 +1150,15 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       .then(value=>{if(live){setSavedFeedback(value.notes);setSavedFeedbackUnreadable(value.unreadableCount);}}).catch(()=>{if(live){setSavedFeedback([]);setSavedFeedbackUnreadable(1);}});
     return()=>{live=false;};
   },[ownerId,session,currentVersion,sessionVersion,sources,installationId,busy]);
+  // A fresh positive exact Coach row can remove a duplicate recovery entry.
+  // Absence from its bounded list never establishes a note's server state.
+  const recoverableFeedback=savedFeedback.filter(note=>!coachAgent?.decisions.some(item=>item.source==='demo_annotation'&&item.id===note.annotation.annotationId&&item.digest===note.annotation.annotationDigest&&item.sessionId===session&&item.versionId===currentVersion));
   const reopenedFeedbackIsCurrent=savedFeedbackMatches(reopenedFeedback,selected,time,currentVersion);
   const initialFeedbackOpened=useRef(false);
   useEffect(()=>{if(annotationTarget?.kind!=='image'||!annotationTarget.feedback||initialFeedbackOpened.current||!session||!currentVersion)return;const note=savedFeedback.find(note=>note.fingerprint===annotationTarget.feedback);if(note){initialFeedbackOpened.current=true;void reopenSavedFeedback(note);}},[savedFeedback,session,currentVersion]);
   async function reopenSavedFeedback(note:SavedDirectFeedback){
-    if(!ownerId||!session||!currentVersion||versionChanged||directNote.trim()||directVoiceDirty||runDirty||recordingDirty||runFeedbackRequest)return;
+    if(!ownerId||!session||!currentVersion||versionChanged)return;
+    if(directNote.trim()&&demoText!==note.annotation.rawAnnotation||directVoiceDirty||runDirty||recordingDirty||runFeedbackRequest){setError('Finish or discard your current note before reopening saved feedback.');return;}
     if(!annotationTarget){router.push(trainingAnnotationHref(slug,{kind:'feedback',annotationId:note.annotation.annotationId,annotationDigest:note.annotation.annotationDigest,sessionId:session}));return;}
     const id=session,version=currentVersion,source=sources.find(source=>source.sourceId===note.annotation.sourceId&&!!source.token);
     if(!source?.token)return;
@@ -2398,7 +2417,11 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     {suggestionNote&&<p role="status" className="mb-4 text-sm text-ink-400">{suggestionNote}</p>}
     {versionChanged&&<p role="status">Your saved training is preserved. Return to Train to review the current agent version.</p>}
     {extractionNote&&<p role="status" className="mb-4 text-sm text-ink-400">{extractionNote}</p>}
-    {annotationTarget.kind==='feedback'&&queuedAuthorized&&<section className="mb-5 space-y-3" aria-label="Saved teaching feedback">{!preview?.image&&<p className="whitespace-pre-wrap">{queuedFeedback?.feedback}</p>}{queuedFeedback?.moment&&<p>Marked range: {formatTrainingTime(queuedFeedback.moment.startMs)} – {formatTrainingTime(queuedFeedback.moment.endMs)}</p>}<p className="text-sm text-ink-400">This is your saved feedback. Dismissing it also makes its pending agent-setup suggestions unavailable; applied lessons are unchanged. Extract training to ask AI for suggestions; nothing is applied yet.</p><button type="button" className="btn-outline" disabled={!!busy||suggesting||versionChanged} onClick={()=>void dismissQueuedFeedback()}>Dismiss feedback and its pending suggestions</button></section>}
+    {annotationTarget.kind==='feedback'&&queuedAuthorized&&<section className="mb-5 space-y-3" aria-label="Saved teaching feedback">{!preview?.image&&<p className="whitespace-pre-wrap">{queuedFeedback?.feedback}</p>}{queuedFeedback?.moment&&<p>Marked range: {formatTrainingTime(queuedFeedback.moment.startMs)} – {formatTrainingTime(queuedFeedback.moment.endMs)}</p>}<p className="text-sm text-ink-400">This is your saved feedback. Dismissing it also makes its pending agent-setup suggestions unavailable; applied lessons are unchanged. Extract training to ask AI for suggestions; nothing is applied yet.</p><button type="button" className="btn-outline" disabled={!!busy||suggesting||versionChanged} onClick={()=>setDismissFeedbackOpen(true)}>Dismiss feedback and its pending suggestions</button></section>}
+    {annotationTarget.kind==='feedback'&&queuedFeedback&&!coachAgent?.decisions.some(item=>item.source==='demo_annotation'&&item.id===queuedFeedback.annotation.annotationId&&item.digest===queuedFeedback.annotation.annotationDigest&&item.sessionId===session&&item.versionId===currentVersion)&&<button type="button" className="btn-outline mb-5" disabled={!!busy||suggesting||versionChanged||!coachFeedbackReady||!selected?.token} onClick={()=>void sendSavedFeedbackToCoach()}>Send saved feedback to Coach</button>}
+    <Modal open={dismissFeedbackOpen&&annotationTarget.kind==='feedback'} onClose={()=>{if(!busy)setDismissFeedbackOpen(false);}} title="Permanently dismiss this feedback?">
+      <p>This cannot be undone. This feedback and its pending agent-setup suggestions will no longer be available for teaching. Applied lessons stay unchanged.</p><div className="mt-5 flex gap-3"><button type="button" className="btn-outline" disabled={!!busy} onClick={()=>setDismissFeedbackOpen(false)}>Keep feedback</button><button type="button" className="btn-danger" disabled={!!busy||suggesting||versionChanged} onClick={()=>void dismissQueuedFeedback()}>Permanently dismiss feedback</button></div>
+    </Modal>
     {annotationMedia}{annotationDialogs}{operatingChanges}{exampleReview}{markedResultTraining}{evidenceReview}
     {pendingDemoLink&&<section role="status"><p>Your teaching draft is saved. Its link to the original note needs another try.</p><button type="button" disabled={!!busy} onClick={()=>work('Linking your demonstration',()=>linkDemoAnnotation(pendingDemoLink))}>Retry demonstration link</button></section>}
     {pendingAnswerLinks&&!questionAnswer&&<button type="button" disabled={!!busy} onClick={()=>work('Linking the preserved answer',()=>linkAnswers(pendingAnswerLinks))}>Retry saving this answer</button>}
@@ -2436,6 +2459,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     {!installationId&&<>
     <section className="training-teach-intro"><h2>Teach something new</h2><p>Show it when you need to point. Say it when a sentence is enough.</p><button id="training-chat-toggle" className="training-chat-mobile btn-outline" type="button" aria-expanded={true} aria-controls="training-companion" onClick={focusChat}>Say it in chat →</button></section></>}
     {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onSelectRun={openRun} selectedRunId={activeRunId} sourceActive={!!activeRunId||!!activeRecordingId||directSource} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={requestTrainingUpload} uploadDisabled={!!busy||changesBusy||versionChanged||(!currentVersion&&!separateIntake)} uploadStatus={[UPLOAD_PICKING,UPLOAD_CHECKING,UPLOAD_IMPORTING,UPLOAD_LEGACY].includes(busy)?busy:undefined}/>}/>}
+    {!installationId&&(recoverableFeedback.length>0||savedFeedbackUnreadable>0)&&<section aria-label="Saved feedback to finish" className="space-y-3 rounded-xl border border-ink-800 p-4"><h3 className="text-lg font-medium">Continue your saved feedback</h3><p className="text-sm text-ink-400">Recovery history in this browser. Open a note to check its saved copy. Nothing is applied.</p>{savedFeedbackUnreadable>0&&<p role="status" className="text-sm text-state-needs">Some saved feedback needs its original file on this Mac or could not be reopened. Your notes have not been changed.</p>}{recoverableFeedback.map(note=><div key={note.fingerprint} className="space-y-2"><p className="line-clamp-2 text-sm text-ink-400">{note.feedback||'Saved visual feedback'}</p><button type="button" className="text-sm text-state-needs underline" disabled={!!busy||changesBusy||versionChanged||directVoiceDirty||runDirty||recordingDirty||!!runFeedbackRequest} onClick={()=>void reopenSavedFeedback(note)}>Continue saved feedback</button></div>)}</section>}
 
     {!installationId&&pendingRecordingId&&<div role="status" className="text-sm text-ink-300">Another recording is ready. Your current feedback is preserved. <button type="button" className="underline" onClick={()=>{if(recordingDirty){setClosingRecording(false);setReplaceRecordingOpen(true);}else if(pendingRecordingId)openRecording(pendingRecordingId);}}>Annotate new recording</button></div>}
 

@@ -5,7 +5,7 @@ import {demoAnnotationReceipt,scopedTeachingSuggestion,teachingDigest,teachingFr
 import {deriveTrainingStages,TRAINING_PROPERTY_CODES,TRAINING_RELATIONS,type TrainingPropertyCode,type TrainingRelation,trainingDirectionFacts} from './training-local-ingress.ts';
 
 export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion|AnnotationAnalysis;analysisRequest?:AnalysisRequestReceipt;analysisOutcome?:'pending'|'failed';analysisContract?:'training-teaching-suggestion.v7'|'training-teaching-suggestion.v9';analysisIntent?:{retryOf:null|{requestEventId:string;requestDigest:string;acknowledgedUnknownPrior?:true}};record?:{recordId:string;recordDigest:string};linked?:boolean;suggestionStarted?:boolean;draftingRetries?:number;priorDraftOutcome?:'unconfirmed';retentionUntil?:string;reviewedRelation?:TrainingRelation};
-type Source={sourceId:string;token:string;metadata:{sha256:string;durationMs:number}};
+type Source={sourceId:string;token:string;metadata:{sha256:string;durationMs:number;width?:number;height?:number}};
 type Reply={ok:boolean;[key:string]:any};
 type Send=(operation:'annotation'|'suggestion',body:unknown,key?:string)=>Promise<Reply>;
 const JOURNAL_PREFIX='implexa:training-extraction:v1:';
@@ -48,14 +48,10 @@ export async function savedDirectFeedback(storage:Pick<Storage,'length'|'key'|'g
       const source=sources.find(source=>source.sourceId===a.sourceId&&source.metadata.sha256===a.sourceSha256);
       if(!source||!Number.isSafeInteger(source.metadata.durationMs)||source.metadata.durationMs<0||!Number.isSafeInteger(a.timeMs)||a.timeMs<0
         ||(source.metadata.durationMs===0?a.timeMs!==0:a.timeMs>=source.metadata.durationMs))throw Error('saved source unavailable');
-      const note=JSON.parse(a.rawAnnotation);
-      if(note?.role!=='trainer_commentary'||note.sourceKind!=='upload'||note.sourceId!==a.sourceId||note.timeMs!==a.timeMs
-        ||typeof note.feedback!=='string'||!note.feedback.trim())continue;
-      const spatial=note.spatial??null;
-      if(spatial!==null&&anchorError(buildSpatialAnchor({observedArtifactId:a.sourceId,observedArtifactSha256:a.sourceSha256,intent:{mode:INTENT_CHANGE},temporalStartMs:a.timeMs,geometry:spatial.geometry,sourceFrame:spatial.sourceFrame}))!==null)throw Error('invalid saved mark');
-      const expected=await teachingDigest(new TextEncoder().encode(JSON.stringify({id:sessionId,version:versionId,sourceId:a.sourceId,sourceSha256:a.sourceSha256,rawAnnotation:a.rawAnnotation,frameTime:a.timeMs})));
-      if(expected!==fingerprint)throw Error('saved identity mismatch');
-      notes.push({fingerprint,annotation:a,feedback:note.feedback,spatial});
+      const decoded=await readSavedFeedback({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:a.annotationId,annotationDigest:a.annotationDigest,annotation:{...a,contractVersion:'training-demo-annotation.v1',targetVersionId:versionId}},
+        {annotationId:a.annotationId,annotationDigest:a.annotationDigest,sessionId,versionId},{...source.metadata,width:source.metadata.width??0,height:source.metadata.height??0});
+      if(decoded.fingerprint!==fingerprint)throw Error('saved identity mismatch');
+      notes.push(decoded);
     }catch{unreadableCount++;}
   }
   return {notes:notes.sort((a,b)=>a.fingerprint.localeCompare(b.fingerprint)),unreadableCount};
