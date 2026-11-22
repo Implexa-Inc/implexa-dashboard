@@ -3815,3 +3815,21 @@ test('switching between canonical notes hides the previous text until the exact 
   await r.click(r.getByText('← Train'));assert.equal(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'),null);assert.equal(writes,0);
  }finally{release();r.cleanup();}
 });
+
+test('confirmed discard of a real result composer retires its unmounted dirty flag before saved feedback',async()=>{
+ const f=await recoveryFixture('image'),h=harness({previewImage:VALID_FRAME}),props={slug:'video-craft',ownerId:RECORD,familyId:RECORD,recentRuns:[{id:QUESTION,date:'2026-11-11T12:00:00Z',status:'Done',artifact:null}]};let writes=0;
+ const artifact={id:TOKEN,runId:QUESTION,relativePath:'out/final.mp4',role:'final_output',status:'validated',sha256:SOURCE_DIGEST,sizeBytes:100,mtime:null,validatedAt:null};
+ const r=await render('../training/[slug]/training-source.tsx',{...props,annotationTarget:{kind:'result',runId:QUESTION}},{bridge:h.bridge,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+  if(init.method==='POST'){writes++;return {ok:false,json:async()=>({ok:false})};}if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};
+  if(String(url).includes('/run-review?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-run-review.v1',review:{runId:QUESTION,trainingSlug:'video-craft',agentName:'Video craft',artifacts:[artifact],production:null,issues:[],session:{id:NEW_SESSION,runId:QUESTION,selectedArtifactId:TOKEN,state:'draft',submittedRequestId:null,submittedIssueIds:null,compiledBrief:null,acceptedAt:null},reviewArtifacts:[],sources:{issues:'ready',artifacts:'ready',session:'ready',evidence:'ready',reviewer_resolutions:'ready',review_artifacts:'ready'},isApprovalHold:false}})};
+  if(String(url).includes('/teaching-suggestion?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:f.canonical})};return {ok:false,json:async()=>({ok:false})};
+ }) as typeof fetch});
+ const flush=()=>r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));
+ try{
+  await flush();await r.click(r.getByText('+ Add feedback'));await setTextarea(r,r.document.querySelector('textarea[placeholder="What should change here?"]')!,'An unfinished result correction.');
+  await r.click(r.getByText('← Train'));assert.ok(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'));await r.click(r.getByText('Keep editing'));assert.equal((r.document.querySelector('textarea[placeholder="What should change here?"]') as HTMLTextAreaElement).value,'An unfinished result correction.');
+  await r.click(r.getByText('← Train'));await r.click(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"] button.btn-danger')!);
+  await r.rerender({...props,annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:SESSION}});await flush();assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'Keep the route visible.');assert.doesNotMatch(r.text(),/Finish or discard/);
+  await r.click(r.getByText('← Train'));assert.equal(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'),null);await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);await flush();assert.ok(r.document.querySelector('#training-run-player'));assert.equal(r.calls.push.at(-1),`/training/video-craft/review/${QUESTION}`);assert.equal(writes,0);
+ }finally{r.cleanup();}
+});
