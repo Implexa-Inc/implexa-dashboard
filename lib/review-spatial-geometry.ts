@@ -207,12 +207,14 @@ export function nudgeNormalizedPoint(
   };
 }
 
-/** Keep the selected recording note beside its mark and inside a usable picture. */
+/** Keep a note beside its mark; use normal flow when neither side is clear. */
 export function recordingNotePlacement(picture:ContentRect,mark:ContentRect|null,noteHeight:number){
   if(![picture.left,picture.top,picture.width,picture.height,noteHeight].every(Number.isFinite)||picture.width<480||picture.height<240)return null;
   const width=Math.min(320,picture.width-24),maxHeight=picture.height-16,height=Math.min(Math.max(noteHeight,120),maxHeight),gap=12;
   const area=mark||{left:picture.width/2,top:16,width:0,height:0};
   const right=area.left+area.width+gap;
-  const left=right+width<=picture.width-8?right:area.left-width-gap>=8?area.left-width-gap:Math.max(8,picture.width-width-8);
+  const fitsRight=right+width<=picture.width-8,fitsLeft=area.left-width-gap>=8;
+  if(mark&&!fitsRight&&!fitsLeft)return null;
+  const left=fitsRight?right:fitsLeft?area.left-width-gap:Math.max(8,picture.width-width-8);
   return {left:picture.left+left,top:picture.top+Math.max(8,Math.min(area.top,picture.height-height-8)),width,maxHeight};
 }
