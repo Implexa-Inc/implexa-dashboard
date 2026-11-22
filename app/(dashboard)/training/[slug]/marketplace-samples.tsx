@@ -2,6 +2,7 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import {createClient} from '@/lib/supabase/client';
+import {TrainingDialog as Modal} from './training-workspace';
 export type UploadedSample={id:string;kind:'uploaded';name:string;date:string;mediaType:string;width:number|null;height:number|null;durationMs:number|null;sizeBytes:number|null;sha256:string|null;posterSha256:string|null;provenance:'trainer_uploaded';state?:string;intentKey?:string;sourceSha256?:string;sourceSizeBytes?:number;sourceMediaType?:string};
 export const sampleUrl=(id:string,variant:'preview'|'poster'='poster')=>`/api/agent-training/marketplace-samples?id=${encodeURIComponent(id)}&variant=${variant}`;
 const messages:Record<string,string>={sample_limit:'You can store up to three uploads. Remove one before adding another.',sample_processing:'This example is still being prepared. Try again shortly.',sample_storage_unavailable:'Storage is unavailable. Your draft is safe; retry this upload.',sample_bytes_mismatch:'The upload did not arrive intact. Choose the same file to retry.',invalid_media:'Use a JPG, PNG, WebP, MP4 or MOV within the size limits.',invalid_excerpt:'Choose an excerpt between one and sixty seconds.',sample_already_prepared:'This excerpt has already been prepared. Remove the example to choose a different excerpt.'};
@@ -11,6 +12,7 @@ async function json(action:string,args:Record<string,string>,body:unknown,key?:s
 }
 export default function MarketplaceSamples({slug,versionId,uploads,onChanged,onBusy}:{slug:string;versionId:string;uploads:UploadedSample[];onChanged:(id?:string)=>Promise<void>;onBusy:(busy:boolean)=>void}){
  const [file,setFile]=useState<File|null>(null),[url,setUrl]=useState(''),[seconds,setSeconds]=useState<number|null>(null),[start,setStart]=useState(0),[end,setEnd]=useState(60),[attested,setAttested]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[unsupported,setUnsupported]=useState(false);
+ const [removing,setRemoving]=useState<string|null>(null);
  const input=useRef<HTMLInputElement>(null),epoch=useRef(0),xhr=useRef<XMLHttpRequest|null>(null),intent=useRef<{file:File;key:string;id?:string}|null>(null);
  useEffect(()=>{epoch.current++;return()=>{epoch.current++;xhr.current?.abort();};},[slug,versionId]);
  useEffect(()=>{if(!file){setUrl('');return;}const object=URL.createObjectURL(file);setUrl(object);return()=>URL.revokeObjectURL(object);},[file]);
@@ -36,7 +38,7 @@ export default function MarketplaceSamples({slug,versionId,uploads,onChanged,onB
   }catch(e){if(alive()){setError(messages[(e as Error).message]||'We could not confirm the upload. Retry with the same file; completed work will be reused.');await onChanged().catch(()=>{});}}
   finally{if(alive()){setBusy(false);onBusy(false);xhr.current=null;}}
  }
- async function remove(id:string){if(busy||!window.confirm('Delete this uploaded example and its stored original? This cannot be undone.'))return;const captured=epoch.current;setBusy(true);onBusy(true);setError('');try{await json('remove',{id},{});if(captured===epoch.current)await onChanged();}catch{if(captured===epoch.current)setError('Removal is not confirmed yet. Retry to finish deleting its stored copy.');}finally{if(captured===epoch.current){setBusy(false);onBusy(false);}}}
+ async function remove(id:string){if(busy)return;const captured=epoch.current;setBusy(true);onBusy(true);setError('');try{await json('remove',{id},{});if(captured===epoch.current){await onChanged();setRemoving(null);}}catch{if(captured===epoch.current)setError('Removal is not confirmed yet. Retry to finish deleting its stored copy.');}finally{if(captured===epoch.current){setBusy(false);onBusy(false);}}}
  return <div className="space-y-4">
   <input ref={input} type="file" hidden accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,.mov,.mp4,.png,.jpg,.jpeg,.webp" onChange={e=>{choose(e.target.files?.[0]);e.target.value='';}}/>
   <button type="button" className="btn-outline" disabled={busy||uploads.length>=3&&!uploads.some(s=>s.state!=='ready'&&s.state!=='deleting')} onClick={()=>input.current?.click()}>＋ Upload an example</button>
@@ -47,6 +49,7 @@ export default function MarketplaceSamples({slug,versionId,uploads,onChanged,onB
    <div className="flex gap-3"><button type="button" className="btn-primary" disabled={!attested||busy} onClick={()=>void run()}>{busy?'Preparing…':'Add example'}</button><button type="button" className="btn-outline" disabled={busy} onClick={()=>setFile(null)}>Cancel</button></div>
   </div>}
   {status&&<p role="status" className="text-sm text-ink-400">{status}</p>}{error&&<p role="alert" className="text-sm text-state-needs">{error}</p>}
-  {uploads.length>0&&<details className="text-sm text-ink-400"><summary className="cursor-pointer">Manage stored uploads ({uploads.length})</summary><div className="mt-3 space-y-3">{uploads.map(s=><div key={s.id} className="flex flex-wrap justify-between gap-3 text-xs text-ink-400"><span className="break-all">{s.name}{s.state!=='ready'?` · ${s.state==='deleting'?'Removal pending':s.state==='processing'?'Preparing preview':s.state==='failed'?'Upload unfinished':'Upload unfinished; choose the same file to retry'}`:''}</span><button type="button" disabled={busy} className="underline" onClick={()=>void remove(s.id)}>Remove stored upload</button></div>)}</div></details>}
+  {uploads.length>0&&<details className="text-sm text-ink-400"><summary className="cursor-pointer">Manage stored uploads ({uploads.length})</summary><div className="mt-3 space-y-3">{uploads.map(s=><div key={s.id} className="flex flex-wrap justify-between gap-3 text-xs text-ink-400"><span className="break-all">{s.name}{s.state!=='ready'?` · ${s.state==='deleting'?'Removal pending':s.state==='processing'?'Preparing preview':s.state==='failed'?'Upload unfinished':'Upload unfinished; choose the same file to retry'}`:''}</span><button type="button" disabled={busy} className="underline" onClick={()=>setRemoving(s.id)}>Remove stored upload</button></div>)}</div></details>}
+ <Modal open={removing!==null} onClose={()=>{if(!busy)setRemoving(null);}} title="Delete this example?"><p className="text-sm text-ink-300">Delete the uploaded example and its stored original. This cannot be undone.</p><div className="mt-5 flex gap-3"><button type="button" className="btn-primary" disabled={busy} onClick={()=>{if(removing)void remove(removing);}}>{busy?'Deleting…':'Delete stored copy'}</button><button type="button" className="btn-outline" disabled={busy} onClick={()=>setRemoving(null)}>Cancel</button></div></Modal>
  </div>;
 }
