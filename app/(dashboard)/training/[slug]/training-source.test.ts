@@ -307,30 +307,11 @@ test('unavailable private installation never falls back to publisher training or
  finally{r.cleanup();}
 });
 
-test('public definition needs current-version review and confirmation without publishing teaching evidence',async()=>{
- for(const mode of ['valid','stale','not-owned']) {
-  const h=await renderedWith(),r=h.rendered,requests:Array<{method:string;body:any}>=[];
-  r.window.fetch=(async(_url:any,options:any={})=>{
-   requests.push({method:options.method||'GET',body:options.body?JSON.parse(options.body):null});
-   return {ok:mode!=='not-owned',json:async()=>options.method==='POST'?{ok:true,shared:true}:{ok:mode!=='not-owned',error:'Agent not found.',
-    publication:{versionId:mode==='stale'?VERSION_B:VERSION_A,shared:false,publicUrl:'https://implexa.ai/workflows/video-craft'}}};
-  }) as typeof r.window.fetch;
-  try {
-   assert.equal(r.queryByText('Make agent public'),null);
-   await r.click(r.getByText('Check public visibility'));
-   if(mode!=='valid'){assert.equal(r.queryByText('Make agent public'),null);assert.equal(requests.length,1);continue;}
-   assert.equal((r.getByText('Make agent public') as HTMLButtonElement).disabled,true);
-   await r.click(r.getByText(/Publish this agent definition for other people/).closest('label')!.querySelector('input')!);
-   await r.click(r.getByText('Make agent public'));
-   assert.deepEqual(requests[1],{method:'POST',body:{expectedVersionId:VERSION_A,definitionOnlyConfirmed:true}});
-   assert.match(r.text(),/This agent definition is public/);assert.ok(r.queryByText('Open public agent'));
-   assert.match(r.text(),/public site and in community search/);
-   await r.click(r.getByText('Make agent private'));
-   assert.deepEqual(requests[2],{method:'POST',body:{expectedVersionId:VERSION_A,makePrivate:true}});
-   assert.match(r.text(),/This agent definition is private/);assert.equal(r.queryByText('Open public agent'),null);
-   assert.equal(h.calls.some(c=>['accept','serverStorage','annotate'].includes(c.operation)),false);
-  }finally{r.cleanup();}
- }
+test('training replaces its separate public/private controls with the single listing page',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ try{assert.equal(r.queryByText('Make agent public'),null);assert.equal(r.queryByText('Check public visibility'),null);
+ const link=r.getByText('Manage marketplace listing and visibility');assert.equal(link.tagName,'A');assert.equal(link.getAttribute('href'),`/training/video-craft/listing?versionId=${VERSION_A}`);assert.equal(h.calls.some(c=>['accept','serverStorage','annotate'].includes(c.operation)),false);
+ }finally{r.cleanup();}
 });
 
 async function setInput(rendered: Rendered, input: Element, value: string) {
@@ -1732,7 +1713,7 @@ test('owner workspace keeps chat visible beside teaching actions and preserves s
  try{
   for(const label of ['◉ Record','↑ Upload','Show it'])assert.equal(visible(r.getByText(label)),true);
   assert.ok(r.document.querySelector('[aria-label="Choose a training source"]'));assert.equal(r.queryByText('3 ways to train'),null);assert.equal(r.queryByText('Multimodal Training'),null);
-  assert.equal(visible(r.getByText('Check public visibility')),false);
+  assert.equal(visible(r.getByText('Manage marketplace listing and visibility')),false);
   assert.equal(visible(r.getByText('Load recorded questions')),false);
   assert.equal(visible(r.getByText('Add training source')),false);
   const chat=r.document.getElementById('training-companion')!;
@@ -1749,7 +1730,7 @@ test('owner workspace keeps chat visible beside teaching actions and preserves s
   await r.click(r.getByText('Questions from your agent →'));
   assert.equal(visible(r.getByText('Load recorded questions')),true);
   await r.click(r.getByText('Sharing & settings'));
-  assert.equal(visible(r.getByText('Check public visibility')),true);
+  assert.equal(visible(r.getByText('Manage marketplace listing and visibility')),true);
   assert.equal(h.calls.some(c=>['select','recording','annotate','accept','delivery'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
@@ -1761,7 +1742,7 @@ test('choosing a source from history returns to teaching without changing the sa
   await r.click(r.getByText('Annotate source'));
   assert.equal(r.document.getElementById('recording-analysis')!.closest('[hidden]'),null);
   const wording=r.getByText('Advanced manual teaching').closest('details')!;assert.equal(wording.open,false,'empty structured wording is not imposed on the normal annotation path');
-  assert.equal(r.getByText('Check public visibility').closest('[hidden]')!==null,true);
+  assert.equal(r.getByText('Manage marketplace listing and visibility').closest('[hidden]')!==null,true);
   assert.equal(h.calls.some(c=>['annotate','accept','recording'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
@@ -2993,7 +2974,7 @@ test('delayed Apply and saved-change reads cannot overwrite a newer session or v
  const code=transformSync(`function controller(){
   ${block('  async function loadChanges(','  useEffect(()=>{setChanges(null);')}
   ${block('  async function mutateChanges(','  function requestLearning(')}
-  ${block('  async function work(','  async function changePublication(')}
+  ${block('  async function work(','  function rememberList(')}
   ${block('  async function applyTextDrafts(','  async function applyVisualDrafts(')}
   return {loadChanges,applyTextDrafts};
  }`,{loader:'ts',target:'es2022'}).code;

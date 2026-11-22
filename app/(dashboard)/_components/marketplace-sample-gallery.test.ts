@@ -26,3 +26,8 @@ test('empty Find states use plain list-state wording, and an empty search does n
  const r=await render('marketplace-sample-gallery.tsx',{listings:[]});
  try{assert.match(r.text(),/No results/);assert.match(r.text(),/No trained agents are listed yet/);assert.equal(r.document.querySelector('.marketplace-build-card'),null);}finally{r.cleanup();}
 });
+
+ test('an approved cover opens its authenticated preview and labels uploaded examples honestly',async t=>{
+ const cover={id:'12000000-0000-4000-8000-000000000099',kind:'uploaded',name:'Sample movie',mediaType:'video/mp4',width:320,height:180,durationMs:2000,provenance:'trainer_uploaded'};
+ const r=await render('marketplace-sample-gallery.tsx',{listings:[],approved:{status:'ready',listings:[{...actual,samples:[cover],cover,samplePlayback:'hosted_examples'}]}});t.after(()=>r.cleanup());await r.click(r.getByText('▶').closest('button')!);assert.match(r.document.querySelector('[role="dialog"]')!.textContent!,/not a verified result/);assert.match(r.document.querySelector('video')!.getAttribute('src')!,/id=12000000-0000-4000-8000-000000000099&variant=preview/);assert.equal(r.calls.backend.length,0);
+ });
