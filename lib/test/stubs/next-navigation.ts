@@ -3,5 +3,5 @@ export const useRouter = () => ({
   refresh: () => {},
   replace: (path: string) => globalThis.__implexaCalls.replace.push(path),
 });
-export const usePathname = () => '/';
-export const useSearchParams = () => new URLSearchParams();
+export const usePathname = () => (globalThis as unknown as {__implexaTestPath?:string}).__implexaTestPath?.split('?')[0]||'/';
+export const useSearchParams = () => new URLSearchParams((globalThis as unknown as {__implexaTestPath?:string}).__implexaTestPath?.split('?')[1]||'');

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,savedDirectFeedback,savedFeedbackMatches,type FeedbackExtractionProgress,type FeedbackDraftRequest} from './training-feedback-extraction.ts';
+import {queueFeedbackAnnotation,saveFeedbackAnnotation,readSavedFeedback,extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,savedDirectFeedback,savedFeedbackMatches,type FeedbackExtractionProgress,type FeedbackDraftRequest} from './training-feedback-extraction.ts';
 const id='11111111-1111-4111-8111-111111111111',record='22222222-2222-4222-8222-222222222222';
 const sha='a'.repeat(64),source={sourceId:id,token:'native-token',metadata:{sha256:sha,durationMs:1000}};
 const image='data:image/png;base64,'+Buffer.alloc(40,1).toString('base64');
@@ -266,4 +266,40 @@ test('an uncertain direction-aware native save retries the same scope, key and b
  await assert.rejects(run(),/unknown native save/);await run();
  const writes=calls.filter(c=>c[0]==='annotate');assert.equal(writes.length,2);assert.deepEqual(writes[0][1],writes[1][1]);
  assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);
+});
+
+
+test('save-only Done uses the canonical writer and stable receipt without any AI, native teaching or admission',async()=>{
+ const calls:string[]=[],progress:FeedbackExtractionProgress={key:id};
+ const args={source,timeMs:100,rawAnnotation:'Keep the place visible.',versionId:id,progress,check:async()=>{},call:async(op:string)=>{calls.push(op);assert.equal(op,'preview');return {ok:true,image};},send:async(op:string,body:any,key?:string)=>{calls.push(op+':'+body.action);assert.equal(op,'annotation');assert.equal(body.action,'save');assert.equal(key,`workspace-note:${id}`);const {action,expectedActiveVersionId,...annotation}=body;return {ok:true,contractVersion:'training-demo-annotation.v1',annotationId:id,annotationDigest:sha,annotation:{...annotation,contractVersion:'training-demo-annotation.v1',targetVersionId:expectedActiveVersionId}};}};
+ await saveFeedbackAnnotation(args);await saveFeedbackAnnotation(args);
+ assert.deepEqual(calls,['preview','annotation:save','preview']);assert.equal(progress.suggestion,undefined);assert.equal(progress.record,undefined);assert.equal(progress.linked,undefined);
+});
+test('reopened recording feedback preserves the full range, region, all card fields and original save identity',async()=>{
+ const moment={momentId:id,startMs:100,endMs:800,region:{x:100000,y:200000,width:400000,height:300000},card:{whatToDo:'Explain the route.',why:'Geography matters.',insteadOf:'A text list.',howToCheck:'Route is legible.',whenNot:'No geographic claim.'},createdAt:'2026-11-21T12:00:00.000Z'};
+ const rawAnnotation=JSON.stringify({role:'trainer_commentary',recordingId:id,moment}),frameSha256=hash(Buffer.alloc(40,1).toString('binary'));
+ const value={ok:true,contractVersion:'training-demo-feedback.v1',annotationId:id,annotationDigest:sha,annotation:{contractVersion:'training-demo-annotation.v1',sourceId:id,sourceSha256:sha,timeMs:100,frameSha256,rawAnnotation,targetVersionId:id,idempotencyKey:'workspace-note:'+id}};
+ const expected={annotationId:id,annotationDigest:sha,sessionId:id,versionId:id},metadata={sha256:sha,durationMs:1000,width:320,height:180};
+ const note=await readSavedFeedback(value,expected,metadata);assert.deepEqual(note.moment,moment);assert.equal(note.annotation.rawAnnotation,rawAnnotation);assert.equal(note.spatial?.geometry.width,.4);assert.match(note.feedback,/How you would check it was done: Route is legible/);
+ assert.equal(note.fingerprint,hash(JSON.stringify({sessionId:id,version:id,sourceSha256:sha,rawAnnotation})));
+ for(const changed of [{...expected,annotationDigest:'b'.repeat(64)},{...expected,annotationId:record},{...expected,versionId:record}])await assert.rejects(readSavedFeedback(value,changed,metadata));
+ await assert.rejects(readSavedFeedback(value,expected,{...metadata,sha256:'b'.repeat(64)}));
+ await assert.rejects(readSavedFeedback({...value,annotation:{...value.annotation,rawAnnotation:JSON.stringify({role:'trainer_commentary',recordingId:id,moment:{...moment,endMs:1100}})}},expected,metadata));
+});
+
+test('older plain-text saved annotations reopen without a new save or rewriting the original',async()=>{
+ const annotation={contractVersion:'training-demo-annotation.v1',sourceId:id,sourceSha256:sha,timeMs:100,frameSha256:sha,rawAnnotation:'Keep the route visible.\nUse a map when useful.',targetVersionId:id};
+ const result=await readSavedFeedback({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:id,annotationDigest:sha,annotation},{annotationId:id,annotationDigest:sha,sessionId:id,versionId:id},{sha256:sha,durationMs:1000,width:320,height:180});
+ assert.equal(result.feedback,annotation.rawAnnotation);assert.equal(result.annotation.rawAnnotation,annotation.rawAnnotation);assert.equal(result.moment,null);assert.equal(result.spatial,null);
+});
+
+
+test('save-to-Coach requires the exact queue receipt and retries the same saved annotation after a missing writer',async()=>{
+ const progress:FeedbackExtractionProgress={key:id};let saves=0,queues=0;const keys:string[]=[];
+ const args={source,timeMs:100,rawAnnotation:'Keep the route visible.',versionId:id,progress,check:async()=>{},call:async()=>({ok:true,image}),send:async(op:string,body:any,key?:string)=>{
+  keys.push(key||'');if(body.action==='save'){saves++;const {action,expectedActiveVersionId,...annotation}=body;return {ok:true,contractVersion:'training-demo-annotation.v1',annotationId:id,annotationDigest:sha,annotation:{...annotation,contractVersion:'training-demo-annotation.v1',targetVersionId:expectedActiveVersionId}};}
+  assert.equal(op,'annotation');assert.equal(body.action,'queue');if(++queues===1)return {ok:false,reason:'training_local_unavailable'};
+  return {ok:true,contractVersion:'training-demo-queue.v1',annotationId:id,annotationDigest:sha,eventId:record};
+ }};
+ await assert.rejects(queueFeedbackAnnotation(args),/handoff.*unconfirmed/);assert.ok(progress.annotation);await queueFeedbackAnnotation(args);assert.equal(saves,1);assert.equal(queues,2);assert.equal(keys[1],keys[2]);assert.equal(progress.linked,undefined);assert.equal(progress.record,undefined);
 });

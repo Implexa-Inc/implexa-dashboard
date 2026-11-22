@@ -27,6 +27,7 @@ import { resolveReviewAction, REVISION_NOTE_MAX } from './review-actions.ts';
 register(new URL('../scripts/dom-test-loader.mjs', import.meta.url), {
   data: {
     stubs: {
+      'next/link': ['lib','test','stubs','next-link.tsx'],
       '@/lib/supabase/client': ['scripts', 'stubs', 'supabase-client.mjs'],
       '@/lib/api': ['scripts', 'stubs', 'backend-api.mjs'],
     },

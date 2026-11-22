@@ -90,3 +90,10 @@ test('saved recording read forwards only exact selectors with server authenticat
  for(const extra of ['&ownerId=foreign','&suggestionId='+SESSION])assert.equal((await p.GET(new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?${query}${extra}`))).status,400);
  const denied=proxy({signedIn:false});assert.equal((await denied.GET(new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?${query}`))).status,401);assert.equal(denied.calls.length,0);
 });
+
+test('saved annotation read and dismissal reuse the existing authenticated operation without inference',async()=>{
+ const query=`operation=annotation&sessionId=${SESSION}&expectedActiveVersionId=${SESSION}&annotationId=${SESSION}&annotationDigest=${'a'.repeat(64)}`;
+ const p=proxy(),value=await p.GET(new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?${query}`));assert.equal(value.status,200);assert.match(p.calls[0].url,/demo-annotation\?/);assert.equal(p.calls[0].init.headers.authorization,'Bearer server-session');assert.equal(p.calls[0].init.body,undefined);assert.equal(value.headers['Cache-Control'],'no-store');
+ for(const extra of ['&ownerId=foreign','&annotationId='+SESSION])assert.equal((await p.GET(new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?${query}${extra}`))).status,400);assert.equal(p.calls.length,1);
+ const post=proxy();assert.equal((await post.POST(new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?sessionId=${SESSION}&operation=annotation`,{method:'POST',headers:{'Idempotency-Key':'demo-dismiss-original'},body:JSON.stringify({action:'dismiss',annotationId:SESSION,annotationDigest:'a'.repeat(64),expectedActiveVersionId:SESSION})}))).status,200);assert.match(post.calls[0].url,/demo-annotation$/);assert.equal(post.calls[0].init.headers['Idempotency-Key'],'demo-dismiss-original');
+});
