@@ -46,7 +46,7 @@ export function StarButton({ skillId, initialStarred, initialCount, jwt, size = 
 
   // Visual sizing tokens — keep both variants on a single rhythm.
   const padding   = size === 'sm' ? 'px-2 py-1'     : 'px-2.5 py-1.5';
-  const textSize  = size === 'sm' ? 'text-xs'       : 'text-sm';
+  const textSize  = size === 'sm' ? 'text-secondary'       : 'text-ui';
   const iconSize  = size === 'sm' ? 'h-3.5 w-3.5'   : 'h-4 w-4';
 
   async function toggle() {

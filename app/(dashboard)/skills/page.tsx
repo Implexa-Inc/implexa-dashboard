@@ -129,7 +129,7 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">
             {profile.display_name ? `Welcome, ${profile.display_name.split(' ')[0]}` : 'Your skills'}
           </h1>
-          <p className="text-ink-300 text-sm mt-1">
+          <p className="text-ink-300 text-reading mt-1">
             Your library. Fork, run, capture, share — every skill runs in your Claude.
           </p>
         </header>
@@ -141,16 +141,16 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
               <div className="text-2xl">⚡</div>
               <div className="flex-1">
                 <h2 className="text-lg font-medium mb-1">Get started in 30 seconds</h2>
-                <p className="text-sm text-ink-200 mb-4">
+                <p className="text-reading text-ink-200 mb-4">
                   You're set up on the web. Next: connect Claude to Tukido so your skills are usable in Claude Code, Claude Desktop, or Claude.ai web. Three options — pick the easiest.
                 </p>
 
                 <div className="flex flex-wrap gap-3 items-center">
                   <Link href="/install" className="btn-primary">Connect Claude →</Link>
-                  <Link href="/settings/api-keys" className="text-sm text-action-accent hover:underline">Or generate an API key first →</Link>
+                  <Link href="/settings/api-keys" className="text-secondary text-action-accent hover:underline">Or generate an API key first →</Link>
                 </div>
 
-                <div className="mt-4 text-xs text-ink-500">
+                <div className="mt-4 text-secondary text-ink-500">
                   Or browse the {systemSkills.length} base Playbooks below and fork one.
                 </div>
               </div>

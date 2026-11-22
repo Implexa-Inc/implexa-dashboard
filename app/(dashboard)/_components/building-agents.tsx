@@ -162,7 +162,7 @@ export default function BuildingAgents() {
   if (unavailable && !builds) {
     return (
       <section className="mt-3">
-        <div className="rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3 text-[11px] text-ink-500">
+        <div className="rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3 text-secondary text-ink-500">
           Couldn’t load build status. Retrying…
         </div>
       </section>
@@ -189,19 +189,19 @@ export default function BuildingAgents() {
           >
             <div className="flex items-center gap-3">
               {b.phase === 'built' ? (
-                <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-emerald-500 flex items-center justify-center text-[9px] text-ink-950" aria-hidden="true">✓</span>
+                <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-emerald-500 flex items-center justify-center text-secondary text-ink-950" aria-hidden="true">✓</span>
               ) : (b.phase === 'failed' || b.phase === 'start_failed') ? (
-                <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-rose-500 flex items-center justify-center text-[9px] text-ink-950" aria-hidden="true">!</span>
+                <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-rose-500 flex items-center justify-center text-secondary text-ink-950" aria-hidden="true">!</span>
               ) : b.phase === 'cancelled' ? (
                 <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-ink-600" aria-hidden="true" />
               ) : (
                 <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-amber-500/30 border-t-amber-500 animate-spin" aria-hidden="true" />
               )}
               <div className="min-w-0 flex-1">
-                <div className="text-sm text-ink-100 truncate">
+                <div className="text-secondary text-ink-100 truncate">
                   {c.title}{b.intent ? <span className="text-ink-400 font-normal">: {b.intent}</span> : ''}
                 </div>
-                <div className="text-[11px] text-ink-500">
+                <div className="text-secondary text-ink-500">
                   {/* A failure states its reason. "Failed" with no actionable
                       next step is barely better than the false "Built" it
                       replaces. */}
@@ -223,13 +223,13 @@ export default function BuildingAgents() {
                       return n;
                     })}
                     aria-expanded={expanded}
-                    className="text-[11px] text-ink-500 hover:text-ink-200 px-1"
+                    className="text-ui text-ink-500 hover:text-ink-200 px-1"
                   >
                     {expanded ? 'Hide steps' : 'Steps'}
                   </button>
                 ) : null}
                 {b.phase === 'built' ? (
-                  <Link href={b.workflowSlug ? `/workflows/${encodeURIComponent(b.workflowSlug)}` : '/workflows'} className="btn-success text-xs px-3 py-1.5">
+                  <Link href={b.workflowSlug ? `/workflows/${encodeURIComponent(b.workflowSlug)}` : '/workflows'} className="btn-success text-secondary px-3 py-1.5">
                     {b.workflowSlug ? 'Review agent' : 'See your agents'}
                   </Link>
                 ) : null}
@@ -238,7 +238,7 @@ export default function BuildingAgents() {
                     type="button"
                     onClick={() => setDismissed((p) => new Set(p).add(b.id))}
                     aria-label="Dismiss"
-                    className="text-ink-600 hover:text-ink-200 text-sm leading-none px-1"
+                    className="text-ink-600 hover:text-ink-200 text-ui leading-none px-1"
                   >
                     ✕
                   </button>
@@ -249,7 +249,7 @@ export default function BuildingAgents() {
             {expanded && history.length > 0 ? (
               <ol className="mt-3 border-t border-ink-800/70 pt-2 space-y-1">
                 {history.map((e, i) => (
-                  <li key={`${e.event}-${e.at}-${i}`} className="flex items-baseline gap-2 text-[11px]">
+                  <li key={`${e.event}-${e.at}-${i}`} className="flex items-baseline gap-2 text-secondary">
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${phaseDot(e.event)}`} aria-hidden="true" />
                     <span className="text-ink-300 w-20 shrink-0">{STEP_LABEL[e.event] || e.event}</span>
                     <span className="text-ink-500 tabular-nums">{clock(e.at)}</span>

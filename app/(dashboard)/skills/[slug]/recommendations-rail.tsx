@@ -52,7 +52,7 @@ export async function RecommendationsRail({
     <section className="mt-8">
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-lg font-medium">you might also like</h2>
-        <span className="text-xs text-ink-500">based on what your org runs together</span>
+        <span className="text-secondary text-ink-500">based on what your org runs together</span>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {recs.map((r) => (
@@ -61,11 +61,11 @@ export async function RecommendationsRail({
             href={`/skills/${r.slug}`}
             className="card hover:border-brand-500 transition-colors group"
           >
-            <div className="text-sm font-medium text-ink-50 group-hover:text-action-accent line-clamp-2">
+            <div className="text-secondary font-medium text-ink-50 group-hover:text-action-accent line-clamp-2">
               {r.name}
             </div>
-            <code className="text-xs text-ink-500 font-mono block mt-1 truncate">{r.slug}</code>
-            <div className="text-xs text-ink-400 mt-2">{r.reason}</div>
+            <code className="text-micro text-ink-500 font-mono block mt-1 truncate">{r.slug}</code>
+            <div className="text-secondary text-ink-400 mt-2">{r.reason}</div>
           </Link>
         ))}
       </div>

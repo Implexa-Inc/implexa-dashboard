@@ -48,13 +48,13 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-16 text-center">
         <h1 className="text-lg font-medium text-ink-100">We couldn&apos;t load this review.</h1>
-        <p className="mt-2 text-sm text-ink-400">
+        <p className="mt-2 text-reading text-ink-400">
           That doesn&apos;t mean the result is gone — its Review data could not be loaded or verified just now.
         </p>
-        {packet.readFailure && <p className="mt-2 text-xs text-ink-500">
+        {packet.readFailure && <p className="mt-2 text-secondary text-ink-500">
           Read failure: {packet.readFailure}{packet.httpStatus ? ` (${packet.httpStatus})` : ''}.
         </p>}
-        <Link href={backHref} className="mt-6 inline-block text-sm text-state-running hover:underline">
+        <Link href={backHref} className="mt-6 inline-block text-secondary text-state-running hover:underline">
           Back to {trainingSlug?'Training':'Review'}
         </Link>
       </div>
@@ -95,14 +95,14 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
   return (
     <div className="app-page"><div className="app-content">
       <div className="mb-4">
-        <Link href={backHref} className="text-xs text-ink-500 hover:text-ink-300">← {trainingSlug?'Training':'Review'}</Link>
+        <Link href={backHref} className="text-secondary text-ink-500 hover:text-ink-300">← {trainingSlug?'Training':'Review'}</Link>
       </div>
 
       <header className="app-page-head">
         <div className="min-w-0">
           {/* Agent name is the identity; the revision label is secondary context. */}
           <h1 className="text-ink-100">{agentName}</h1>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-400">
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-secondary text-ink-400">
             {currentLabel && <span className="rounded bg-ink-800 px-1.5 py-0.5">{currentLabel}</span>}
             {packet.sources.judgment === 'unavailable' ? (
               <span className="text-state-needs">Judge state unavailable</span>
@@ -119,12 +119,12 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
       </header>
 
       {broken.length > 0 && (
-        <div role="status" className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-state-needs">
+        <div role="status" className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-secondary text-state-needs">
           Some of this review couldn&apos;t be loaded ({broken.join(', ')}). What you see may be incomplete.
         </div>
       )}
 
-      <nav aria-label="Output versions" className="mb-4 flex flex-wrap items-center gap-3 text-xs text-ink-400">
+      <nav aria-label="Output versions" className="mb-4 flex flex-wrap items-center gap-3 text-secondary text-ink-400">
         <span>Versions</span>
         {packet.sources.lineage==='unavailable'?<span className="text-state-needs">Version history unavailable</span>:versions.length?versions.map(v=>v.runId===packet.run!.id?<span key={v.runId} aria-current="page" className="rounded bg-ink-800 px-2 py-1 text-ink-100">{v.label}</span>:<Link key={v.runId} href={trainingSlug?trainingReviewHref(trainingSlug,v.runId):`/review/${v.runId}`} className="hover:underline">{v.label}</Link>):<span>No revisions yet</span>}
       </nav>
@@ -160,19 +160,19 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
         <TasteFitReviewCard review={packet.tasteFit} />
 
       <section className="mb-5 rounded-lg border border-ink-800 bg-ink-950/40 p-4" aria-label="Learnings used">
-        <h2 className="text-sm font-semibold text-ink-100">Learnings used</h2>
-        <p className="mt-1 text-xs text-ink-500">Owner-approved rules frozen for this attempt. This is separate from stage skills above.</p>
+        <h2 className="text-ui font-semibold text-ink-100">Learnings used</h2>
+        <p className="mt-1 text-secondary text-ink-500">Owner-approved rules frozen for this attempt. This is separate from stage skills above.</p>
         {!reviewLearningAvailable ? (
-          <p className="mt-2 text-xs text-state-needs">Attempt-bound learning proof is unavailable. No handling state is inferred.</p>
+          <p className="mt-2 text-secondary text-state-needs">Attempt-bound learning proof is unavailable. No handling state is inferred.</p>
         ) : !reviewLearningProof ? (
-          <p className="mt-2 text-xs text-ink-500">No learning context was frozen for this run.</p>
+          <p className="mt-2 text-secondary text-ink-500">No learning context was frozen for this run.</p>
         ) : (
           <div className="mt-2">
-            <p className="text-[11px] text-ink-500">Attempt {reviewLearningProof.launch_attempt_id.slice(0, 12)} · fence {reviewLearningProof.fencing_epoch} · context {reviewLearningProof.context_digest.slice(0, 12)}</p>
+            <p className="text-reading text-ink-500">Attempt {reviewLearningProof.launch_attempt_id.slice(0, 12)} · fence {reviewLearningProof.fencing_epoch} · context {reviewLearningProof.context_digest.slice(0, 12)}</p>
             <ul className="mt-2 space-y-2">
               {(reviewLearningProof.context.rules || []).map((rule) => {
                 const receipt = reviewLearningHandling.find((item) => item.rule_version_id === rule.id);
-                return <li key={rule.id} className="rounded border border-ink-800 px-3 py-2 text-xs text-ink-300">
+                return <li key={rule.id} className="rounded border border-ink-800 px-3 py-2 text-secondary text-ink-300">
                   <p>{rule.instruction}</p>
                   <p className="mt-1 text-ink-500">v{rule.version} · {rule.versionDigest.slice(0, 12)} · executor handling {receipt ? receipt.handling.replaceAll('_', ' ') : 'pending'}</p>
                   {receipt?.reason && <p className="mt-1 text-ink-500">Reason: {receipt.reason}</p>}
@@ -187,33 +187,33 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
       {/* Distinct authorities, kept visually and semantically separate. */}
       <section className="mt-8 grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-          <h2 className="text-sm font-medium text-ink-200">Judge</h2>
-          <p className="mt-1 text-xs text-ink-500">A machine&apos;s opinion. Not proof, and not your decision.</p>
+          <h2 className="text-ui font-medium text-ink-200">Judge</h2>
+          <p className="mt-1 text-secondary text-ink-500">A machine&apos;s opinion. Not proof, and not your decision.</p>
           {packet.sources.judgment === 'unavailable' ? (
-            <p className="mt-2 text-xs text-state-needs">Unavailable — we couldn&apos;t read it.</p>
+            <p className="mt-2 text-secondary text-state-needs">Unavailable — we couldn&apos;t read it.</p>
           ) : packet.judgment ? (
             <>
-              <p className="mt-2 text-sm text-ink-200">{packet.judgment.verdict}</p>
-              <p className="mt-1 text-xs text-ink-400">{packet.judgment.summary}</p>
+              <p className="mt-2 text-reading text-ink-200">{packet.judgment.verdict}</p>
+              <p className="mt-1 text-secondary text-ink-400">{packet.judgment.summary}</p>
             </>
           ) : (
-            <p className="mt-2 text-xs text-ink-500">No verdict recorded.</p>
+            <p className="mt-2 text-secondary text-ink-500">No verdict recorded.</p>
           )}
         </div>
 
         <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-          <h2 className="text-sm font-medium text-ink-200">Verified files</h2>
-          <p className="mt-1 text-xs text-ink-500">Deterministic checks. Independent of Judge and of your review.</p>
+          <h2 className="text-ui font-medium text-ink-200">Verified files</h2>
+          <p className="mt-1 text-secondary text-ink-500">Deterministic checks. Independent of Judge and of your review.</p>
           {packet.sources.verification === 'unavailable' ? (
-            <p className="mt-2 text-xs text-state-needs">Unavailable — we couldn&apos;t read it.</p>
+            <p className="mt-2 text-secondary text-state-needs">Unavailable — we couldn&apos;t read it.</p>
           ) : packet.verification.receipts.length ? (
-            <ul className="mt-2 space-y-1 text-xs text-ink-300">
+            <ul className="mt-2 space-y-1 text-secondary text-ink-300">
               {packet.verification.receipts.map((r) => (
                 <li key={r.id}>{r.adapterKind}: {r.status}</li>
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-xs text-ink-500">No verification receipts.</p>
+            <p className="mt-2 text-secondary text-ink-500">No verification receipts.</p>
           )}
         </div>
 

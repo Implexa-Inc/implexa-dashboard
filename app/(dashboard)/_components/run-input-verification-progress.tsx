@@ -32,8 +32,8 @@ export default function RunInputVerificationProgress({ progress, canceling, onCa
     <div role="status" aria-label="Local input verification" className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/5 p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-state-running">Reading locally to verify — not uploading</p>
-          <p className="mt-1 text-xs text-ink-400">
+          <p className="text-secondary font-medium text-state-running">Reading locally to verify — not uploading</p>
+          <p className="mt-1 text-secondary text-ink-400">
             {label} · {formatBytes(progress.bytesRead)}{totalKnown && <> of {formatBytes(totalBytes)} · {Math.round(percent)}%</>}
           </p>
           <div
@@ -51,7 +51,7 @@ export default function RunInputVerificationProgress({ progress, canceling, onCa
           type="button"
           onClick={onCancel}
           disabled={canceling}
-          className="rounded-md border border-ink-700 px-2.5 py-1.5 text-xs text-ink-300 hover:border-ink-500 disabled:opacity-50"
+          className="rounded-md border border-ink-700 px-2.5 py-1.5 text-ui text-ink-300 hover:border-ink-500 disabled:opacity-50"
         >
           {canceling ? 'Canceling…' : 'Cancel'}
         </button>

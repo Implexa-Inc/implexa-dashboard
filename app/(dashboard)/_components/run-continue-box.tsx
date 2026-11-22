@@ -162,15 +162,15 @@ export default function RunContinueBox({
   }
 
   if (done) {
-    return <p className="text-xs text-success-600 dark:text-success-400">{msg}</p>;
+    return <p className="text-secondary text-success-600 dark:text-success-400">{msg}</p>;
   }
 
   return (
     <div className={presentation==='finished'?'finished-continue':'rounded-lg border border-ink-800 bg-ink-900/40 p-4'}>
-      <div className="text-sm font-semibold text-ink-100">
+      <div className="text-secondary font-semibold text-ink-100">
         {presentation==='finished'?'Or ask for changes':pending ? 'Continue with changes or the missing inputs' : 'Continue this run'}
       </div>
-      <p className={`text-xs text-ink-400 mt-0.5 leading-relaxed ${presentation==='finished'?'sr-only':''}`}>
+      <p className={`text-reading text-ink-400 mt-0.5 ${presentation==='finished'?'sr-only':''}`}>
         Add instructions, feedback, or the inputs it still needs{canAttach ? ' (attach files too)' : ''} — it picks up
         from this run&apos;s output and produces an updated result for <span className="text-ink-200">{agentName}</span>, hands-off.
       </p>
@@ -180,7 +180,7 @@ export default function RunContinueBox({
         rows={3}
         aria-label="What should change?"
         placeholder={presentation==='finished'?'Say what to change, in your own words…':'Add instructions, feedback, or the missing inputs…'}
-        className="mt-3 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
+        className="mt-3 w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
       />
       <AttachFiles
         files={files}
@@ -192,7 +192,7 @@ export default function RunContinueBox({
         error={attachError}
         hint="A screenshot, the captured footage, a doc — the run reads it as input."
       />
-      {showMedia && <details className="mt-3 rounded-md border border-ink-800 px-3 py-2 text-xs text-ink-300">
+      {showMedia && <details className="mt-3 rounded-md border border-ink-800 px-3 py-2 text-secondary text-ink-300">
         <summary className="cursor-pointer font-medium text-ink-200">Media for this revision</summary>
         {audioEdits && <div className="mt-3 space-y-2">
           <label className="flex items-center gap-2">
@@ -225,13 +225,13 @@ export default function RunContinueBox({
         </div>}
       </details>}
       <details className="revision-options" open={presentation==='finished'?undefined:true}><summary>Advanced revision options</summary>
-      {!pending && <label className="mt-3 flex items-start gap-2 text-xs text-ink-400">
+      {!pending && <label className="mt-3 flex items-start gap-2 text-ui text-ink-400">
         <input type="checkbox" checked={preservePlannerIdentity}
           onChange={(e) => setPreservePlannerIdentity(e.target.checked)} />
         <span>Planner timing/layout revision: preserve the transcript, presenter, point and scene identities,
           and existing media requests. Tukido verifies this against the original bundle; other agents do not support this option.</span>
       </label>}
-      {!pending && preservePlannerIdentity && <div className="mt-2 text-xs text-ink-400">
+      {!pending && preservePlannerIdentity && <div className="mt-2 text-secondary text-ink-400">
         <label className="flex items-start gap-2">
           <input type="checkbox" checked={completePointClaims} onChange={(e) => setCompletePointClaims(e.target.checked)} />
           <span>Also correct only named fragmented claims using adjacent transcript quotations. Original reveal anchors,
@@ -252,13 +252,13 @@ export default function RunContinueBox({
           // arg, which would land in `opts` and make `opts.force` a live tripwire.
           onClick={() => submit()}
           disabled={busy || !canSubmit}
-          className="btn-success text-xs px-3 py-1.5 disabled:opacity-50"
+          className="btn-success text-ui px-3 py-1.5 disabled:opacity-50"
         >
           {sourcePhase === 'checking' ? 'Checking original source…'
             : sourcePhase === 'reconnecting' ? 'Reconnect the original source…'
             : busy ? 'Queuing…' : presentation==='finished'?'Run again with these changes':'Continue & re-run'}
         </button>
-        {msg && <span className="text-xs text-state-fail">{msg}</span>}
+        {msg && <span className="text-secondary text-state-fail">{msg}</span>}
       </div>
       {/* The typed recovery surface. It renders only for a refusal that HAS a
           recovery path, and it never shows Queued unless the backend said so. */}

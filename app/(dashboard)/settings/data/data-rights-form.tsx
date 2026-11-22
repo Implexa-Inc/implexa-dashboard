@@ -90,7 +90,7 @@ export default function DataRightsForm({ initial }: { initial: Snapshot }) {
       {/* Three toggles */}
       <section className="card">
         <h2 className="text-base font-medium text-ink-50 mb-1">Consent</h2>
-        <p className="text-xs text-ink-300 mb-4 leading-relaxed">
+        <p className="text-reading text-ink-300 mb-4 ">
           The two default-on flags are low-sensitivity and needed for useful recommendations.
           Cohort matching is the strict opt-in for the SkillRank cohort algorithm.
         </p>
@@ -129,12 +129,12 @@ export default function DataRightsForm({ initial }: { initial: Snapshot }) {
           >
             {saving ? 'Saving…' : 'Save preferences'}
           </button>
-          {savedAt && !dirty && <span className="text-xs text-success-700 dark:text-success-400">✓ Saved at {savedAt}</span>}
-          {saveErr && <span className="text-xs text-state-fail">{saveErr}</span>}
+          {savedAt && !dirty && <span className="text-secondary text-success-700 dark:text-success-400">✓ Saved at {savedAt}</span>}
+          {saveErr && <span className="text-secondary text-state-fail">{saveErr}</span>}
         </div>
 
         {initial.consent.optin_recorded_at && (
-          <p className="text-[11px] text-ink-500 mt-3">
+          <p className="text-reading text-ink-500 mt-3">
             Last updated: {new Date(initial.consent.optin_recorded_at).toLocaleString()}
           </p>
         )}
@@ -143,7 +143,7 @@ export default function DataRightsForm({ initial }: { initial: Snapshot }) {
       {/* Stats panel */}
       <section className="card">
         <h2 className="text-base font-medium text-ink-50 mb-1">What we&apos;ve stored about you</h2>
-        <p className="text-xs text-ink-300 mb-4 leading-relaxed">{initial.notes.epoch}</p>
+        <p className="text-secondary text-ink-300 mb-4 leading-relaxed">{initial.notes.epoch}</p>
 
         <div className="grid grid-cols-2 gap-4">
           <Stat label="Work signatures" value={initial.stats.signature_count} hint="One row per signature write (rate-limited to ~1/5min per session)" />
@@ -153,11 +153,11 @@ export default function DataRightsForm({ initial }: { initial: Snapshot }) {
         </div>
 
         {initial.stats.observed_tools.length > 0 && (
-          <details className="mt-4 text-xs text-ink-300">
+          <details className="mt-4 text-secondary text-ink-300">
             <summary className="cursor-pointer hover:text-ink-50">Show observed tool names</summary>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {initial.stats.observed_tools.map((t) => (
-                <span key={t} className="inline-flex items-center px-1.5 py-0.5 rounded bg-ink-800 text-[11px] font-mono text-ink-200">
+                <span key={t} className="inline-flex items-center px-1.5 py-0.5 rounded bg-ink-800 text-micro font-mono text-ink-200">
                   {t}
                 </span>
               ))}
@@ -169,26 +169,26 @@ export default function DataRightsForm({ initial }: { initial: Snapshot }) {
       {/* Delete-all-my-data */}
       <section className="card !border-red-500/20">
         <h2 className="text-base font-medium text-ink-50 mb-1">Delete all my signature data</h2>
-        <p className="text-xs text-ink-300 mb-4 leading-relaxed">
-          Permanently removes every <code className="text-[11px] bg-ink-800 px-1 py-0.5 rounded">user_work_signatures</code> row
+        <p className="text-reading text-ink-300 mb-4 ">
+          Permanently removes every <code className="text-secondary bg-ink-800 px-1 py-0.5 rounded">user_work_signatures</code> row
           derivable from your user id, across every salt epoch we still know about.
           Does not affect your skill apply log (separate retention) or your account.
         </p>
 
         {deleted !== null && (
-          <div className="text-xs text-success-700 dark:text-success-400 mb-3">
+          <div className="text-secondary text-success-700 dark:text-success-400 mb-3">
             ✓ Deleted {deleted} signature row{deleted === 1 ? '' : 's'}.
           </div>
         )}
         {deleteErr && (
-          <div className="text-xs text-state-fail mb-3">{deleteErr}</div>
+          <div className="text-secondary text-state-fail mb-3">{deleteErr}</div>
         )}
 
         {!confirmingDelete ? (
           <button
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            className="text-xs text-state-fail hover:underline"
+            className="text-ui text-state-fail hover:underline"
           >
             Delete all my signatures →
           </button>
@@ -206,7 +206,7 @@ export default function DataRightsForm({ initial }: { initial: Snapshot }) {
               type="button"
               onClick={() => setConfirmingDelete(false)}
               disabled={deleting}
-              className="text-xs text-ink-400 hover:text-ink-50"
+              className="text-ui text-ink-400 hover:text-ink-50"
             >
               Cancel
             </button>
@@ -237,9 +237,9 @@ function Toggle({
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-ink-50">{label}</span>
+          <span className="text-secondary font-medium text-ink-50">{label}</span>
           {badge && (
-            <span className={`text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5
+            <span className={`text-secondary uppercase tracking-wider font-bold rounded px-1.5 py-0.5
               ${badgeWarn
                 ? 'bg-amber-400/20 text-state-needs'
                 : 'bg-ink-700 text-ink-300'}`}>
@@ -247,7 +247,7 @@ function Toggle({
             </span>
           )}
         </div>
-        <p className="text-xs text-ink-300 mt-0.5 leading-relaxed">{description}</p>
+        <p className="text-secondary text-ink-300 mt-0.5 leading-relaxed">{description}</p>
       </div>
     </label>
   );
@@ -257,8 +257,8 @@ function Stat({ label, value, hint }: { label: string; value: number; hint: stri
   return (
     <div>
       <div className="text-2xl font-semibold text-ink-50">{value.toLocaleString()}</div>
-      <div className="text-xs text-ink-300">{label}</div>
-      <div className="text-[10px] text-ink-500 mt-0.5">{hint}</div>
+      <div className="text-secondary text-ink-300">{label}</div>
+      <div className="text-secondary text-ink-500 mt-0.5">{hint}</div>
     </div>
   );
 }

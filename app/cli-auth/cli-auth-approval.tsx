@@ -100,7 +100,7 @@ export default function CliAuthApproval({
             ? 'All set — this window closes itself and Tukido picks up from here.'
             : 'Return to your terminal — the install will continue automatically. You can close this tab.'}
         </p>
-        <div className="text-xs text-ink-400 border-t border-ink-700 pt-4 leading-relaxed">
+        <div className="text-secondary text-ink-400 border-t border-ink-700 pt-4 leading-relaxed">
           Signed in as <strong className="text-ink-200">{email}</strong>. We minted a fresh API key for this install — view or revoke it any time from{' '}
           <Link href="/settings/api-keys" className="text-action-accent hover:underline">Settings → API keys</Link>.
         </div>
@@ -131,10 +131,10 @@ export default function CliAuthApproval({
             ? 'The 10-minute timeout passed before you approved. No worries — just run the install command again to start fresh.'
             : 'We couldn\'t find this login session. It may have expired or the verification code might be wrong.'}
         </p>
-        <code className="block text-xs bg-ink-900 border border-ink-700 rounded p-3 font-mono text-ink-200 mb-4 overflow-x-auto">
+        <code className="block text-micro bg-ink-900 border border-ink-700 rounded p-3 font-mono text-ink-200 mb-4 overflow-x-auto">
           curl -fsSL https://core.implexa.ai/install.sh | bash
         </code>
-        <p className="text-xs text-ink-400">
+        <p className="text-secondary text-ink-400">
           Or visit <Link href="/install" className="text-action-accent hover:underline">/install</Link> for the full guide.
         </p>
       </div>
@@ -146,8 +146,8 @@ export default function CliAuthApproval({
     return (
       <div className="card">
         <h1 className="text-xl font-semibold text-ink-50 mb-3">Couldn&apos;t complete approval.</h1>
-        <p className="text-state-fail text-sm mb-4">{errorMsg}</p>
-        <p className="text-ink-300 text-sm mb-4 leading-relaxed">
+        <p className="text-state-fail text-reading mb-4">{errorMsg}</p>
+        <p className="text-ink-300 text-reading mb-4 ">
           If you just signed up, you may need to{' '}
           <Link href="/onboarding" className="text-action-accent hover:underline">finish onboarding</Link>{' '}
           first (create or join an organization). Then come back here and click Approve again.
@@ -167,16 +167,16 @@ export default function CliAuthApproval({
   return (
     <div className="card">
       <h1 className="text-xl font-semibold text-ink-50 mb-2">Authorize CLI install</h1>
-      <p className="text-sm text-ink-300 leading-relaxed mb-5">
+      <p className="text-reading text-ink-300 mb-5">
         Your terminal is asking permission to log in to Tukido as <strong className="text-ink-100">{email}</strong>.
       </p>
 
       <div className="rounded-lg border border-ink-700 bg-ink-900 px-4 py-5 mb-4 text-center">
-        <p className="text-xs uppercase tracking-wider text-ink-400 mb-2">Verification code</p>
+        <p className="text-secondary uppercase tracking-wider text-ink-400 mb-2">Verification code</p>
         <p className="text-3xl font-mono font-bold tracking-widest text-action-accent select-all">
           {verificationCode}
         </p>
-        <p className="text-xs text-ink-400 mt-3 leading-relaxed">
+        <p className="text-reading text-ink-400 mt-3 ">
           Make sure this matches the code shown in your terminal. If they don&apos;t match, click Deny — something&apos;s wrong.
         </p>
       </div>
@@ -200,7 +200,7 @@ export default function CliAuthApproval({
         </button>
       </div>
 
-      <p className="text-xs text-ink-400 leading-relaxed">
+      <p className="text-reading text-ink-400 ">
         Approving will mint a fresh API key on your account — visible in{' '}
         <Link href="/settings/api-keys" className="text-action-accent hover:underline">Settings → API keys</Link>{' '}
         as <em>&ldquo;Install ({new Date().toISOString().slice(0, 10)})&rdquo;</em>. You can revoke it any time.

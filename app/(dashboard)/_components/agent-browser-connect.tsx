@@ -99,21 +99,21 @@ export default function AgentBrowserConnect({
 
   if (phase === 'connected') {
     return (
-      <p className="text-sm text-state-ok">✓ Browser connected — this agent now runs hands-free.</p>
+      <p className="text-reading text-state-ok">✓ Browser connected — this agent now runs hands-free.</p>
     );
   }
 
   if (phase === 'connecting') {
     return (
       <div className="flex flex-col gap-1.5">
-        <span className="inline-flex items-center gap-2 text-sm text-ink-200">
+        <span className="inline-flex items-center gap-2 text-secondary text-ink-200">
           <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-ink-600 border-t-brand-500 animate-spin" aria-hidden />
           Waiting for you to approve in Claude…
         </span>
-        <p className="text-xs text-ink-500 leading-snug">
+        <p className="text-secondary text-ink-500 leading-snug">
           Approve the prompts in the Claude window{domains.length ? ' and let it open your sites' : ''}. This updates on its own — no need to come back.
         </p>
-        <button type="button" onClick={connect} className="btn-outline text-xs px-2.5 py-1 self-start mt-0.5">
+        <button type="button" onClick={connect} className="btn-outline text-ui px-2.5 py-1 self-start mt-0.5">
           Reopen Claude ↗
         </button>
       </div>
@@ -123,10 +123,10 @@ export default function AgentBrowserConnect({
   if (phase === 'timeout') {
     return (
       <div className="flex flex-col gap-1.5">
-        <p className="text-xs text-state-needs leading-snug">
+        <p className="text-secondary text-state-needs leading-snug">
           Didn&apos;t detect the browser yet. Finish approving in Claude, then it&apos;ll update — or try again.
         </p>
-        <button type="button" onClick={connect} className="btn-success text-xs px-3 py-1.5 self-start">
+        <button type="button" onClick={connect} className="btn-success text-ui px-3 py-1.5 self-start">
           Try again ↗
         </button>
       </div>
@@ -135,11 +135,11 @@ export default function AgentBrowserConnect({
 
   return (
     <div className="flex flex-col gap-1">
-      <button type="button" onClick={connect} className="btn-success text-xs px-3 py-1.5 self-start whitespace-nowrap">
+      <button type="button" onClick={connect} className="btn-success text-ui px-3 py-1.5 self-start whitespace-nowrap">
         Connect the browser ↗
       </button>
       {domains.length > 0 && (
-        <p className="text-[11px] text-ink-500 leading-snug">
+        <p className="text-reading text-ink-500 leading-snug">
           Opens {domains.slice(0, 3).join(', ')}{domains.length > 3 ? ` +${domains.length - 3} more` : ''} once, so runs never stop to ask.
         </p>
       )}

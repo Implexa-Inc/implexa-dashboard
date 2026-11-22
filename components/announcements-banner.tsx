@@ -115,14 +115,14 @@ function AnnouncementCard({ announcement, onDismiss }: { announcement: Announcem
     >
       {icon && <div className="text-2xl shrink-0 leading-none mt-0.5" aria-hidden="true">{icon}</div>}
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-ink-50">{message}</div>
-        {body && <div className="text-xs text-ink-300 mt-1 leading-relaxed">{body}</div>}
+        <div className="text-secondary font-medium text-ink-50">{message}</div>
+        {body && <div className="text-secondary text-ink-300 mt-1 leading-relaxed">{body}</div>}
         {ctaUrl && ctaText && (
           <a
             href={ctaUrl}
             target={ctaUrl.startsWith('http') ? '_blank' : undefined}
             rel={ctaUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
-            className="inline-block mt-2 text-xs font-medium text-action-accent hover:underline"
+            className="inline-block mt-2 text-secondary font-medium text-action-accent hover:underline"
           >
             {ctaText} →
           </a>

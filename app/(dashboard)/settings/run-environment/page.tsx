@@ -47,7 +47,7 @@ export default async function RunEnvironmentPage() {
           </p>
         </PageHeader>
 
-        <div className="mb-6 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-4 text-sm">
+        <div className="mb-6 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-4 text-secondary">
           <div className="font-medium text-ink-50 mb-1">You usually don&apos;t need to fill this in.</div>
           <p className="text-ink-300 leading-relaxed">
             The first time you run an agent from Claude or Codex, it captures the folder it ran in (and the browser

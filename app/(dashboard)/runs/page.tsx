@@ -43,13 +43,13 @@ export default async function RunsPage() {
       <div className="app-content">
         <header className="mb-8">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Runs</h1>
-          <p className="text-ink-300 text-sm mt-1">
+          <p className="text-ink-300 text-reading mt-1">
             What your autopilot delivered, by day. Tap a day to see its runs; tap a run for the full result.
           </p>
         </header>
 
         {runs.length === 0 ? (
-          <section className="card text-sm text-ink-300">
+          <section className="card text-secondary text-ink-300">
             <p className="mb-3">No runs yet.</p>
             <p>
               Build an agent in <Link href="/workflows" className="text-action-accent hover:underline">Agents</Link> and run it —

@@ -57,10 +57,10 @@ export default function ProductionLineageBanner({ lineage }: { lineage: Producti
           aria-label="Superseded execution attempt"
           className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3"
         >
-          <p className="text-sm text-ink-100">
+          <p className="text-reading text-ink-100">
             <strong>This execution attempt was superseded by a related run.</strong>
           </p>
-          <p className="text-xs text-ink-400 mt-1 leading-relaxed">
+          <p className="text-reading text-ink-400 mt-1 ">
             It is not the result of this production step. Agent {lineage.ordinal + 1} — {agent} — was carried out by
             another run, which {authoritativeOutcome(lineage)}
             {lineage.nodeOutcomeLabel === 'succeeded' ? ' and produced the validated output' : ''}.
@@ -68,7 +68,7 @@ export default function ProductionLineageBanner({ lineage }: { lineage: Producti
           {lineage.authoritativeRunId && (
             <Link
               href={`/runs/${lineage.authoritativeRunId}`}
-              className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-state-ok hover:underline"
+              className="mt-2 inline-flex items-center gap-1 text-secondary font-medium text-state-ok hover:underline"
             >
               Open the run that actually ran this step <span aria-hidden="true">→</span>
             </Link>
@@ -79,14 +79,14 @@ export default function ProductionLineageBanner({ lineage }: { lineage: Producti
       {/* Always shown — inside a production, the parent is the canonical view
           whether or not this particular run is the authoritative one. */}
       <div className="rounded-lg border border-ink-800 bg-ink-950/40 px-3 py-2.5">
-        <p className="text-xs text-ink-400 leading-relaxed">
+        <p className="text-secondary text-ink-400 leading-relaxed">
           Part of a production
           {lineage.productionGoal ? <> — <span className="text-ink-200">{lineage.productionGoal}</span></> : null}
           {' · '}agent {lineage.ordinal + 1} of the plan
         </p>
         <Link
           href={productionHref}
-          className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-action-accent hover:underline"
+          className="mt-1 inline-flex items-center gap-1 text-secondary font-medium text-action-accent hover:underline"
         >
           Open the production <span aria-hidden="true">→</span>
         </Link>

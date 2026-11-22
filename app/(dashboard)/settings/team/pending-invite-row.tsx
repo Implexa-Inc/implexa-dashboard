@@ -32,24 +32,24 @@ export default function PendingInviteRow({ invite, jwt }: { invite: Invite; jwt:
   return (
     <div className="card !p-3 flex items-center justify-between gap-3 flex-wrap">
       <div className="min-w-0 flex-1">
-        <div className="text-sm text-ink-100 truncate">
+        <div className="text-secondary text-ink-100 truncate">
           {invite.invited_email}
-          <span className="ml-2 text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-accent-400/20 text-accent-700 dark:text-accent-400">
+          <span className="ml-2 text-secondary uppercase tracking-wider rounded px-1.5 py-0.5 bg-accent-400/20 text-accent-700 dark:text-accent-400">
             Pending
           </span>
         </div>
-        <div className="text-xs text-ink-400 mt-0.5">
+        <div className="text-secondary text-ink-400 mt-0.5">
           Sent {new Date(invite.created_at).toLocaleDateString()} · Expires {new Date(invite.expires_at).toLocaleDateString()}
         </div>
       </div>
       <button
         onClick={revoke}
         disabled={busy === 'revoke'}
-        className="text-xs text-ink-500 hover:text-state-fail disabled:opacity-50"
+        className="text-ui text-ink-500 hover:text-state-fail disabled:opacity-50"
       >
         {busy === 'revoke' ? 'Revoking…' : 'Revoke'}
       </button>
-      {error && <p className="text-xs text-state-fail w-full">{error}</p>}
+      {error && <p className="text-secondary text-state-fail w-full">{error}</p>}
     </div>
   );
 }

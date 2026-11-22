@@ -60,13 +60,13 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
   if (state === 'queued') {
     const body = (
       <>
-        <div className="text-sm font-medium text-state-ok">✓ Edit request queued</div>
-        <p className="text-xs text-ink-400 mt-1">
+        <div className="text-secondary font-medium text-state-ok">✓ Edit request queued</div>
+        <p className="text-reading text-ink-400 mt-1">
           The request is saved. A new agent version does not exist yet; your execution engine must process the edit
           and save it first. The original stays active until that succeeds.
         </p>
         {queuedRequestId && (
-          <p className="mt-1 text-[10px] font-mono text-ink-500" title={queuedRequestId}>
+          <p className="mt-1 text-reading font-mono text-ink-500" title={queuedRequestId}>
             Request {queuedRequestId.slice(0, 8)}
           </p>
         )}
@@ -81,17 +81,17 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-ink-50">Edit this agent</h2>
-            <p className="text-xs text-ink-400 mt-0.5 leading-snug">
+            <p className="text-secondary text-ink-400 mt-0.5 leading-snug">
               {annotationBinding?'Review the proposed setup change. Only this text will be used to update the agent.':'Tell it what to change — in plain words. It rewrites the steps into a new version (the original is kept).'}
             </p>
           </div>
           {!open && (
-            <button onClick={() => setOpen(true)} disabled={statusUnavailable || revisePending} className="btn-outline text-sm px-3 py-1.5 flex-none disabled:opacity-50 disabled:cursor-not-allowed">Edit</button>
+            <button onClick={() => setOpen(true)} disabled={statusUnavailable || revisePending} className="btn-outline text-ui px-3 py-1.5 flex-none disabled:opacity-50 disabled:cursor-not-allowed">Edit</button>
           )}
         </div>
       )}
       {bare && (
-        <p className="text-xs text-ink-400 leading-snug mb-3">
+        <p className="text-secondary text-ink-400 leading-snug mb-3">
           {annotationBinding?'Review the proposed setup change. Only this text will be used to update the agent.':'Tell it what to change — in plain words. It rewrites the steps into a new version (the original is kept).'}
         </p>
       )}
@@ -107,19 +107,19 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
             autoFocus
             placeholder="e.g. add a final step that posts the result to Instagram · make the research cover the last 30 days · also email me a summary"
             disabled={statusUnavailable || revisePending}
-            className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
+            className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
           />
-          {error && <p className="text-xs text-state-fail mt-1.5">{error}</p>}
+          {error && <p className="text-secondary text-state-fail mt-1.5">{error}</p>}
           <div className="flex items-center justify-between mt-2.5">
-            <span className="text-[11px] text-ink-500">Proposes updated steps · ⌘↵</span>
+            <span className="text-secondary text-ink-500">Proposes updated steps · ⌘↵</span>
             <div className="flex items-center gap-2">
               {!bare && (
-                <button onClick={() => { setOpen(false); setNote(''); setState('idle'); setError(null); }} className="text-xs text-ink-400 hover:text-ink-200">Cancel</button>
+                <button onClick={() => { setOpen(false); setNote(''); setState('idle'); setError(null); }} className="text-ui text-ink-400 hover:text-ink-200">Cancel</button>
               )}
               <button
                 onClick={submit}
                 disabled={!canSubmitAgentRevision({ statusUnavailable, revisionPending: revisePending, busy: state === 'sending', note })}
-                className={!canSubmitAgentRevision({ statusUnavailable, revisionPending: revisePending, busy: state === 'sending', note }) ? 'btn-outline text-xs px-3 py-1.5 opacity-50 cursor-not-allowed' : 'btn-primary text-xs px-3 py-1.5'}
+                className={!canSubmitAgentRevision({ statusUnavailable, revisionPending: revisePending, busy: state === 'sending', note }) ? 'btn-outline text-ui px-3 py-1.5 opacity-50 cursor-not-allowed' : 'btn-primary text-ui px-3 py-1.5'}
               >
                 {state === 'sending' ? 'Queuing…' : 'Apply change'}
               </button>
@@ -128,12 +128,12 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
         </div>
       )}
       {statusUnavailable && !annotationBinding && (
-        <p className="mt-2 text-xs text-state-needs">
+        <p className="mt-2 text-secondary text-state-needs">
           Edit status is unavailable. Reload before queueing another permanent change.
         </p>
       )}
       {!statusUnavailable && revisePending && (
-        <p className="mt-2 text-xs text-state-review">
+        <p className="mt-2 text-secondary text-state-review">
           An edit is already queued. Wait for it to create a new version before adding another.
         </p>
       )}

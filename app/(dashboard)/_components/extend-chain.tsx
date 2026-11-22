@@ -55,7 +55,7 @@ export default function ExtendChain({ slug, candidates }: { slug: string; candid
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-xs text-ink-400 hover:text-ink-100 border border-ink-700 hover:border-ink-500 rounded-md px-2.5 py-1.5 transition-colors"
+        className="text-ui text-ink-400 hover:text-ink-100 border border-ink-700 hover:border-ink-500 rounded-md px-2.5 py-1.5 transition-colors"
       >
         + Add a step
       </button>
@@ -67,7 +67,7 @@ export default function ExtendChain({ slug, candidates }: { slug: string; candid
       <select
         value={pick}
         onChange={(e) => setPick(e.target.value)}
-        className="min-w-0 max-w-[260px] truncate bg-ink-900 border border-ink-700 rounded-md text-sm px-2 py-1.5 text-ink-100 focus:border-brand-500/60 focus:outline-none"
+        className="min-w-0 max-w-[260px] truncate bg-ink-900 border border-ink-700 rounded-md text-ui px-2 py-1.5 text-ink-100 focus:border-brand-500/60 focus:outline-none"
       >
         <option value="">Append an agent…</option>
         {candidates.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
@@ -76,7 +76,7 @@ export default function ExtendChain({ slug, candidates }: { slug: string; candid
         type="button"
         onClick={add}
         disabled={!pick || busy}
-        className="btn-success text-xs px-3 py-1.5 disabled:opacity-50"
+        className="btn-success text-ui px-3 py-1.5 disabled:opacity-50"
       >
         {busy ? 'Adding…' : 'Add to chain'}
       </button>
@@ -84,11 +84,11 @@ export default function ExtendChain({ slug, candidates }: { slug: string; candid
         type="button"
         onClick={() => { setOpen(false); setErr(null); setPick(''); }}
         disabled={busy}
-        className="text-xs text-ink-500 hover:text-ink-200 px-2 py-1.5"
+        className="text-ui text-ink-500 hover:text-ink-200 px-2 py-1.5"
       >
         Cancel
       </button>
-      {err && <span className="text-xs text-state-fail w-full">{err}</span>}
+      {err && <span className="text-secondary text-state-fail w-full">{err}</span>}
     </div>
   );
 }

@@ -50,7 +50,7 @@ export default function RunEnvForm({
     <form onSubmit={save} className="space-y-6">
       <section className="card">
         <h2 className="text-base font-medium text-ink-50 mb-1">Workspace folder</h2>
-        <p className="text-xs text-ink-300 mb-4 leading-relaxed">
+        <p className="text-reading text-ink-300 mb-4 ">
           Absolute path agents needing local files run in. Normally captured automatically on your
           first run — set it here only to override. (A browser can&apos;t pick a real folder path, so this
           is a text field; copy it from Claude if you want to set it by hand.)
@@ -61,7 +61,7 @@ export default function RunEnvForm({
           value={workspaceRoot}
           onChange={(e) => setWorkspaceRoot(e.target.value)}
           disabled={saving}
-          className="input w-full font-mono text-sm"
+          className="input w-full font-mono text-micro"
           spellCheck={false}
           autoCapitalize="off"
         />
@@ -69,7 +69,7 @@ export default function RunEnvForm({
 
       <section className="card">
         <h2 className="text-base font-medium text-ink-50 mb-1">Browser</h2>
-        <p className="text-xs text-ink-300 mb-4 leading-relaxed">
+        <p className="text-reading text-ink-300 mb-4 ">
           Which of your <strong>Claude-connected browsers</strong> agents should drive for sites you&apos;re
           signed into (e.g. your dashboard). This is the name from Claude&apos;s connected browsers — not a
           Chrome setting — so the easiest path is to leave it blank and let the first run fill it in. If
@@ -89,7 +89,7 @@ export default function RunEnvForm({
         <button type="submit" disabled={saving || !dirty} className="btn-primary whitespace-nowrap">
           {saving ? 'Saving…' : done ? '✓ Saved' : 'Save run environment'}
         </button>
-        {error && <p className="text-xs text-state-fail">{error}</p>}
+        {error && <p className="text-secondary text-state-fail">{error}</p>}
       </div>
     </form>
   );

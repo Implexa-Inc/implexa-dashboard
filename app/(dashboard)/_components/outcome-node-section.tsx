@@ -76,16 +76,16 @@ export default function OutcomeNodeSection({ node }: { node: ProductionNode }) {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[11px] uppercase tracking-wide text-ink-500">
+          <p className="text-reading uppercase tracking-wide text-ink-500">
             Agent {node.ordinal + 1}{node.role ? ` · ${node.role.replace(/_/g, ' ')}` : ''}
           </p>
           <h3 className="text-base font-semibold text-ink-50 mt-0.5">{node.agentName}</h3>
-          <p className="text-xs text-ink-500 mt-0.5">
+          <p className="text-secondary text-ink-500 mt-0.5">
             version {node.versionNumber}
             {node.taskLabel ? ` · ${node.taskLabel}` : ''}
           </p>
         </div>
-        <span className={`flex-none inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${stateTone(execution.state)}`}>
+        <span className={`flex-none inline-block rounded-full border px-2.5 py-0.5 text-secondary font-medium ${stateTone(execution.state)}`}>
           {label}
         </span>
       </div>
@@ -105,17 +105,17 @@ export default function OutcomeNodeSection({ node }: { node: ProductionNode }) {
 
       <dl className="mt-4 grid sm:grid-cols-3 gap-x-4 gap-y-3">
         <div>
-          <dt className="text-[11px] uppercase tracking-wide text-ink-500">Started</dt>
-          <dd className="text-xs text-ink-200 mt-0.5">{clock(execution.startedAt) || 'Not dispatched'}</dd>
+          <dt className="text-secondary uppercase tracking-wide text-ink-500">Started</dt>
+          <dd className="text-secondary text-ink-200 mt-0.5">{clock(execution.startedAt) || 'Not dispatched'}</dd>
         </div>
         <div>
           {/* A RELEASED node never ran, so its settled_at is the moment the
               parent released it — calling that "Completed" would imply work
               happened. */}
-          <dt className="text-[11px] uppercase tracking-wide text-ink-500">
+          <dt className="text-secondary uppercase tracking-wide text-ink-500">
             {execution.grantState === 'released' ? 'Released' : 'Completed'}
           </dt>
-          <dd className="text-xs text-ink-200 mt-0.5">
+          <dd className="text-secondary text-ink-200 mt-0.5">
             {clock(execution.completedAt) || '—'}
             {execution.grantState !== 'released' && duration(execution.durationMs) && (
               <span className="block text-ink-500">ran {duration(execution.durationMs)}</span>
@@ -123,8 +123,8 @@ export default function OutcomeNodeSection({ node }: { node: ProductionNode }) {
           </dd>
         </div>
         <div>
-          <dt className="text-[11px] uppercase tracking-wide text-ink-500">Credits</dt>
-          <dd className="text-xs text-ink-200 mt-0.5">
+          <dt className="text-secondary uppercase tracking-wide text-ink-500">Credits</dt>
+          <dd className="text-secondary text-ink-200 mt-0.5">
             {execution.creditsSpent === null
               ? 'Not settled'
               : `${execution.creditsSpent.toLocaleString()} spent`}
@@ -136,7 +136,7 @@ export default function OutcomeNodeSection({ node }: { node: ProductionNode }) {
       </dl>
 
       {execution.failureReason && (
-        <p role="status" className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/[0.06] px-3 py-2 text-xs text-state-needs leading-relaxed">
+        <p role="status" className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/[0.06] px-3 py-2 text-secondary text-state-needs leading-relaxed">
           {execution.failureReason}
         </p>
       )}
@@ -145,7 +145,7 @@ export default function OutcomeNodeSection({ node }: { node: ProductionNode }) {
           push the second agent below the fold on arrival. */}
       {execution.stepSummary && (
         <details className="mt-4 group" open={open} onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
-          <summary className="cursor-pointer select-none text-xs text-ink-300 hover:text-ink-100">
+          <summary className="cursor-pointer select-none text-ui text-ink-300 hover:text-ink-100">
             Steps — {execution.stepSummary.done}/{execution.stepSummary.total}
           </summary>
           <div className="mt-2.5 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
@@ -156,7 +156,7 @@ export default function OutcomeNodeSection({ node }: { node: ProductionNode }) {
 
       {execution.trace.length > 0 && (
         <details className="mt-2.5">
-          <summary className="cursor-pointer select-none text-xs text-ink-300 hover:text-ink-100">
+          <summary className="cursor-pointer select-none text-ui text-ink-300 hover:text-ink-100">
             Step trace — {execution.trace.length} {execution.trace.length === 1 ? 'note' : 'notes'}
           </summary>
           <div className="mt-2.5 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
@@ -172,21 +172,21 @@ export default function OutcomeNodeSection({ node }: { node: ProductionNode }) {
       )}
 
       {execution.truncated.length > 0 && (
-        <p className="mt-2 text-[11px] text-ink-500">
+        <p className="mt-2 text-reading text-ink-500">
           This agent reported more {execution.truncated.join(' and ')} than shown here — open the run for the full record.
         </p>
       )}
 
       {openable.length > 0 && (
         <div className="mt-4">
-          <p className="text-[11px] uppercase tracking-wide text-ink-500 mb-2">Validated outputs</p>
+          <p className="text-reading uppercase tracking-wide text-ink-500 mb-2">Validated outputs</p>
           <VerifiedArtifacts artifacts={openable} />
         </div>
       )}
       {unopenable.length > 0 && (
         <ul className="mt-3 space-y-1">
           {unopenable.map((artifact) => (
-            <li key={artifact.id || artifact.digest || artifact.name} className="text-xs text-ink-400">
+            <li key={artifact.id || artifact.digest || artifact.name} className="text-secondary text-ink-400">
               {artifact.name || 'Validated output'}
               {artifact.digest && <span className="text-ink-600 font-mono ml-2">{artifact.digest.slice(0, 12)}</span>}
             </li>
@@ -199,7 +199,7 @@ export default function OutcomeNodeSection({ node }: { node: ProductionNode }) {
       {execution.runId && (
         <Link
           href={`/runs/${execution.runId}`}
-          className="mt-4 inline-flex items-center gap-1 text-xs text-ink-400 hover:text-ink-200 hover:underline"
+          className="mt-4 inline-flex items-center gap-1 text-secondary text-ink-400 hover:text-ink-200 hover:underline"
         >
           Open this agent&apos;s run for diagnostics <span aria-hidden="true">→</span>
         </Link>

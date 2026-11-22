@@ -109,7 +109,7 @@ export function WorkList({view,needs,queue,names,reviewDetails,warning,delivered
         </div>}
         {visibleCount===0&&viewKnown&&<div className="work-empty"><h2>{view==='needs'?'Nothing needs you right now':view==='review'?'Nothing is waiting for review':view==='running'?'No work running right now':'No active agent runs right now'}</h2><p>{view==='needs'?'Anything that needs a decision will appear here.':'Start a run from one of your agents. Its progress will appear here.'}</p><Link href="/workflows" className="btn-outline">Go to agents</Link></div>}
       </>}
-      {view==='review'&&<div className="mt-4 text-right"><Link href="/review/new" className="text-sm underline">New review</Link></div>}
+      {view==='review'&&<div className="mt-4 text-right"><Link href="/review/new" className="text-secondary underline">New review</Link></div>}
       {view==='activity'&&<CompletedRunResults revision={revision} names={displayNames}/>}
       {productions}
       <div className="work-history-link"><Link href="/runs">Full run history →</Link></div>

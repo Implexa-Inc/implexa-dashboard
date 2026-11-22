@@ -19,7 +19,7 @@ export function RemoteSafetyBadge({
   size?: 'sm' | 'xs';
 }) {
   const spec = VERDICT_PRESENTATION[safety.verdict];
-  const pad = size === 'xs' ? 'text-[10px] px-2 py-0.5' : 'text-xs px-2.5 py-1';
+  const pad = size === 'xs' ? 'text-micro px-2 py-0.5' : 'text-secondary px-2.5 py-1';
   const tip = safety.estimated
     ? `${safety.reason} (estimated - pending the backend watchdog verdict)`
     : safety.reason;

@@ -57,12 +57,12 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
     return (
       <main className="app-page">
         <div className="app-content">
-          <nav className="text-xs text-ink-500 mb-4">
+          <nav className="text-secondary text-ink-500 mb-4">
             <Link href={`/skills/${params.slug}`} className="hover:underline">← Back to skill</Link>
           </nav>
           <div className="card">
             <h1 className="text-2xl font-semibold text-ink-50 mb-2">Can&apos;t show raw capture</h1>
-            <p className="text-sm text-ink-300">{err.message || 'Only the original demo creator can view raw capture data.'}</p>
+            <p className="text-reading text-ink-300">{err.message || 'Only the original demo creator can view raw capture data.'}</p>
           </div>
         </div>
       </main>
@@ -73,10 +73,10 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
     return (
       <main className="app-page">
         <div className="app-content">
-          <nav className="text-xs text-ink-500 mb-4">
+          <nav className="text-secondary text-ink-500 mb-4">
             <Link href={`/skills/${params.slug}`} className="hover:underline">← Back to skill</Link>
           </nav>
-          <div className="card text-sm text-ink-300">{data.error}</div>
+          <div className="card text-secondary text-ink-300">{data.error}</div>
         </div>
       </main>
     );
@@ -87,12 +87,12 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
     return (
       <main className="app-page">
         <div className="app-content">
-          <nav className="text-xs text-ink-500 mb-4">
+          <nav className="text-secondary text-ink-500 mb-4">
             <Link href={`/skills/${params.slug}`} className="hover:underline">← Back to {data.skill.name}</Link>
           </nav>
           <div className="card">
             <h1 className="text-2xl font-semibold text-ink-50 mb-2">No raw capture available</h1>
-            <p className="text-sm text-ink-300">{data.message}</p>
+            <p className="text-reading text-ink-300">{data.message}</p>
           </div>
         </div>
       </main>
@@ -108,22 +108,22 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
   return (
     <main className="app-page">
       <div className="app-content">
-        <nav className="text-xs text-ink-500 mb-4">
+        <nav className="text-secondary text-ink-500 mb-4">
           <Link href={`/skills/${params.slug}`} className="hover:underline">← Back to {skill.name}</Link>
         </nav>
 
         {/* Header */}
         <header className="mb-8">
-          <div className="text-xs uppercase tracking-wider text-ink-400 mb-2">Raw capture</div>
+          <div className="text-secondary uppercase tracking-wider text-ink-400 mb-2">Raw capture</div>
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">{skill.name}</h1>
-          <p className="text-sm text-ink-300 mt-2 leading-relaxed">
+          <p className="text-reading text-ink-300 mt-2 ">
             Everything captured during your demo recording — verbatim. <strong>Only you can see this.</strong>{' '}
             Your teammates see the synthesized SKILL.md, not this raw view.
           </p>
         </header>
 
         {/* Privacy banner */}
-        <div className="card !p-3 !bg-brand-50 !border-brand-500/30 mb-6 text-xs text-ink-300 flex items-start gap-2">
+        <div className="card !p-3 !bg-brand-50 !border-brand-500/30 mb-6 text-secondary text-ink-300 flex items-start gap-2">
           <span>🔒</span>
           <span>
             This data is <strong>pre-PII-scrub</strong> and creator-only. The version other org members see in the SKILL.md had URLs, emails, and identifiers redacted by Haiku. Use this raw view to audit what was actually captured.
@@ -134,20 +134,20 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
         <section className="card mb-8">
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <div className="text-xs uppercase tracking-wider text-ink-400 mb-1">Intent</div>
-              <div className="text-sm text-ink-100 leading-relaxed">{demo.initialIntent || '(none)'}</div>
+              <div className="text-secondary uppercase tracking-wider text-ink-400 mb-1">Intent</div>
+              <div className="text-secondary text-ink-100 leading-relaxed">{demo.initialIntent || '(none)'}</div>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wider text-ink-400 mb-1">Duration</div>
-              <div className="text-sm text-ink-100 tabular-nums">{formatDuration(demo.durationSec)}</div>
+              <div className="text-secondary uppercase tracking-wider text-ink-400 mb-1">Duration</div>
+              <div className="text-micro text-ink-100 tabular-nums">{formatDuration(demo.durationSec)}</div>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wider text-ink-400 mb-1">Status</div>
-              <div className="text-sm text-ink-100 capitalize">{demo.status}</div>
+              <div className="text-secondary uppercase tracking-wider text-ink-400 mb-1">Status</div>
+              <div className="text-secondary text-ink-100 capitalize">{demo.status}</div>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wider text-ink-400 mb-1">Started</div>
-              <div className="text-sm text-ink-100 tabular-nums">{new Date(demo.startedAt).toLocaleString()}</div>
+              <div className="text-secondary uppercase tracking-wider text-ink-400 mb-1">Started</div>
+              <div className="text-micro text-ink-100 tabular-nums">{new Date(demo.startedAt).toLocaleString()}</div>
             </div>
           </div>
         </section>
@@ -176,15 +176,15 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
                   }`}
                 >
                   <div className="flex items-baseline justify-between mb-1.5">
-                    <span className="text-xs font-medium text-ink-100">
+                    <span className="text-secondary font-medium text-ink-100">
                       {turn.role === 'user' ? '👤 You' : turn.role === 'assistant' ? '🤖 Claude' : `🔧 ${turn.role}`}
                       {turn.turnIndex != null && <span className="ml-2 text-ink-400 font-normal">turn {turn.turnIndex}</span>}
                     </span>
                     {turn.occurredAt && (
-                      <span className="text-[10px] text-ink-400 tabular-nums">{new Date(turn.occurredAt).toLocaleTimeString()}</span>
+                      <span className="text-micro text-ink-400 tabular-nums">{new Date(turn.occurredAt).toLocaleTimeString()}</span>
                     )}
                   </div>
-                  <div className="text-sm text-ink-200 leading-relaxed whitespace-pre-wrap break-words">
+                  <div className="text-reading text-ink-200 whitespace-pre-wrap break-words">
                     {turn.content || '(empty)'}
                   </div>
                 </div>
@@ -202,27 +202,27 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
               {toolCalls.map((tc: any, i: number) => (
                 <div key={i} className="rounded-lg p-3 bg-ink-900/50 border border-ink-700">
                   <div className="flex items-baseline justify-between gap-2 flex-wrap mb-2">
-                    <code className="text-xs font-mono text-success-700 dark:text-success-400 break-all">{tc.toolName}</code>
-                    <div className="text-[10px] text-ink-400 tabular-nums flex gap-2">
+                    <code className="text-micro font-mono text-success-700 dark:text-success-400 break-all">{tc.toolName}</code>
+                    <div className="text-micro text-ink-400 tabular-nums flex gap-2">
                       {tc.durationMs != null && <span>{tc.durationMs}ms</span>}
                       {tc.occurredAt && <span>{new Date(tc.occurredAt).toLocaleTimeString()}</span>}
                     </div>
                   </div>
                   {tc.toolArgs && Object.keys(tc.toolArgs).length > 0 && (
                     <Field label="args">
-                      <pre className="text-[11px] text-ink-200 bg-ink-950 rounded p-2 overflow-x-auto max-h-48 font-mono">{JSON.stringify(tc.toolArgs, null, 2)}</pre>
+                      <pre className="text-micro text-ink-200 bg-ink-950 rounded p-2 overflow-x-auto max-h-48 font-mono">{JSON.stringify(tc.toolArgs, null, 2)}</pre>
                     </Field>
                   )}
                   {tc.resultPreview && (
                     <Field label="result preview">
-                      <div className="text-[11px] text-ink-200 bg-ink-950 rounded p-2 overflow-x-auto max-h-32 font-mono whitespace-pre-wrap break-words">
+                      <div className="text-micro text-ink-200 bg-ink-950 rounded p-2 overflow-x-auto max-h-32 font-mono whitespace-pre-wrap break-words">
                         {tc.resultPreview}
                       </div>
                     </Field>
                   )}
                   {tc.decisions && tc.decisions.length > 0 && (
                     <Field label="decisions">
-                      <pre className="text-[11px] text-ink-300 font-mono">{JSON.stringify(tc.decisions, null, 2)}</pre>
+                      <pre className="text-micro text-ink-300 font-mono">{JSON.stringify(tc.decisions, null, 2)}</pre>
                     </Field>
                   )}
                 </div>
@@ -240,14 +240,14 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
               {manualNotes.map((note: any, i: number) => (
                 <div key={i} className="rounded-lg p-3 bg-ink-900/50 border border-ink-700">
                   <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                    <code className="text-xs font-mono text-accent-700 dark:text-accent-400">{note.toolName || 'note'}</code>
+                    <code className="text-micro font-mono text-accent-700 dark:text-accent-400">{note.toolName || 'note'}</code>
                     {note.occurredAt && (
-                      <span className="text-[10px] text-ink-400 tabular-nums">{new Date(note.occurredAt).toLocaleTimeString()}</span>
+                      <span className="text-micro text-ink-400 tabular-nums">{new Date(note.occurredAt).toLocaleTimeString()}</span>
                     )}
                   </div>
-                  <div className="text-sm text-ink-200 leading-relaxed whitespace-pre-wrap break-words">{note.noteText}</div>
+                  <div className="text-reading text-ink-200 whitespace-pre-wrap break-words">{note.noteText}</div>
                   {note.contextHint && (
-                    <div className="text-[11px] text-ink-400 mt-1.5 truncate" title={note.contextHint}>
+                    <div className="text-secondary text-ink-400 mt-1.5 truncate" title={note.contextHint}>
                       <span className="text-ink-500">↳ </span>
                       <code className="font-mono">{note.contextHint}</code>
                     </div>
@@ -266,13 +266,13 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
             <div className="space-y-3">
               {demo.interview.map((qa: any, i: number) => (
                 <div key={i} className="rounded-lg p-3 bg-ink-900/50 border border-ink-700">
-                  <div className="text-xs uppercase tracking-wider text-ink-400 mb-1">
+                  <div className="text-secondary uppercase tracking-wider text-ink-400 mb-1">
                     Question {i + 1}
                     {qa.questionType && <span className="ml-2 text-ink-500">({qa.questionType})</span>}
                   </div>
-                  <div className="text-sm text-ink-100 font-medium mb-3 leading-relaxed">{qa.question}</div>
-                  <div className="text-xs uppercase tracking-wider text-ink-400 mb-1">Your answer</div>
-                  <div className="text-sm text-ink-200 leading-relaxed whitespace-pre-wrap break-words">
+                  <div className="text-secondary text-ink-100 font-medium mb-3 leading-relaxed">{qa.question}</div>
+                  <div className="text-secondary uppercase tracking-wider text-ink-400 mb-1">Your answer</div>
+                  <div className="text-reading text-ink-200 whitespace-pre-wrap break-words">
                     {qa.answer || '(no answer)'}
                   </div>
                 </div>
@@ -280,14 +280,14 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
             </div>
           )}
           {demo.interviewModel && (
-            <div className="text-[10px] text-ink-400 mt-3">Generated by {demo.interviewModel}</div>
+            <div className="text-secondary text-ink-400 mt-3">Generated by {demo.interviewModel}</div>
           )}
         </Section>
 
         {/* Free-form notes */}
         {demo.freeFormNotes && (
           <Section title="Free-form notes" icon="📄" count={null}>
-            <div className="rounded-lg p-3 bg-ink-900/50 border border-ink-700 text-sm text-ink-200 leading-relaxed whitespace-pre-wrap break-words">
+            <div className="rounded-lg p-3 bg-ink-900/50 border border-ink-700 text-reading text-ink-200 whitespace-pre-wrap break-words">
               {demo.freeFormNotes}
             </div>
           </Section>
@@ -298,11 +298,11 @@ export default async function RawCapturePage({ params }: { params: { slug: strin
           <div className="flex items-start gap-3">
             <span className="text-2xl">🪄</span>
             <div className="flex-1">
-              <h2 className="text-sm font-medium text-ink-50 mb-1">→ Synthesized SKILL.md</h2>
-              <p className="text-xs text-ink-300 leading-relaxed mb-2">
+              <h2 className="text-ui font-medium text-ink-50 mb-1">→ Synthesized SKILL.md</h2>
+              <p className="text-secondary text-ink-300 leading-relaxed mb-2">
                 Haiku turned all of the above into a structured, reusable skill. PII was scrubbed before saving.
               </p>
-              <Link href={`/skills/${params.slug}`} className="text-xs text-action-accent hover:underline font-medium">
+              <Link href={`/skills/${params.slug}`} className="text-secondary text-action-accent hover:underline font-medium">
                 View the synthesized skill →
               </Link>
             </div>
@@ -319,7 +319,7 @@ function Section({ title, icon, count, children }: { title: string; icon: string
       <h2 className="text-base font-medium text-ink-50 mb-3 flex items-center gap-2">
         <span>{icon}</span>
         {title}
-        {count != null && <span className="text-sm text-ink-400 font-normal">({count})</span>}
+        {count != null && <span className="text-secondary text-ink-400 font-normal">({count})</span>}
       </h2>
       {children}
     </section>
@@ -331,7 +331,7 @@ function CountStat({ label, value, icon }: { label: string; value: number; icon:
     <div className="card !p-3 text-center">
       <div className="text-2xl leading-none mb-1">{icon}</div>
       <div className="text-2xl font-semibold tabular-nums text-ink-50">{value}</div>
-      <div className="text-[10px] text-ink-400 uppercase tracking-wider mt-0.5">{label}</div>
+      <div className="text-secondary text-ink-400 uppercase tracking-wider mt-0.5">{label}</div>
     </div>
   );
 }
@@ -339,7 +339,7 @@ function CountStat({ label, value, icon }: { label: string; value: number; icon:
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mb-2">
-      <div className="text-[10px] uppercase tracking-wider text-ink-500 mb-1">{label}</div>
+      <div className="text-secondary uppercase tracking-wider text-ink-500 mb-1">{label}</div>
       {children}
     </div>
   );
@@ -347,7 +347,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="card !p-3 text-xs text-ink-400 italic">{text}</div>
+    <div className="card !p-3 text-secondary text-ink-400 italic">{text}</div>
   );
 }
 

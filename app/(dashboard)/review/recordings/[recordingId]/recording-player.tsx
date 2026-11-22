@@ -473,18 +473,18 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   // ── render ────────────────────────────────────────────────────────────────
 
   const back = (
-    <Link href={trainingSlug?`/training/${encodeURIComponent(trainingSlug)}`:'/review/new'} className="text-sm text-state-running hover:underline">{trainingSlug?'← Back to Training':'← New review'}</Link>
+    <Link href={trainingSlug?`/training/${encodeURIComponent(trainingSlug)}`:'/review/new'} className="text-secondary text-state-running hover:underline">{trainingSlug?'← Back to Training':'← New review'}</Link>
   );
 
   if (availability && availability.state !== 'ready') {
     return (
       <Shell embedded={embedded} fullPage={fullPage} back={back} title="Recording">
-        <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-state-needs">{availability.message}</p>
+        <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-reading text-state-needs">{availability.message}</p>
       </Shell>
     );
   }
   if (loadError) {
-    return <Shell embedded={embedded} fullPage={fullPage} back={back} title="Recording"><p role="status" className="text-sm text-state-needs">{loadError}</p></Shell>;
+    return <Shell embedded={embedded} fullPage={fullPage} back={back} title="Recording"><p role="status" className="text-reading text-state-needs">{loadError}</p></Shell>;
   }
   if (!detail) {
     return <Shell embedded={embedded} fullPage={fullPage} back={back} title="Recording"><div className="h-64 animate-pulse rounded bg-ink-800/50" aria-label="Loading recording" /></Shell>;
@@ -492,15 +492,15 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   if (detail.state !== 'ready' || durationMs === null) {
     return (
       <Shell embedded={embedded} fullPage={fullPage} back={back} title={detail.title || 'Recording'}>
-        {error && <p role="alert" className="mb-3 text-sm text-state-fail">{error}</p>}
-        <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-6 text-center text-sm text-ink-200">
+        {error && <p role="alert" className="mb-3 text-reading text-state-fail">{error}</p>}
+        <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-6 text-center text-secondary text-ink-200">
           {detail.state === 'recording' && <p>This recording is still in progress. Stop it from the floating control bar.</p>}
           {detail.state === 'finalizing' && <p>Saving this recording… It opens here when it is ready.</p>}
           {detail.state === 'failed' && <p>This recording could not be saved. {failureMessage(detail.failureReason)}</p>}
           {detail.state === 'interrupted' && <p>This recording stopped unexpectedly. Recover keeps what was saved before it stopped.</p>}
           {recoverAction(detail) && (
             <button type="button" disabled={busy !== null} onClick={() => void recover()}
-              className="mt-3 rounded-md border border-amber-500/40 px-3 py-1.5 text-sm text-state-needs disabled:opacity-40">
+              className="mt-3 rounded-md border border-amber-500/40 px-3 py-1.5 text-ui text-state-needs disabled:opacity-40">
               {busy === 'recover' ? 'Working…' : recoverAction(detail)!.label}
             </button>
           )}
@@ -522,7 +522,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     if(notes.length)onDoneTeaching?.(recordingId,notes);else onAnalyzeNarration?.(recordingId,selectedId);
   };
   const teachingDisabled=!!feedbackSaveUnavailable&&moments.some(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()))||busy!==null||voiceDirty.size>0||(!moments.some(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()))&&(!onAnalyzeNarration||!!narrationUnavailable));
-  const doneTeaching=onDoneTeaching?<div><button type="button" className="btn-primary" disabled={teachingDisabled} onClick={()=>void finishTeaching()}>Done teaching</button>{feedbackSaveUnavailable&&<p role="status" className="mt-2 text-xs text-ink-400">{feedbackSaveUnavailable}</p>}</div>:null;
+  const doneTeaching=onDoneTeaching?<div><button type="button" className="btn-primary" disabled={teachingDisabled} onClick={()=>void finishTeaching()}>Done teaching</button>{feedbackSaveUnavailable&&<p role="status" className="mt-2 text-secondary text-ink-400">{feedbackSaveUnavailable}</p>}</div>:null;
   const markButton=<button type="button" aria-label="Mark this moment" className="btn-success recording-mark" disabled={full||voiceDirty.size>0} onClick={()=>{const ms=freezeForRegion();if(ms!==null)createMoment(momentAt(ms,durationMs),{x:0,y:0,width:COORD_MAX,height:COORD_MAX});}}>+ Mark this moment</button>;
 
   const timeline = (
@@ -538,7 +538,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
         className="recording-timeline relative mt-3 h-16 cursor-text select-none rounded bg-ink-800/70"
       >
         <AnnotationTimelineTicks durationMs={durationMs}/>
-        {hoverMs!==null&&<output className="timeline-hover" style={{left:pctOf(hoverMs)}}>{hoverImage?.second===Math.round(hoverMs/100)/10&&<img src={hoverImage.url} alt="Timeline preview" className="mb-1 max-h-48 w-48 rounded object-contain"/>}{hoverUnavailable&&<span className="mb-1 block text-xs">Frame preview unavailable</span>}{formatMs(hoverMs)}</output>}
+        {hoverMs!==null&&<output className="timeline-hover" style={{left:pctOf(hoverMs)}}>{hoverImage?.second===Math.round(hoverMs/100)/10&&<img src={hoverImage.url} alt="Timeline preview" className="mb-1 max-h-48 w-48 rounded object-contain"/>}{hoverUnavailable&&<span className="mb-1 block text-secondary">Frame preview unavailable</span>}{formatMs(hoverMs)}</output>}
         {openSuggestions.map((s) => (
           <button
             key={`s-${s.startMs}`}
@@ -576,14 +576,14 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
 
   return (
     <Shell embedded={embedded} fullPage={fullPage} back={back} title={detail.title || 'Recording'} description={`${detail.origin==='recorded'?'Screen recording':'Uploaded video'} · ${formatMs(durationMs)} · ${new Date(detail.createdAt).toLocaleString()}`} actions={<><span role="status" className="recording-save-status">{voiceDirty.size?'Voice note in progress':error&&dirty?'Couldn’t save changes':dirty?'Saving…':'✓ Saved on this Mac'}</span>{doneTeaching}</>}>
-      {error && <div role="alert" className="recording-save-error mb-3 rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-state-fail"><span>{error}</span>{dirty&&<button type="button" className="btn-outline" disabled={busy!==null} onClick={()=>void save()}>Retry saving</button>}</div>}
+      {error && <div role="alert" className="recording-save-error mb-3 rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-secondary text-state-fail"><span>{error}</span>{dirty&&<button type="button" className="btn-outline" disabled={busy!==null} onClick={()=>void save()}>Retry saving</button>}</div>}
 
-      {embedded&&onClose&&<button type="button" className="text-xs text-ink-400 underline" onClick={onClose}>Close recording</button>}
+      {embedded&&onClose&&<button type="button" className="text-ui text-ink-400 underline" onClick={onClose}>Close recording</button>}
       {embedded&&trainingReview}
       <AnnotationWorkspace ref={workspaceRef}>
       <div className="recording-stage">
       <div className="relative">
-        {previewError && <p role="status" className="rounded border border-ink-800 bg-ink-950 p-6 text-center text-sm text-ink-200">{previewError}</p>}
+        {previewError && <p role="status" className="rounded border border-ink-800 bg-ink-950 p-6 text-center text-reading text-ink-200">{previewError}</p>}
         {!preview && !previewError && <div className="h-64 animate-pulse rounded bg-ink-800/50" aria-label="Loading video" />}
         {preview && (
           <ReviewPlaybackControls key={recordingId} mediaKey={recordingId} mediaRef={videoRef} onSeek={seek} variant="teaching" timeline={timeline} trailingAction={markButton}>
@@ -628,13 +628,13 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
               />
             )}
           </div>
-          {regionError && <p role="alert" className="p-3 text-xs text-state-needs">{regionError}</p>}
+          {regionError && <p role="alert" className="p-3 text-secondary text-state-needs">{regionError}</p>}
           </>
           </ReviewPlaybackControls>
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-400">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-secondary text-ink-400">
         <div className="flex items-center gap-3">
           {detail.hasPointerTrack && (
             <label className="flex items-center gap-1.5">
@@ -647,21 +647,21 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
         </div>
       </div>
 
-      <p className="mt-1.5 text-xs text-ink-500">
+      <p className="mt-1.5 text-reading text-ink-500">
         Click the picture or press M to mark two seconds. Drag the timeline to choose a longer moment. Dashed marks are suggestions; click one to add it.
       </p>
-      {barDraft && <p className="text-xs text-state-running">{formatMs(barDraft.startMs)}–{formatMs(barDraft.endMs)} ({seconds(barDraft.endMs - barDraft.startMs)})</p>}
-      {notice && <p role="status" className="mt-2 text-xs text-ink-300">{notice}</p>}
+      {barDraft && <p className="text-secondary text-state-running">{formatMs(barDraft.startMs)}–{formatMs(barDraft.endMs)} ({seconds(barDraft.endMs - barDraft.startMs)})</p>}
+      {notice && <p role="status" className="mt-2 text-secondary text-ink-300">{notice}</p>}
 
       </div>
       <section aria-label="Moments" className="recording-moments">
         <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="text-lg font-medium text-ink-100">Moments <span className="text-sm font-normal text-ink-500">{moments.length} marked</span></h2>
+          <h2 className="text-lg font-medium text-ink-100">Moments <span className="text-secondary font-normal text-ink-500">{moments.length} marked</span></h2>
         </div>
-        <p className="mb-4 text-xs text-ink-500">{embedded?'Mark a moment and tell your agent what matters.':MOMENTS_NEXT_NOTE}</p>
+        <p className="mb-4 text-secondary text-ink-500">{embedded?'Mark a moment and tell your agent what matters.':MOMENTS_NEXT_NOTE}</p>
 
         {moments.length === 0 && (
-          <p className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-6 text-center text-sm text-ink-400">No moments yet. Click a spot on the recording, or drag across the timeline.</p>
+          <p className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-6 text-center text-reading text-ink-400">No moments yet. Click a spot on the recording, or drag across the timeline.</p>
         )}
 
         <ol className="space-y-4">
@@ -675,30 +675,30 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                   <button type="button" onClick={() => selectMoment(m)} className="recording-moment-select" title={`${preciseTime(m.startMs)}–${preciseTime(m.endMs)}`}><span className="recording-moment-number">{i+1}</span>
                     {formatMs(m.startMs)} – {formatMs(m.endMs)}
                   </button>
-                  <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => removeMoment(m.momentId)} className="text-xs text-ink-400 hover:text-state-fail">Delete</button>
+                  <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => removeMoment(m.momentId)} className="text-ui text-ink-400 hover:text-state-fail">Delete</button>
                 </div>
-                <button type="button" className="recording-moment-summary mt-2 block w-full text-left text-sm text-ink-300" onClick={()=>selectMoment(m)}>{m.card.whatToDo||'No note yet'}</button>
+                <button type="button" className="recording-moment-summary mt-2 block w-full text-left text-ui text-ink-300" onClick={()=>selectMoment(m)}>{m.card.whatToDo||'No note yet'}</button>
                 <div ref={isSel?noteRef:undefined} hidden={!isSel||drawing} className="recording-note" data-floating={isSel&&!!notePosition} style={isSel&&notePosition?notePosition:undefined} role="group" data-side={m.region&&m.region.x+m.region.width/2<COORD_MAX/2?'right':'left'} aria-label={`Edit moment ${i+1}`}
                   onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();cancelNote();}else if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)&&!event.repeat){event.preventDefault();event.stopPropagation();void doneNote();}}}>
-                <p className="mb-3 text-sm font-medium"><span className="recording-moment-number">{i+1}</span> <button type="button" title={`${preciseTime(m.startMs)}–${preciseTime(m.endMs)}`} onClick={()=>seek(m.startMs)}>{formatMs(m.startMs)} – {formatMs(m.endMs)}</button></p>
-                <details className="recording-area-options mt-2 text-xs text-ink-400"><summary>Marked area</summary><div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <p className="mb-3 text-reading font-medium"><span className="recording-moment-number">{i+1}</span> <button type="button" title={`${preciseTime(m.startMs)}–${preciseTime(m.endMs)}`} onClick={()=>seek(m.startMs)}>{formatMs(m.startMs)} – {formatMs(m.endMs)}</button></p>
+                <details className="recording-area-options mt-2 text-secondary text-ink-400"><summary>Marked area</summary><div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span>{m.region?'Area marked':'Whole screen'}</span><details><summary>Area details</summary>{m.region?regionLabel(m.region):'Whole screen'}</details>
                   <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => { videoRef.current?.pause(); selectMoment(m); setRegionError(null); setDrawing(true); }} className="text-state-running hover:underline">Draw region</button>
                   {pointerBox && <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => setRegion(m.momentId, pointerBox)} className="text-state-running hover:underline">Use pointer box</button>}
                   {m.region && <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => setRegion(m.momentId, null)} className="text-ink-400 hover:underline">Clear region</button>}
                 </div></details>
-                <div className="mt-3 recording-comment-box"><label htmlFor={`${m.momentId}-feedback`} className="sr-only">What should change here?</label><textarea id={`${m.momentId}-feedback`} placeholder="What should change here?" rows={3} maxLength={CARD_FIELD_MAX} value={m.card.whatToDo} onFocus={()=>setSelectedId(m.momentId)} onChange={e=>setField(m.momentId,'whatToDo',e.target.value)} className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 focus:border-sky-500 focus:outline-none"/>
+                <div className="mt-3 recording-comment-box"><label htmlFor={`${m.momentId}-feedback`} className="sr-only">What should change here?</label><textarea id={`${m.momentId}-feedback`} placeholder="What should change here?" rows={3} maxLength={CARD_FIELD_MAX} value={m.card.whatToDo} onFocus={()=>setSelectedId(m.momentId)} onChange={e=>setField(m.momentId,'whatToDo',e.target.value)} className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-3 py-2 text-ui text-ink-100 focus:border-sky-500 focus:outline-none"/>
                   {embedded&&isSel&&<TrainerVoiceNote compact disabled={busy!==null} onDirtyChange={dirty=>setVoiceDirty(previous=>{const next=new Set(previous);if(dirty)next.add(m.momentId);else next.delete(m.momentId);return next.size===previous.size&&[...next].every(id=>previous.has(id))?previous:next;})} ownerId={ownerId} attach={{sourceKind:detail.origin==='recorded'?'recording':'upload',sourceRef:`${recordingId}:${m.momentId}`,mark:m.endMs>m.startMs?{startMs:m.startMs,endMs:m.endMs}:{frameMs:m.startMs,region:m.region||{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,CARD_FIELD_MAX-m.card.whatToDo.trim().length-(m.card.whatToDo.trim()?2:0))} onInsert={text=>patch(m.momentId,current=>({...current,card:{...current.card,whatToDo:[current.card.whatToDo.trim(),text].filter(Boolean).join('\n\n')}}))}/>}
-                  {warnings.whatToDo&&<p data-testid="card-warning" className="mt-1 text-xs text-state-needs">{warnings.whatToDo.join(' ')}</p>}
+                  {warnings.whatToDo&&<p data-testid="card-warning" className="mt-1 text-secondary text-state-needs">{warnings.whatToDo.join(' ')}</p>}
                 </div>
-                <p className="mt-3 text-xs text-ink-400">Changes save automatically on this Mac.</p>
+                <p className="mt-3 text-secondary text-ink-400">Changes save automatically on this Mac.</p>
                 <div className="recording-note-actions mt-4 flex justify-end gap-2 border-t border-ink-700 pt-3">
                   <button type="button" aria-label="Cancel changes" className="btn-ghost" disabled={voiceDirty.size>0} onClick={cancelNote}>Cancel changes <small>Esc</small></button>
                   <button type="button" aria-label="Done" className="btn-primary" disabled={busy!==null||voiceDirty.size>0} onClick={()=>void doneNote()}>{busy==='save'?'Saving…':<>Done <small>⌘↵</small></>}</button>
                 </div>
                 </div>
-                {onUseFeedback&&<button type="button" className="mt-3 text-xs text-ink-500 underline underline-offset-4" disabled={busy!==null||dirty||!CARD_FIELDS.some(field=>m.card[field].trim())} onClick={()=>onUseFeedback(recordingId,m)}>Turn into a learning</button>}
-                {CARD_FIELDS.some(field=>field!=='whatToDo'&&m.card[field].trim())&&<details className="mt-3 text-xs text-ink-400"><summary>Previously saved notes</summary>{CARD_FIELDS.filter(field=>field!=='whatToDo'&&m.card[field].trim()).map(field=><p key={field} className="mt-2 whitespace-pre-wrap"><strong>{CARD_FIELD_LABELS[field]}:</strong> {m.card[field]}</p>)}</details>}
+                {onUseFeedback&&<button type="button" className="mt-3 text-ui text-ink-500 underline underline-offset-4" disabled={busy!==null||dirty||!CARD_FIELDS.some(field=>m.card[field].trim())} onClick={()=>onUseFeedback(recordingId,m)}>Turn into a learning</button>}
+                {CARD_FIELDS.some(field=>field!=='whatToDo'&&m.card[field].trim())&&<details className="mt-3 text-secondary text-ink-400"><summary>Previously saved notes</summary>{CARD_FIELDS.filter(field=>field!=='whatToDo'&&m.card[field].trim()).map(field=><p key={field} className="mt-2 whitespace-pre-wrap"><strong>{CARD_FIELD_LABELS[field]}:</strong> {m.card[field]}</p>)}</details>}
               </li>
             );
           })}
@@ -710,32 +710,32 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
       {embedded&&trainingFrames&&durationMs!==null&&<section aria-label="Screenshots from your recording" className="my-4 space-y-3">
         <h3 className="font-medium">Add feedback to a screenshot</h3>
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">{trainingFrames.map(frame=><li key={frame.timeMs}>
-          <button type="button" disabled={busy!==null||voiceDirty.size>0} className="space-y-1 text-left text-xs text-ink-300" onClick={()=>addTrainingMoment(frame.timeMs)}>
+          <button type="button" disabled={busy!==null||voiceDirty.size>0} className="space-y-1 text-left text-ui text-ink-300" onClick={()=>addTrainingMoment(frame.timeMs)}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={frame.image} alt="" className="w-full rounded-lg"/>
             Add feedback at {formatMs(frame.timeMs)}
           </button>
         </li>)}</ul>
       </section>}
-      <section className="my-4 flex flex-wrap items-center gap-3 text-sm">
+      <section className="my-4 flex flex-wrap items-center gap-3 text-secondary">
         {embedded&&trainingReview&&durationMs!==null&&<button type="button" className="btn-secondary" disabled={busy!==null||voiceDirty.size>0}
           onClick={()=>addTrainingMoment(playheadMs)}>Add a learning</button>}
         {doneTeaching}
-        <details className="text-xs text-ink-400"><summary className="cursor-pointer">More options</summary><p className="mt-2">Up to {MAX_MOMENTS} moments, {MAX_MOMENT_MS/1000} seconds each.</p><div className="mt-3 flex flex-wrap items-center gap-3">{detail.origin==='imported'&&onTrainerNarrationChange&&<label className="flex w-full items-center gap-2"><input type="checkbox" checked={trainerNarration} onChange={event=>onTrainerNarrationChange(event.target.checked)}/>This is my narrated demonstration</label>}
+        <details className="text-secondary text-ink-400"><summary className="cursor-pointer">More options</summary><p className="mt-2">Up to {MAX_MOMENTS} moments, {MAX_MOMENT_MS/1000} seconds each.</p><div className="mt-3 flex flex-wrap items-center gap-3">{detail.origin==='imported'&&onTrainerNarrationChange&&<label className="flex w-full items-center gap-2"><input type="checkbox" checked={trainerNarration} onChange={event=>onTrainerNarrationChange(event.target.checked)}/>This is my narrated demonstration</label>}
         {onAnalyzeNarration?<button type="button" className="btn-primary" disabled={busy!==null||!!narrationUnavailable} onClick={async()=>{if(dirty&&!(await save()))return;onAnalyzeNarration(recordingId,selectedId);}}>Find learnings in my narration</button>:<>{trainingSlug?<button type="button" disabled={dirty||busy!==null} onClick={()=>router.push(`/training/${encodeURIComponent(trainingSlug)}?recordingId=${recordingId}${selectedId?`&momentId=${selectedId}`:''}`)}>Use in Training</button>:<Link href={`/training?recordingId=${recordingId}`}>Choose an agent for Training</Link>}</>}
         {onAnalyzeTool&&<button type="button" className="btn-secondary" disabled={busy!==null||!!narrationUnavailable} onClick={async()=>{if(dirty&&!(await save()))return;onAnalyzeTool(recordingId,selectedId);}}>Teach a tool or method</button>}
-        {(onAnalyzeNarration||onAnalyzeTool)&&narrationUnavailable&&<p className="text-xs text-ink-400">{narrationUnavailable}</p>}
+        {(onAnalyzeNarration||onAnalyzeTool)&&narrationUnavailable&&<p className="text-secondary text-ink-400">{narrationUnavailable}</p>}
         </div></details>
       </section>
 
       <Modal open={leaveHref !== null} onClose={() => setLeaveHref(null)} title="Leave without saving?">
-        <p className="text-sm text-ink-300">{LEAVE_COPY}</p>
+        <p className="text-reading text-ink-300">{LEAVE_COPY}</p>
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={() => setLeaveHref(null)} className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-200">Keep editing</button>
+          <button type="button" onClick={() => setLeaveHref(null)} className="rounded-md border border-ink-700 px-3 py-1.5 text-ui text-ink-200">Keep editing</button>
           <button
             type="button"
             onClick={() => { const href = leaveHref; setLeaveHref(null); if (href) router.push(href); }}
-            className="rounded-md bg-action-danger px-3 py-1.5 text-sm font-medium text-[var(--on-action-danger)] hover:bg-action-danger-hover"
+            className="rounded-md bg-action-danger px-3 py-1.5 text-ui font-medium text-[var(--on-action-danger)] hover:bg-action-danger-hover"
           >
             Leave without saving
           </button>

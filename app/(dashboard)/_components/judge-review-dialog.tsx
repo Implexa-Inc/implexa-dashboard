@@ -95,7 +95,7 @@ export default function JudgeReviewCard({ item, workRow = false, extraActions, e
   const who = item.agentName && item.agentName!==item.agentSlug ? item.agentName : item.agentSlug ? humanize(item.agentSlug) : 'An agent';
   const plainNeed = ACTION_UI[item.requiredAction]?.needSummary;
 
-  const trigger = (<button ref={triggerRef} type="button" onClick={() => setOpen(true)} className="btn-outline text-xs px-3 py-1.5 flex-none">
+  const trigger = (<button ref={triggerRef} type="button" onClick={() => setOpen(true)} className="btn-outline text-ui px-3 py-1.5 flex-none">
         {item.primaryAction.label}
       </button>);
   return (
@@ -104,9 +104,9 @@ export default function JudgeReviewCard({ item, workRow = false, extraActions, e
         state={item.requiredAction === 'grant_permission' ? 'Needs approval' : 'Needs input'}
         when={item.createdAt ? <LocalTime iso={item.createdAt}/> : null} actions={<>{trigger}{extraActions}</>}/> : <>
       <div className="min-w-0">
-        <p className="text-sm font-medium text-ink-100 truncate">{who}</p>
-        <p className="text-xs mt-0.5 text-state-needs">{item.whatHappened}</p>
-        {item.actionDetail && <p className="text-[11px] mt-1 text-ink-400">{item.actionDetail}</p>}
+        <p className="text-reading font-medium text-ink-100 truncate">{who}</p>
+        <p className="text-secondary mt-0.5 text-state-needs">{item.whatHappened}</p>
+        {item.actionDetail && <p className="text-reading mt-1 text-ink-400">{item.actionDetail}</p>}
       </div>
       {trigger}</>}
       {workRow && <><details className="work-row-details"><summary>What happened & details</summary><p>{item.whatHappened}</p>{item.actionDetail&&<p>{item.actionDetail}</p>}</details>{extraDetails}</>}
@@ -221,28 +221,28 @@ function JudgeReviewModal({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <h2 id="judge-review-title" className="text-sm font-semibold text-ink-50">{who}</h2>
-              <span className="text-[10px] uppercase tracking-wide rounded border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-state-needs">Tukido Judge</span>
+              <h2 id="judge-review-title" className="text-ui font-semibold text-ink-50">{who}</h2>
+              <span className="text-secondary uppercase tracking-wide rounded border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-state-needs">Tukido Judge</span>
             </div>
-            <p className="text-xs text-ink-400 mt-0.5">Tukido Judge found something that needs your attention.</p>
+            <p className="text-secondary text-ink-400 mt-0.5">Tukido Judge found something that needs your attention.</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="text-ink-500 hover:text-ink-300 text-lg leading-none flex-none">×</button>
         </div>
 
         <div className="mt-3 rounded-lg border border-ink-800 bg-ink-950/50 px-3 py-2.5">
-          <div className="text-[10px] uppercase tracking-wide text-ink-500 mb-1">What happened</div>
-          <p className="text-sm text-ink-200 whitespace-pre-wrap">{item.whatHappened}</p>
+          <div className="text-secondary uppercase tracking-wide text-ink-500 mb-1">What happened</div>
+          <p className="text-reading text-ink-200 whitespace-pre-wrap">{item.whatHappened}</p>
         </div>
 
         {item.actionDetail && (
           <div className="mt-2 rounded-lg border border-ink-800 bg-ink-950/30 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-ink-500 mb-1">Best next step</div>
-            <p className="text-xs text-ink-300 whitespace-pre-wrap">{item.actionDetail}</p>
+            <div className="text-secondary uppercase tracking-wide text-ink-500 mb-1">Best next step</div>
+            <p className="text-reading text-ink-300 whitespace-pre-wrap">{item.actionDetail}</p>
           </div>
         )}
 
         <label className="block mt-3">
-          <span className="text-[10px] uppercase tracking-wide text-ink-500">
+          <span className="text-secondary uppercase tracking-wide text-ink-500">
             {item.requiredAction === 'provide_information' ? 'Your answer — it continues with this' : 'What to tell it next (edit if needed)'}
           </span>
           <textarea
@@ -250,18 +250,18 @@ function JudgeReviewModal({
             onChange={(e) => setFix(e.target.value)}
             rows={4}
             placeholder={item.requiredAction === 'provide_information' ? 'Tell it exactly what it needs to continue…' : 'Add anything it should know before continuing…'}
-            className="mt-1 w-full rounded-lg border border-ink-700 bg-ink-950/70 px-3 py-2 text-sm text-ink-100 focus:border-brand-500 focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-ink-700 bg-ink-950/70 px-3 py-2 text-ui text-ink-100 focus:border-brand-500 focus:outline-none"
           />
         </label>
 
-        {error && <p className="mt-2 text-xs text-state-fail">{error}</p>}
+        {error && <p className="mt-2 text-secondary text-state-fail">{error}</p>}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
             disabled={busy !== null || !canContinue}
             onClick={onContinue}
-            className="btn-primary text-sm px-4 py-2 disabled:opacity-50"
+            className="btn-primary text-ui px-4 py-2 disabled:opacity-50"
           >
             {busy === 'continue' ? 'Continuing…' : ui.primaryLabel}
           </button>
@@ -273,12 +273,12 @@ function JudgeReviewModal({
               disabled={busy !== null}
               onClick={() => resolve(null, 'close')}
               title="You reviewed this and there's nothing to re-run — just close it."
-              className="btn-outline text-sm px-3 py-2 disabled:opacity-50"
+              className="btn-outline text-ui px-3 py-2 disabled:opacity-50"
             >
               {busy === 'close' ? 'Closing…' : 'I reviewed this — close'}
             </button>
           )}
-          <Link href={item.runId ? `/runs/${item.runId}` : '/connections'} className="text-xs text-ink-500 hover:text-ink-300 underline ml-auto">View run</Link>
+          <Link href={item.runId ? `/runs/${item.runId}` : '/connections'} className="text-secondary text-ink-500 hover:text-ink-300 underline ml-auto">View run</Link>
         </div>
 
         <div className="mt-4 pt-3 border-t border-ink-800">

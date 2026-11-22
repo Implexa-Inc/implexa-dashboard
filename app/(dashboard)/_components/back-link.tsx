@@ -29,7 +29,7 @@ export default function BackLink({ fallback, label, className }: {
         if (typeof window !== 'undefined' && window.history.length > 1) router.back();
         else router.push(fallback);
       }}
-      className={className || 'inline-flex items-center gap-2 text-sm text-ink-500 hover:text-ink-200 transition-colors'}
+      className={className || 'inline-flex items-center gap-2 text-ui text-ink-500 hover:text-ink-200 transition-colors'}
     >
       <span aria-hidden>&larr;</span> {label}
     </button>

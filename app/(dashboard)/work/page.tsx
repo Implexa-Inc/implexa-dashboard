@@ -66,5 +66,5 @@ async function DeliveredView() {
 async function OtherWork({jwt}:{jwt:string}) {
   const load=await listOutcomeProductions(jwt);
   if(load.status==='absent'||load.status==='ready'&&load.productions.length===0) return null;
-  return <details className="mt-6 rounded-lg border border-ink-800 p-4"><summary className="cursor-pointer text-sm text-ink-300">Other work & productions</summary><div className="mt-4"><OutcomeProductionsList load={load}/></div></details>;
+  return <details className="mt-6 rounded-lg border border-ink-800 p-4"><summary className="cursor-pointer text-ui text-ink-300">Other work & productions</summary><div className="mt-4"><OutcomeProductionsList load={load}/></div></details>;
 }

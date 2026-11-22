@@ -153,23 +153,23 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
     } finally { setBusy(null); }
   }
 
-  if (!read && !stale) return <p className="text-sm text-ink-400">Loading requirements…</p>;
+  if (!read && !stale) return <p className="text-reading text-ink-400">Loading requirements…</p>;
   if (!read) {
     return (
       <div className="flex flex-col gap-3" data-testid="machine-setup">
-        <p className="text-sm text-state-fail" data-testid="machine-setup-stale">Setup status could not be loaded. {note}</p>
-        <button type="button" disabled={busy === 'recheck'} className="btn-primary text-xs px-3 py-1.5 w-fit disabled:opacity-60" onClick={recheck}>{busy === 'recheck' ? 'Rechecking…' : 'Recheck'}</button>
+        <p className="text-reading text-state-fail" data-testid="machine-setup-stale">Setup status could not be loaded. {note}</p>
+        <button type="button" disabled={busy === 'recheck'} className="btn-primary text-ui px-3 py-1.5 w-fit disabled:opacity-60" onClick={recheck}>{busy === 'recheck' ? 'Rechecking…' : 'Recheck'}</button>
       </div>
     );
   }
   if (!read.classified || !read.requirements) {
-    return <p className="text-sm text-ink-300">This agent’s version does not declare machine requirements, so nothing is checked before it runs.</p>;
+    return <p className="text-reading text-ink-300">This agent’s version does not declare machine requirements, so nothing is checked before it runs.</p>;
   }
   const stateFor = new Map((read.items || []).map((i) => [i.id, i]));
   const machineLabel = read.machine?.label || (read.machine?.id ? `Mac ${read.machine.id.slice(0, 8)}` : 'this computer');
   return (
     <div className="flex flex-col gap-4" data-testid="machine-setup">
-      <div className="text-xs text-ink-400">Checking: <span className="text-ink-200" data-testid="machine-setup-machine">{machineLabel}</span>{read.machine && read.machine.online === false ? ' (offline)' : ''}
+      <div className="text-secondary text-ink-400">Checking: <span className="text-ink-200" data-testid="machine-setup-machine">{machineLabel}</span>{read.machine && read.machine.online === false ? ' (offline)' : ''}
         {' · '}
         {stale
           ? <span className="text-state-needs" data-testid="machine-setup-stale">Status could not be refreshed — shown state may be out of date</span>
@@ -187,10 +187,10 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
           return (
             <li key={req.id} className="card px-4 py-3 flex items-start justify-between gap-4" data-testid={`machine-setup-item-${req.id}`}>
               <div className="min-w-0">
-                <div className="text-sm text-ink-100">{req.label}{req.required ? '' : <span className="ml-1 text-[11px] text-ink-500">optional{req.fallback ? ` · fallback: ${req.fallback.mode_label}` : ''}</span>}</div>
-                <div className="text-[11px] text-ink-500">{req.setup.title}</div>
+                <div className="text-secondary text-ink-100">{req.label}{req.required ? '' : <span className="ml-1 text-secondary text-ink-500">optional{req.fallback ? ` · fallback: ${req.fallback.mode_label}` : ''}</span>}</div>
+                <div className="text-secondary text-ink-500">{req.setup.title}</div>
                 {!ready && Array.isArray(req.setup.instructions) && req.setup.instructions.length ? (
-                  <ol className="mt-1.5 list-decimal pl-4 text-[11px] text-ink-400 flex flex-col gap-0.5" data-testid={`machine-setup-instructions-${req.id}`}>
+                  <ol className="mt-1.5 list-decimal pl-4 text-secondary text-ink-400 flex flex-col gap-0.5" data-testid={`machine-setup-instructions-${req.id}`}>
                     {req.setup.instructions.map((step, index) => <li key={index}>{step}</li>)}
                   </ol>
                 ) : null}
@@ -198,23 +198,23 @@ export default function MachineSetupClient({ slug, machineId = null, workflowVer
                   <div className="mt-2 flex flex-wrap gap-2">
                     {actions.map((action) => (
                       <button key={action} type="button" disabled={!!busy} title={SETUP_ACTION_COPY[action]?.explicit}
-                        className="btn-outline text-xs px-3 py-1 disabled:opacity-60" data-action={action} onClick={() => act(action, req)}>
+                        className="btn-outline text-ui px-3 py-1 disabled:opacity-60" data-action={action} onClick={() => act(action, req)}>
                         {busy === `${req.id}:${action}` ? 'Working…' : `${SETUP_ACTION_COPY[action]?.label || action}${action === 'install_cli' ? ` ${req.label}` : ''}`}
                       </button>
                     ))}
                   </div>
                 ) : null}
               </div>
-              <div className={`flex-none text-xs ${ready ? 'text-success-600 dark:text-success-400' : req.required ? 'text-state-fail' : 'text-ink-400'}`}>{req.label} — {label}</div>
+              <div className={`flex-none text-secondary ${ready ? 'text-success-600 dark:text-success-400' : req.required ? 'text-state-fail' : 'text-ink-400'}`}>{req.label} — {label}</div>
             </li>
           );
         })}
       </ul>
       <div className="flex items-center gap-3">
-        <button type="button" disabled={busy === 'recheck'} className="btn-primary text-xs px-3 py-1.5 disabled:opacity-60" onClick={recheck}>{busy === 'recheck' ? 'Rechecking…' : 'Recheck'}</button>
-        {note ? <span className="text-xs text-ink-400">{note}</span> : null}
+        <button type="button" disabled={busy === 'recheck'} className="btn-primary text-ui px-3 py-1.5 disabled:opacity-60" onClick={recheck}>{busy === 'recheck' ? 'Rechecking…' : 'Recheck'}</button>
+        {note ? <span className="text-secondary text-ink-400">{note}</span> : null}
       </div>
-      <p className="text-[11px] text-ink-500">Installation and sign-in happen only when you choose them here; Tukido never installs software or captures credentials on its own.</p>
+      <p className="text-reading text-ink-500">Installation and sign-in happen only when you choose them here; Tukido never installs software or captures credentials on its own.</p>
     </div>
   );
 }

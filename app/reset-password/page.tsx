@@ -72,7 +72,7 @@ function ResetPasswordInner() {
         <div className="w-full max-w-sm card text-center">
           <div className="text-3xl mb-3">⚠️</div>
           <h1 className="text-2xl font-semibold mb-2">Link expired or invalid</h1>
-          <p className="text-ink-500 text-sm mb-4">
+          <p className="text-ink-500 text-reading mb-4">
             The reset link is no longer active. Request a fresh one.
           </p>
           <Link href="/forgot-password" className="btn-primary inline-block">
@@ -86,7 +86,7 @@ function ResetPasswordInner() {
   if (hasSession === null) {
     return (
       <main className="min-h-screen flex items-center justify-center px-4">
-        <div className="text-sm text-ink-400">Loading…</div>
+        <div className="text-secondary text-ink-400">Loading…</div>
       </main>
     );
   }
@@ -97,7 +97,7 @@ function ResetPasswordInner() {
         <div className="w-full max-w-sm card text-center">
           <div className="text-3xl mb-3">✓</div>
           <h1 className="text-2xl font-semibold mb-2">Password updated</h1>
-          <p className="text-ink-500 text-sm">Redirecting you to your skills…</p>
+          <p className="text-ink-500 text-reading">Redirecting you to your skills…</p>
         </div>
       </main>
     );
@@ -108,7 +108,7 @@ function ResetPasswordInner() {
       <div className="w-full max-w-sm">
         <div className="mb-6"><Logo height={18} /></div>
         <h1 className="text-3xl font-semibold tracking-tight mb-2 text-ink-50">Set a new password</h1>
-        <p className="text-ink-300 text-sm mb-8">
+        <p className="text-ink-300 text-reading mb-8">
           Choose something memorable. We&apos;ll sign you in automatically when you save.
         </p>
 
@@ -135,7 +135,7 @@ function ResetPasswordInner() {
               onChange={(e) => setConfirm(e.target.value)}
               className="input"
             />
-            {error && <p className="text-sm text-state-fail">{error}</p>}
+            {error && <p className="text-reading text-state-fail">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? 'Updating…' : 'Update password'}
             </button>

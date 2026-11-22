@@ -219,14 +219,14 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
 
       {editing && canEditDraft && <section className="w-full space-y-2 rounded border border-ink-700 p-3">
         <p>Editing private draft version {currentVersion}. If it changes before saving, reload and review it again.</p>
-        <label className="block">Draft operating method<textarea aria-label="Draft operating method" className="block w-full min-h-64 rounded bg-ink-900 p-2 font-mono text-sm" value={draftContent} maxLength={30000} disabled={!!busy} onChange={event => setDraftContent(event.target.value)} /></label>
-        <p className="text-xs">Correct wording in this existing method. New tool procedures belong in a new demonstration. Saving uses the existing version history; it does not activate or share the draft.</p>
+        <label className="block">Draft operating method<textarea aria-label="Draft operating method" className="block w-full min-h-64 rounded bg-ink-900 p-2 font-mono text-micro" value={draftContent} maxLength={30000} disabled={!!busy} onChange={event => setDraftContent(event.target.value)} /></label>
+        <p className="text-reading">Correct wording in this existing method. New tool procedures belong in a new demonstration. Saving uses the existing version history; it does not activate or share the draft.</p>
         <button disabled={!!busy || !draftContent.trim() || draftContent === currentContent} onClick={saveDraftWording}>Save draft wording</button>
         <button disabled={!!busy} onClick={() => setEditing(false)}>Cancel wording edit</button>
       </section>}
-      {editNotice && <p role="status" className="text-xs">{editNotice}</p>}
+      {editNotice && <p role="status" className="text-secondary">{editNotice}</p>}
 
-      {error && <p className="text-xs text-state-fail text-right">{error}</p>}
+      {error && <p className="text-secondary text-state-fail text-right">{error}</p>}
 
       {/* Delete confirmation modal — overlays the whole page. Custom-built
         * because window.confirm() is too easy to dismiss accidentally, and
@@ -244,16 +244,16 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
             <h3 id="delete-confirm-title" className="text-base font-medium text-ink-50 mb-2">
               Permanently delete &ldquo;{name}&rdquo;?
             </h3>
-            <p className="text-sm text-ink-200 leading-relaxed mb-2">
+            <p className="text-reading text-ink-200 mb-2">
               This cannot be undone. The skill, its full version history,
               recordings, and attribution data will be permanently destroyed.
             </p>
             {usageCount > 0 && (
-              <p className="text-xs text-accent-700 dark:text-accent-400 mb-3">
+              <p className="text-secondary text-accent-700 dark:text-accent-400 mb-3">
                 ⚠ This skill has been invoked {usageCount} time{usageCount === 1 ? '' : 's'} — deleting will sever those analytics records.
               </p>
             )}
-            <p className="text-xs text-ink-300 mb-4">
+            <p className="text-reading text-ink-300 mb-4">
               <strong>Want to keep the data?</strong> Cancel + click <em>Archive</em> instead — it hides the skill from your library but preserves everything.
             </p>
             <div className="flex justify-end gap-2">
@@ -376,7 +376,7 @@ function MoreActionsMenu({
               role="menuitem"
               disabled={!!busy}
               onClick={() => { setOpen(false); onArchive(); }}
-              className="w-full text-left px-3 py-2 text-sm text-ink-200 hover:bg-ink-800 hover:text-ink-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+              className="w-full text-left px-3 py-2 text-ui text-ink-200 hover:bg-ink-800 hover:text-ink-50 transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               <span aria-hidden="true" className="text-ink-400 w-4 inline-block">📁</span>
               <span>Archive</span>
@@ -389,7 +389,7 @@ function MoreActionsMenu({
               role="menuitem"
               disabled={!!busy}
               onClick={() => { setOpen(false); onDelete(); }}
-              className="w-full text-left px-3 py-2 text-sm text-state-fail hover:bg-red-500/10 transition-colors flex items-center gap-2 disabled:opacity-50"
+              className="w-full text-left px-3 py-2 text-ui text-state-fail hover:bg-red-500/10 transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               <span aria-hidden="true" className="w-4 inline-block">🗑</span>
               <span>Delete permanently</span>
@@ -413,7 +413,7 @@ function ShareButton({
       disabled={disabled}
       className={`whitespace-nowrap ${
         hasActive
-          ? 'text-xs px-2.5 py-1 border border-success-400/50 text-success-700 dark:text-success-400 rounded-md bg-success-400/10 hover:bg-success-400/20'
+          ? 'text-ui px-2.5 py-1 border border-success-400/50 text-success-700 dark:text-success-400 rounded-md bg-success-400/10 hover:bg-success-400/20'
           : 'btn-ghost border border-ink-700'
       }`}
     >
@@ -440,21 +440,21 @@ function SharePanel({
   return (
     <div className="card !p-3 !border-brand-500/40 w-full mt-2">
       <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
-        <div className="text-xs font-medium text-action-accent">
+        <div className="text-secondary font-medium text-action-accent">
           {share.shareMode === 'team' ? '🔒 Team share' : '🌐 Public share'} active
         </div>
-        <div className="text-[10px] text-ink-400 tabular-nums">
+        <div className="text-micro text-ink-400 tabular-nums">
           {share.viewCount} view{share.viewCount === 1 ? '' : 's'} · {share.installCount} install{share.installCount === 1 ? '' : 's'}
         </div>
       </div>
 
       <div className="flex items-center gap-2 mb-2">
-        <code className="text-xs break-all flex-1 bg-ink-800 text-ink-100 rounded px-2 py-1.5 border border-brand-500/20 font-mono">
+        <code className="text-micro break-all flex-1 bg-ink-800 text-ink-100 rounded px-2 py-1.5 border border-brand-500/20 font-mono">
           {share.url}
         </code>
         <button
           onClick={handleCopy}
-          className={`text-xs px-2.5 py-1.5 rounded-md border whitespace-nowrap transition-colors ${
+          className={`text-ui px-2.5 py-1.5 rounded-md border whitespace-nowrap transition-colors ${
             copied
               ? 'border-success-400/50 text-success-700 dark:text-success-400 bg-success-400/10'
               : 'border-ink-700 text-ink-300 hover:bg-ink-800 hover:text-ink-100'
@@ -465,11 +465,11 @@ function SharePanel({
       </div>
 
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-xs text-ink-300 leading-relaxed flex-1">{share.gateDescription}</p>
+        <p className="text-secondary text-ink-300 leading-relaxed flex-1">{share.gateDescription}</p>
         <button
           onClick={onRevoke}
           disabled={revoking}
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-state-fail hover:text-state-fail hover:text-state-fail hover:bg-red-500/10 px-2 py-1 rounded transition-colors whitespace-nowrap disabled:opacity-50"
+          className="inline-flex items-center gap-1 text-ui font-medium text-state-fail hover:text-state-fail hover:text-state-fail hover:bg-red-500/10 px-2 py-1 rounded transition-colors whitespace-nowrap disabled:opacity-50"
           aria-label={share.shareMode === 'public' ? 'Undo public share' : 'Revoke team share'}
         >
           {/* Trash icon — inline SVG, no external dep. 12px to sit balanced with the 11px text. */}

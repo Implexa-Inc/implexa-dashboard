@@ -81,11 +81,11 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
           type="button"
           onClick={async () => { if (firing) return; setFiring(true); setErr(null); const queued = await enqueueRun(); if (!queued) setFiring(false); }}
           disabled={firing}
-          className="btn-success text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60"
+          className="btn-success text-ui px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60"
         >
           {firing ? 'Starting…' : 'Fix now in Claude ↗'}
         </button>
-        {err ? <span className="text-xs text-state-fail">{err}</span> : null}
+        {err ? <span className="text-secondary text-state-fail">{err}</span> : null}
         {setupGate.modal}
       </>
     );
@@ -115,11 +115,11 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
         type="button"
         onClick={fix}
         disabled={firing}
-        className="btn-success text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60"
+        className="btn-success text-ui px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60"
       >
         {firing ? 'Starting…' : neverArmed ? 'Start it' : 'Fix now'}
       </button>
-      {err ? <span className="text-xs text-state-fail">{err}</span> : null}
+      {err ? <span className="text-secondary text-state-fail">{err}</span> : null}
       {setupGate.modal}
     </>
   );

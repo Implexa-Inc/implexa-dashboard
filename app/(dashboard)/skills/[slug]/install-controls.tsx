@@ -78,18 +78,18 @@ export function InstallStatusBadge({
   if (optimisticStatus === 'active') {
     return (
       <div className="inline-flex items-center gap-2">
-        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-brand-500/15 text-action-accent font-medium">
+        <span className="inline-flex items-center gap-1 text-secondary px-2 py-0.5 rounded-full bg-brand-500/15 text-action-accent font-medium">
           <span aria-hidden="true">✓</span> Installed
         </span>
         <button
           type="button"
           onClick={() => flipStatus('archived')}
           disabled={busy}
-          className="text-xs text-ink-400 hover:text-ink-200 hover:underline disabled:opacity-50"
+          className="text-ui text-ink-400 hover:text-ink-200 hover:underline disabled:opacity-50"
         >
           {busy ? 'Removing…' : 'Remove from library'}
         </button>
-        {error && <span className="text-xs text-state-fail">{error}</span>}
+        {error && <span className="text-secondary text-state-fail">{error}</span>}
       </div>
     );
   }
@@ -100,16 +100,16 @@ export function InstallStatusBadge({
   // but is intentionally hidden from the user's default library view.
   return (
     <div className="inline-flex items-center gap-2">
-      <span className="text-xs text-ink-400">Removed from your library</span>
+      <span className="text-secondary text-ink-400">Removed from your library</span>
       <button
         type="button"
         onClick={() => flipStatus('active')}
         disabled={busy}
-        className="text-xs text-action-accent hover:underline disabled:opacity-50"
+        className="text-ui text-action-accent hover:underline disabled:opacity-50"
       >
         {busy ? 'Restoring…' : 'Restore'}
       </button>
-      {error && <span className="text-xs text-state-fail">{error}</span>}
+      {error && <span className="text-secondary text-state-fail">{error}</span>}
     </div>
   );
 }
@@ -149,7 +149,7 @@ export function ForkToCustomizeButton({
       <button
         type="button"
         onClick={() => setConfirmOpen(true)}
-        className="text-xs px-2.5 py-1 rounded-md border border-brand-500/40 text-action-accent hover:bg-brand-500/10 transition-colors"
+        className="text-ui px-2.5 py-1 rounded-md border border-brand-500/40 text-action-accent hover:bg-brand-500/10 transition-colors"
       >
         Fork to customize
       </button>
@@ -166,17 +166,17 @@ export function ForkToCustomizeButton({
             <h3 id="fork-confirm-title" className="text-base font-medium text-ink-50 mb-2">
               Fork &ldquo;{skillName}&rdquo; to customize?
             </h3>
-            <p className="text-sm text-ink-200 leading-relaxed mb-2">
+            <p className="text-reading text-ink-200 mb-2">
               Forking creates your own private copy in your org that you can
               edit freely. The original skill stays unchanged — its
               attribution, stars, and Trending rank accumulate on the
               canonical row.
             </p>
-            <p className="text-xs text-ink-400 mb-4">
+            <p className="text-reading text-ink-400 mb-4">
               You&rsquo;ll still be able to run the original from your library
               even after forking. Forks count toward your private skill quota.
             </p>
-            {error && <p className="text-xs text-state-fail mb-3">{error}</p>}
+            {error && <p className="text-secondary text-state-fail mb-3">{error}</p>}
             <div className="flex justify-end gap-2">
               <button
                 type="button"

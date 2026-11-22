@@ -38,7 +38,7 @@ function rel(iso: string | null): string {
 function ReachBadge({ status }: { status: ConnectionAccount['status'] }) {
   const spec = REACH_PRESENTATION[status];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full font-medium text-xs px-2.5 py-1 ${spec.classes}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full font-medium text-secondary px-2.5 py-1 ${spec.classes}`}>
       <span className={`inline-block w-1.5 h-1.5 rounded-full ${spec.dot}`} aria-hidden="true" />
       {spec.label}
     </span>
@@ -75,7 +75,7 @@ function ProfileTag({ profile }: { profile: ConnectionAccount['profile'] }) {
   return (
     <span
       title={tag.title}
-      className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400"
+      className="text-secondary uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400"
     >
       {tag.label}
     </span>
@@ -88,10 +88,10 @@ function AccountRow({ conn }: { conn: ConnectionAccount }) {
     <li className="flex items-start justify-between gap-3 py-3.5">
       <div className="min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-ink-100 truncate">{conn.label}</span>
+          <span className="text-secondary font-medium text-ink-100 truncate">{conn.label}</span>
           <ProfileTag profile={conn.profile} />
         </div>
-        <div className="text-xs text-ink-500 mt-1 flex items-center gap-2 flex-wrap">
+        <div className="text-secondary text-ink-500 mt-1 flex items-center gap-2 flex-wrap">
           <code className="font-mono text-ink-400">{conn.domain}</code>
           <span aria-hidden>·</span>
           <span>{conn.status === 'unknown' ? 'not checked yet' : `verified ${rel(conn.verified_at)}`}</span>
@@ -103,7 +103,7 @@ function AccountRow({ conn }: { conn: ConnectionAccount }) {
           <Link
             href={RECONNECT_HREF}
             title="Connect this account in the Implexa desktop app — you sign in once in the Tukido browser, no API keys."
-            className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap"
+            className="text-secondary font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap"
           >
             Set up
           </Link>
@@ -118,17 +118,17 @@ function AgentNeedsCard({ agent }: { agent: AgentConnections }) {
   return (
     <div className="card">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <Link href={`/workflows/${agent.slug}`} className="text-sm font-medium text-ink-100 hover:text-ink-50 truncate">
+        <Link href={`/workflows/${agent.slug}`} className="text-secondary font-medium text-ink-100 hover:text-ink-50 truncate">
           {agent.name}
         </Link>
         {anyBroken ? (
-          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-rose-500/40 text-state-fail">needs a sign-in</span>
+          <span className="text-secondary uppercase tracking-wider px-1.5 py-0.5 rounded border border-rose-500/40 text-state-fail">needs a sign-in</span>
         ) : (
-          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/30 text-state-ok">ready</span>
+          <span className="text-secondary uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/30 text-state-ok">ready</span>
         )}
       </div>
       {agent.needs.length === 0 ? (
-        <p className="text-xs text-ink-500">No accounts needed. This agent runs without signing in anywhere.</p>
+        <p className="text-secondary text-ink-500">No accounts needed. This agent runs without signing in anywhere.</p>
       ) : (
         <ul className="space-y-2">
           {agent.needs.map((n, i) => {
@@ -137,9 +137,9 @@ function AgentNeedsCard({ agent }: { agent: AgentConnections }) {
               <li key={`${n.domain}-${i}`} className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-2 min-w-0">
                   <span className={`inline-block w-1.5 h-1.5 rounded-full flex-none ${spec.dot}`} aria-hidden="true" />
-                  <span className="text-sm text-ink-200 truncate">{n.label}</span>
+                  <span className="text-secondary text-ink-200 truncate">{n.label}</span>
                 </span>
-                <span className={`text-[11px] font-medium flex-none ${
+                <span className={`text-secondary font-medium flex-none ${
                   n.status === 'reachable' ? 'text-state-ok'
                   : n.status === 'unreachable' ? 'text-state-fail'
                   : 'text-ink-500'
@@ -186,30 +186,30 @@ export default async function AllConnectionsPage() {
 
         {!hasData ? (
           <div className="card-glow">
-            <h2 className="text-sm font-semibold text-ink-50">No accounts yet</h2>
-            <p className="text-sm text-ink-300 mt-2 leading-relaxed">
+            <h2 className="text-ui font-semibold text-ink-50">No accounts yet</h2>
+            <p className="text-reading text-ink-300 mt-2 ">
               When you activate an agent that needs an account (Gmail, GitHub, …), you sign in to exactly that
               account on its activation card. Everything you connect shows up here.
             </p>
             <Link
               href={AGENTS_MANAGE_HREF}
-              className="inline-flex items-center mt-4 text-sm font-medium rounded-md px-3.5 py-2 bg-brand-500/15 text-action-accent hover:bg-brand-500/25 transition-colors"
+              className="inline-flex items-center mt-4 text-secondary font-medium rounded-md px-3.5 py-2 bg-brand-500/15 text-action-accent hover:bg-brand-500/25 transition-colors"
             >
               See your agents
             </Link>
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-x-6 gap-y-2 flex-wrap text-sm mb-8">
+            <div className="flex items-center gap-x-6 gap-y-2 flex-wrap text-secondary mb-8">
               <span className="text-ink-300"><span className="text-state-ok font-semibold tabular-nums">{reachable}</span> reachable</span>
               {broken > 0 && <span className="text-ink-300"><span className="text-state-fail font-semibold tabular-nums">{broken}</span> need a sign-in</span>}
               <span className="text-ink-500">{status!.connections.length} account{status!.connections.length === 1 ? '' : 's'} total</span>
             </div>
 
             <section className="mb-12">
-              <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider mb-3">Accounts</h2>
+              <h2 className="text-ui font-medium text-ink-300 uppercase tracking-wider mb-3">Accounts</h2>
               {status!.connections.length === 0 ? (
-                <div className="card text-sm text-ink-400">No accounts reported yet.</div>
+                <div className="card text-secondary text-ink-400">No accounts reported yet.</div>
               ) : (
                 <div className="card !py-1">
                   <ul className="divide-y divide-ink-800">
@@ -221,7 +221,7 @@ export default async function AllConnectionsPage() {
 
             {status!.agents.length > 0 && (
               <section>
-                <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider mb-3">Which agents need what</h2>
+                <h2 className="text-ui font-medium text-ink-300 uppercase tracking-wider mb-3">Which agents need what</h2>
                 <div className="grid sm:grid-cols-2 gap-4">
                   {status!.agents.map((a) => <AgentNeedsCard key={a.slug} agent={a} />)}
                 </div>

@@ -34,7 +34,7 @@ export default function CopyText({
       type="button"
       onClick={copy}
       title={`Copy "${value}"`}
-      className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded border border-ink-700 text-ink-300 hover:text-ink-50 hover:border-ink-500 hover:bg-ink-800 transition-colors whitespace-nowrap"
+      className="inline-flex items-center gap-1 text-ui font-medium px-2 py-1 rounded border border-ink-700 text-ink-300 hover:text-ink-50 hover:border-ink-500 hover:bg-ink-800 transition-colors whitespace-nowrap"
     >
       {copied ? (
         <>

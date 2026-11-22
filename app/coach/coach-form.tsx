@@ -74,7 +74,7 @@ export default function CoachForm({
     return (
       <div className="card space-y-2">
         <p className="text-ink-50 font-medium">Thanks, you&apos;re on the list.</p>
-        <p className="text-sm text-ink-300">We&apos;ll email you at {email} before launch. You can come back to this page any time to update your answers.</p>
+        <p className="text-reading text-ink-300">We&apos;ll email you at {email} before launch. You can come back to this page any time to update your answers.</p>
         <button type="button" onClick={() => setState('idle')} className="btn-outline mt-2">Edit my answers</button>
       </div>
     );
@@ -83,25 +83,25 @@ export default function CoachForm({
   return (
     <form onSubmit={submit} className="card space-y-4">
       {readFailed && (
-        <p role="alert" className="text-sm text-state-needs">
+        <p role="alert" className="text-reading text-state-needs">
           We could not load answers you may have sent before. Sending this form replaces them.
         </p>
       )}
       {saved && !readFailed && (
-        <p className="text-sm text-ink-300">You&apos;re already on the list. Update your answers below.</p>
+        <p className="text-reading text-ink-300">You&apos;re already on the list. Update your answers below.</p>
       )}
       <label className="block space-y-1">
-        <span className="text-sm text-ink-300">Email</span>
+        <span className="text-secondary text-ink-300">Email</span>
         <input type="email" value={email} readOnly className="input opacity-70" />
       </label>
       <fieldset className="space-y-2">
-        <legend className="text-sm text-ink-300 mb-1">What kind of work do you do?</legend>
+        <legend className="text-secondary text-ink-300 mb-1">What kind of work do you do?</legend>
         <div className="flex flex-wrap gap-2">
           {CATEGORIES.map((c) => {
             const on = categories.includes(c.id);
             return (
               <label key={c.id}
-                className={`cursor-pointer rounded-full border px-3 py-1 text-sm focus-within:ring-2 focus-within:ring-brand-500 ${on ? 'border-brand-500 bg-brand-500/15 text-ink-50' : 'border-ink-700 text-ink-300'}`}>
+                className={`cursor-pointer rounded-full border px-3 py-1 text-ui focus-within:ring-2 focus-within:ring-brand-500 ${on ? 'border-brand-500 bg-brand-500/15 text-ink-50' : 'border-ink-700 text-ink-300'}`}>
                 <input type="checkbox" className="sr-only" checked={on}
                   onChange={() => setCategories((prev) => on ? prev.filter((x) => x !== c.id) : [...prev, c.id])} />
                 {c.label}
@@ -111,14 +111,14 @@ export default function CoachForm({
         </div>
       </fieldset>
       <fieldset className="space-y-2">
-        <legend className="text-sm text-ink-300 mb-1">Tools you use</legend>
+        <legend className="text-secondary text-ink-300 mb-1">Tools you use</legend>
         {offeredTools.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {offeredTools.map((t) => {
               const on = pickedTools.includes(t);
               return (
                 <label key={t}
-                  className={`cursor-pointer rounded-full border px-3 py-1 text-sm focus-within:ring-2 focus-within:ring-brand-500 ${on ? 'border-brand-500 bg-brand-500/15 text-ink-50' : 'border-ink-700 text-ink-300'}`}>
+                  className={`cursor-pointer rounded-full border px-3 py-1 text-ui focus-within:ring-2 focus-within:ring-brand-500 ${on ? 'border-brand-500 bg-brand-500/15 text-ink-50' : 'border-ink-700 text-ink-300'}`}>
                   <input type="checkbox" className="sr-only" checked={on}
                     onChange={() => setPickedTools((prev) => on ? prev.filter((x) => x !== t) : [...prev, t])} />
                   {t}
@@ -127,26 +127,26 @@ export default function CoachForm({
             })}
           </div>
         ) : (
-          <p className="text-xs text-ink-400">Pick the kind of work you do above to see common tools.</p>
+          <p className="text-secondary text-ink-400">Pick the kind of work you do above to see common tools.</p>
         )}
         <input maxLength={400} value={otherTools} onChange={(e) => setOtherTools(e.target.value)}
           placeholder="Other tools, separated by commas" className="input" />
       </fieldset>
       <label className="block space-y-1">
-        <span className="text-sm text-ink-300">What are you great at?</span>
+        <span className="text-secondary text-ink-300">What are you great at?</span>
         <textarea required maxLength={500} rows={3} value={talent} onChange={(e) => setTalent(e.target.value)}
           placeholder="e.g. editing YouTube explainers, performance marketing for DTC brands" className="input" />
       </label>
       <label className="block space-y-1">
-        <span className="text-sm text-ink-300">Link to your work (optional)</span>
+        <span className="text-secondary text-ink-300">Link to your work (optional)</span>
         <input type="url" maxLength={500} value={workUrl} onChange={(e) => setWorkUrl(e.target.value)}
           placeholder="https://" className="input" />
       </label>
       <label className="block space-y-1">
-        <span className="text-sm text-ink-300">Anything else we should know? (optional)</span>
+        <span className="text-secondary text-ink-300">Anything else we should know? (optional)</span>
         <textarea maxLength={1000} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className="input" />
       </label>
-      {error && <p role="alert" className="text-sm text-state-fail">{error}</p>}
+      {error && <p role="alert" className="text-reading text-state-fail">{error}</p>}
       <button type="submit" disabled={state === 'saving'} className="btn-primary w-full">
         {state === 'saving' ? 'Sending…' : saved ? 'Update my answers' : 'Sign up to train agents'}
       </button>

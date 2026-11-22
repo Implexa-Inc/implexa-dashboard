@@ -36,35 +36,35 @@ export default function ProfessionalCostSummary({ cost, source }: Props) {
       aria-label="Cost and coverage"
       className="rounded-lg border border-ink-800 bg-ink-950/60 p-4"
     >
-      <p className="text-xs font-medium uppercase tracking-wide text-ink-500">
+      <p className="text-secondary font-medium uppercase tracking-wide text-ink-500">
         {authoritative ? 'Compiled by Tukido' : 'Estimate — not yet compiled'}
       </p>
 
       <dl className="mt-3 grid gap-3 sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-ink-400">Expected</dt>
+          <dt className="text-secondary text-ink-400">Expected</dt>
           <dd className="mt-0.5 text-lg font-semibold text-ink-100">{cost.expectedCredits} credits</dd>
-          <p className="mt-0.5 text-[11px] text-ink-500">{cost.variantTaskCount} take{cost.variantTaskCount === 1 ? '' : 's'} generated up front.</p>
+          <p className="mt-0.5 text-reading text-ink-500">{cost.variantTaskCount} take{cost.variantTaskCount === 1 ? '' : 's'} generated up front.</p>
         </div>
         <div>
-          <dt className="text-xs text-ink-400">Repair reserve</dt>
+          <dt className="text-secondary text-ink-400">Repair reserve</dt>
           <dd className="mt-0.5 text-lg font-semibold text-ink-100">{cost.repairReserveCredits} credits</dd>
-          <p className="mt-0.5 text-[11px] text-ink-500">
+          <p className="mt-0.5 text-reading text-ink-500">
             {cost.repairTaskCount === 0
               ? 'No reserve — nothing contingent is authorized.'
               : `${cost.repairTaskCount} contingent repair${cost.repairTaskCount === 1 ? '' : 's'}, spent only if the Judge fails a take.`}
           </p>
         </div>
         <div>
-          <dt className="text-xs text-ink-400">Hard maximum</dt>
+          <dt className="text-secondary text-ink-400">Hard maximum</dt>
           <dd className="mt-0.5 text-lg font-semibold text-state-needs">{cost.maximumCredits} credits</dd>
-          <p className="mt-0.5 text-[11px] text-ink-500">Expected + reserve. This is the ceiling an approval authorizes.</p>
+          <p className="mt-0.5 text-reading text-ink-500">Expected + reserve. This is the ceiling an approval authorizes.</p>
         </div>
       </dl>
 
-      <p className="mt-3 border-t border-ink-800 pt-3 text-xs text-ink-300">{coverageSummary(cost)}</p>
+      <p className="mt-3 border-t border-ink-800 pt-3 text-secondary text-ink-300">{coverageSummary(cost)}</p>
 
-      <p className="mt-2 text-[11px] leading-snug text-ink-500">
+      <p className="mt-2 text-reading leading-snug text-ink-500">
         {authoritative
           ? 'These are the figures Tukido compiled for this exact plan. Nothing here is calculated in your browser.'
           : 'These figures are this build’s own arithmetic over the pinned provider rate. Preview the plan to get Tukido’s compiled figures — those are the ones an approval uses, and if the two disagree the plan cannot be approved.'}

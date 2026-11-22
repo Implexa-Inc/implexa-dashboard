@@ -46,6 +46,15 @@ const config: Config = {
   darkMode: 'class',
   theme: {
     extend: {
+      fontSize: {
+        xs: ['var(--fs-secondary)', {lineHeight:'var(--lh-secondary)'}],
+        sm: ['var(--fs-ui)', {lineHeight:'var(--lh-ui)'}],
+        base: ['var(--fs-reading)', {lineHeight:'var(--lh-reading)'}],
+        reading: ['var(--fs-reading)', {lineHeight:'var(--lh-reading)'}],
+        ui: ['var(--fs-ui)', {lineHeight:'var(--lh-ui)'}],
+        secondary: ['var(--fs-secondary)', {lineHeight:'var(--lh-secondary)'}],
+        micro: ['var(--fs-micro)', {lineHeight:'var(--lh-micro)'}],
+      },
       colors: {
         emerald: statePalette('ok'), green: statePalette('ok'), teal: statePalette('ok'), lime: statePalette('ok'),
         amber: statePalette('needs'), yellow: statePalette('needs'), orange: statePalette('needs'),
@@ -114,8 +123,11 @@ const config: Config = {
         mono: ['var(--font-mono)', 'JetBrains Mono', 'ui-monospace', 'Menlo', 'Monaco', 'monospace'],
       },
       typography: ({ theme }: any) => ({
+        sm: {css:{fontSize:'var(--fs-reading)',lineHeight:'var(--lh-reading)'}},
         DEFAULT: {
           css: {
+            fontSize: 'var(--fs-reading)',
+            lineHeight: 'var(--lh-reading)',
             color:                         'rgb(var(--ink-100))',
             '--tw-prose-body':             'rgb(var(--ink-100))',
             '--tw-prose-headings':         'rgb(var(--ink-50))',

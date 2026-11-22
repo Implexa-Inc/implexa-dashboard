@@ -44,34 +44,34 @@ export function GuidedPublicationReview({open,value,busy=false,error='',onClose,
  const prepare=async()=>{const captured=identity,found=await onPrepare(ids);if(current.current!==captured)return;setPreview(found);setConsent(false);if(!found)setNote('The exact public preview is unavailable. Your private training and served version are unchanged.');};
  const unavailable=busy||working;
  return <Modal open={open} onClose={onClose} title="Review the public version" maxWidth="max-w-3xl">
-  <div className="space-y-5 text-sm leading-6">
+  <div className="space-y-5 text-reading ">
    <p className="text-ink-400">Choose exactly which teachings customers may receive. Your private candidate, raw feedback and recordings are not published by opening this review. Nothing is selected automatically.</p>
    <div className="space-y-3" aria-label="Teachings proposed for public release">{value.records.filter(r=>r.included&&r.summary).map(r=><label key={r.recordId} className="flex items-start gap-3 rounded-lg border border-ink-800 p-3">
     <input type="checkbox" disabled={unavailable||!ids.includes(r.recordId)&&ids.length>=32} checked={ids.includes(r.recordId)} className="mt-1" onChange={e=>{setIds(old=>e.target.checked?[...old,r.recordId]:old.filter(id=>id!==r.recordId));setPreview(null);setConsent(false);}}/>
-    <span><span className="block">{r.summary}</span><span className="text-xs text-ink-500">{r.sourceKind==='legacy_evidence'?'Teaching with visual evidence':'Text guidance'} · {r.recordDigest.slice(0,12)}</span></span>
+    <span><span className="block">{r.summary}</span><span className="text-secondary text-ink-500">{r.sourceKind==='legacy_evidence'?'Teaching with visual evidence':'Text guidance'} · {r.recordDigest.slice(0,12)}</span></span>
    </label>)}</div>
-   <p className="text-xs text-ink-500">{ids.length} selected. Selecting none prepares a definition-only public version.</p>
+   <p className="text-secondary text-ink-500">{ids.length} selected. Selecting none prepares a definition-only public version.</p>
    <button type="button" className="btn-outline" disabled={unavailable||!value.publication.canPrepare} onClick={()=>work(prepare)}>Prepare exact public preview</button>
    {preview&&<section className="space-y-4 rounded-xl border border-ink-700 p-4" aria-label="Exact public snapshot">
     <div><h3 className="font-medium">{preview.definition.name}</h3><p className="mt-2 text-ink-400">{preview.definition.description}</p></div>
-    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-sm text-state-needs">This selection includes text guidance. Customers need Codex and Implexa Desktop 0.4.160 or newer to run it; Claude execution is not supported for this teaching format yet.</p>}
+    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-reading text-state-needs">This selection includes text guidance. Customers need Codex and Implexa Desktop 0.4.160 or newer to run it; Claude execution is not supported for this teaching format yet.</p>}
     <div className="space-y-2" aria-label="Changes for customers"><h4 className="font-medium">What changes for customers</h4>
      <p>{preview.publicationDelta.definitionChanged?'The public definition changes.':'The public definition stays the same.'}</p>
      <p>{preview.publicationDelta.changes.filter(c=>c.change==='added').length} added · {preview.publicationDelta.changes.filter(c=>c.change==='removed').length} removed · {preview.publicationDelta.changes.filter(c=>c.change==='changed').length} changed · {preview.publicationDelta.changes.filter(c=>c.change==='unchanged').length} unchanged teachings.</p>
      {preview.publicationDelta.changes.some(c=>c.change==='removed')&&<p className="text-state-needs">The removed teachings will be absent from new installs and from existing customers who accept this update. Existing pins and running tasks stay unchanged.</p>}
-     <ul className="text-xs text-ink-400">{preview.publicationDelta.changes.map(c=><li key={c.recordId}>{c.change[0].toUpperCase()+c.change.slice(1)}: {preview.records.find(r=>r.recordId===c.recordId)?.summary||`Teaching ${c.recordId.slice(0,8)}`}</li>)}</ul>
+     <ul className="text-secondary text-ink-400">{preview.publicationDelta.changes.map(c=><li key={c.recordId}>{c.change[0].toUpperCase()+c.change.slice(1)}: {preview.records.find(r=>r.recordId===c.recordId)?.summary||`Teaching ${c.recordId.slice(0,8)}`}</li>)}</ul>
     </div>
     {preview.records.map(r=><article className="border-t border-ink-800 pt-3" key={r.recordId}><p>{r.summary}</p>
-     <p className="mt-1 text-xs text-ink-500">{r.relation} · {r.deliveryMode==='standing'?'Stage-start guidance':'Retrieved for relevant questions'} · {r.derivative.mediaType==='image/png'?'Image and guidance':'Text guidance'}</p>
-     {r.mustNotCopy.length>0&&<p className="mt-1 text-xs text-ink-400">Preserved restrictions: {r.mustNotCopy.map(s=>s.replaceAll('_',' ')).join(', ')}</p>}
-     {r.attribution&&<p className="mt-1 text-xs text-ink-400">{r.attribution}</p>}
-     {r.derivative.mediaType==='image/png'&&onReviewExample&&<button type="button" className="mt-2 text-xs underline" disabled={unavailable} onClick={()=>onReviewExample(r.recordId)}>Review exact image</button>}
+     <p className="mt-1 text-secondary text-ink-500">{r.relation} · {r.deliveryMode==='standing'?'Stage-start guidance':'Retrieved for relevant questions'} · {r.derivative.mediaType==='image/png'?'Image and guidance':'Text guidance'}</p>
+     {r.mustNotCopy.length>0&&<p className="mt-1 text-secondary text-ink-400">Preserved restrictions: {r.mustNotCopy.map(s=>s.replaceAll('_',' ')).join(', ')}</p>}
+     {r.attribution&&<p className="mt-1 text-secondary text-ink-400">{r.attribution}</p>}
+     {r.derivative.mediaType==='image/png'&&onReviewExample&&<button type="button" className="mt-2 text-ui underline" disabled={unavailable} onClick={()=>onReviewExample(r.recordId)}>Review exact image</button>}
     </article>)}
-    <p className="text-xs text-ink-500">Material snapshot {preview.snapshotDigest.slice(0,12)}. Selected example copies may be inspected by customers who receive them; withdrawal stops future access.</p>
+    <p className="text-reading text-ink-500">Material snapshot {preview.snapshotDigest.slice(0,12)}. Selected example copies may be inspected by customers who receive them; withdrawal stops future access.</p>
     {!preview.canPublish&&<><p className="text-ink-400">{trainingSnapshotReason(preview.reason)}</p>
      <button type="button" className="btn-outline" disabled={unavailable} onClick={()=>work(()=>onTest(preview))}>Test this public version</button></>}
     {preview.canPublish&&<p className="text-state-ok">A delivered test matches this exact public material.</p>}
-    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-xs text-ink-400">Testing this text guidance currently requires Codex and Implexa Desktop 0.4.160 or newer, through the prepared Run now path.</p>}
+    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-reading text-ink-400">Testing this text guidance currently requires Codex and Implexa Desktop 0.4.160 or newer, through the prepared Run now path.</p>}
     <label className="flex items-start gap-3"><input type="checkbox" className="mt-1" checked={consent} disabled={unavailable} onChange={e=>setConsent(e.target.checked)}/>
      <span>I reviewed this definition, the selected guidance and examples, and the additions, changes and removals listed above. I release this exact public version for customers. Raw feedback and recordings stay private.</span></label>
     <button type="button" className="btn-primary" disabled={unavailable||!preview.canPublish||!consent} onClick={()=>work(async()=>{const captured=identity;if(await onPublish(preview)&&current.current===captured){setNote('This exact tested public version is published.');setConsent(false);}})}>Publish tested public version</button>
@@ -222,7 +222,7 @@ export default function PublisherTeachingRelease({slug,versionId:activeVersionId
   </dialog>}
   {selected&&<div className="rounded border border-brand-500 p-3 space-y-3"><h3>Exact teaching proposed for customer release</h3><img src={selected.image} alt="Exact admitted teaching proposed for release" className="w-full"/>
    <dl>{Object.entries(selected.item.decision).map(([key,value])=><div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}</dl>
-   <pre className="whitespace-pre-wrap break-all text-sm">{JSON.stringify(preview?.projection||selected.item.projection,null,2)}</pre>
+   <pre className="whitespace-pre-wrap break-all text-reading">{JSON.stringify(preview?.projection||selected.item.projection,null,2)}</pre>
    {!selected.item.storage&&<><label><input type="checkbox" disabled={busy} checked={storeConsent} onChange={e=>setStoreConsent(e.target.checked)}/>Store this exact teaching image privately in Tukido, under its existing expiry. This alone does not release it.</label><button disabled={busy||!storeConsent} onClick={()=>work(store)}>Save exact image privately</button></>}
    {selected.item.storage&&<button disabled={busy} onClick={()=>work(prepare)}>Prepare exact release preview</button>}
    {preview&&<><p>Delivery: on question only. Released image expires {preview.receipt.retentionUntil}. Release receipt {preview.releaseDigest}.</p>

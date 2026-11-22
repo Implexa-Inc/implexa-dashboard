@@ -159,7 +159,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
   return (
     <main className="app-page">
       <div className="app-content">
-        <nav className="text-sm text-ink-500 mb-6">
+        <nav className="text-secondary text-ink-500 mb-6">
           <Link href="/skills" className="hover:underline">← All skills</Link>
         </nav>
 
@@ -167,14 +167,14 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
         <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
-              <span className={`text-xs px-2 py-0.5 rounded-full uppercase tracking-wide ${
+              <span className={`text-secondary px-2 py-0.5 rounded-full uppercase tracking-wide ${
                 actualSkill.status === 'active' ? 'bg-brand-500 text-white' :
                 actualSkill.status === 'draft'  ? 'bg-ink-800 text-ink-200' :
                 'bg-ink-800 text-ink-500'}`}>
                 {actualSkill.status}
               </span>
-              {isSystem && <span className="text-xs px-2 py-0.5 rounded-full bg-ink-800 text-ink-200">Base Playbook</span>}
-              <span className="text-xs text-ink-500 uppercase tracking-wide">{actualSkill.scope} · v{actualSkill.version}</span>
+              {isSystem && <span className="text-secondary px-2 py-0.5 rounded-full bg-ink-800 text-ink-200">Base Playbook</span>}
+              <span className="text-secondary text-ink-500 uppercase tracking-wide">{actualSkill.scope} · v{actualSkill.version}</span>
             </div>
             <h1 className="text-3xl font-semibold tracking-tight">{actualSkill.name}</h1>
             {creator && (
@@ -187,7 +187,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
                 />
               </div>
             )}
-            <code className="text-xs text-ink-500 font-mono block mt-2">{actualSkill.slug}</code>
+            <code className="text-micro text-ink-500 font-mono block mt-2">{actualSkill.slug}</code>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <StarButton
                 skillId={actualSkill.id}
@@ -235,7 +235,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
             {actualSkill.created_by?.userId === session.user.id && !isSystem && (
               <Link
                 href={`/skills/${actualSkill.slug}/raw-capture`}
-                className="inline-flex items-center gap-1.5 mt-3 text-xs text-action-accent hover:underline font-medium"
+                className="inline-flex items-center gap-1.5 mt-3 text-secondary text-action-accent hover:underline font-medium"
               >
                 🔍 View raw capture (only you can see this)
               </Link>
@@ -269,10 +269,10 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
         {/* Trigger phrases */}
         {Array.isArray(actualSkill.trigger_phrases) && actualSkill.trigger_phrases.length > 0 && (
           <div className="card mb-6">
-            <div className="text-xs uppercase tracking-wide text-ink-500 mb-2">Trigger phrases</div>
+            <div className="text-secondary uppercase tracking-wide text-ink-500 mb-2">Trigger phrases</div>
             <div className="flex flex-wrap gap-2">
               {actualSkill.trigger_phrases.map((p: string) => (
-                <span key={p} className="px-2 py-1 bg-ink-800 rounded text-xs text-ink-200">{p}</span>
+                <span key={p} className="px-2 py-1 bg-ink-800 rounded text-secondary text-ink-200">{p}</span>
               ))}
             </div>
           </div>
@@ -291,16 +291,16 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
         {/* Structured fields */}
         <div className="grid md:grid-cols-2 gap-4 mt-6">
           <div className="card">
-            <h3 className="text-sm font-medium mb-3 uppercase tracking-wide text-ink-500">Inputs ({inputs.length})</h3>
+            <h3 className="text-ui font-medium mb-3 uppercase tracking-wide text-ink-500">Inputs ({inputs.length})</h3>
             {inputs.length === 0 ? (
-              <p className="text-sm text-ink-500 italic">No structured inputs.</p>
+              <p className="text-reading text-ink-500 italic">No structured inputs.</p>
             ) : (
-              <ul className="space-y-2 text-sm">
+              <ul className="space-y-2 text-secondary">
                 {inputs.map((i: any, idx: number) => (
                   <li key={idx} className="border-l-2 border-brand-500 pl-3">
-                    <code className="font-mono text-xs text-action-accent">{i.name}</code>
-                    <span className="text-xs text-ink-500 ml-2">{i.type}{i.required ? ' · required' : ''}</span>
-                    <div className="text-xs text-ink-200 mt-0.5">{i.description}</div>
+                    <code className="font-mono text-micro text-action-accent">{i.name}</code>
+                    <span className="text-secondary text-ink-500 ml-2">{i.type}{i.required ? ' · required' : ''}</span>
+                    <div className="text-secondary text-ink-200 mt-0.5">{i.description}</div>
                   </li>
                 ))}
               </ul>
@@ -308,33 +308,33 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
           </div>
 
           <div className="card">
-            <h3 className="text-sm font-medium mb-3 uppercase tracking-wide text-ink-500">Output contract</h3>
+            <h3 className="text-ui font-medium mb-3 uppercase tracking-wide text-ink-500">Output contract</h3>
             {outputContract.summary ? (
-              <div className="text-sm space-y-2">
-                <div><strong className="text-xs text-ink-500 uppercase">Format:</strong> {outputContract.format || '—'}</div>
+              <div className="text-secondary space-y-2">
+                <div><strong className="text-secondary text-ink-500 uppercase">Format:</strong> {outputContract.format || '—'}</div>
                 <div className="text-ink-200">{outputContract.summary}</div>
                 {Array.isArray(outputContract.qualityChecks) && outputContract.qualityChecks.length > 0 && (
                   <div>
-                    <div className="text-xs text-ink-500 uppercase mt-2">Quality checks:</div>
-                    <ul className="text-xs text-ink-200 list-disc pl-4 mt-1 space-y-0.5">
+                    <div className="text-secondary text-ink-500 uppercase mt-2">Quality checks:</div>
+                    <ul className="text-secondary text-ink-200 list-disc pl-4 mt-1 space-y-0.5">
                       {outputContract.qualityChecks.map((c: string, i: number) => <li key={i}>{c}</li>)}
                     </ul>
                   </div>
                 )}
               </div>
-            ) : <p className="text-sm text-ink-500 italic">No output contract defined.</p>}
+            ) : <p className="text-reading text-ink-500 italic">No output contract defined.</p>}
           </div>
 
           <div className="card">
-            <h3 className="text-sm font-medium mb-3 uppercase tracking-wide text-ink-500">Decision points ({decisionPoints.length})</h3>
+            <h3 className="text-ui font-medium mb-3 uppercase tracking-wide text-ink-500">Decision points ({decisionPoints.length})</h3>
             {decisionPoints.length === 0 ? (
-              <p className="text-sm text-ink-500 italic">No conditional logic — fully deterministic skill.</p>
+              <p className="text-reading text-ink-500 italic">No conditional logic — fully deterministic skill.</p>
             ) : (
-              <ul className="space-y-3 text-sm">
+              <ul className="space-y-3 text-secondary">
                 {decisionPoints.map((d: any, idx: number) => (
                   <li key={idx} className="border-l-2 border-brand-400 pl-3">
-                    <div className="text-xs font-medium text-action-accent">{d.atStep}</div>
-                    <div className="text-xs text-ink-200">{d.description}</div>
+                    <div className="text-secondary font-medium text-action-accent">{d.atStep}</div>
+                    <div className="text-secondary text-ink-200">{d.description}</div>
                   </li>
                 ))}
               </ul>
@@ -342,17 +342,17 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
           </div>
 
           <div className="card">
-            <h3 className="text-sm font-medium mb-3 uppercase tracking-wide text-ink-500">Outcome signal</h3>
+            <h3 className="text-ui font-medium mb-3 uppercase tracking-wide text-ink-500">Outcome signal</h3>
             {outcomeSignal.metric ? (
-              <div className="text-sm space-y-2">
+              <div className="text-secondary space-y-2">
                 <div>
-                  <code className="font-mono text-xs text-action-accent bg-brand-50 px-1.5 py-0.5 rounded">{outcomeSignal.metric}</code>
-                  {outcomeSignal.target && <span className="text-xs text-ink-500 ml-2">target {outcomeSignal.target}</span>}
+                  <code className="font-mono text-micro text-action-accent bg-brand-50 px-1.5 py-0.5 rounded">{outcomeSignal.metric}</code>
+                  {outcomeSignal.target && <span className="text-secondary text-ink-500 ml-2">target {outcomeSignal.target}</span>}
                 </div>
-                <div className="text-xs text-ink-500">Source: {outcomeSignal.source || 'manual'}</div>
-                <div className="text-xs text-ink-200">{outcomeSignal.description}</div>
+                <div className="text-secondary text-ink-500">Source: {outcomeSignal.source || 'manual'}</div>
+                <div className="text-secondary text-ink-200">{outcomeSignal.description}</div>
               </div>
-            ) : <p className="text-sm text-ink-500 italic">No outcome signal — attribution not configured.</p>}
+            ) : <p className="text-reading text-ink-500 italic">No outcome signal — attribution not configured.</p>}
           </div>
         </div>
 
@@ -366,7 +366,7 @@ function Stat({ label, value, highlight = false }: { label: string; value: strin
   return (
     <div className={`card !p-3 ${highlight ? '!border-success-400/40' : ''}`}>
       <div className={`text-xl font-semibold tabular-nums ${highlight ? 'text-success-600 dark:text-success-400' : 'text-ink-50'}`}>{value}</div>
-      <div className="text-xs text-ink-400 uppercase tracking-wide mt-0.5">{label}</div>
+      <div className="text-secondary text-ink-400 uppercase tracking-wide mt-0.5">{label}</div>
     </div>
   );
 }

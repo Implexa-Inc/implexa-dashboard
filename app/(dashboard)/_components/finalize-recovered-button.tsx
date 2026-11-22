@@ -64,21 +64,21 @@ export function FinalizeRecoveredButton({ runId, looksComplete }: { runId: strin
     const busy = state === 'busy';
     return (
       <div className="w-full rounded-md border border-emerald-500/40 bg-emerald-500/[0.06] px-3 py-3">
-        <p className="text-sm text-ink-200 leading-relaxed">
+        <p className="text-reading text-ink-200 ">
           This marks the run done using the step trace above as the record. It won&apos;t re-run anything,
           and it won&apos;t invent a result — the run is saved as <span className="text-ink-100">recovered</span>,
           not delivered.
         </p>
-        {note && <p className="text-xs text-state-fail mt-2">{note}</p>}
+        {note && <p className="text-secondary text-state-fail mt-2">{note}</p>}
         <div className="flex items-center gap-2 mt-3">
           <button
             onClick={finalize}
             disabled={busy}
-            className="btn-primary text-xs px-3 py-1.5"
+            className="btn-primary text-ui px-3 py-1.5"
           >
             {busy ? 'Finalizing…' : 'Yes, mark this done'}
           </button>
-          <button onClick={() => { setState('idle'); setNote(null); }} disabled={busy} className="text-xs text-ink-400 hover:text-ink-200 disabled:opacity-40">
+          <button onClick={() => { setState('idle'); setNote(null); }} disabled={busy} className="text-ui text-ink-400 hover:text-ink-200 disabled:opacity-40">
             Cancel
           </button>
         </div>
@@ -87,7 +87,7 @@ export function FinalizeRecoveredButton({ runId, looksComplete }: { runId: strin
   }
 
   return (
-    <button onClick={() => setState('confirm')} className="btn-outline text-sm px-4 py-2">
+    <button onClick={() => setState('confirm')} className="btn-outline text-ui px-4 py-2">
       {looksComplete ? 'Mark as done' : 'Review & mark done'}
     </button>
   );

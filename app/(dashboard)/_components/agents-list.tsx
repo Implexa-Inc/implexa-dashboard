@@ -85,19 +85,19 @@ function RowMenu({ onArchive, onDeactivate, canDeactivate, busy, trainingHref, l
       </button>
       {open && (
         <div role="menu" className="absolute right-0 top-full mt-1 z-20 min-w-[230px] rounded-md border border-ink-700 bg-ink-900 py-1 shadow-lg">
-          {trainingHref&&<Link role="menuitem" href={trainingHref+'?chat=edit'} onClick={()=>setOpen(false)} className="block px-3 py-2 text-sm text-ink-300 hover:bg-ink-800">Edit agent</Link>}
-          {trainingHref&&<Link role="menuitem" href={trainingHref} onClick={()=>setOpen(false)} className="block px-3 py-2 text-sm text-ink-300 hover:bg-ink-800">Train this agent</Link>}
-          {lastRunHref&&<Link role="menuitem" href={lastRunHref} onClick={()=>setOpen(false)} className="block px-3 py-2 text-sm text-ink-300 hover:bg-ink-800">Last run</Link>}
+          {trainingHref&&<Link role="menuitem" href={trainingHref+'?chat=edit'} onClick={()=>setOpen(false)} className="block px-3 py-2 text-secondary text-ink-300 hover:bg-ink-800">Edit agent</Link>}
+          {trainingHref&&<Link role="menuitem" href={trainingHref} onClick={()=>setOpen(false)} className="block px-3 py-2 text-secondary text-ink-300 hover:bg-ink-800">Train this agent</Link>}
+          {lastRunHref&&<Link role="menuitem" href={lastRunHref} onClick={()=>setOpen(false)} className="block px-3 py-2 text-secondary text-ink-300 hover:bg-ink-800">Last run</Link>}
           {canDeactivate && (
             <button
               type="button"
               role="menuitem"
               disabled={busy}
               onClick={() => { setOpen(false); onDeactivate(); }}
-              className="w-full text-left px-3 py-1.5 text-sm text-ink-300 hover:bg-ink-800 hover:text-ink-100 disabled:opacity-50"
+              className="w-full text-left px-3 py-1.5 text-ui text-ink-300 hover:bg-ink-800 hover:text-ink-100 disabled:opacity-50"
             >
               <span className="block">Pause</span>
-              <span className="block text-[11px] text-ink-500">Stops its schedule. Stays on your list.</span>
+              <span className="block text-secondary text-ink-500">Stops its schedule. Stays on your list.</span>
             </button>
           )}
           <button
@@ -105,10 +105,10 @@ function RowMenu({ onArchive, onDeactivate, canDeactivate, busy, trainingHref, l
             role="menuitem"
             disabled={busy}
             onClick={() => { setOpen(false); onArchive(); }}
-            className="w-full text-left px-3 py-1.5 text-sm text-ink-300 hover:bg-ink-800 hover:text-state-fail hover:text-state-fail disabled:opacity-50"
+            className="w-full text-left px-3 py-1.5 text-ui text-ink-300 hover:bg-ink-800 hover:text-state-fail hover:text-state-fail disabled:opacity-50"
           >
             <span className="block">{busy ? 'Archiving…' : 'Archive'}</span>
-            <span className="block text-[11px] text-ink-500">
+            <span className="block text-secondary text-ink-500">
               {canDeactivate ? 'Hides it from your list and stops its schedule.' : 'Hides it from your list.'}
             </span>
           </button>
@@ -423,7 +423,7 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
 
   return (
     <>
-      {error && <p className="text-xs text-state-fail mb-3">{error}</p>}
+      {error && <p className="text-secondary text-state-fail mb-3">{error}</p>}
 
       {/* One outcome-first query spans owned/hired and eligible available agents. */}
       {(rosterKnown||list.length>0)&&<div className="relative mb-4">
@@ -434,7 +434,7 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Find one of your agents"
             aria-label="Search your agents"
-            className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm pl-8 pr-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
+            className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui pl-8 pr-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
           />
       </div>}
 
@@ -486,15 +486,15 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
           </button>
           {showArchived && (
             <div id="archived-agents">
-              <p className="text-[11px] text-ink-500 mt-2">Hidden from your list. Archiving also stops the schedule.</p>
+              <p className="text-reading text-ink-500 mt-2">Hidden from your list. Archiving also stops the schedule.</p>
               <ul className="space-y-2 mt-3">
                 {arch.map((a) => (
                   <li key={a.slug} className="card flex items-center justify-between gap-3 py-2.5">
                     <span className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm text-ink-300 truncate">{a.name}</span>
+                      <span className="text-secondary text-ink-300 truncate">{a.name}</span>
                       {a.isLive && (
                         <span
-                          className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/50 text-state-needs whitespace-nowrap"
+                          className="text-secondary uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/50 text-state-needs whitespace-nowrap"
                           title="Hidden from your list, but still running on its schedule."
                         >
                           Still live
@@ -507,7 +507,7 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
                           type="button"
                           onClick={() => deactivateArchived(a.slug)}
                           disabled={busySlug === a.slug}
-                          className="text-xs px-3 py-1 rounded-md border border-amber-500/50 text-state-needs hover:bg-amber-500/10 transition-colors disabled:opacity-50 whitespace-nowrap"
+                          className="text-ui px-3 py-1 rounded-md border border-amber-500/50 text-state-needs hover:bg-amber-500/10 transition-colors disabled:opacity-50 whitespace-nowrap"
                         >
                           {busySlug === a.slug ? 'Stopping…' : 'Stop it'}
                         </button>
@@ -516,7 +516,7 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
                         type="button"
                         onClick={() => restore(a.slug)}
                         disabled={busySlug === a.slug}
-                        className="text-xs btn-outline px-3 py-1 disabled:opacity-50 whitespace-nowrap"
+                        className="text-ui btn-outline px-3 py-1 disabled:opacity-50 whitespace-nowrap"
                       >
                         {busySlug === a.slug ? 'Restoring…' : 'Restore'}
                       </button>

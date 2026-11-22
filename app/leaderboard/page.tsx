@@ -80,11 +80,11 @@ export default async function LeaderboardPage({
           <Logo height={20} />
         </Link>
         {isAuthed ? (
-          <Link href="/start" className="text-sm text-ink-200 hover:underline">
+          <Link href="/start" className="text-secondary text-ink-200 hover:underline">
             Dashboard →
           </Link>
         ) : (
-          <Link href="/signup" className="text-sm text-action-accent hover:underline">
+          <Link href="/signup" className="text-secondary text-action-accent hover:underline">
             Sign in / Sign up
           </Link>
         )}
@@ -95,7 +95,7 @@ export default async function LeaderboardPage({
           <h1 className="text-4xl font-semibold tracking-tight text-ink-50">
             Creator leaderboard
           </h1>
-          <p className="text-ink-300 text-sm mt-2 leading-relaxed max-w-xl">
+          <p className="text-ink-300 text-reading mt-2 max-w-xl">
             The Tukido creators whose shared skills are getting the most engagement.
             Karma rises when others install, fork, or amplify your skills.
           </p>
@@ -111,7 +111,7 @@ export default async function LeaderboardPage({
         ) : (
           <>
             {isEarlyDays && (
-              <div className="card !p-3 !bg-brand-500/5 !border-brand-500/20 mb-4 text-sm text-ink-200 flex items-start gap-2">
+              <div className="card !p-3 !bg-brand-500/5 !border-brand-500/20 mb-4 text-secondary text-ink-200 flex items-start gap-2">
                 <span aria-hidden="true">✨</span>
                 <span>
                   Early days — these creators are leading the way. Share your skill
@@ -127,7 +127,7 @@ export default async function LeaderboardPage({
           </>
         )}
 
-        <div className="text-xs text-ink-500 text-center mt-10 leading-relaxed">
+        <div className="text-secondary text-ink-500 text-center mt-10 leading-relaxed">
           Want to be on this board? In Claude Code, run{' '}
           <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded text-ink-300">
             /implexa:share-this
@@ -156,7 +156,7 @@ function PeriodPill({
       href={href}
       role="tab"
       aria-selected={active}
-      className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+      className={`px-4 py-1.5 rounded-full text-secondary font-medium transition-colors ${
         active ? 'bg-ink-700 text-ink-50' : 'text-ink-400 hover:text-ink-200'
       }`}
     >
@@ -181,7 +181,7 @@ function LeaderRow({ rank, leader }: { rank: number; leader: Leader }) {
         {medal ? (
           <span className="text-2xl" aria-hidden="true">{medal}</span>
         ) : (
-          <span className="text-sm font-semibold tabular-nums text-ink-400">#{rank}</span>
+          <span className="text-micro font-semibold tabular-nums text-ink-400">#{rank}</span>
         )}
       </div>
       <div
@@ -191,13 +191,13 @@ function LeaderRow({ rank, leader }: { rank: number; leader: Leader }) {
         {initial}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-ink-50 truncate">{name}</div>
+        <div className="text-secondary font-medium text-ink-50 truncate">{name}</div>
       </div>
       <div className="shrink-0 text-right">
         <div className="text-lg font-semibold tabular-nums text-state-needs">
           <span aria-hidden="true">✨ </span>{leader.karma.toLocaleString()}
         </div>
-        <div className="text-[10px] uppercase tracking-wide text-ink-500">karma</div>
+        <div className="text-secondary uppercase tracking-wide text-ink-500">karma</div>
       </div>
     </li>
   );
@@ -210,7 +210,7 @@ function EmptyState({ period }: { period: 'alltime' | 'month' }) {
       <h2 className="text-lg font-semibold text-ink-50 mb-2">
         {period === 'month' ? 'No karma earned this month yet' : 'No karma earned yet'}
       </h2>
-      <p className="text-sm text-ink-300 leading-relaxed max-w-md mx-auto">
+      <p className="text-reading text-ink-300 max-w-md mx-auto">
         Be the first creator on the board. In Claude Code, run{' '}
         <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded text-ink-100">
           /implexa:share-this

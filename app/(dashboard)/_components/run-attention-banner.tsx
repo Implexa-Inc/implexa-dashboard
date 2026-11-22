@@ -50,9 +50,9 @@ export function RunAttentionBanner({ items }: { items: AttentionItem[] }) {
     >
       <div className="flex items-center gap-2">
         <span className="text-base leading-none" aria-hidden="true">{anyStalled ? '⏳' : '⚠'}</span>
-        <h2 className="text-sm font-semibold text-ink-50">{heading}</h2>
+        <h2 className="text-ui font-semibold text-ink-50">{heading}</h2>
       </div>
-      <p className="text-xs text-ink-300 mt-1">
+      <p className="text-secondary text-ink-300 mt-1">
         These did not finish cleanly. Silence is not success, here is exactly what happened.
       </p>
       <ul className="mt-3 space-y-2">
@@ -63,12 +63,12 @@ export function RunAttentionBanner({ items }: { items: AttentionItem[] }) {
               className="min-w-0 group"
             >
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-ink-100 truncate group-hover:text-ink-50">{it.name}</span>
-                <span className="text-[11px] uppercase tracking-wide text-ink-400">{it.info.label}</span>
+                <span className="text-secondary font-medium text-ink-100 truncate group-hover:text-ink-50">{it.name}</span>
+                <span className="text-secondary uppercase tracking-wide text-ink-400">{it.info.label}</span>
               </div>
-              <p className="text-xs text-ink-300 mt-0.5 line-clamp-2">{it.info.reason}</p>
+              <p className="text-secondary text-ink-300 mt-0.5 line-clamp-2">{it.info.reason}</p>
             </Link>
-            <span className="text-[11px] text-ink-500 flex-none mt-0.5">{rel(it.ran_at)}</span>
+            <span className="text-secondary text-ink-500 flex-none mt-0.5">{rel(it.ran_at)}</span>
           </li>
         ))}
       </ul>

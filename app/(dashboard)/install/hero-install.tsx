@@ -104,10 +104,10 @@ export default function HeroInstall({
 
       <div className="card !p-6">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-ink-800 text-ink-400">
+          <span className="text-secondary uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-ink-800 text-ink-400">
             Advanced · terminal
           </span>
-          <span className="text-xs text-ink-400">
+          <span className="text-secondary text-ink-400">
             {hasKey
               ? 'Install on another device or re-install on this one'
               : 'Prefer the terminal? Connect Claude Code or Codex with one command. The app above is the simpler path.'}
@@ -118,26 +118,26 @@ export default function HeroInstall({
           {/* Shell pill — visual cue this is a terminal command. No chevron
            * (we don't offer brew yet — adding ▾ implies a dropdown that
            * doesn't exist). Just a label. */}
-          <span className="hidden sm:inline text-[11px] text-ink-400 px-2 py-1 rounded bg-ink-800 border border-ink-700 font-mono shrink-0">
+          <span className="hidden sm:inline text-micro text-ink-400 px-2 py-1 rounded bg-ink-800 border border-ink-700 font-mono shrink-0">
             curl
           </span>
           {/* hide-scrollbar — hides the scrollbar track visually while keeping
            * the horizontal-scroll behavior so long URLs are still reachable.
            * Defined in app/globals.css. */}
-          <code className="flex-1 text-sm text-ink-100 font-mono overflow-x-auto whitespace-nowrap hide-scrollbar">
+          <code className="flex-1 text-micro text-ink-100 font-mono overflow-x-auto whitespace-nowrap hide-scrollbar">
             {heroCmd}
           </code>
           <HeroCopyButton refreshFn={() => refreshInstallCurls('claude')} fallback={UNIVERSAL_CURL} />
         </div>
 
-        <p className="text-sm text-ink-200 leading-relaxed">
+        <p className="text-reading text-ink-200 ">
           Paste in your terminal. The script auto-installs everything:{' '}
           <strong className="text-ink-100">API key, hooks, the Implexa plugin, MCP wiring.</strong>{' '}
           {isTokenized
             ? <>The link contains a single-use token tied to your account — refreshes automatically when you click Copy.</>
             : <>Your browser opens to approve; once you click Approve, the terminal finishes the rest.</>}
         </p>
-        <p className="text-xs text-ink-400 mt-2">Works on macOS, Linux, and Windows (WSL).</p>
+        <p className="text-secondary text-ink-400 mt-2">Works on macOS, Linux, and Windows (WSL).</p>
       </div>
 
       {/* ── Codex parallel install card ────────────────────────────────
@@ -148,25 +148,25 @@ export default function HeroInstall({
        * to advertise both runtimes equally. */}
       <div className="card !p-5 mt-4">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-ink-700 text-ink-200">
+          <span className="text-secondary uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-ink-700 text-ink-200">
             also supported
           </span>
-          <span className="text-xs text-ink-400">
+          <span className="text-secondary text-ink-400">
             Codex (CLI) — same library, same wedge, same one command
           </span>
         </div>
 
         <div className="rounded-md border border-ink-700 bg-ink-950 px-4 py-3 mb-3 flex items-center gap-3">
-          <span className="hidden sm:inline text-[11px] text-ink-400 px-2 py-1 rounded bg-ink-800 border border-ink-700 font-mono shrink-0">
+          <span className="hidden sm:inline text-micro text-ink-400 px-2 py-1 rounded bg-ink-800 border border-ink-700 font-mono shrink-0">
             curl
           </span>
-          <code className="flex-1 text-sm text-ink-100 font-mono overflow-x-auto whitespace-nowrap hide-scrollbar">
+          <code className="flex-1 text-micro text-ink-100 font-mono overflow-x-auto whitespace-nowrap hide-scrollbar">
             {heroCmdCodex}
           </code>
           <HeroCopyButton refreshFn={() => refreshInstallCurls('codex')} fallback={UNIVERSAL_CURL_CODEX} />
         </div>
 
-        <p className="text-xs text-ink-400 leading-relaxed">
+        <p className="text-reading text-ink-400 ">
           Writes to <code className="bg-ink-800 px-1 rounded">~/.codex/config.toml</code> instead of Claude Code's dotfiles.{' '}
           Same install token works for both — install once on each runtime you use.
         </p>
@@ -177,7 +177,7 @@ export default function HeroInstall({
        * action; it sells the entire product in one keystroke. Keep it
        * literally as the third line so the user sees it on every visit. */}
       <div className="mt-5 pl-1 space-y-2">
-        <p className="text-[11px] uppercase tracking-wider text-ink-400 font-medium">After install</p>
+        <p className="text-reading uppercase tracking-wider text-ink-400 font-medium">After install</p>
         <NextStepLine prefix="Launch your runtime"     cmd="claude   (or: codex)" />
         <NextStepLine prefix="Verify you're connected" cmd="/implexa:setup" />
         <NextStepLine prefix="Try your first skill"    cmd='/implexa:run "draft a cold outreach email"' />
@@ -206,19 +206,19 @@ function ConnectionActiveBanner({
   return (
     <div className="card !p-5 mb-6 !bg-gradient-to-r !from-success-400/15 !to-brand-500/5 !border-success-400/40">
       <div className="flex items-start gap-3">
-        <div className="w-8 h-8 rounded-full bg-success-400/20 border border-success-400/50 flex items-center justify-center text-success-700 dark:text-success-400 text-sm font-bold shrink-0">
+        <div className="w-8 h-8 rounded-full bg-success-400/20 border border-success-400/50 flex items-center justify-center text-success-700 dark:text-success-400 text-secondary font-bold shrink-0">
           ✓
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-semibold text-ink-50 leading-tight">
             Your connection is active
           </h2>
-          <div className="text-xs text-ink-300 mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          <div className="text-secondary text-ink-300 mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
             {installName && <span>Install: <strong className="text-ink-100">{installName}</strong></span>}
             {lastConnectedDisplay && <span>Last active {lastConnectedDisplay}</span>}
             {keyPrefix && <span className="font-mono text-ink-400">imp_live_{keyPrefix}…</span>}
           </div>
-          <p className="text-xs text-ink-300 mt-3 leading-relaxed">
+          <p className="text-reading text-ink-300 mt-3 ">
             See more installation options below — install on another device, install on Codex, or wire up Cowork / Chat / the Desktop UI.
           </p>
         </div>
@@ -229,9 +229,9 @@ function ConnectionActiveBanner({
 
 function NextStepLine({ prefix, cmd }: { prefix: string; cmd: string }) {
   return (
-    <div className="flex items-center gap-3 text-sm">
+    <div className="flex items-center gap-3 text-secondary">
       <span className="text-ink-300 w-44 shrink-0">{prefix}</span>
-      <code className="font-mono text-xs bg-ink-900 border border-ink-700 rounded px-2 py-1 text-ink-100 flex-1 truncate">
+      <code className="font-mono text-micro bg-ink-900 border border-ink-700 rounded px-2 py-1 text-ink-100 flex-1 truncate">
         {cmd}
       </code>
       <CopyButton text={cmd} compact />
@@ -274,7 +274,7 @@ function HeroCopyButton({
       type="button"
       onClick={copy}
       disabled={busy}
-      className={`shrink-0 inline-flex items-center justify-center rounded transition-colors text-[10px] uppercase tracking-wider font-medium px-3 py-1.5 ${
+      className={`shrink-0 inline-flex items-center justify-center rounded transition-colors text-ui uppercase tracking-wider font-medium px-3 py-1.5 ${
         copied
           ? 'bg-success-400/20 text-success-700 dark:text-success-400'
           : 'bg-ink-800 text-ink-300 hover:bg-ink-700 hover:text-ink-100 border border-ink-700 disabled:opacity-50'
@@ -299,7 +299,7 @@ function CopyButton({ text, compact = false }: { text: string; compact?: boolean
     <button
       type="button"
       onClick={copy}
-      className={`shrink-0 inline-flex items-center justify-center rounded transition-colors text-[10px] uppercase tracking-wider font-medium ${
+      className={`shrink-0 inline-flex items-center justify-center rounded transition-colors text-ui uppercase tracking-wider font-medium ${
         copied
           ? 'bg-success-400/20 text-success-700 dark:text-success-400'
           : 'bg-ink-800 text-ink-300 hover:bg-ink-700 hover:text-ink-100 border border-ink-700'

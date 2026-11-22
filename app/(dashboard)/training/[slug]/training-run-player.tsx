@@ -23,9 +23,9 @@ export default function TrainingRunPlayer({slug,runId,ownerId,onTeach,onDoneTeac
     return()=>controller.abort();
   },[slug,runId,issueId,retry]);
   return <section id="training-run-player" aria-label="Teach from a result" className="space-y-4">
-    {!fullPage&&<div className="flex items-center justify-between gap-3"><h2 className="text-lg font-medium">What would you improve?</h2><span className="text-xs text-ink-500">Recent result</span></div>}
-    {error?<div role="alert" className="rounded-xl border border-amber-800 p-4 text-sm text-ink-300">{error}<button type="button" className="ml-3 underline" onClick={()=>setRetry(value=>value+1)}>Try again</button></div>
+    {!fullPage&&<div className="flex items-center justify-between gap-3"><h2 className="text-lg font-medium">What would you improve?</h2><span className="text-secondary text-ink-500">Recent result</span></div>}
+    {error?<div role="alert" className="rounded-xl border border-amber-800 p-4 text-secondary text-ink-300">{error}<button type="button" className="ml-3 underline" onClick={()=>setRetry(value=>value+1)}>Try again</button></div>
       :review?<ReviewRoom key={review.runId} {...review} initialArtifactId={initialArtifactId||review.initialArtifactId} initialTrainingIssueId={issueId} trainingMode trainingOwnerId={ownerId} onTeachIssue={onTeach} onDoneTeaching={onDoneTeaching} onDirtyChange={onDirtyChange} renderVoiceNote={renderVoiceNote}/>
-      :<p role="status" className="py-12 text-center text-sm text-ink-400">Opening your result…</p>}
+      :<p role="status" className="py-12 text-center text-reading text-ink-400">Opening your result…</p>}
   </section>;
 }

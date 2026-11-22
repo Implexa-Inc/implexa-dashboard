@@ -37,13 +37,13 @@ export default async function RoiPage() {
   return (
     <main className="app-page">
       <div className="max-w-5xl mx-auto">
-        <nav className="text-sm text-ink-500 mb-6">
+        <nav className="text-secondary text-ink-500 mb-6">
           <Link href="/skills" className="hover:underline">← Skills</Link>
         </nav>
 
         <header className="mb-8">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Skill ROI</h1>
-          <p className="text-ink-300 text-sm mt-2">
+          <p className="text-ink-300 text-reading mt-2">
             Which of your saved skills are actually driving outcomes? Updated in real-time as CRM, calendar, and manual attribution events come in.
           </p>
         </header>
@@ -51,15 +51,15 @@ export default async function RoiPage() {
         {/* Top-line stats */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           <div className="card">
-            <div className="text-xs uppercase tracking-wide text-ink-400 mb-1">Total invocations</div>
+            <div className="text-secondary uppercase tracking-wide text-ink-400 mb-1">Total invocations</div>
             <div className="text-3xl font-semibold tabular-nums text-ink-50">{totalInvocations.toLocaleString()}</div>
           </div>
           <div className="card">
-            <div className="text-xs uppercase tracking-wide text-ink-400 mb-1">Attributed outcomes</div>
+            <div className="text-secondary uppercase tracking-wide text-ink-400 mb-1">Attributed outcomes</div>
             <div className="text-3xl font-semibold tabular-nums text-ink-50">{totalOutcomes.toLocaleString()}</div>
           </div>
           <div className="card-success">
-            <div className="text-xs uppercase tracking-wide text-success-600 dark:text-success-400 mb-1">Attributed value</div>
+            <div className="text-secondary uppercase tracking-wide text-success-600 dark:text-success-400 mb-1">Attributed value</div>
             <div className="value-money text-3xl">{formatUsd(totalValueUsd)}</div>
           </div>
         </div>
@@ -68,19 +68,19 @@ export default async function RoiPage() {
         <section>
           <h2 className="text-lg font-medium mb-3">Top skills by usage</h2>
           {!skills || skills.length === 0 ? (
-            <div className="card text-sm text-ink-500">
+            <div className="card text-secondary text-ink-500">
               No skills with usage data yet. Save a workflow with <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded text-ink-100">/implexa:record-skill</code>, run it a few times, and ROI rollups appear here.
             </div>
           ) : (
             <div className="card !p-0 overflow-hidden">
-              <table className="w-full text-sm">
+              <table className="w-full text-secondary">
                 <thead className="bg-ink-800/50 border-b border-ink-700">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wide text-ink-500">Skill</th>
-                    <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wide text-ink-500">Runs</th>
-                    <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wide text-ink-500">Users</th>
-                    <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wide text-ink-500">Outcomes</th>
-                    <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wide text-ink-500">Value</th>
+                    <th className="px-4 py-3 text-left font-medium text-secondary uppercase tracking-wide text-ink-500">Skill</th>
+                    <th className="px-4 py-3 text-right font-medium text-secondary uppercase tracking-wide text-ink-500">Runs</th>
+                    <th className="px-4 py-3 text-right font-medium text-secondary uppercase tracking-wide text-ink-500">Users</th>
+                    <th className="px-4 py-3 text-right font-medium text-secondary uppercase tracking-wide text-ink-500">Outcomes</th>
+                    <th className="px-4 py-3 text-right font-medium text-secondary uppercase tracking-wide text-ink-500">Value</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -90,7 +90,7 @@ export default async function RoiPage() {
                       <tr key={s.id} className={`border-t border-ink-700 ${idx === 0 ? 'bg-brand-50/30' : ''}`}>
                         <td className="px-4 py-3">
                           <Link href={`/skills/${s.slug}`} className="font-medium hover:underline">{s.name}</Link>
-                          <div className="text-xs text-ink-500 mt-0.5">
+                          <div className="text-secondary text-ink-500 mt-0.5">
                             <code className="font-mono">{s.slug}</code>
                             {s.status === 'draft' && <span className="ml-2 px-1.5 py-0.5 rounded bg-ink-800 text-ink-200">draft</span>}
                           </div>
@@ -114,13 +114,13 @@ export default async function RoiPage() {
         <section className="mt-10">
           <h2 className="text-lg font-medium mb-3">How attribution works</h2>
           <div className="card">
-            <p className="text-sm text-ink-200 mb-3">
+            <p className="text-reading text-ink-200 mb-3">
               When you invoke a skill via <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded">/implexa:apply</code> or via natural language, Tukido logs the invocation with attribution keys (account ID, opportunity ID, candidate ID, thread ID).
             </p>
-            <p className="text-sm text-ink-200 mb-3">
+            <p className="text-reading text-ink-200 mb-3">
               When a downstream event fires from your CRM, ATS, calendar, or data warehouse — a deal closes, a meeting books, a candidate places, a feature ships — Tukido attempts last-touch attribution within a 30-day window. If the attribution keys overlap, the outcome attributes to the skill.
             </p>
-            <p className="text-sm text-ink-200">
+            <p className="text-reading text-ink-200">
               You can also manually attribute outcomes — say <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded">"the Acme deal closed yesterday because of my account-research skill"</code> in Claude Code, and Tukido records it.
             </p>
           </div>

@@ -137,17 +137,17 @@ export default async function OverviewPage() {
                 contradict each other (they did, on the old page). */}
             <section className="mt-10">
               <div className="flex items-baseline justify-between gap-3 mb-3">
-                <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">Results</h2>
+                <h2 className="text-ui font-semibold text-ink-300 uppercase tracking-wide">Results</h2>
                 {items.length > 0 && (
-                  <Link href="/work?view=delivered" className="text-xs text-ink-500 hover:text-ink-300 hover:underline">
+                  <Link href="/work?view=delivered" className="text-secondary text-ink-500 hover:text-ink-300 hover:underline">
                     View all →
                   </Link>
                 )}
               </div>
               {items.length === 0 ? (
                 <div className="card p-6 text-center">
-                  <p className="text-ink-300 text-sm">No results yet.</p>
-                  <p className="text-ink-500 text-sm mt-1">
+                  <p className="text-ink-300 text-reading">No results yet.</p>
+                  <p className="text-ink-500 text-reading mt-1">
                     Describe an agent above. When it runs, what it produced shows up here.
                   </p>
                 </div>

@@ -238,7 +238,7 @@ export default function InboxList({
   function renderAction(it: InboxItem) {
     const light = lightOf(it);
     const dot = <span className={`inline-block size-2 rounded-full ${LIGHT_DOT[light]}`} aria-hidden />;
-    const base = 'inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors';
+    const base = 'inline-flex items-center gap-1.5 text-secondary font-medium px-2.5 py-1.5 rounded-md border transition-colors';
     if (light === 'red') {
       if (it.state.permissionBlocked) {
         return (
@@ -280,7 +280,7 @@ export default function InboxList({
           <button
             type="button"
             onClick={() => setFeedbackId(it.id)}
-            className="text-xs text-ink-500 hover:text-ink-200"
+            className="text-ui text-ink-500 hover:text-ink-200"
           >
             Rate
           </button>
@@ -324,16 +324,16 @@ export default function InboxList({
               className="min-w-0 flex-1 text-left cursor-pointer"
             >
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-ink-500 tabular-nums">{timeOf(item.ran_at)}</span>
-                <h3 className="text-sm font-medium text-ink-50 truncate">
+                <span className="text-micro text-ink-500 tabular-nums">{timeOf(item.ran_at)}</span>
+                <h3 className="text-ui font-medium text-ink-50 truncate">
                   <span aria-hidden className="mr-1">{cat.emoji}</span>{item.name}
                 </h3>
-                <span className="text-[10px] uppercase tracking-wide text-ink-500">{scheduled ? 'scheduled' : 'manual'}</span>
+                <span className="text-secondary uppercase tracking-wide text-ink-500">{scheduled ? 'scheduled' : 'manual'}</span>
               </div>
               {line ? (
-                <p className="text-sm text-ink-400 mt-1 line-clamp-2">{line}</p>
+                <p className="text-reading text-ink-400 mt-1 line-clamp-2">{line}</p>
               ) : item.why ? (
-                <p className="text-sm text-ink-400 mt-1 line-clamp-2">{item.why}</p>
+                <p className="text-reading text-ink-400 mt-1 line-clamp-2">{item.why}</p>
               ) : null}
             </button>
             <div className="flex items-center gap-2 flex-none mt-0.5">
@@ -365,19 +365,19 @@ export default function InboxList({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm font-medium text-ink-50 truncate">
+                <h3 className="text-ui font-medium text-ink-50 truncate">
                   <span aria-hidden className="mr-1">{cat.emoji}</span>{latest.name}
                 </h3>
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-ink-800 text-ink-300">
+                <span className="text-secondary font-medium px-1.5 py-0.5 rounded-full bg-ink-800 text-ink-300">
                   Ran {group.length} times today
                 </span>
                 {needN > 0 && (
-                  <span className="text-[10px] text-state-needs">{needN} need you</span>
+                  <span className="text-secondary text-state-needs">{needN} need you</span>
                 )}
               </div>
-              {line && <p className="text-sm text-ink-400 mt-1 line-clamp-1">latest: {line}</p>}
+              {line && <p className="text-reading text-ink-400 mt-1 line-clamp-1">latest: {line}</p>}
             </div>
-            <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border border-ink-700 text-ink-400 flex-none mt-0.5`}>
+            <span className={`inline-flex items-center gap-1.5 text-secondary font-medium px-2.5 py-1.5 rounded-md border border-ink-700 text-ink-400 flex-none mt-0.5`}>
               <span className={`inline-block size-2 rounded-full ${LIGHT_DOT[light]}`} aria-hidden />
               View {group.length} →
             </span>
@@ -406,9 +406,9 @@ export default function InboxList({
       {/* Section header: a clear label + live count. */}
       {heading !== null && (
         <div className="mb-5 flex items-baseline gap-2">
-          <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{heading} ({items.length})</h2>
+          <h2 className="text-ui font-semibold text-ink-300 uppercase tracking-wide">{heading} ({items.length})</h2>
           {needYou > 0 && (
-            <span className="text-xs text-state-needs">{needYou} need you</span>
+            <span className="text-secondary text-state-needs">{needYou} need you</span>
           )}
         </div>
       )}
@@ -420,8 +420,8 @@ export default function InboxList({
           return (
             <section key={day.key}>
               <div className="sticky top-0 z-10 -mx-1 px-1 py-2 bg-ink-950/85 backdrop-blur-sm flex items-baseline justify-between gap-3">
-                <h2 className="text-sm font-semibold text-ink-200">{day.label}</h2>
-                <span className="text-xs text-ink-500">
+                <h2 className="text-ui font-semibold text-ink-200">{day.label}</h2>
+                <span className="text-secondary text-ink-500">
                   {day.items.length} run{day.items.length === 1 ? '' : 's'} · {delivered} delivered
                   {needYouDay > 0 && <span className="text-state-needs"> · {needYouDay} need you</span>}
                 </span>
@@ -464,8 +464,8 @@ export default function InboxList({
                 <div className="flex items-center gap-2.5 mt-1">
                   <RunStateBadge info={openItem.state} size="xs" />
                   <RunVerificationBadge status={openItem.verification} size="xs" />
-                  <span className="text-xs text-ink-500">{rel(openItem.ran_at)}</span>
-                  <span className="text-xs text-ink-600 font-mono truncate">{openItem.slug}</span>
+                  <span className="text-secondary text-ink-500">{rel(openItem.ran_at)}</span>
+                  <span className="text-micro text-ink-600 font-mono truncate">{openItem.slug}</span>
                 </div>
               </div>
               <button
@@ -483,7 +483,7 @@ export default function InboxList({
                 <RunMarkdown markdown={openItem.output_markdown} workspaceRoot={workspaceRoot} />
               </div>
             ) : (
-              <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
+              <p className="text-reading text-ink-400 italic">No deliverable recorded for this run.</p>
             )}
 
             {/* The Judge verdict, WHERE THE RESULT IS ACTUALLY READ. It rendered only
@@ -498,8 +498,8 @@ export default function InboxList({
                 : openItem.judgment.verdict === 'repair' ? 'border-amber-500/35 bg-amber-500/5'
                 : 'border-ink-700 bg-ink-900/40'}`}>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] uppercase tracking-wide text-ink-500">Tukido Judge</span>
-                  <span className={`text-xs font-medium ${
+                  <span className="text-secondary uppercase tracking-wide text-ink-500">Tukido Judge</span>
+                  <span className={`text-reading font-medium ${
                     openItem.judgment.verdict === 'pass' ? 'text-state-ok'
                     : openItem.judgment.verdict === 'blocked' ? 'text-state-needs'
                     : openItem.judgment.verdict === 'repair' ? 'text-state-needs' : 'text-ink-300'}`}>
@@ -507,15 +507,15 @@ export default function InboxList({
                       : openItem.judgment.verdict === 'blocked' ? 'Blocked — needs you'
                       : openItem.judgment.verdict === 'repair' ? 'Repair suggested' : 'Couldn’t confirm'}
                   </span>
-                  <span className="text-[10px] text-ink-600">AI review · separate from “Verified complete”</span>
+                  <span className="text-secondary text-ink-600">AI review · separate from “Verified complete”</span>
                 </div>
                 {openItem.judgment.summary && (
-                  <p className="text-xs text-ink-300 mt-1.5 whitespace-pre-wrap">{openItem.judgment.summary}</p>
+                  <p className="text-reading text-ink-300 mt-1.5 whitespace-pre-wrap">{openItem.judgment.summary}</p>
                 )}
                 {openItem.judgment.next_action && openItem.judgment.verdict !== 'pass' && (
-                  <p className="text-[11px] text-ink-400 mt-1">{openItem.judgment.next_action}</p>
+                  <p className="text-reading text-ink-400 mt-1">{openItem.judgment.next_action}</p>
                 )}
-                <a href={`/runs/${openItem.id}`} className="text-[11px] text-action-accent hover:underline mt-1.5 inline-block">
+                <a href={`/runs/${openItem.id}`} className="text-secondary text-action-accent hover:underline mt-1.5 inline-block">
                   Full review, evidence &amp; accuracy feedback →
                 </a>
               </div>
@@ -523,10 +523,10 @@ export default function InboxList({
 
             {/* Always reachable, verdict or not: the overlay previously had NO route
                 to the run permalink at all. */}
-            <a href={`/runs/${openItem.id}`} className="text-[11px] text-ink-500 hover:text-ink-300 underline mt-2 inline-block">
+            <a href={`/runs/${openItem.id}`} className="text-secondary text-ink-500 hover:text-ink-300 underline mt-2 inline-block">
               Open full run
             </a>
-            <a href={`/review/${encodeURIComponent(openItem.id)}`} className="ml-4 text-[11px] text-action-accent hover:underline mt-2 inline-block">
+            <a href={`/review/${encodeURIComponent(openItem.id)}`} className="ml-4 text-secondary text-action-accent hover:underline mt-2 inline-block">
               Review and annotate
             </a>
 
@@ -556,15 +556,15 @@ export default function InboxList({
               {openItem.pending && openItem.holdKind === 'approval_before_action' ? (
                 <a
                   href={`/runs/${encodeURIComponent(openItem.id)}`}
-                  className="inline-flex rounded-md bg-amber-400 px-4 py-2 text-sm font-medium text-black hover:bg-amber-300"
+                  className="inline-flex rounded-md bg-amber-400 px-4 py-2 text-secondary font-medium text-black hover:bg-amber-300"
                 >
                   Review approval
                 </a>
               ) : classifyHeldApprovalSurface({ held: openItem.pending, pending: openItem.pending, holdKind: openItem.holdKind }) === 'unavailable' ? (
                 <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-4" role="alert">
-                  <p className="text-sm font-medium text-ink-100">Approval details unavailable</p>
-                  <p className="mt-1 text-xs text-state-needs">Open the full run to reload and verify exactly what this approval authorizes.</p>
-                  <a href={`/runs/${encodeURIComponent(openItem.id)}`} className="btn-outline mt-3 inline-flex px-4 py-2 text-sm">Reload approval details</a>
+                  <p className="text-reading font-medium text-ink-100">Approval details unavailable</p>
+                  <p className="mt-1 text-secondary text-state-needs">Open the full run to reload and verify exactly what this approval authorizes.</p>
+                  <a href={`/runs/${encodeURIComponent(openItem.id)}`} className="btn-outline mt-3 inline-flex px-4 py-2 text-secondary">Reload approval details</a>
                 </div>
               ) : openItem.pending ? (
                 <RunActions
@@ -583,7 +583,7 @@ export default function InboxList({
             </div>
 
             <div className="mt-5 flex items-center">
-              <button type="button" onClick={close} className="ml-auto text-xs text-ink-400 hover:text-ink-200">
+              <button type="button" onClick={close} className="ml-auto text-ui text-ink-400 hover:text-ink-200">
                 Close
               </button>
             </div>
@@ -599,7 +599,7 @@ export default function InboxList({
         title="How did this run do?"
         maxWidth="max-w-xl"
         subtitle={
-          <span className="text-xs text-ink-500">
+          <span className="text-secondary text-ink-500">
             <span className="text-ink-300">{feedbackItem?.name}</span>
             {' · your answers ride into its next run'}
           </span>
@@ -623,7 +623,7 @@ export default function InboxList({
         onClose={() => setPickerRuns(null)}
         title={pickerRuns ? pickerRuns.name : 'Runs'}
         maxWidth="max-w-xl"
-        subtitle={pickerRuns ? <span className="text-xs text-ink-500">{pickerRuns.runs.length} runs , pick one to view its output</span> : undefined}
+        subtitle={pickerRuns ? <span className="text-secondary text-ink-500">{pickerRuns.runs.length} runs , pick one to view its output</span> : undefined}
       >
         <ul className="space-y-2">
           {pickerRuns?.runs.map((it) => {
@@ -636,13 +636,13 @@ export default function InboxList({
                   className="w-full text-left rounded-lg border border-ink-800 bg-ink-950/40 hover:border-ink-600 transition-colors p-3"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-ink-100 tabular-nums">{timeOf(it.ran_at)}</span>
+                    <span className="text-micro text-ink-100 tabular-nums">{timeOf(it.ran_at)}</span>
                     <div className="flex items-center gap-1.5">
                       <RunStateBadge info={it.state} size="xs" />
                       <RunVerificationBadge status={it.verification} size="xs" />
                     </div>
                   </div>
-                  {line && <p className="text-xs text-ink-400 mt-1 line-clamp-1">{line}</p>}
+                  {line && <p className="text-secondary text-ink-400 mt-1 line-clamp-1">{line}</p>}
                 </button>
               </li>
             );

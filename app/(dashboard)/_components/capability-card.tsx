@@ -312,14 +312,14 @@ export default function CapabilityCard({ card, onRetry }: {
     // the shell (title bar, × close, backdrop). A second nested card + a redundant
     // Cancel button (Modal's × already dismisses) was exactly the doubled-up chrome
     // the founder's inline-vs-modal call was about fixing.
-    <div className="text-sm">
+    <div className="text-secondary">
       <div className="text-ink-100">{card.message}</div>
       {card.why ? (
         <div className="mt-1 text-ink-400">{card.label} {card.why}.</div>
       ) : null}
       {/* THE TRUST PROMISE, prominent on the key card — the brand, not a footnote. */}
       {card.trustLine ? (
-        <div className="mt-2 rounded-md border border-ink-800 bg-ink-900/40 p-2 text-xs text-ink-300">
+        <div className="mt-2 rounded-md border border-ink-800 bg-ink-900/40 p-2 text-secondary text-ink-300">
           🔒 {card.trustLine}
         </div>
       ) : null}
@@ -344,7 +344,7 @@ export default function CapabilityCard({ card, onRetry }: {
             <>
               <button
                 type="button"
-                className="mt-1 text-xs text-action-accent hover:underline"
+                className="mt-1 text-ui text-action-accent hover:underline"
                 onClick={() => setShowHelp((v) => !v)}
               >
                 {showHelp ? 'Hide' : 'Show me exactly where to click'}
@@ -357,20 +357,20 @@ export default function CapabilityCard({ card, onRetry }: {
               type="button"
               disabled={checking}
               onClick={checkNow}
-              className="btn-outline text-xs px-3 py-1.5 disabled:opacity-60"
+              className="btn-outline text-ui px-3 py-1.5 disabled:opacity-60"
             >
               {checking ? 'Checking…' : 'Check now'}
             </button>
             <button
               type="button"
-              className="text-xs text-ink-500 hover:underline"
+              className="text-ui text-ink-500 hover:underline"
               onClick={() => { stopPolling(); setWaitingFor(null); setPollTimedOut(false); }}
             >
               Cancel
             </button>
           </div>
           {pollTimedOut ? (
-            <div className="mt-2 text-xs text-ink-500">
+            <div className="mt-2 text-secondary text-ink-500">
               Still not seeing it — make sure you flipped the toggle, then Check now.
             </div>
           ) : null}
@@ -389,7 +389,7 @@ export default function CapabilityCard({ card, onRetry }: {
               if (!bridge?.openKeySetup) {
                 if (a.kind === 'paste_key') {
                   return (
-                    <div key={key} className="text-xs text-ink-400">
+                    <div key={key} className="text-secondary text-ink-400">
                       Open the Implexa desktop app to add your key — it’s stored locally on your Mac, never on the web.
                     </div>
                   );
@@ -398,7 +398,7 @@ export default function CapabilityCard({ card, onRetry }: {
               }
               if (a.kind === 'paste_key' && awaitingKey) {
                 return (
-                  <div key={key} className="flex items-center gap-2 text-xs text-ink-300">
+                  <div key={key} className="flex items-center gap-2 text-secondary text-ink-300">
                     <span className="h-3 w-3 flex-none animate-spin rounded-full border-2 border-ink-400 border-t-transparent" aria-hidden />
                     Waiting for you to save the key in the Tukido window…
                   </div>
@@ -412,20 +412,20 @@ export default function CapabilityCard({ card, onRetry }: {
                   disabled={busy === key}
                   onClick={() => act(a)}
                   className={primary
-                    ? 'btn-success text-xs px-3 py-1.5 disabled:opacity-60'
-                    : 'btn-outline text-xs px-3 py-1.5 disabled:opacity-60'}
+                    ? 'btn-success text-ui px-3 py-1.5 disabled:opacity-60'
+                    : 'btn-outline text-ui px-3 py-1.5 disabled:opacity-60'}
                 >
                   {busy === key ? 'Switching…' : a.label}
                 </button>
                 {/* Visible, not a hover title — e.g. Codex's computer-use deep link
                     lands one settings screen short of the real toggle, and a hover-only
                     hint is easy to miss on something this actionable. */}
-                {a.detail ? <div className="mt-1 text-xs text-ink-500">{a.detail}</div> : null}
+                {a.detail ? <div className="mt-1 text-secondary text-ink-500">{a.detail}</div> : null}
                 {a.capability === 'computerUse' && a.engine === 'codex' && (
                   <>
                     <button
                       type="button"
-                      className="mt-1 text-xs text-action-accent hover:underline"
+                      className="mt-1 text-ui text-action-accent hover:underline"
                       onClick={() => setShowHelp((v) => !v)}
                     >
                       {showHelp ? 'Hide' : 'Show me exactly where to click'}
@@ -438,7 +438,7 @@ export default function CapabilityCard({ card, onRetry }: {
           })}
         </div>
       )}
-      {err ? <div className="mt-2 text-xs text-state-fail">{err}</div> : null}
+      {err ? <div className="mt-2 text-secondary text-state-fail">{err}</div> : null}
     </div>
   );
 }

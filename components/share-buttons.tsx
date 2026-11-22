@@ -93,11 +93,11 @@ export function ShareButtons({ url, title, description, variant = 'compact' }: P
   }
 
   const btnBase =
-    'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md text-ink-200 hover:text-ink-50 hover:bg-ink-800 border border-ink-700 hover:border-ink-500 transition-colors whitespace-nowrap';
+    'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-secondary rounded-md text-ink-200 hover:text-ink-50 hover:bg-ink-800 border border-ink-700 hover:border-ink-500 transition-colors whitespace-nowrap';
 
   return (
     <div className="flex flex-wrap items-center gap-1.5" aria-label="Share this skill">
-      {variant === 'full' && <span className="text-xs text-ink-400 mr-1 self-center">Share:</span>}
+      {variant === 'full' && <span className="text-secondary text-ink-400 mr-1 self-center">Share:</span>}
 
       {/* X (formerly Twitter) */}
       <a
@@ -135,7 +135,7 @@ export function ShareButtons({ url, title, description, variant = 'compact' }: P
         className={btnBase}
         aria-label="Submit to Hacker News"
       >
-        <span className="font-bold text-[10px] leading-none bg-brand-500/15 text-action-accent px-1 rounded">Y</span>
+        <span className="font-bold text-secondary leading-none bg-brand-500/15 text-action-accent px-1 rounded">Y</span>
         <span>HN</span>
       </a>
 

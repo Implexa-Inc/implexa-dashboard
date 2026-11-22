@@ -71,21 +71,21 @@ export default function FinishRunButton({
     <div className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <p className="text-sm text-ink-100 font-medium">
+          <p className="text-reading text-ink-100 font-medium">
             {mode === 'approval-recovery' ? 'Your review is ready.' : 'This run isn’t finished yet.'}
           </p>
-          <p className="text-xs text-ink-400 mt-0.5">
+          <p className="text-secondary text-ink-400 mt-0.5">
             {mode === 'approval-recovery'
               ? 'Approve the recorded plan and continue from the next step. Finished work will be reused.'
               : 'It did part of the work and left the rest. Finish it in one tap — no typing.'}
           </p>
         </div>
         <button type="button" onClick={finish} disabled={state === 'busy'}
-          className="btn-success text-sm px-4 py-2 disabled:opacity-60 flex-none">
+          className="btn-success text-ui px-4 py-2 disabled:opacity-60 flex-none">
           {state === 'busy' ? 'Queuing…' : mode === 'approval-recovery' ? 'Approve & continue' : 'Finish this run'}
         </button>
       </div>
-      {state === 'error' && <p className="mt-2 text-xs text-state-fail">Could not queue it. Try again.</p>}
+      {state === 'error' && <p className="mt-2 text-secondary text-state-fail">Could not queue it. Try again.</p>}
       {setupGate.modal}
     </div>
   );

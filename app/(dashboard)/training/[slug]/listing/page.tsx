@@ -15,7 +15,7 @@ export default async function MarketplaceListingPage({params,searchParams}:{para
  // The existing owner-scoped context endpoint still authorizes the agent and
  // pins its active version. This page grants no listing or publication access.
  return <main className="app-page"><div className="app-content">
-  <Link href={`/training/${encodeURIComponent(params.slug)}`} className="text-sm text-ink-400">← Back to Coach</Link>
+  <Link href={`/training/${encodeURIComponent(params.slug)}`} className="text-secondary text-ink-400">← Back to Coach</Link>
   <PageHeader title="Marketplace listing"><p className="app-page-description">Show what your agent offers and how people can use it.</p></PageHeader>
   <MarketplaceSubmission slug={params.slug} versionId={expectedVersion||null}/>
  </div></main>;

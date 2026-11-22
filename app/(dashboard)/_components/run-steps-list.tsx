@@ -27,10 +27,10 @@ export function StepIcon({ status }: { status: StepListStatus }) {
     return <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-sky-500/25 border-t-sky-500 animate-spin" aria-hidden="true" />;
   }
   if (status === 'done') {
-    return <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-emerald-500/15 text-state-ok grid place-items-center text-[9px] font-bold" aria-hidden="true">✓</span>;
+    return <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-emerald-500/15 text-state-ok grid place-items-center text-secondary font-bold" aria-hidden="true">✓</span>;
   }
   if (status === 'failed') {
-    return <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-rose-500/15 text-state-fail grid place-items-center text-[9px] font-bold" aria-hidden="true">✕</span>;
+    return <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-rose-500/15 text-state-fail grid place-items-center text-secondary font-bold" aria-hidden="true">✕</span>;
   }
   return <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-ink-700" aria-hidden="true" />;
 }
@@ -63,7 +63,7 @@ export default function RunStepsList({steps,live=false,compact=false,heading='St
   // Production nodes retain their compact checklist and the same source rows.
   if(compact){
     if(!total)return null;
-    return <div>{heading!==null&&<div className="flex items-center gap-4 mb-4"><div className="min-w-0 flex-1"><p className="text-sm font-medium text-ink-100">{live?'Working on your result':heading}</p><p className="mt-1 text-xs text-ink-400">{done} of {total} steps complete</p>{live&&<p className="mt-1 text-sm text-state-running">{steps.find(s=>s.status==='running')?.label||'Waiting for the next step'}</p>}</div>{action}</div>}<ol className="space-y-1.5">{steps.map(s=><li key={s.index} className="flex items-center gap-2.5 text-xs"><StepIcon status={s.status}/><span className="text-[11px] font-mono text-ink-600 shrink-0">{s.index}/{total}</span><span className={s.status==='pending'?'text-ink-500 truncate':'text-ink-100 truncate'}>{s.label||`Step ${s.index}`}</span></li>)}</ol></div>;
+    return <div>{heading!==null&&<div className="flex items-center gap-4 mb-4"><div className="min-w-0 flex-1"><p className="text-reading font-medium text-ink-100">{live?'Working on your result':heading}</p><p className="mt-1 text-secondary text-ink-400">{done} of {total} steps complete</p>{live&&<p className="mt-1 text-reading text-state-running">{steps.find(s=>s.status==='running')?.label||'Waiting for the next step'}</p>}</div>{action}</div>}<ol className="space-y-1.5">{steps.map(s=><li key={s.index} className="flex items-center gap-2.5 text-secondary"><StepIcon status={s.status}/><span className="text-micro font-mono text-ink-600 shrink-0">{s.index}/{total}</span><span className={s.status==='pending'?'text-ink-500 truncate':'text-ink-100 truncate'}>{s.label||`Step ${s.index}`}</span></li>)}</ol></div>;
   }
   if(!total&&!progress)return null;
   const state=progress?.state||(live?'running':steps.some(s=>s.status==='failed')?'failed':done===total?'completed':'queued');

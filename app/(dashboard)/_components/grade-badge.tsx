@@ -21,7 +21,7 @@ export default function GradeBadge({ grade, className = '' }: { grade: Grade; cl
   const tone = TONE[grade.label] || TONE.unproven;
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${tone} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-secondary font-medium ${tone} ${className}`}
       title={`Delivered ${pct}% across ${grade.runs} real run${grade.runs === 1 ? '' : 's'} (graded on what actually happened, not a benchmark)`}
     >
       ✓ delivered {pct}%

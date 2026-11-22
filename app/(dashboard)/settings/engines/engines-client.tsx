@@ -33,7 +33,7 @@ function when(value?: string | null) {
   const d = new Date(value); return Number.isNaN(d.getTime()) ? 'Unknown' : d.toLocaleString();
 }
 function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
-  return <span className={`text-[11px] rounded-full border px-2 py-0.5 ${ok ? 'border-emerald-500/30 bg-emerald-500/10 text-state-ok' : 'border-ink-700 text-ink-400'}`}>{ok ? '✓ ' : ''}{children}</span>;
+  return <span className={`text-secondary rounded-full border px-2 py-0.5 ${ok ? 'border-emerald-500/30 bg-emerald-500/10 text-state-ok' : 'border-ink-700 text-ink-400'}`}>{ok ? '✓ ' : ''}{children}</span>;
 }
 
 export default function EnginesClient({ reports }: { reports: EngineReport[] }) {
@@ -102,7 +102,7 @@ function EngineCard({ engine, report }: { engine: 'claude' | 'codex'; report: En
   return (
     <section className={`card border ${report?.healthy ? 'border-emerald-500/30' : 'border-ink-800'}`}>
       <div className="flex items-start justify-between gap-3">
-        <div><h2 className="text-lg font-semibold text-ink-50">{name}</h2><p className="text-xs text-ink-400 mt-0.5">{report?.healthy ? 'Ready to run Tukido agents' : 'Not fully connected'}</p></div>
+        <div><h2 className="text-lg font-semibold text-ink-50">{name}</h2><p className="text-secondary text-ink-400 mt-0.5">{report?.healthy ? 'Ready to run Tukido agents' : 'Not fully connected'}</p></div>
         <Badge ok={!!report?.healthy}>{report?.healthy ? 'Ready' : 'Setup needed'}</Badge>
       </div>
 
@@ -111,7 +111,7 @@ function EngineCard({ engine, report }: { engine: 'claude' | 'codex'; report: En
         <Badge ok={!!report?.authenticated}>Authentication</Badge><Badge ok={!!report?.plugin_connected}>Implexa plugin</Badge>
       </div>
 
-      <dl className="mt-5 space-y-2 text-xs">
+      <dl className="mt-5 space-y-2 text-secondary">
         <Row label="Plan" value={report?.plan_type || 'Unknown'} />
         <Row label="Plugin" value={`${report?.plugin_version ? `v${report.plugin_version}` : 'Unknown'}${report?.latest_plugin_version ? ` · latest v${report.latest_plugin_version}` : ''}`} />
         <Row label="Usage/headroom" value={usage?.usedPercent != null ? `${Math.max(0, 100 - usage.usedPercent)}% remaining (${confidence})` : confidence === 'estimated' ? `${report?.usage_snapshot?.recentRunCount || 0} Tukido runs in 5h (estimate)` : 'Unknown'} />
@@ -121,19 +121,19 @@ function EngineCard({ engine, report }: { engine: 'claude' | 'codex'; report: En
       </dl>
 
       <div className="mt-5 flex flex-wrap gap-2">
-        {!report?.plugin_connected && <Link href={`/install?surface=${engine}`} className="btn-primary text-xs px-3 py-1.5">Install</Link>}
-        {report?.plugin_connected && report.latest_plugin_version && report.plugin_version !== report.latest_plugin_version && <button className="btn-primary text-xs px-3 py-1.5" disabled={!!busy} onClick={() => act('update', (b) => b.runUpdate?.(engine))}>{busy === 'update' ? 'Updating…' : 'Update'}</button>}
+        {!report?.plugin_connected && <Link href={`/install?surface=${engine}`} className="btn-primary text-secondary px-3 py-1.5">Install</Link>}
+        {report?.plugin_connected && report.latest_plugin_version && report.plugin_version !== report.latest_plugin_version && <button className="btn-primary text-ui px-3 py-1.5" disabled={!!busy} onClick={() => act('update', (b) => b.runUpdate?.(engine))}>{busy === 'update' ? 'Updating…' : 'Update'}</button>}
         {/* "Test" read as optional/technical (Codex's design audit, 2026-07-01) —
             this is the step that actually finishes the connection. */}
-        <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('test', (b) => b.handoffAgent?.(testPrompt, engine, 'code'))}>Finish setup in {name}</button>
-        <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('reconnect', (b) => b.handoffAgent?.(testPrompt, engine, 'code'))}>Reconnect</button>
-        <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('open', (b) => b.openEngine?.(engine))}>Open app</button>
-        <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('permissions', (b) => b.openEnginePermissions?.(engine, caps.computerUse ? 'browser' : 'computerUse'))}>Permissions</button>
-        {caps.automation && <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('automations', (b) => b.openEngineAutomations?.(engine))}>Automations</button>}
+        <button className="btn-outline text-ui px-3 py-1.5" onClick={() => act('test', (b) => b.handoffAgent?.(testPrompt, engine, 'code'))}>Finish setup in {name}</button>
+        <button className="btn-outline text-ui px-3 py-1.5" onClick={() => act('reconnect', (b) => b.handoffAgent?.(testPrompt, engine, 'code'))}>Reconnect</button>
+        <button className="btn-outline text-ui px-3 py-1.5" onClick={() => act('open', (b) => b.openEngine?.(engine))}>Open app</button>
+        <button className="btn-outline text-ui px-3 py-1.5" onClick={() => act('permissions', (b) => b.openEnginePermissions?.(engine, caps.computerUse ? 'browser' : 'computerUse'))}>Permissions</button>
+        {caps.automation && <button className="btn-outline text-ui px-3 py-1.5" onClick={() => act('automations', (b) => b.openEngineAutomations?.(engine))}>Automations</button>}
       </div>
-      {notice && <p className="mt-3 text-xs text-state-needs">{notice}</p>}
+      {notice && <p className="mt-3 text-secondary text-state-needs">{notice}</p>}
 
-      <div className="mt-4 pt-4 border-t border-ink-800 flex flex-wrap gap-2 text-[11px] text-ink-400">
+      <div className="mt-4 pt-4 border-t border-ink-800 flex flex-wrap gap-2 text-secondary text-ink-400">
         <span>Capabilities:</span>{['browser', 'computerUse', 'automation', 'headless'].map((cap) => <span key={cap} className={caps[cap] ? 'text-state-ok' : 'text-ink-600'}>{cap === 'computerUse' ? 'computer use' : cap}</span>)}
       </div>
     </section>

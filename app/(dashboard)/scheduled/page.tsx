@@ -80,7 +80,7 @@ export default async function ScheduledPage() {
       <div className="max-w-5xl mx-auto">
         <header className="mb-8">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Routines</h1>
-          <p className="text-ink-300 text-sm mt-1">
+          <p className="text-ink-300 text-reading mt-1">
             Your autopilot. Each routine runs a workflow on a schedule, then delivers the result.
             Registered via{' '}
             <code className="bg-ink-900 px-1.5 py-0.5 rounded text-action-accent">/implexa:schedule</code>;
@@ -90,14 +90,14 @@ export default async function ScheduledPage() {
         </header>
 
         {items.length === 0 && (
-          <section className="card text-sm text-ink-300">
+          <section className="card text-secondary text-ink-300">
             <p className="mb-3">No scheduled skills yet.</p>
             <p>
               From Claude Code, invoke{' '}
               <code className="bg-ink-900 px-1.5 py-0.5 rounded text-action-accent">/implexa:schedule</code>{' '}
               followed by a skill slug and a natural-language schedule, e.g.:
             </p>
-            <pre className="mt-3 bg-ink-900 border border-ink-800 rounded-lg p-3 text-xs overflow-x-auto">
+            <pre className="mt-3 bg-ink-900 border border-ink-800 rounded-lg p-3 text-secondary overflow-x-auto">
 {`/implexa:schedule daily-ai-skills-pulse "daily at 8:55am"
 /implexa:schedule standup-from-yesterday-commits "every weekday at 9am" to slack`}
             </pre>

@@ -44,7 +44,7 @@ export default function RunInClaudeButton({
     <button
       type="button"
       onClick={copy}
-      className={`text-[11px] font-medium rounded-md px-2 py-1 border transition-colors whitespace-nowrap ${
+      className={`text-ui font-medium rounded-md px-2 py-1 border transition-colors whitespace-nowrap ${
         state === 'copied'
           ? 'border-success-400/40 bg-success-400/10 text-success-700 dark:text-success-400'
           : state === 'error'

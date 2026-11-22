@@ -148,15 +148,15 @@ export default function VaultManager({ jwt }: { jwt: string }) {
     return (
       <div className="card">
         <h2 className="font-medium text-ink-50">Open Tukido desktop to manage local keys</h2>
-        <p className="text-sm text-ink-300 mt-2 leading-relaxed">
+        <p className="text-reading text-ink-300 mt-2 ">
           Your keys live on your Mac, so this page can only manage them when the
           desktop app is running. Nothing here is stored on Tukido&apos;s servers.
         </p>
         <div className="mt-4 flex items-center gap-3">
           {desktopAppLive() ? (
-            <a href={appLocalVaultUrl()} className="btn-primary text-sm">Open Tukido desktop</a>
+            <a href={appLocalVaultUrl()} className="btn-primary text-secondary">Open Tukido desktop</a>
           ) : null}
-          <a href={macDownloadUrl()} className="btn-outline text-sm" target="_blank" rel="noopener noreferrer">
+          <a href={macDownloadUrl()} className="btn-outline text-secondary" target="_blank" rel="noopener noreferrer">
             Download for Mac
           </a>
         </div>
@@ -170,9 +170,9 @@ export default function VaultManager({ jwt }: { jwt: string }) {
       <div className="card">
         <div className="flex items-baseline justify-between mb-2">
           <h2 className="font-medium text-ink-50">Vault status</h2>
-          <button type="button" onClick={refreshLocal} className="text-xs text-action-accent hover:underline">Check again</button>
+          <button type="button" onClick={refreshLocal} className="text-ui text-action-accent hover:underline">Check again</button>
         </div>
-        <ul className="text-sm text-ink-200 space-y-1.5">
+        <ul className="text-secondary text-ink-200 space-y-1.5">
           <li className="flex items-center gap-2">
             <Dot tone="ok" /> This Mac: connected through the Tukido app
           </li>
@@ -187,24 +187,24 @@ export default function VaultManager({ jwt }: { jwt: string }) {
             <Dot tone="ok" /> Storage: encrypted local file, readable only by the Tukido app (keychain-bound)
           </li>
           {checkedAt && (
-            <li className="text-xs text-ink-400">Last checked {new Date(checkedAt).toLocaleTimeString()}</li>
+            <li className="text-secondary text-ink-400">Last checked {new Date(checkedAt).toLocaleTimeString()}</li>
           )}
         </ul>
-        <p className="text-xs text-ink-400 mt-3 leading-relaxed">
+        <p className="text-secondary text-ink-400 mt-3 leading-relaxed">
           Keys are stored on this Mac only. If you use another computer, add keys there too.
         </p>
       </div>
 
-      {note && <p className="text-sm text-state-needs">{note}</p>}
+      {note && <p className="text-reading text-state-needs">{note}</p>}
       {ctxFailed && (
-        <p className="text-xs text-ink-400">
+        <p className="text-secondary text-ink-400">
           Couldn&apos;t load which agents may need keys — the saved-key list below is still live from this Mac.
         </p>
       )}
 
       {/* ── Provider cards ── */}
       {registry.length === 0 && (
-        <p className="text-sm text-ink-300">Couldn&apos;t load the provider list. Try reloading the page.</p>
+        <p className="text-reading text-ink-300">Couldn&apos;t load the provider list. Try reloading the page.</p>
       )}
       {cards.map((card) => (
         <ProviderCard
@@ -249,8 +249,8 @@ function ProviderCard({ card, ctx, onAdd, onAllow, onRevoke, onDelete, canReques
     <div className="card">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-medium text-ink-50">{card.label}{card.scope ? <span className="text-xs text-ink-400 font-normal"> · {card.scope} only</span> : null}</div>
-          <div className="text-xs text-ink-400 mt-1">
+          <div className="font-medium text-ink-50">{card.label}{card.scope ? <span className="text-secondary text-ink-400 font-normal"> · {card.scope} only</span> : null}</div>
+          <div className="text-secondary text-ink-400 mt-1">
             {card.state === 'saved' && (
               <>
                 {/* Masked marker + locally-sourced metadata only. */}
@@ -266,49 +266,49 @@ function ProviderCard({ card, ctx, onAdd, onAllow, onRevoke, onDelete, canReques
         </div>
         <div className="flex-none flex items-center gap-1.5">
           {card.state === 'saved' && card.canManageAccess && (
-            <button type="button" onClick={() => setOpen(!open)} className="btn-outline text-xs px-2.5 py-1">
+            <button type="button" onClick={() => setOpen(!open)} className="btn-outline text-ui px-2.5 py-1">
               {open ? 'Hide access' : 'Manage access'}
             </button>
           )}
           {card.state === 'saved' && (
             <>
               {/* Replace = the ADD window; typing a new value rotates in place. */}
-              <button type="button" onClick={onAdd} className="btn-outline text-xs px-2.5 py-1" title="Opens the Tukido key window. Saving a new value replaces the stored key.">Replace key</button>
+              <button type="button" onClick={onAdd} className="btn-outline text-ui px-2.5 py-1" title="Opens the Tukido key window. Saving a new value replaces the stored key.">Replace key</button>
               {canRequestDelete
-                ? <button type="button" onClick={onDelete} className="text-xs text-state-fail hover:underline px-1" title="Removes the key and every agent's access to it from this Mac. You'll confirm in an Tukido dialog.">Delete key</button>
-                : <span className="text-[11px] text-ink-500">update app to delete</span>}
+                ? <button type="button" onClick={onDelete} className="text-ui text-state-fail hover:underline px-1" title="Removes the key and every agent's access to it from this Mac. You'll confirm in an Tukido dialog.">Delete key</button>
+                : <span className="text-secondary text-ink-500">update app to delete</span>}
             </>
           )}
           {card.state === 'missing' && (
             <>
               {card.createUrl && (
-                <a href={card.createUrl} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Create one</a>
+                <a href={card.createUrl} target="_blank" rel="noopener noreferrer" className="btn-outline text-secondary px-2.5 py-1">Create one</a>
               )}
-              <button type="button" onClick={onAdd} className="btn-primary text-xs px-2.5 py-1">Add key</button>
+              <button type="button" onClick={onAdd} className="btn-primary text-ui px-2.5 py-1">Add key</button>
             </>
           )}
         </div>
       </div>
 
       {card.state === 'saved' && !card.canManageAccess && (
-        <p className="text-xs text-ink-500 mt-2">Update the Tukido app to see and manage which agents may use this key.</p>
+        <p className="text-secondary text-ink-500 mt-2">Update the Tukido app to see and manage which agents may use this key.</p>
       )}
 
       {open && card.canManageAccess && (
         <div className="mt-3 pt-3 border-t border-ink-800 space-y-3">
           <div>
-            <h3 className="text-[11px] uppercase tracking-wider text-ink-500 font-medium mb-1.5">Allowed agents</h3>
+            <h3 className="text-ui uppercase tracking-wider text-ink-500 font-medium mb-1.5">Allowed agents</h3>
             {card.grants.length === 0 ? (
-              <p className="text-xs text-ink-400">No agent is allowed to use this key yet.</p>
+              <p className="text-secondary text-ink-400">No agent is allowed to use this key yet.</p>
             ) : (
               <ul className="space-y-1.5">
                 {card.grants.map((g) => {
                   const gUsed = relativeTime(g.lastUsedAt, now);
                   return (
-                    <li key={g.agentSlug} className="flex items-center justify-between gap-3 text-sm">
+                    <li key={g.agentSlug} className="flex items-center justify-between gap-3 text-secondary">
                       <span className="min-w-0 truncate text-ink-100">
                         {nameOf(g.agentSlug)}
-                        <span className="text-xs text-ink-500">
+                        <span className="text-secondary text-ink-500">
                           {g.grantedAt ? ` · allowed ${new Date(g.grantedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}
                           {gUsed ? ` · last used ${gUsed}` : ''}
                         </span>
@@ -316,7 +316,7 @@ function ProviderCard({ card, ctx, onAdd, onAllow, onRevoke, onDelete, canReques
                       <button
                         type="button"
                         onClick={() => onRevoke(g.agentSlug)}
-                        className="flex-none text-xs text-state-fail hover:underline"
+                        className="flex-none text-ui text-state-fail hover:underline"
                         title={canRequestRevoke ? "You'll confirm in an Tukido dialog." : 'Update the Tukido app to revoke from this page.'}
                       >
                         Revoke
@@ -330,15 +330,15 @@ function ProviderCard({ card, ctx, onAdd, onAllow, onRevoke, onDelete, canReques
 
           {candidates.length > 0 && (
             <div>
-              <h3 className="text-[11px] uppercase tracking-wider text-ink-500 font-medium mb-1.5">May need this key</h3>
+              <h3 className="text-ui uppercase tracking-wider text-ink-500 font-medium mb-1.5">May need this key</h3>
               <ul className="space-y-1.5">
                 {candidates.map((a) => (
-                  <li key={a.slug} className="flex items-center justify-between gap-3 text-sm">
+                  <li key={a.slug} className="flex items-center justify-between gap-3 text-secondary">
                     <span className="min-w-0 truncate text-ink-100">{a.name}</span>
                     {/* Allow opens the desktop's grant-only window (backend-verified
                         agent name + explicit confirmation) — one click here, one
                         deliberate confirm there. Never a silent web-side grant. */}
-                    <button type="button" onClick={() => onAllow(a.slug)} className="flex-none btn-outline text-xs px-2.5 py-1">
+                    <button type="button" onClick={() => onAllow(a.slug)} className="flex-none btn-outline text-ui px-2.5 py-1">
                       Allow…
                     </button>
                   </li>
@@ -347,7 +347,7 @@ function ProviderCard({ card, ctx, onAdd, onAllow, onRevoke, onDelete, canReques
             </div>
           )}
 
-          <p className="text-xs text-ink-500 leading-relaxed">
+          <p className="text-reading text-ink-500 ">
             Revoking access stops this agent from using the key on future runs.
             Runs already in progress may need to be restarted.
           </p>

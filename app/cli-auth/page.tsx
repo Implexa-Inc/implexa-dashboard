@@ -50,10 +50,10 @@ export default async function CliAuthPage({ searchParams }: { searchParams: { co
           <h1 className="text-2xl font-semibold text-ink-50 mb-3">Missing verification code</h1>
           <p className="text-ink-300 leading-relaxed">
             This page only works when opened from the install script (the URL needs to look like{' '}
-            <code className="text-xs bg-ink-800 px-1 rounded">/cli-auth?code=ABCD-1234</code>).
+            <code className="text-secondary bg-ink-800 px-1 rounded">/cli-auth?code=ABCD-1234</code>).
           </p>
-          <p className="text-ink-400 text-sm mt-6">
-            Run <code className="text-xs bg-ink-800 px-1 rounded">curl -fsSL https://core.implexa.ai/install.sh | bash</code> in your terminal to start a fresh install.
+          <p className="text-ink-400 text-reading mt-6">
+            Run <code className="text-secondary bg-ink-800 px-1 rounded">curl -fsSL https://core.implexa.ai/install.sh | bash</code> in your terminal to start a fresh install.
           </p>
         </div>
       </main>

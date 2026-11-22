@@ -64,16 +64,16 @@ export default async function UpdatesPage() {
               <div className="text-2xl shrink-0" aria-hidden="true">🖥️</div>
               <div className="min-w-0">
                 <div className="font-medium text-ink-50">Implexa desktop app</div>
-                <div className="text-xs text-ink-300 mt-0.5">
+                <div className="text-secondary text-ink-300 mt-0.5">
                   Optional menu-bar companion: run notifications, onboarding, and your dashboard in one window.
                 </div>
                 {desktop.notes ? (
-                  <div className="text-xs text-ink-400 mt-2 leading-relaxed">{desktop.notes}</div>
+                  <div className="text-secondary text-ink-400 mt-2 leading-relaxed">{desktop.notes}</div>
                 ) : null}
               </div>
             </div>
             {desktop.latest ? (
-              <span className="flex-none text-[11px] font-mono text-ink-200 border border-ink-700 rounded px-2 py-1">
+              <span className="flex-none text-micro font-mono text-ink-200 border border-ink-700 rounded px-2 py-1">
                 v{desktop.latest}
               </span>
             ) : null}
@@ -83,12 +83,12 @@ export default async function UpdatesPage() {
             {desktop.download_url ? (
               <a
                 href={desktop.download_url}
-                className="inline-flex items-center gap-2 rounded-lg border border-brand-500/40 bg-brand-500/10 px-4 py-2 text-sm font-medium text-action-accent hover:bg-brand-500/15 transition-colors"
+                className="inline-flex items-center gap-2 rounded-lg border border-brand-500/40 bg-brand-500/10 px-4 py-2 text-secondary font-medium text-action-accent hover:bg-brand-500/15 transition-colors"
               >
                 Download for macOS →
               </a>
             ) : (
-              <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-3 text-xs text-ink-400">
+              <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-3 text-secondary text-ink-400">
                 The desktop app is not yet published for download. The plugin above is all you need to run workflows —
                 the desktop app only adds presence (notifications + a window), never anything the plugin cannot do.
               </div>

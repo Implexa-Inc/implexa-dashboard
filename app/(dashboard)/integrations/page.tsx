@@ -138,7 +138,7 @@ export default async function IntegrationsPage() {
         {/* Top nav */}
         <header className="mb-10">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Integrations</h1>
-          <p className="text-ink-300 text-sm mt-1 max-w-2xl leading-relaxed">
+          <p className="text-ink-300 text-reading mt-1 max-w-2xl ">
             Tukido captures workflows from <strong>any MCP server you have installed</strong> in Claude — no setup required.
             Bring your own tools (Salesforce, GitHub, Slack, Apollo, Clay, anything MCP-compatible), and we capture every workflow you run with them.
           </p>
@@ -153,13 +153,13 @@ export default async function IntegrationsPage() {
                 <h2 className="text-lg font-semibold text-ink-50 mb-2">
                   Bring your own MCP — Tukido captures everything
                 </h2>
-                <p className="text-sm text-ink-200 leading-relaxed mb-3">
+                <p className="text-reading text-ink-200 mb-3">
                   Already have GitHub, Linear, Notion, Slack, Salesforce, Gmail, or any other MCP installed in Claude?
-                  During a recording, Tukido&apos;s <code className="text-xs bg-ink-800 px-1.5 py-0.5 rounded text-ink-100">PostToolUse</code> hook captures every tool call
+                  During a recording, Tukido&apos;s <code className="text-secondary bg-ink-800 px-1.5 py-0.5 rounded text-ink-100">PostToolUse</code> hook captures every tool call
                   regardless of which MCP provides it. Your captured skill references the actual tool names you used —
                   so anyone with the same MCP installed can run it.
                 </p>
-                <p className="text-xs text-ink-300 leading-relaxed">
+                <p className="text-reading text-ink-300 ">
                   <strong>You don&apos;t need to connect anything to Tukido to capture workflows.</strong>
                   Install MCPs in Claude as you normally would. Tukido is the meta-layer that records + replays the choreography.
                 </p>
@@ -203,13 +203,13 @@ export default async function IntegrationsPage() {
               <div key={m.name} className="card !p-3">
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="text-xl shrink-0" aria-hidden="true">{m.icon}</span>
-                  <div className="text-sm font-medium text-ink-50 truncate">{m.name}</div>
+                  <div className="text-secondary font-medium text-ink-50 truncate">{m.name}</div>
                 </div>
-                <p className="text-[11px] text-ink-300 leading-snug">{m.note}</p>
+                <p className="text-reading text-ink-300 leading-snug">{m.note}</p>
               </div>
             ))}
           </div>
-          <p className="text-xs text-ink-400 mt-4 leading-relaxed">
+          <p className="text-reading text-ink-400 mt-4 ">
             Have an MCP not listed here? It still works — Tukido captures any tool call. Tell us at{' '}
             <a href="mailto:support@implexa.ai" className="text-action-accent hover:underline">support@implexa.ai</a>{' '}and we&apos;ll add it to the list.
           </p>
@@ -225,7 +225,7 @@ export default async function IntegrationsPage() {
 
           {comingSoonByCategory.map(({ category, meta, items }) => (
             <div key={category} className="mb-10">
-              <h3 className="text-sm font-medium text-ink-200 mb-3 flex items-center gap-2">
+              <h3 className="text-ui font-medium text-ink-200 mb-3 flex items-center gap-2">
                 <span aria-hidden="true">{meta.icon}</span>
                 {meta.label}
                 <span className="text-ink-400 font-normal">({items.length})</span>
@@ -244,7 +244,7 @@ export default async function IntegrationsPage() {
         </section>
 
         {/* Footer note */}
-        <footer className="mt-12 text-center text-xs text-ink-400">
+        <footer className="mt-12 text-center text-secondary text-ink-400">
           <p>
             Don&apos;t see what you need?{' '}
             <a href="mailto:support@implexa.ai?subject=Integration%20request" className="text-action-accent hover:underline font-medium">
@@ -275,7 +275,7 @@ function SectionHeader({
         <h2 className={`text-lg font-semibold ${accent === 'success' ? 'text-success-700 dark:text-success-400' : 'text-ink-50'}`}>
           {title}
         </h2>
-        <p className="text-sm text-ink-300 mt-1 max-w-2xl">{subtitle}</p>
+        <p className="text-reading text-ink-300 mt-1 max-w-2xl">{subtitle}</p>
       </div>
     </div>
   );

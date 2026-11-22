@@ -181,7 +181,7 @@ export default function Sidebar({ user }: { user: UserCtx }) {
          * Internal use only (founder dashboard for launch monitoring). */}
         {user.isAdmin && (
           <>
-            <div id="shell-internal-nav" className="mt-8 px-3 mb-2 text-[10px] uppercase tracking-wider text-ink-500 font-medium">
+            <div id="shell-internal-nav" className="mt-8 px-3 mb-2 text-secondary uppercase tracking-wider text-ink-500 font-medium">
               Internal
             </div>
             <ul className="space-y-0.5" aria-labelledby="shell-internal-nav">
@@ -205,9 +205,9 @@ export default function Sidebar({ user }: { user: UserCtx }) {
             <div className="app-sidebar-name truncate" title={user.displayName || user.email}>
               {user.displayName || user.email.split('@')[0]}
             </div>
-            <div className="text-[11px] text-ink-400 truncate" title={user.email}>{user.email}</div>
-            <div className="text-xs text-ink-400">
-              {user.isFoundingCreator ? <span title="Founding Creator — Pro is free for life on your account" className="inline-block text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">Founding creator</span>
+            <div className="text-secondary text-ink-400 truncate" title={user.email}>{user.email}</div>
+            <div className="text-secondary text-ink-400">
+              {user.isFoundingCreator ? <span title="Founding Creator — Pro is free for life on your account" className="inline-block text-secondary uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">Founding creator</span>
                 : user.plan === 'pro' ? 'Pro' : user.plan === 'enterprise' ? 'Enterprise' : 'Free plan'}
             </div>
           </div>
@@ -218,7 +218,7 @@ export default function Sidebar({ user }: { user: UserCtx }) {
          * remove it). */}
         <div className="app-sidebar-signout">
           <form action="/auth/signout" method="POST">
-            <button className={`rounded text-[11px] text-ink-300 hover:text-ink-50 hover:underline ${FOCUS_RING}`}>
+            <button className={`rounded text-ui text-ink-300 hover:text-ink-50 hover:underline ${FOCUS_RING}`}>
               Sign out
             </button>
           </form>
@@ -289,9 +289,9 @@ export function MobileTopBar({ user }: { user: UserCtx }) {
         <Link href="/start" className={`flex items-center gap-2 rounded-md text-ink-50 ${FOCUS_RING}`}>
           <Logo height={23} />
         </Link>
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2 text-secondary">
           <span className="capitalize text-ink-300">{user.plan}</span>
-          {user.isFoundingCreator && <span title="Founding Creator" className="text-xs text-ink-400">Creator</span>}
+          {user.isFoundingCreator && <span title="Founding Creator" className="text-secondary text-ink-400">Creator</span>}
         </div>
       </div>
       <nav aria-label="Primary" className="app-mobile-nav px-2 pb-2 overflow-x-auto">
@@ -304,7 +304,7 @@ export function MobileTopBar({ user }: { user: UserCtx }) {
                 <Link
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
-                  className={`app-mobile-nav-link flex items-center gap-2 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors ${FOCUS_RING} ${
+                  className={`app-mobile-nav-link flex items-center gap-2 rounded-md px-3 py-1.5 text-secondary whitespace-nowrap transition-colors ${FOCUS_RING} ${
                     active
                       ? 'bg-brand-500/10 text-ink-50 font-medium border-b-2 border-brand-500'
                       : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100 border-b-2 border-transparent'

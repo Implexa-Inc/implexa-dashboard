@@ -175,7 +175,7 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
 
   return (
     <div className="space-y-4">
-      <p className="rounded-md border border-ink-800 bg-ink-900/40 px-3 py-2 text-xs text-ink-300">
+      <p className="rounded-md border border-ink-800 bg-ink-900/40 px-3 py-2 text-reading text-ink-300">
         {/* The bound the whole editor obeys, said plainly and in the same units the
             fields use. Milliseconds are shown because the boundary is
             millisecond-exact: a moment ending at the last millisecond is legal,
@@ -187,7 +187,7 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
         Moments must end at or before the end of this video.
       </p>
       {seedMoments && seedMoments.length > 0 && (
-        <p role="status" className="rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 text-xs text-ink-300">
+        <p role="status" className="rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 text-reading text-ink-300">
           These moments were loaded from the plan you chose to edit. That plan has been
           retired — compile this timeline again to get a new plan with its own cost and
           its own approval.
@@ -219,9 +219,9 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
       ) : null}
 
       {unavailable && preview && (
-        <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-state-needs">
+        <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-secondary text-state-needs">
           <p className="font-medium">Professional generation is not available on your account yet.</p>
-          <p className="mt-1 text-xs">
+          <p className="mt-1 text-reading">
             Tukido compiled this plan so you can see exactly what it would run, but it cannot be
             approved and nothing will be generated. Missing:{' '}
             {preview.requiredMissingCapabilities.map(capabilityWords).join(', ')}.
@@ -230,20 +230,20 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
       )}
 
       {error && (
-        <p role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">{error}</p>
+        <p role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-reading text-state-needs">{error}</p>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button" onClick={onPreview} disabled={busy || !validation.ok}
-          className="btn-primary px-4 py-2 text-sm disabled:opacity-50"
+          className="btn-primary px-4 py-2 text-ui disabled:opacity-50"
         >
           {phase === 'previewing' ? 'Compiling plan…' : previewIsCurrent ? 'Re-compile plan' : 'Compile plan'}
         </button>
         {previewIsCurrent && preview && (
           <button
             type="button" onClick={onCreate} disabled={busy}
-            className="rounded-md border border-ink-700 px-4 py-2 text-sm text-ink-200 disabled:opacity-50"
+            className="rounded-md border border-ink-700 px-4 py-2 text-ui text-ink-200 disabled:opacity-50"
           >
             {phase === 'creating'
               ? 'Saving…'
@@ -251,14 +251,14 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, source, 
           </button>
         )}
         {preview !== null && !previewIsCurrent && (
-          <p className="text-xs text-state-needs">
+          <p className="text-reading text-state-needs">
             The timeline changed since it was compiled. Compile it again before saving —
             the previous plan and its ceiling no longer describe what is on screen.
           </p>
         )}
       </div>
 
-      <p className="text-[11px] leading-snug text-ink-500">
+      <p className="text-reading leading-snug text-ink-500">
         Compiling and saving never generate anything and never spend credits. Generation
         starts only from a separate approval of a saved plan, on that plan&apos;s own screen.
       </p>

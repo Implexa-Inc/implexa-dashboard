@@ -176,7 +176,7 @@ export default function AgentSetupCard({
   const optionalFields = setup.schema.filter(isOptional);
   const filled = (f: Field) => (values[f.key] ?? '').toString().trim() !== '';
   const allFilled = requiredFields.every(filled);
-  const inputCls = 'w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none';
+  const inputCls = 'w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none';
 
   async function chooseFile(key: string) {
     const b = desktopBridge();
@@ -192,10 +192,10 @@ export default function AgentSetupCard({
       <div className="flex items-start justify-between gap-3 mb-1">
         <h2 className="text-base font-semibold text-ink-50">{requiredFields.length?'Questions this agent needs answered':'Your preferences'}</h2>
         {setup.needs_setup
-          ? <span className="flex-none text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-amber-500/50 text-state-needs">{setup.missing.length} to answer</span>
-          : requiredFields.length ? <span className="flex-none text-[11px] text-state-ok">✓ all set</span> : <span className="text-xs text-ink-400">Optional</span>}
+          ? <span className="flex-none text-secondary uppercase tracking-wide px-1.5 py-0.5 rounded border border-amber-500/50 text-state-needs">{setup.missing.length} to answer</span>
+          : requiredFields.length ? <span className="flex-none text-secondary text-state-ok">✓ all set</span> : <span className="text-secondary text-ink-400">Optional</span>}
       </div>
-      <p className="text-xs text-ink-400 mb-4 leading-snug">
+      <p className="text-secondary text-ink-400 mb-4 leading-snug">
         {requiredFields.length?'Answer once so the agent has what it needs for future runs.':'Remembered for next time.'}
       </p>
 
@@ -211,17 +211,17 @@ export default function AgentSetupCard({
                 field as mandatory. */}
             {requiredFields.length > 0 && i === requiredFields.length && optionalFields.length > 0 && (
               <div className="pt-2 mb-3 border-t border-ink-800">
-                <div className="text-xs font-semibold uppercase tracking-wide text-ink-500 mt-3">Optional preferences</div>
-                <p className="text-xs text-ink-500 mt-0.5">
+                <div className="text-secondary font-semibold uppercase tracking-wide text-ink-500 mt-3">Optional preferences</div>
+                <p className="text-secondary text-ink-500 mt-0.5">
                   These never block a run — leave them and the agent uses a sensible default.
                 </p>
               </div>
             )}
-            <label className="block text-sm text-ink-200 mb-1.5">
+            <label className="block text-ui text-ink-200 mb-1.5">
               {f.question}
               <span className={isOptional(f)
-                ? 'ml-1.5 text-[11px] text-ink-500'
-                : 'ml-1.5 text-[11px] text-state-needs'}
+                ? 'ml-1.5 text-secondary text-ink-500'
+                : 'ml-1.5 text-secondary text-state-needs'}
               >
                 {isOptional(f) ? 'optional' : 'required'}
               </span>
@@ -249,16 +249,16 @@ export default function AgentSetupCard({
                     <button
                       type="button"
                       onClick={() => chooseFile(f.key)}
-                      className="btn-outline text-xs px-3 py-1.5"
+                      className="btn-outline text-ui px-3 py-1.5"
                     >
                       Choose file…
                     </button>
                     {values[f.key] ? (
-                      <span className="text-xs text-ink-300 font-mono truncate max-w-[18rem]" title={values[f.key]}>
+                      <span className="text-micro text-ink-300 font-mono truncate max-w-[18rem]" title={values[f.key]}>
                         {values[f.key].split('/').pop()}
                       </span>
                     ) : (
-                      <span className="text-xs text-ink-500">No file chosen</span>
+                      <span className="text-secondary text-ink-500">No file chosen</span>
                     )}
                   </div>
                 )}
@@ -267,10 +267,10 @@ export default function AgentSetupCard({
                   value={values[f.key] ?? ''}
                   onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
                   placeholder={inDesktop ? 'Or paste a file path' : '/path/to/your/file (you can also attach it in Claude)'}
-                  className={inputCls + ' font-mono text-xs'}
+                  className={inputCls + ' font-mono text-micro'}
                 />
                 {!inDesktop && (
-                  <p className="text-[11px] text-ink-500">
+                  <p className="text-reading text-ink-500">
                     In your browser you can paste a path here; the file itself is attached when the agent runs in your Claude.
                   </p>
                 )}
@@ -285,7 +285,7 @@ export default function AgentSetupCard({
                   className={inputCls}
                 />
                 {defaultHint(f) && !(setup.answers[f.key] ?? '').toString().trim() && (
-                  <p className="text-[11px] text-ink-500 mt-1">{defaultHint(f)}</p>
+                  <p className="text-reading text-ink-500 mt-1">{defaultHint(f)}</p>
                 )}
               </>
             )}
@@ -298,14 +298,14 @@ export default function AgentSetupCard({
                   <button
                     type="button"
                     onClick={() => setValues((v) => ({ ...v, [f.key]: String(f.default) }))}
-                    className="text-xs text-action-accent hover:underline"
+                    className="text-ui text-action-accent hover:underline"
                   >
                     Use default ({f.default})
                   </button>
                 ) : (
-                  <span className="text-[11px] text-ink-500">The agent will decide this itself.</span>
+                  <span className="text-secondary text-ink-500">The agent will decide this itself.</span>
                 )}
-                <span className="text-[11px] text-ink-500">Skipping is fine — it won’t block a run.</span>
+                <span className="text-secondary text-ink-500">Skipping is fine — it won’t block a run.</span>
               </div>
             )}
           </div>
@@ -313,10 +313,10 @@ export default function AgentSetupCard({
       </div>
 
       <div className="mt-5">
-        <label className="block text-sm font-medium text-ink-100 mb-1">
+        <label className="block text-ui font-medium text-ink-100 mb-1">
           Notes for this agent <span className="text-ink-500 font-normal">(optional)</span>
         </label>
-        <p className="text-xs text-ink-400 mb-2 leading-snug">
+        <p className="text-reading text-ink-400 mb-2 leading-snug">
           Standing instructions honored on <strong>every</strong> run (tone, things to avoid, what to emphasize). You can also tweak this in the Run-now pop-up.
         </p>
         <textarea
@@ -335,13 +335,13 @@ export default function AgentSetupCard({
           type="button"
           onClick={save}
           disabled={saving || !allFilled}
-          className={saving || !allFilled ? 'btn-outline text-sm px-4 py-2 opacity-50 cursor-not-allowed' : 'btn-success text-sm px-4 py-2'}
+          className={saving || !allFilled ? 'btn-outline text-ui px-4 py-2 opacity-50 cursor-not-allowed' : 'btn-success text-ui px-4 py-2'}
           title={allFilled ? 'Save these answers' : 'Answer the required questions first'}
         >
           {saving ? 'Saving…' : 'Save answers'}
         </button>
-        {saved && <span className="text-xs text-state-ok">✓ Saved. The agent will use these on its next run.</span>}
-        {error && <span className="text-xs text-state-fail">{error}</span>}
+        {saved && <span className="text-secondary text-state-ok">✓ Saved. The agent will use these on its next run.</span>}
+        {error && <span className="text-secondary text-state-fail">{error}</span>}
       </div>
     </div>
   );

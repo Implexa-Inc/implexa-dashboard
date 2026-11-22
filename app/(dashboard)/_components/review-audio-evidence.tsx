@@ -15,7 +15,7 @@ export function ReviewAudioEvidence({ reviewedFile, anchorMs, onInsert }: {
   const [inserted, setInserted] = useState<string | null>(null);
   const inputClass = 'mt-1 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1';
   const preview = audioEvidenceText({ reviewedFile, anchorMs, refs, listening });
-  return <details className="my-2 rounded border border-ink-700 p-2 text-xs text-ink-300">
+  return <details className="my-2 rounded border border-ink-700 p-2 text-secondary text-ink-300">
     <summary className="cursor-pointer">Clarify audio evidence and timestamps</summary>
     <p className="my-2">The comment stays attached to the reviewed file. Add named references below; source and clip times do not move its anchor.</p>
     <p className="my-2">{AUDIO_LIMITATION}</p>

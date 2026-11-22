@@ -62,8 +62,8 @@ export default async function DataSettingsPage() {
 
         {loadError ? (
           <div className="card !border-red-500/30">
-            <p className="text-sm text-state-fail">Could not load your preferences: {loadError}</p>
-            <p className="text-xs text-ink-400 mt-2">If this persists, email support@implexa.ai.</p>
+            <p className="text-reading text-state-fail">Could not load your preferences: {loadError}</p>
+            <p className="text-secondary text-ink-400 mt-2">If this persists, email support@implexa.ai.</p>
           </div>
         ) : snapshot ? (
           <DataRightsForm initial={snapshot} />
@@ -71,7 +71,7 @@ export default async function DataSettingsPage() {
 
         <section className="card mt-8">
           <h2 className="text-base font-medium text-ink-50 mb-2">The privacy promise</h2>
-          <p className="text-xs text-ink-300 leading-relaxed">
+          <p className="text-reading text-ink-300 ">
             Tool inventory + outcome tracking default on (low-sensitivity, needed for any useful recommendations).
             Cohort matching defaults off (more sensitive, requires explicit yes). Prompts that don&apos;t match a
             skill are discarded server-side; that promise hasn&apos;t changed. Signatures are stored under a hash

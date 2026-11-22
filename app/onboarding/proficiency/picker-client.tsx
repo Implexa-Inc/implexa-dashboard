@@ -58,20 +58,20 @@ export default function ProficiencyPicker({ jwt, next }: { jwt: string; next: st
               } ${saving && !isSaving ? 'opacity-30' : ''}`}
             >
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-ink-800 text-ink-300 text-xs font-semibold tabular-nums">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-ink-800 text-ink-300 text-micro font-semibold tabular-nums">
                   {i + 1}
                 </span>
                 <span className="font-medium text-ink-50">{lvl.label}</span>
               </div>
-              <div className="text-xs text-ink-400 leading-relaxed">{lvl.tagline}</div>
-              {isSaving && <div className="mt-2 text-[11px] text-action-accent font-medium">Saving…</div>}
+              <div className="text-secondary text-ink-400 leading-relaxed">{lvl.tagline}</div>
+              {isSaving && <div className="mt-2 text-secondary text-action-accent font-medium">Saving…</div>}
             </button>
           );
         })}
       </div>
 
       {error && (
-        <div className="text-center text-xs text-ink-500 mt-4">
+        <div className="text-center text-secondary text-ink-500 mt-4">
           Saved locally; we&apos;ll sync it shortly.
         </div>
       )}
@@ -81,7 +81,7 @@ export default function ProficiencyPicker({ jwt, next }: { jwt: string; next: st
           type="button"
           onClick={() => router.push(destination())}
           disabled={!!saving}
-          className="text-sm text-ink-400 hover:text-ink-200 underline disabled:opacity-50"
+          className="text-ui text-ink-400 hover:text-ink-200 underline disabled:opacity-50"
         >
           Skip for now
         </button>

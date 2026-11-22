@@ -66,7 +66,7 @@ export default function ConnectCommand() {
               type="button"
               onClick={() => { setSurface(s); setCopied(false); }}
               className={
-                'px-3 py-1 rounded-full text-xs font-medium transition-colors ' +
+                'px-3 py-1 rounded-full text-ui font-medium transition-colors ' +
                 (active ? 'bg-brand-500/15 text-action-accent' : 'text-ink-400 hover:text-ink-100')
               }
             >
@@ -83,13 +83,13 @@ export default function ConnectCommand() {
         aria-label="Copy connect command"
       >
         <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <code className="font-mono text-xs sm:text-sm text-ink-100 overflow-x-auto whitespace-nowrap">
+          <code className="font-mono text-micro sm:text-micro text-ink-100 overflow-x-auto whitespace-nowrap">
             <span className="text-ink-500 select-none mr-2">$</span>
             {COMMANDS[surface].cmd}
           </code>
           <span
             className={
-              'inline-flex items-center gap-1.5 text-xs shrink-0 transition-colors ' +
+              'inline-flex items-center gap-1.5 text-secondary shrink-0 transition-colors ' +
               (copied ? 'text-success-700 dark:text-success-400' : 'text-ink-400 group-hover:text-ink-200')
             }
           >
@@ -99,12 +99,12 @@ export default function ConnectCommand() {
       </button>
 
       {email && (
-        <p className="text-xs text-ink-400 mt-2">
+        <p className="text-secondary text-ink-400 mt-2">
           Connecting as <span className="text-ink-100 font-medium">{email}</span>. Your agents and runs live under this account, so sign into the dashboard with it too.
         </p>
       )}
 
-      <p className="text-xs text-ink-500 mt-2 leading-relaxed">
+      <p className="text-reading text-ink-500 mt-2 ">
         Paste it in your terminal. It signs you in and installs Tukido into your {COMMANDS[surface].label}.
         Then your agent builds itself, runs as you, free on the plan you already pay for.
       </p>

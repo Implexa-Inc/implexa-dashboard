@@ -21,7 +21,7 @@ export function RunStateBadge({
 }) {
   const spec = presentationFor(info);
   const label=info.label==='Done'?'Finished':info.label==='Partial'?'Partly finished':info.label==='Stalled'?'Progress interrupted':info.label;
-  const pad = size === 'xs' ? 'text-[10px] px-2 py-0.5' : 'text-xs px-2.5 py-1';
+  const pad = size === 'xs' ? 'text-micro px-2 py-0.5' : 'text-secondary px-2.5 py-1';
   const tip = info.estimated ? `${info.reason} (estimated - pending the backend run state)` : info.reason;
   return (
     <span

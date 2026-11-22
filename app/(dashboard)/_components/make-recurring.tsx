@@ -79,13 +79,13 @@ export default function MakeRecurring({ slug, agentName }: { slug: string; agent
   if (savedNl) {
     return (
       <section className="mt-6 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-4">
-        <div className="text-sm text-ink-100">
+        <div className="text-secondary text-ink-100">
           <span className="text-state-ok font-medium">✓ {agentName} is now recurring</span>
           {' — '}runs {savedNl}. You don&apos;t need to start it; results land on your home as they come in.
         </div>
         <Link
           href={`/workflows/${encodeURIComponent(slug)}/activate`}
-          className="text-xs text-action-accent hover:underline mt-1.5 inline-block"
+          className="text-secondary text-action-accent hover:underline mt-1.5 inline-block"
         >
           Change the schedule →
         </Link>
@@ -93,19 +93,19 @@ export default function MakeRecurring({ slug, agentName }: { slug: string; agent
     );
   }
 
-  const selectCls = 'bg-ink-900 border border-ink-700 rounded-md text-sm px-2 py-1 text-ink-100';
+  const selectCls = 'bg-ink-900 border border-ink-700 rounded-md text-ui px-2 py-1 text-ink-100';
 
   return (
     <section className="mt-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-medium text-ink-100">Want this to run on its own?</div>
-          <div className="text-xs text-ink-400 mt-0.5">
+          <div className="text-secondary font-medium text-ink-100">Want this to run on its own?</div>
+          <div className="text-secondary text-ink-400 mt-0.5">
             This ran on demand. Put {agentName} on a schedule and it&apos;ll deliver hands-off — no need to start it each time.
           </div>
         </div>
         {!open && (
-          <button type="button" onClick={() => setOpen(true)} className="btn-success text-xs px-3 py-1.5 shrink-0">
+          <button type="button" onClick={() => setOpen(true)} className="btn-success text-ui px-3 py-1.5 shrink-0">
             Make it recurring
           </button>
         )}
@@ -126,14 +126,14 @@ export default function MakeRecurring({ slug, agentName }: { slug: string; agent
           )}
           {freq !== 'hour' && (
             <>
-              <span className="text-sm text-ink-500">at</span>
+              <span className="text-secondary text-ink-500">at</span>
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={selectCls} />
             </>
           )}
-          <button type="button" onClick={save} disabled={saving} className={saving ? 'btn-outline text-xs px-3 py-1.5 opacity-50' : 'btn-success text-xs px-3 py-1.5'}>
+          <button type="button" onClick={save} disabled={saving} className={saving ? 'btn-outline text-ui px-3 py-1.5 opacity-50' : 'btn-success text-ui px-3 py-1.5'}>
             {saving ? 'Saving…' : `Run ${buildNl()}`}
           </button>
-          {err && <span className="text-xs text-state-fail">{err}</span>}
+          {err && <span className="text-secondary text-state-fail">{err}</span>}
         </div>
       )}
     </section>

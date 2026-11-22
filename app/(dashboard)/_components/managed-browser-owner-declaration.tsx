@@ -80,26 +80,26 @@ export default function ManagedBrowserOwnerDeclaration({ target }: { target: Own
   const close = () => { if (!busy) { scope.current.generation++; setOpen(false); setView(null); setMessage(''); } };
 
   return <div className="mt-3 rounded-lg border border-ink-800 p-3" data-managed-browser-owner-statement>
-    <p className="text-sm font-medium text-ink-100">Browser account statement</p>
-    <p className="mt-1 text-xs text-ink-400">Confirm a free account with no payment method for this Agent’s browser workspace.</p>
+    <p className="text-reading font-medium text-ink-100">Browser account statement</p>
+    <p className="mt-1 text-secondary text-ink-400">Confirm a free account with no payment method for this Agent’s browser workspace.</p>
     {supported ? <div className="mt-2 flex flex-wrap gap-3">
-      <button type="button" className="btn-outline text-xs px-2.5 py-1" disabled={busy} onClick={() => void review('declare')}>Review statement</button>
-      <button type="button" className="text-xs text-ink-400 underline" disabled={busy} onClick={() => void review('revoke')}>Revoke saved statement</button>
-    </div> : <p className="mt-2 text-xs text-ink-400">Open this Agent in an updated Tukido app to manage its statement.</p>}
-    {message && <p role="status" className="mt-2 text-xs text-ink-300">{message}</p>}
+      <button type="button" className="btn-outline text-ui px-2.5 py-1" disabled={busy} onClick={() => void review('declare')}>Review statement</button>
+      <button type="button" className="text-ui text-ink-400 underline" disabled={busy} onClick={() => void review('revoke')}>Revoke saved statement</button>
+    </div> : <p className="mt-2 text-secondary text-ink-400">Open this Agent in an updated Tukido app to manage its statement.</p>}
+    {message && <p role="status" className="mt-2 text-secondary text-ink-300">{message}</p>}
     <Modal open={open} onClose={close} title={operation === 'declare' ? 'Confirm account statement' : 'Revoke account statement'}>
       {view && <form onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4">
-        <p className="text-sm text-ink-300">Applies to {view.origins.join(', ')} in this Agent’s browser workspace.</p>
-        <p className="text-xs text-ink-400">{view.state === 'absent' ? 'No saved statement.' : view.state === 'mismatch' ? 'Clock or account state mismatch. Revoke the saved statement or review setup.' : `${view.state === 'expired' ? 'Expired' : 'Owner-declared, unverified'} · ${view.declaration ? new Date(view.declaration.expiresAt).toLocaleString() : ''}`}</p>
+        <p className="text-reading text-ink-300">Applies to {view.origins.join(', ')} in this Agent’s browser workspace.</p>
+        <p className="text-secondary text-ink-400">{view.state === 'absent' ? 'No saved statement.' : view.state === 'mismatch' ? 'Clock or account state mismatch. Revoke the saved statement or review setup.' : `${view.state === 'expired' ? 'Expired' : 'Owner-declared, unverified'} · ${view.declaration ? new Date(view.declaration.expiresAt).toLocaleString() : ''}`}</p>
         {operation === 'declare' ? <>
-          <label className="block text-sm text-ink-200"><input type="checkbox" checked={confirmed} disabled={busy || view.state === 'mismatch'} onChange={(event) => setConfirmed(event.target.checked)} className="mr-2" />I confirm these accounts use a free plan and have no payment method.</label>
-          <label className="block text-sm text-ink-300">Expires at (your local time)<input type="datetime-local" required value={expires} onChange={(event) => setExpires(event.target.value)} disabled={busy} className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 p-2" /></label>
-          <p className="text-xs text-ink-400">Choose a future time within 30 days. This statement is unverified and grants no permission to spend.</p>
-          <label className="block text-sm text-ink-300">Evidence reference (optional)<input type="text" maxLength={1024} value={evidence} onChange={(event) => setEvidence(event.target.value)} disabled={busy} className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 p-2" /></label>
-        </> : <label className="block text-sm text-ink-200"><input type="checkbox" checked={confirmed} disabled={busy} onChange={(event) => setConfirmed(event.target.checked)} className="mr-2" />Revoke this saved statement. Future browser actions requiring it will stop.</label>}
+          <label className="block text-ui text-ink-200"><input type="checkbox" checked={confirmed} disabled={busy || view.state === 'mismatch'} onChange={(event) => setConfirmed(event.target.checked)} className="mr-2" />I confirm these accounts use a free plan and have no payment method.</label>
+          <label className="block text-ui text-ink-300">Expires at (your local time)<input type="datetime-local" required value={expires} onChange={(event) => setExpires(event.target.value)} disabled={busy} className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 p-2" /></label>
+          <p className="text-secondary text-ink-400">Choose a future time within 30 days. This statement is unverified and grants no permission to spend.</p>
+          <label className="block text-ui text-ink-300">Evidence reference (optional)<input type="text" maxLength={1024} value={evidence} onChange={(event) => setEvidence(event.target.value)} disabled={busy} className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 p-2" /></label>
+        </> : <label className="block text-ui text-ink-200"><input type="checkbox" checked={confirmed} disabled={busy} onChange={(event) => setConfirmed(event.target.checked)} className="mr-2" />Revoke this saved statement. Future browser actions requiring it will stop.</label>}
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={close} disabled={busy} className="btn-outline text-sm">Cancel</button>
-          <button type="submit" disabled={busy || !confirmed || operation === 'declare' && (!expires || view.state === 'mismatch')} className="btn-primary text-sm">{busy ? 'Confirming…' : operation === 'declare' ? 'Confirm statement' : 'Revoke statement'}</button>
+          <button type="button" onClick={close} disabled={busy} className="btn-outline text-ui">Cancel</button>
+          <button type="submit" disabled={busy || !confirmed || operation === 'declare' && (!expires || view.state === 'mismatch')} className="btn-primary text-ui">{busy ? 'Confirming…' : operation === 'declare' ? 'Confirm statement' : 'Revoke statement'}</button>
         </div>
       </form>}
     </Modal>

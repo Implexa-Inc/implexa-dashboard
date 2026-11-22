@@ -136,9 +136,9 @@ export default function CreateDecisionGate({
   if (phase === 'error') {
     return (
       <Modal open onClose={onCancel} title="Couldn’t queue that" maxWidth="max-w-md">
-        <p className="text-sm text-ink-400">{error}</p>
+        <p className="text-reading text-ink-400">{error}</p>
         <div className="mt-4 flex gap-2">
-          <button type="button" className="btn btn-outline text-sm" onClick={onCancel}>Back</button>
+          <button type="button" className="btn btn-outline text-ui" onClick={onCancel}>Back</button>
         </div>
       </Modal>
     );
@@ -148,7 +148,7 @@ export default function CreateDecisionGate({
   // just a lightweight, non-blocking status so a slow network isn't a dead click.
   if (phase === 'loading') {
     return (
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 rounded-full border border-ink-800 bg-ink-950/95 px-4 py-2 text-xs text-ink-300 shadow-lg">
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 rounded-full border border-ink-800 bg-ink-950/95 px-4 py-2 text-secondary text-ink-300 shadow-lg">
         {creating ? 'Queuing your agent…' : 'Reviewing your request…'}
       </div>
     );
@@ -159,11 +159,11 @@ export default function CreateDecisionGate({
   const isGap = decision?.kind === 'gap';
   return (
     <Modal open onClose={onCancel} title={plan?.proposedName || 'Your new agent'} maxWidth="max-w-lg">
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">One quick choice</div>
-      <p className="text-sm text-ink-100 leading-snug">{decision?.question}</p>
-      {decision?.reason && <p className="mt-1 text-xs text-state-needs leading-snug">{decision.reason}</p>}
+      <div className="mb-1 text-secondary font-semibold uppercase tracking-wide text-ink-500">One quick choice</div>
+      <p className="text-reading text-ink-100 leading-snug">{decision?.question}</p>
+      {decision?.reason && <p className="mt-1 text-secondary text-state-needs leading-snug">{decision.reason}</p>}
       {decision?.needsConnection && (
-        <p className="mt-1 text-xs text-ink-500 leading-snug">Pick one to use — you’ll sign in to it when the agent first runs.</p>
+        <p className="mt-1 text-secondary text-ink-500 leading-snug">Pick one to use — you’ll sign in to it when the agent first runs.</p>
       )}
 
       {!isGap && (decision?.options?.length ?? 0) > 0 && (
@@ -176,8 +176,8 @@ export default function CreateDecisionGate({
               onClick={() => chooseOption(opt)}
               className="text-left rounded-lg border border-ink-800 bg-ink-900 hover:border-ink-600 px-3 py-2.5 disabled:opacity-60"
             >
-              <div className="text-sm text-ink-100">{opt.label}</div>
-              {opt.detail && <div className="text-xs text-ink-500 mt-0.5 leading-snug">{opt.detail}</div>}
+              <div className="text-secondary text-ink-100">{opt.label}</div>
+              {opt.detail && <div className="text-secondary text-ink-500 mt-0.5 leading-snug">{opt.detail}</div>}
             </button>
           ))}
         </div>
@@ -185,18 +185,18 @@ export default function CreateDecisionGate({
 
       {isGap && (
         <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" disabled={creating} onClick={() => enqueue({ toolPreferences: withAuto() })} className="rounded-md bg-action-strong px-4 py-2 text-sm font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover disabled:opacity-60">
+          <button type="button" disabled={creating} onClick={() => enqueue({ toolPreferences: withAuto() })} className="rounded-md bg-action-strong px-4 py-2 text-ui font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover disabled:opacity-60">
             {creating ? 'Queuing…' : 'Build anyway'}
           </button>
-          <span className="self-center text-xs text-ink-500">It’ll flag the gap instead of substituting a different tool.</span>
+          <span className="self-center text-secondary text-ink-500">It’ll flag the gap instead of substituting a different tool.</span>
         </div>
       )}
 
       <div className="mt-5 flex items-center gap-3 flex-wrap border-t border-ink-800 pt-4">
-        <button type="button" disabled={creating} onClick={() => setPhase('advanced')} className="btn-outline text-sm px-3 py-2">
+        <button type="button" disabled={creating} onClick={() => setPhase('advanced')} className="btn-outline text-ui px-3 py-2">
           Change tools
         </button>
-        <button type="button" disabled={creating} onClick={onCancel} className="text-sm text-ink-400 hover:text-ink-200 px-2 py-2">
+        <button type="button" disabled={creating} onClick={onCancel} className="text-ui text-ink-400 hover:text-ink-200 px-2 py-2">
           Cancel
         </button>
       </div>

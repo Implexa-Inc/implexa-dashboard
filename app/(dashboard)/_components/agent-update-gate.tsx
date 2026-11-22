@@ -136,17 +136,17 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
     finally { busyRef.current = false; setBusy(false); }
   }
   return <>
-    <button type="button" className="btn-outline text-xs" disabled={busy} onClick={review}>Review proposed update</button>
+    <button type="button" className="btn-outline text-ui" disabled={busy} onClick={review}>Review proposed update</button>
     <Modal open={open} onClose={() => !busy && setOpen(false)} title="Review proposed agent update">
-      <p className="text-sm">{freshPurpose
+      <p className="text-reading">{freshPurpose
         ? 'This proposal changes the agent to a new job. It needs fresh training; no existing teaching, releases or private preferences carry forward. Applying it starts no run.'
         : purposeChanged ? 'This proposal changes the agent’s job. Reference carry-forward and activation are unavailable.'
         : 'This carries already accepted references to a reviewed proposal. It creates no new training and starts no run.'}</p>
-      <p className="mt-2 text-xs break-all">Current definition: {baseVersionId}</p>
-      <p className="mt-2 text-xs text-ink-400">If this agent serves a tested training snapshot, applying a definition change pauses future scheduled runs until you test and activate training for that definition. Already-running tasks keep their frozen material.</p>
-      {targetId && <p className="text-xs break-all">Proposed definition: {targetId}</p>}
+      <p className="mt-2 text-secondary break-all">Current definition: {baseVersionId}</p>
+      <p className="mt-2 text-reading text-ink-400">If this agent serves a tested training snapshot, applying a definition change pauses future scheduled runs until you test and activate training for that definition. Already-running tasks keep their frozen material.</p>
+      {targetId && <p className="text-secondary break-all">Proposed definition: {targetId}</p>}
       {preview && !freshPurpose && !purposeChanged && <p className="mt-3">{preview.eligibleRecordCount} accepted records cover {preview.eligibleRouteCount} reference routes.</p>}
-      {freshPurpose && <section className="mt-3 text-xs">
+      {freshPurpose && <section className="mt-3 text-secondary">
         <p>No training is carried from the current job. Existing customer installations stay on their current version until each customer explicitly reactivates.</p>
         <p>Once applied, this update is available for customers to reactivate immediately, even before fresh training is released. Admit and release fresh training for this new job.</p>
         <p className="break-all">Source learning identity: {freshPurpose.acknowledgement.sourceLearningIdentityDigest}</p>
@@ -157,7 +157,7 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
         <p className="break-all">Acknowledgement receipt: {freshPurpose.activationReceiptDigest}</p>
         <p>Required reference training: {preview.managerTrainingRequirements?.readiness}. Missing routes: {preview.managerTrainingRequirements?.missingPairs.length ?? 'unknown'}.</p>
       </section>}
-      {preview?.managerPolicyRemap && <section className="mt-3 text-xs">
+      {preview?.managerPolicyRemap && <section className="mt-3 text-secondary">
         <p>This proposal moves or consolidates Manager responsibilities. Only surviving same-label references may carry forward.</p>
         <ul>{preview.managerPolicyRemap.entries.map(entry => <li key={entry.from.order}>
           Stage {entry.from.order} {entry.from.label} → stage {entry.to.order} {entry.to.label} ({entry.disposition})
@@ -170,7 +170,7 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
         <p>Reference training: {preview.managerTrainingRequirements?.readiness}. Missing routes: {preview.managerTrainingRequirements?.missingPairs.length ?? 'unknown'}.</p>
       </section>}
       {preview && !applied && (canActivate || trainingSuccessorAdoptionActionAvailable(preview)) && <>
-        <label className="mt-3 block text-sm"><input type="checkbox" checked={confirmed} disabled={busy}
+        <label className="mt-3 block text-ui"><input type="checkbox" checked={confirmed} disabled={busy}
           onChange={e => setConfirmed(e.target.checked)} /> {canActivate||carryOnApply
             ? freshPurpose ? 'I approve changing this exact version to a new job, with fresh training and no teaching or private preferences carried forward.'
               : preview?.managerPolicyRemap ? 'I reviewed this exact policy remap and version pair and approve activating it.' : 'I approve this update. Compatible saved training will carry forward.'
@@ -178,7 +178,7 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
         <button type="button" className="btn-primary mt-3" disabled={busy || !confirmed}
           onClick={() => void (canActivate||carryOnApply ? apply() : adopt())}>{busy ? 'Working…' : canActivate||carryOnApply ? 'Activate reviewed proposal' : uncertain ? 'Confirm same carry-forward' : 'Carry accepted references'}</button>
       </>}
-      {message && <p role="status" className="mt-3 text-sm">{message}</p>}
+      {message && <p role="status" className="mt-3 text-reading">{message}</p>}
     </Modal>
   </>;
 }
@@ -260,11 +260,11 @@ export default function AgentUpdateGate({ workflowId, update }: {
   return (
     <>
       <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-left max-w-[320px]">
-        <p className="text-xs font-medium text-state-needs">
+        <p className="text-secondary font-medium text-state-needs">
           {trainingOnly?'Tested training update needs review':<>Agent update v{update.version} needs review</>}
         </p>
-        {update.manager_text_guidance_required&&<p className="text-[11px] text-state-needs mt-1">This training requires Codex and Implexa Desktop 0.4.160 or newer. Claude execution is not supported for its text guidance yet.</p>}
-        <p className="text-[11px] text-ink-400 mt-1">
+        {update.manager_text_guidance_required&&<p className="text-reading text-state-needs mt-1">This training requires Codex and Implexa Desktop 0.4.160 or newer. Claude execution is not supported for its text guidance yet.</p>}
+        <p className="text-reading text-ink-400 mt-1">
           {snapshotUnavailable?'The published training identity is unavailable. Reload before updating.':trainingOnly?'The agent’s steps are unchanged. Future runs keep using your installed training until you explicitly activate this tested teaching set.':incompatible
             ? 'This update cannot be applied to your installed version. It needs a migration, not an activation.'
             : needsPermissions
@@ -272,35 +272,35 @@ export default function AgentUpdateGate({ workflowId, update }: {
               : 'Run now stays on your installed version until you activate this update.'}
         </p>
         <button type="button" disabled={incompatible||snapshotUnavailable} onClick={() => setOpen(true)}
-          className="mt-2 btn-outline text-xs px-3 py-1.5 disabled:opacity-40">
+          className="mt-2 btn-outline text-ui px-3 py-1.5 disabled:opacity-40">
           {incompatible ? 'Update is incompatible' : 'Review & activate update'}
         </button>
       </div>
       <Modal open={open} onClose={() => !saving && setOpen(false)} title={`Activate agent update v${update.version}`}>
-        <p className="text-sm text-ink-300 mb-4">
+        <p className="text-reading text-ink-300 mb-4">
           {trainingOnly?'This changes the tested publisher training used by future runs. Running tasks keep their frozen training. Your private preferences are unchanged.':'This advances the version your future runs use.'} It does not ask for files —
           each run collects its own inputs when you start it.
         </p>
-        {snapshotDigest&&<p className="mb-4 text-xs text-ink-400 break-all">Published training snapshot: {snapshotDigest}</p>}
+        {snapshotDigest&&<p className="mb-4 text-secondary text-ink-400 break-all">Published training snapshot: {snapshotDigest}</p>}
 
         {/* §3.2 — the exact authority delta, when there is one. */}
         {authority.hasChanges && <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 mb-3">
-          <p className="text-xs font-medium text-state-needs">
+          <p className="text-secondary font-medium text-state-needs">
             This version changes what the agent is allowed to do
           </p>
           {authority.added.length > 0 && <div className="mt-2">
-            <p className="text-[11px] uppercase tracking-wide text-ink-500">Gains</p>
+            <p className="text-reading uppercase tracking-wide text-ink-500">Gains</p>
             <ul className="mt-1 space-y-0.5">
               {authority.added.map((entry) => (
-                <li key={`add-${entry}`} className="text-xs text-ink-200">+ {entry}</li>
+                <li key={`add-${entry}`} className="text-secondary text-ink-200">+ {entry}</li>
               ))}
             </ul>
           </div>}
           {authority.removed.length > 0 && <div className="mt-2">
-            <p className="text-[11px] uppercase tracking-wide text-ink-500">Gives up</p>
+            <p className="text-reading uppercase tracking-wide text-ink-500">Gives up</p>
             <ul className="mt-1 space-y-0.5">
               {authority.removed.map((entry) => (
-                <li key={`remove-${entry}`} className="text-xs text-ink-400">− {entry}</li>
+                <li key={`remove-${entry}`} className="text-secondary text-ink-400">− {entry}</li>
               ))}
             </ul>
           </div>}
@@ -308,33 +308,33 @@ export default function AgentUpdateGate({ workflowId, update }: {
 
         {/* §3.3 — a declarative summary of the contract. Never a picker. */}
         {fields.length > 0 && <div className="rounded-md border border-ink-700 p-3">
-          <p className="text-xs font-medium text-ink-100">What each run will ask you for</p>
+          <p className="text-secondary font-medium text-ink-100">What each run will ask you for</p>
           <ul className="mt-2 space-y-1.5">
             {fields.map((field) => (
-              <li key={field.key} className="text-xs text-ink-300">
+              <li key={field.key} className="text-secondary text-ink-300">
                 <span className="text-ink-100">{field.label}</span>
-                <span className={field.required ? 'ml-2 text-[11px] text-state-needs' : 'ml-2 text-[11px] text-ink-500'}>
+                <span className={field.required ? 'ml-2 text-secondary text-state-needs' : 'ml-2 text-secondary text-ink-500'}>
                   {field.required ? 'required each run' : 'optional'}
                 </span>
                 {field.description && <span className="block text-ink-400 mt-0.5">{field.description}</span>}
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-[11px] text-ink-500">
+          <p className="mt-2 text-reading text-ink-500">
             Nothing to choose now. Run now collects and verifies these for that run only.
           </p>
         </div>}
 
-        {needsPermissions && <label className="mt-4 flex items-start gap-2 text-xs text-ink-300">
+        {needsPermissions && <label className="mt-4 flex items-start gap-2 text-ui text-ink-300">
           <input type="checkbox" checked={permissionsConfirmed}
             onChange={(event) => setPermissionsConfirmed(event.target.checked)} />
           I reviewed and approve this version’s changed permissions.
         </label>}
-        {message && <p className="mt-3 text-xs text-state-fail">{message}</p>}
+        {message && <p className="mt-3 text-secondary text-state-fail">{message}</p>}
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" className="btn-outline text-sm px-4 py-2" disabled={saving}
+          <button type="button" className="btn-outline text-ui px-4 py-2" disabled={saving}
             onClick={() => setOpen(false)}>Cancel</button>
-          <button type="button" className="btn-success text-sm px-4 py-2"
+          <button type="button" className="btn-success text-ui px-4 py-2"
             disabled={saving || (needsPermissions && !permissionsConfirmed)}
             onClick={() => void activate()}>
             {saving ? 'Activating…' : 'Activate update'}

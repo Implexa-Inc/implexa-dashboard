@@ -27,30 +27,30 @@ export default function GenerationProgressCard({ vm }: { vm: GenerationProposalV
   return (
     <section aria-label="Generation progress" className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className={`rounded px-2 py-0.5 text-xs font-medium ${TONE_CLASSES[presentation.tone]}`}>
+        <span className={`rounded px-2 py-0.5 text-secondary font-medium ${TONE_CLASSES[presentation.tone]}`}>
           {presentation.label}
         </span>
-        <span className="text-xs text-ink-500">{qualityModeLabel(vm.qualityMode)} mode</span>
+        <span className="text-secondary text-ink-500">{qualityModeLabel(vm.qualityMode)} mode</span>
       </div>
-      <p className="mt-2 text-sm text-ink-200">{presentation.description}</p>
+      <p className="mt-2 text-reading text-ink-200">{presentation.description}</p>
 
       {vm.progress === 'unavailable' && vm.unavailableReason && (
-        <p className="mt-2 text-xs text-state-needs">
+        <p className="mt-2 text-secondary text-state-needs">
           {unavailableModeCopy(vm.qualityMode, vm.unavailableReason, vm.requiredMissingCapabilities)}
         </p>
       )}
 
       {presentation.doNotRetry && (
-        <p className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-state-needs">
+        <p className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-reading text-state-needs">
           Because the outcome is unknown, no retry is offered here. A retry could
           pay for the same clips twice.
         </p>
       )}
 
-      <p className="mt-3 text-xs text-ink-400">{creditsLine(vm)}</p>
+      <p className="mt-3 text-secondary text-ink-400">{creditsLine(vm)}</p>
 
       {vm.authorization?.errorCode && (
-        <p className="mt-1 text-xs text-ink-500">Recorded error: {vm.authorization.errorCode}</p>
+        <p className="mt-1 text-secondary text-ink-500">Recorded error: {vm.authorization.errorCode}</p>
       )}
     </section>
   );

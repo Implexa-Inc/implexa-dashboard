@@ -72,7 +72,7 @@ export default function ConnectionHeartbeat() {
     return (
       <div className="mt-3 flex items-center gap-2 rounded-md bg-success-400/10 border border-success-400/30 px-3 py-2">
         <span className="inline-block size-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden />
-        <span className="text-xs text-success-700 dark:text-success-400 font-medium">Connected and live , your Claude is talking to Tukido.</span>
+        <span className="text-secondary text-success-700 dark:text-success-400 font-medium">Connected and live , your Claude is talking to Tukido.</span>
       </div>
     );
   }
@@ -80,8 +80,8 @@ export default function ConnectionHeartbeat() {
   if (state === 'relaunch') {
     return (
       <div className="mt-3 rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-2.5">
-        <p className="text-xs font-medium text-state-needs">Didn&apos;t connect yet?</p>
-        <p className="text-xs text-ink-400 mt-0.5 leading-relaxed">
+        <p className="text-secondary font-medium text-state-needs">Didn&apos;t connect yet?</p>
+        <p className="text-reading text-ink-400 mt-0.5 ">
           After running the command, you must <span className="text-ink-100 font-medium">fully quit Claude (Cmd+Q)</span> and reopen it , a normal close leaves the old session running without the plugin. This flips green the moment it connects.
         </p>
       </div>
@@ -92,7 +92,7 @@ export default function ConnectionHeartbeat() {
     return (
       <div className="mt-3 flex items-center gap-2 rounded-md bg-ink-900/40 border border-ink-700 px-3 py-2">
         <span className="inline-block size-2 rounded-full bg-ink-500" aria-hidden />
-        <span className="text-xs text-ink-400">Connected before, but Claude looks closed now. Open it and your agents run.</span>
+        <span className="text-secondary text-ink-400">Connected before, but Claude looks closed now. Open it and your agents run.</span>
       </div>
     );
   }
@@ -101,7 +101,7 @@ export default function ConnectionHeartbeat() {
   return (
     <div className="mt-3 flex items-center gap-2 rounded-md bg-ink-900/40 border border-ink-700 px-3 py-2">
       <span className="inline-block size-2 rounded-full bg-sky-500 animate-pulse" aria-hidden />
-      <span className="text-xs text-ink-400">Waiting for your first connection… run the command above, then fully reopen Claude.</span>
+      <span className="text-secondary text-ink-400">Waiting for your first connection… run the command above, then fully reopen Claude.</span>
     </div>
   );
 }

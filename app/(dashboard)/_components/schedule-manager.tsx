@@ -104,13 +104,13 @@ export default function ScheduleManager({
     router.refresh();
   }
 
-  const btn = 'text-xs px-2.5 py-1 rounded-md border border-ink-700 text-ink-300 hover:text-ink-100 hover:border-ink-500 transition-colors disabled:opacity-50';
+  const btn = 'text-secondary px-2.5 py-1 rounded-md border border-ink-700 text-ink-300 hover:text-ink-100 hover:border-ink-500 transition-colors disabled:opacity-50';
 
   // No clock: on-demand agent. Offer to add a schedule inline (no navigation).
   if (!hasClock) {
     return (
       <div>
-        <p className="text-sm text-ink-500">
+        <p className="text-reading text-ink-500">
           Runs on demand{editing ? '.' : ' — no automatic schedule yet.'}
         </p>
         {editing ? (
@@ -132,8 +132,8 @@ export default function ScheduleManager({
   return (
     <div>
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-ink-200 text-sm">{routine!.schedule_nl}</span>
-        <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
+        <span className="text-ink-200 text-secondary">{routine!.schedule_nl}</span>
+        <span className={`text-secondary font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
           routine!.status === 'active'
             ? 'bg-emerald-500/15 text-state-ok'
             : routine!.status === 'paused'
@@ -157,7 +157,7 @@ export default function ScheduleManager({
               {busy === 'resume' ? 'Turning on…' : 'Turn on schedule'}
             </button>
           )}
-          <details className="text-xs"><summary>More schedule options</summary><button type="button" onClick={makeOnDemand} disabled={busy === 'ondemand'} className={btn}>
+          <details className="text-secondary"><summary>More schedule options</summary><button type="button" onClick={makeOnDemand} disabled={busy === 'ondemand'} className={btn}>
             {busy === 'ondemand' ? 'Removing…' : 'Remove saved schedule'}
           </button></details>
         </div>
@@ -168,13 +168,13 @@ export default function ScheduleManager({
           Cancel
         </button>
       )}
-      {err && <p className="text-xs text-state-fail mt-2">{err}</p>}
+      {err && <p className="text-secondary text-state-fail mt-2">{err}</p>}
 
       {/* Undocumented Claude route (verified 2026-06-12) — keep beside the inline controls. */}
       {routine!.claude_task_id && (
         <a
           href={`claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(routine!.claude_task_id)}`}
-          className="text-xs text-action-accent hover:underline mt-2 inline-block"
+          className="text-secondary text-action-accent hover:underline mt-2 inline-block"
           title="Opens this routine in the Claude desktop app (toggle, history, Run now)."
         >
           Open in Claude ↗

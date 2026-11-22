@@ -82,12 +82,12 @@ export function RunJudgmentCard({
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-sm font-semibold text-ink-100">{presentation==='finished'?assessedScore?`Judge: ${total}/100`:'Judge':'Tukido Judge'}</h2>
-            <span className={`text-xs font-medium ${s.text}`}>{verdictLabel}</span>
+            <h2 className="text-ui font-semibold text-ink-100">{presentation==='finished'?assessedScore?`Judge: ${total}/100`:'Judge':'Tukido Judge'}</h2>
+            <span className={`text-secondary font-medium ${s.text}`}>{verdictLabel}</span>
           </div>
-          <details className="mt-2 text-sm"><summary className="cursor-pointer text-ink-300">Review notes</summary><p className="mt-2 leading-relaxed whitespace-pre-wrap text-ink-300">{judgment.summary}</p></details>
+          <details className="mt-2 text-secondary"><summary className="cursor-pointer text-ink-300">Review notes</summary><p className="mt-2 leading-relaxed whitespace-pre-wrap text-ink-300">{judgment.summary}</p></details>
         </div>
-        {presentation!=='finished'&&<span className="flex-none text-[10px] uppercase tracking-wide text-ink-500">AI review</span>}
+        {presentation!=='finished'&&<span className="flex-none text-secondary uppercase tracking-wide text-ink-500">AI review</span>}
       </div>
 
       {judgment.verdict === 'uncertain' && judgment.id && currentRunId && finalOutputSha256 &&
@@ -95,31 +95,31 @@ export function RunJudgmentCard({
           finalOutputSha256={finalOutputSha256} pending={reviewPending} />}
 
       {judgment.creative_grade && <details aria-label={scored ? 'Quality score' : 'Creative grade'} className="mt-4 rounded-lg border border-ink-700 p-3 space-y-2">
-        <summary className="cursor-pointer text-sm font-medium text-ink-100">{scored
+        <summary className="cursor-pointer text-ui font-medium text-ink-100">{scored
           ? assessedScore ? `Quality ${total}/100` : 'Quality not assessed'
           : `Creative grade: ${judgment.creative_grade.overallBand}`}</summary>
-        <p className="text-xs text-ink-400">{scored ? 'One model review, not calibrated.' : 'Uncalibrated AI assessment.'} Separate from technical delivery; an open quality gap is not a failed run.</p>
-        <p className="text-sm text-ink-200">{judgment.creative_grade.summary}</p>
-        {judgment.creative_grade.dimensions.map(d => <details key={d.id} className="text-sm">
+        <p className="text-secondary text-ink-400">{scored ? 'One model review, not calibrated.' : 'Uncalibrated AI assessment.'} Separate from technical delivery; an open quality gap is not a failed run.</p>
+        <p className="text-reading text-ink-200">{judgment.creative_grade.summary}</p>
+        {judgment.creative_grade.dimensions.map(d => <details key={d.id} className="text-secondary">
           <summary>{d.id.replaceAll('_', ' ')} — {scored ? typeof d.score === 'number' ? `${d.score}/100` : 'not assessed' : d.band}</summary>
           <p className="mt-1 text-ink-300">{d.explanation}</p>
           {d.gaps.map((g, i) => <p key={i} className="mt-2 text-ink-300">{(g.timestampMs / 1000).toFixed(1)}s: {g.observation} {g.suggestion}</p>)}
         </details>)}
-        <p className="text-xs text-ink-400">Sampled stills at {judgment.creative_grade.coverage.timestampsMs.map(t => `${(t / 1000).toFixed(1)}s`).join(', ')}. {judgment.creative_grade.coverage.limitations}</p>
-        <details className="text-xs text-ink-500"><summary>Review binding</summary>
+        <p className="text-secondary text-ink-400">Sampled stills at {judgment.creative_grade.coverage.timestampsMs.map(t => `${(t / 1000).toFixed(1)}s`).join(', ')}. {judgment.creative_grade.coverage.limitations}</p>
+        <details className="text-secondary text-ink-500"><summary>Review binding</summary>
           <p className="break-all">Output: {judgment.creative_grade.relativePath}<br />SHA-256: {judgment.creative_grade.artifactSha256}<br />Rubric: {judgment.creative_grade.rubricDigest}</p>
         </details>
       </details>}
 
       {judgment.next_action && judgment.verdict !== 'pass' && (
         <div className="mt-3 rounded-lg border border-ink-700 bg-ink-950/50 px-3 py-2.5">
-          <div className="text-[10px] uppercase tracking-wide text-ink-500 mb-1">Best next step</div>
-          <p className="text-sm text-ink-200 whitespace-pre-wrap">{judgment.next_action}</p>
+          <div className="text-secondary uppercase tracking-wide text-ink-500 mb-1">Best next step</div>
+          <p className="text-reading text-ink-200 whitespace-pre-wrap">{judgment.next_action}</p>
         </div>
       )}
 
       {judgment.verdict === 'repair' && (
-        <div className="mt-3 rounded-lg border border-violet-500/25 bg-violet-500/5 px-3 py-2.5 text-xs">
+        <div className="mt-3 rounded-lg border border-violet-500/25 bg-violet-500/5 px-3 py-2.5 text-secondary">
           {repair.phase === 'limit_reached' ? (
             <p className="text-state-needs">Automatic repair stopped after {repairLimit} passes. Review the remaining issue and continue manually below.</p>
           ) : repair.phase === 'queued' ? (
@@ -141,26 +141,26 @@ export function RunJudgmentCard({
 
       {(judgment.verdict === 'blocked' || judgment.verdict === 'uncertain') && (
         <div className="mt-3 rounded-lg border border-orange-500/25 bg-orange-500/5 px-3 py-2.5">
-          <div className="text-[10px] uppercase tracking-wide text-state-needs mb-1">Human action required</div>
-          <p className="text-xs text-ink-300">Tukido stopped the loop instead of guessing or repeating a consequential action. Review the reason above, then continue when ready.</p>
+          <div className="text-secondary uppercase tracking-wide text-state-needs mb-1">Human action required</div>
+          <p className="text-reading text-ink-300">Tukido stopped the loop instead of guessing or repeating a consequential action. Review the reason above, then continue when ready.</p>
         </div>
       )}
 
       {judgment.repair_prompt && judgment.verdict === 'repair' && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-xs text-action-accent hover:text-action-accent">Show repair instructions</summary>
-          <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-ink-950/70 border border-ink-800 px-3 py-2.5 text-xs text-ink-300 font-sans">{judgment.repair_prompt}</pre>
+          <summary className="cursor-pointer text-ui text-action-accent hover:text-action-accent">Show repair instructions</summary>
+          <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-ink-950/70 border border-ink-800 px-3 py-2.5 text-reading text-ink-300 font-sans">{judgment.repair_prompt}</pre>
         </details>
       )}
 
       {judgment.verdict === 'repair' && judgment.repair_prompt && (repair.phase === 'limit_reached' || repair.phase === 'queue_failed') && (
-        <p className="mt-2 text-[11px] text-ink-500">These repair instructions are also prefilled in “Continue this run” below as a manual fallback.</p>
+        <p className="mt-2 text-reading text-ink-500">These repair instructions are also prefilled in “Continue this run” below as a manual fallback.</p>
       )}
 
       {!!details && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-xs text-ink-400 hover:text-ink-200">Evidence and criteria</summary>
-          <div className="mt-2 space-y-2 text-xs text-ink-400">
+          <summary className="cursor-pointer text-ui text-ink-400 hover:text-ink-200">Evidence and criteria</summary>
+          <div className="mt-2 space-y-2 text-reading text-ink-400">
             {criteria.map((c, i) => (
               <div key={`${c.criterion || 'criterion'}-${i}`} className="flex gap-2">
                 <span className={c.met === true ? 'text-state-ok' : c.met === false ? 'text-state-needs' : 'text-ink-500'}>{c.met === true ? '✓' : c.met === false ? '○' : '?'}</span>
@@ -173,11 +173,11 @@ export function RunJudgmentCard({
         </details>
       )}
 
-      {presentation==='finished'?<><p className="mt-3 text-xs text-ink-500">A model’s assessment. It can miss things.</p><details className="mt-3 text-xs text-ink-500"><summary>Review details</summary>      <p className="mt-3 text-[11px] text-ink-500">
+      {presentation==='finished'?<><p className="mt-3 text-secondary text-ink-500">A model’s assessment. It can miss things.</p><details className="mt-3 text-secondary text-ink-500"><summary>Review details</summary>      <p className="mt-3 text-reading text-ink-500">
         {judgment.judge_executor ? `${judgment.judge_executor}${judgment.judge_model ? ` · ${judgment.judge_model}` : ''}` : 'Fresh review session'}
         {judgment.worker_executor ? ` reviewed work from ${judgment.worker_executor}${judgment.worker_model ? ` · ${judgment.worker_model}` : ''}` : ''}.
         {' '}This model review is separate from the evidence-based “Delivered” badge above.
-      </p></details></>:(      <p className="mt-3 text-[11px] text-ink-500">
+      </p></details></>:(      <p className="mt-3 text-reading text-ink-500">
         {judgment.judge_executor ? `${judgment.judge_executor}${judgment.judge_model ? ` · ${judgment.judge_model}` : ''}` : 'Fresh review session'}
         {judgment.worker_executor ? ` reviewed work from ${judgment.worker_executor}${judgment.worker_model ? ` · ${judgment.worker_model}` : ''}` : ''}.
         {' '}This model review is separate from the evidence-based “Delivered” badge above.

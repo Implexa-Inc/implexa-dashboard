@@ -277,7 +277,7 @@ function FilePathCode({
         {label ?? text}
       </code>
       {toast && (
-        <span className="ml-1 text-[10px] text-ink-500 not-prose" aria-live="polite">
+        <span className="ml-1 text-reading text-ink-500 not-prose" aria-live="polite">
           {toast}
         </span>
       )}

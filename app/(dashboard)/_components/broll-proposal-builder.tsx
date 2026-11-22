@@ -149,14 +149,14 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
     <section className="rounded-xl border border-ink-800 bg-ink-950/50 p-5">
       <div>
         <h1 className="text-xl font-semibold text-ink-50">Generate B-roll</h1>
-        <p className="mt-1 text-sm text-ink-400">
+        <p className="mt-1 text-reading text-ink-400">
           {lane === 'quick'
             ? `Add one precise visual moment to ${agentName}'s result. Comparing plans is free; generation starts only after a separate approval.`
             : `Lay out a full B-roll timeline for ${agentName}'s result. Compiling a plan is free; generation starts only after a separate approval.`}
         </p>
       </div>
 
-      <p className="mt-3 text-xs text-ink-400">
+      <p className="mt-3 text-secondary text-ink-400">
         Cutting into <span className="font-medium text-ink-200">{source.relativePath}</span>
         {' · source length '}
         <span className="font-medium text-ink-200">{formatDurationMs(source.mediaDurationMs)}</span>
@@ -170,14 +170,14 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
           <button
             key={value} type="button" onClick={() => setLane(value)}
             aria-pressed={lane === value}
-            className={`rounded-lg border px-3 py-2 text-left text-sm ${
+            className={`rounded-lg border px-3 py-2 text-left text-ui ${
               lane === value
                 ? 'border-ink-500 bg-ink-900 text-ink-100'
                 : 'border-ink-800 text-ink-400 hover:text-ink-200'
             }`}
           >
             <span className="block font-medium">{label}</span>
-            <span className="mt-0.5 block text-[11px] text-ink-500">{hint}</span>
+            <span className="mt-0.5 block text-secondary text-ink-500">{hint}</span>
           </button>
         ))}
       </div>
@@ -193,7 +193,7 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
       {lane === 'quick' && (
         <>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <label className="text-sm text-ink-300">
+          <label className="text-ui text-ink-300">
             Start (seconds)
             {/* step="any", NOT a millisecond step: arrow keys move by one SECOND
                 (verified in-browser), while typed sub-second values stay valid.
@@ -203,19 +203,19 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
               min="0" max={durationSeconds(source.mediaDurationMs)} step="any"
               className="mt-1 w-full rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100" />
           </label>
-          <label className="text-sm text-ink-300">
+          <label className="text-ui text-ink-300">
             End (seconds)
             <input value={end} onChange={(e) => edit(setEnd, e.target.value)} inputMode="decimal" type="number"
               min="0" max={durationSeconds(source.mediaDurationMs)} step="any"
               className="mt-1 w-full rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100" />
           </label>
         </div>
-        <label className="mt-4 block text-sm text-ink-300">
+        <label className="mt-4 block text-ui text-ink-300">
           What should the B-roll show?
           <textarea value={prompt} onChange={(e) => edit(setPrompt, e.target.value)} maxLength={700} rows={4}
             placeholder="Example: A clean aerial route map moving from Palo Alto to Pleasanton at sunrise, no text or logos."
             className="mt-1 w-full resize-y rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100 placeholder:text-ink-600" />
-          <span className="mt-1 block text-xs text-ink-600">
+          <span className="mt-1 block text-secondary text-ink-600">
             {prompt.length}/700 · the window must be 2–10 seconds, and must end at or before {formatDurationMs(source.mediaDurationMs)}
           </span>
         </label>
@@ -227,35 +227,35 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
         )}
 
         {selected && (
-          <div className="mt-4 rounded-lg border border-ink-800 bg-ink-900/50 p-4 text-sm">
+          <div className="mt-4 rounded-lg border border-ink-800 bg-ink-900/50 p-4 text-secondary">
             <p className="font-medium text-ink-100">{proposalSummaryLine(selected)}</p>
-            <p className="mt-1 text-xs text-ink-400">
+            <p className="mt-1 text-secondary text-ink-400">
               {selected.provider && selected.model ? `${selected.provider} · ${selected.model} · ` : ''}
               {moment.startSeconds}s–{moment.endSeconds}s
             </p>
-            <p className="mt-2 text-xs text-ink-500">
+            <p className="mt-2 text-reading text-ink-500">
               Creating this proposal does not generate or spend. The next screen shows the exact tasks and asks for approval.
             </p>
           </div>
         )}
 
         {error && (
-          <p role="alert" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">{error}</p>
+          <p role="alert" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-reading text-state-needs">{error}</p>
         )}
 
         <div className="mt-5 flex flex-wrap gap-3">
           {!previews ? (
-            <button type="button" onClick={compare} disabled={phase === 'previewing'} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
+            <button type="button" onClick={compare} disabled={phase === 'previewing'} className="btn-primary px-4 py-2 text-ui disabled:opacity-50">
               {phase === 'previewing' ? 'Comparing…' : 'Compare quality modes'}
             </button>
           ) : (
             <button type="button" onClick={createProposal}
               disabled={phase === 'creating' || selected?.availability !== true}
-              className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
+              className="btn-primary px-4 py-2 text-ui disabled:opacity-50">
               {phase === 'creating' ? 'Creating proposal…' : proposalCreateLabel(mode)}
             </button>
           )}
-          <button type="button" onClick={() => router.back()} className="btn-outline px-4 py-2 text-sm">Cancel</button>
+          <button type="button" onClick={() => router.back()} className="btn-outline px-4 py-2 text-ui">Cancel</button>
         </div>
         </>
       )}

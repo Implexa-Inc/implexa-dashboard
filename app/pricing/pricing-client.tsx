@@ -90,11 +90,11 @@ export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator
             <span className="text-3xl leading-none" aria-hidden="true">🏆</span>
             <div className="flex-1">
               <h2 className="text-lg font-semibold text-ink-50 mb-1">You&apos;re a Founding Creator — Pro is free for life.</h2>
-              <p className="text-sm text-ink-200 leading-relaxed mb-3">
+              <p className="text-reading text-ink-200 mb-3">
                 Your seat on Pro is permanently included with your Founding Creator status. No checkout needed.
                 Everything in Pro is already unlocked for you.
               </p>
-              <Link href="/settings/billing" className="text-xs text-action-accent hover:underline font-medium">
+              <Link href="/settings/billing" className="text-secondary text-action-accent hover:underline font-medium">
                 Manage your seat →
               </Link>
             </div>
@@ -109,7 +109,7 @@ export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator
             <button
               type="button"
               onClick={() => setCycle('monthly')}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              className={`px-4 py-1.5 rounded-full text-ui font-medium transition-colors ${
                 cycle === 'monthly' ? 'bg-brand-500 text-ink-950' : 'text-ink-300 hover:text-ink-100'
               }`}
             >
@@ -118,12 +118,12 @@ export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator
             <button
               type="button"
               onClick={() => setCycle('annual')}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors inline-flex items-center gap-1.5 ${
+              className={`px-4 py-1.5 rounded-full text-ui font-medium transition-colors inline-flex items-center gap-1.5 ${
                 cycle === 'annual' ? 'bg-brand-500 text-ink-950' : 'text-ink-300 hover:text-ink-100'
               }`}
             >
               Annual
-              <span className={`text-[9px] uppercase tracking-wider font-bold rounded px-1 py-0.5 ${
+              <span className={`text-secondary uppercase tracking-wider font-bold rounded px-1 py-0.5 ${
                 cycle === 'annual'
                   ? 'bg-ink-950/15 text-ink-950'
                   : 'bg-success-400/20 text-success-700 dark:text-success-400'
@@ -148,7 +148,7 @@ export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator
           cta={
             currentPlan === 'free' && !isFoundingCreator
               ? <DisabledBtn label="Current plan" />
-              : <span className="block text-xs text-ink-500 text-center py-2">Default for every new account</span>
+              : <span className="block text-secondary text-ink-500 text-center py-2">Default for every new account</span>
           }
         />
 
@@ -170,7 +170,7 @@ export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator
                     {loading ? 'Loading…' : `Upgrade to Pro (${cycle === 'annual' ? 'Annual' : 'Monthly'})`}
                   </button>
           }
-          extraNote={error ? <p className="text-xs text-state-fail mt-2">{error}</p> : null}
+          extraNote={error ? <p className="text-secondary text-state-fail mt-2">{error}</p> : null}
         />
 
         {/* Cloud routines (roadmap teaser, not purchasable) */}
@@ -214,18 +214,18 @@ function PlanCard({
       highlight ? '!border-brand-500/40 bg-gradient-to-b from-brand-500/5 to-transparent' : ''
     }`}>
       {highlight && (
-        <div className="text-[10px] uppercase tracking-wider font-bold text-action-accent mb-2">
+        <div className="text-secondary uppercase tracking-wider font-bold text-action-accent mb-2">
           Most popular
         </div>
       )}
       <h3 className="text-xl font-semibold text-ink-50">{name}</h3>
       <div className="mt-2 flex items-baseline gap-1">
         <div className="text-3xl font-semibold text-ink-50 tabular-nums">{priceLabel}</div>
-        <div className="text-xs text-ink-400">{priceSub}</div>
+        <div className="text-secondary text-ink-400">{priceSub}</div>
       </div>
-      <p className="text-xs text-ink-300 mt-2 leading-relaxed">{tagline}</p>
+      <p className="text-secondary text-ink-300 mt-2 leading-relaxed">{tagline}</p>
 
-      <ul className="mt-6 space-y-2 text-sm text-ink-200 flex-1">
+      <ul className="mt-6 space-y-2 text-secondary text-ink-200 flex-1">
         {bullets.map((b) => (
           <li key={b} className="flex gap-2 leading-snug">
             <span className="text-action-accent mt-0.5 shrink-0">✓</span>

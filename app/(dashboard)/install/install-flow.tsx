@@ -133,7 +133,7 @@ export default function InstallFlow({
         <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
           <div className="flex items-start gap-3">
             <span className="text-2xl leading-none mt-0.5">⚠️</span>
-            <div className="flex-1 text-sm">
+            <div className="flex-1 text-secondary">
               <p className="font-semibold text-ink-50 mb-1">Windows support is in beta</p>
               <p className="text-ink-200 leading-relaxed mb-2">
                 Full Windows install support is coming soon. In the meantime, here&apos;s what works on Windows today:
@@ -143,7 +143,7 @@ export default function InstallFlow({
                 <li><strong>✅ Cowork (web)</strong> — plugin install works; MCP tool capture works. Hook-based conversation-turn capture not available (same limitation as Mac).</li>
                 <li><strong>⚠️ Claude Code (CLI)</strong> — plugin install works, but the hooks installer is currently bash-only (Mac/Linux). You can still use Tukido via MCP tools — just no automatic hook capture.</li>
               </ul>
-              <p className="text-ink-300 text-xs mt-3 leading-relaxed">
+              <p className="text-ink-300 text-reading mt-3 ">
                 Want to be notified when the Windows installer ships?{' '}
                 <a href="mailto:hello@implexa.ai?subject=Windows%20installer%20waitlist" className="text-action-accent hover:underline">Email us</a>{' '}
                 and we&apos;ll ping you.
@@ -184,7 +184,7 @@ export default function InstallFlow({
                   key={s.id}
                   type="button"
                   onClick={() => setSurface(s.id)}
-                  className={`pb-3 px-1 -mb-px border-b-2 text-sm transition-colors whitespace-nowrap inline-flex items-center gap-1.5 ${
+                  className={`pb-3 px-1 -mb-px border-b-2 text-ui transition-colors whitespace-nowrap inline-flex items-center gap-1.5 ${
                     isActive
                       ? 'border-brand-500 text-ink-50 font-medium'
                       : 'border-transparent text-ink-400 hover:text-ink-200'
@@ -192,10 +192,10 @@ export default function InstallFlow({
                 >
                   <span>{s.label}</span>
                   {s.recommended && !isDegradedOnWindows && (
-                    <span className="text-[10px] text-success-700 dark:text-success-400 font-medium">★ Recommended</span>
+                    <span className="text-secondary text-success-700 dark:text-success-400 font-medium">★ Recommended</span>
                   )}
                   {isDegradedOnWindows && (
-                    <span className="text-[9px] uppercase tracking-wider rounded px-1 py-0.5 bg-amber-500/20 text-state-needs font-bold">Beta</span>
+                    <span className="text-secondary uppercase tracking-wider rounded px-1 py-0.5 bg-amber-500/20 text-state-needs font-bold">Beta</span>
                   )}
                 </button>
               );
@@ -205,7 +205,7 @@ export default function InstallFlow({
 
         {/* Single subtitle below tab strip — describes the selected surface.
          * Replaces the per-tab subtitle that lived inside each card. */}
-        <p className="text-xs text-ink-400 mb-5 leading-relaxed">
+        <p className="text-secondary text-ink-400 mb-5 leading-relaxed">
           {(() => {
             const selected = SURFACES.find((s) => s.id === surface);
             const isDegraded = isWindows && (surface === 'code-desktop' || surface === 'code-cli' || surface === 'cowork');
@@ -228,7 +228,7 @@ export default function InstallFlow({
             {/* Non-coder reassurance — collapsed by default so the step stays
              * clean for confident users. Same <details> pattern as the
              * "What does this script do?" block below for visual consistency. */}
-            <details className="rounded-lg border border-ink-700 bg-ink-800/40 text-xs text-ink-200 leading-relaxed group">
+            <details className="rounded-lg border border-ink-700 bg-ink-800/40 text-secondary text-ink-200 leading-relaxed group">
               <summary className="cursor-pointer hover:bg-ink-800/60 transition-colors px-3 py-2 select-none flex items-center gap-1.5">
                 <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
                 <span className="font-medium text-ink-100">Not a developer? You&apos;re fine — read this first.</span>
@@ -249,21 +249,21 @@ export default function InstallFlow({
                 </p>
               </div>
             </details>
-            <p className="text-xs text-ink-300 leading-relaxed">
+            <p className="text-reading text-ink-300 ">
               <strong className="text-ink-100">Run this in a regular terminal</strong> (not inside Claude Code). If Claude Code is still running from Step 2, type <code className="bg-ink-800 px-1 rounded">/exit</code> to leave it first, OR just open a new Terminal tab (<strong>Cmd + T</strong>).
               <span className="block text-ink-400 mt-1">
                 Then paste the command below and press Enter.
               </span>
             </p>
             <CodeBlock code={SETUP_HOOKS_CMD} oneLine />
-            <details className="text-xs text-ink-300">
+            <details className="text-secondary text-ink-300">
               <summary className="cursor-pointer hover:text-ink-100 select-none">What exactly does this script do? (details)</summary>
               <div className="mt-2 pl-4 space-y-1 leading-relaxed">
-                <p>• Installs <code className="text-[11px] bg-ink-800 px-1 rounded">jq</code> + <code className="text-[11px] bg-ink-800 px-1 rounded">Node.js</code> if missing (via Homebrew)</p>
-                <p>• <strong>Prompts you to paste your API key</strong>, then stores it in <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/implexa.env</code> (chmod 600)</p>
-                <p>• Writes a launcher at <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/implexa-hook.sh</code></p>
-                <p>• Patches <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/settings.json</code> to register hooks (backs up the original)</p>
-                <p>• Registers MCP server in <code className="text-[11px] bg-ink-800 px-1 rounded">claude_desktop_config.json</code> as a fallback path</p>
+                <p>• Installs <code className="text-secondary bg-ink-800 px-1 rounded">jq</code> + <code className="text-secondary bg-ink-800 px-1 rounded">Node.js</code> if missing (via Homebrew)</p>
+                <p>• <strong>Prompts you to paste your API key</strong>, then stores it in <code className="text-secondary bg-ink-800 px-1 rounded">~/.claude/implexa.env</code> (chmod 600)</p>
+                <p>• Writes a launcher at <code className="text-secondary bg-ink-800 px-1 rounded">~/.claude/implexa-hook.sh</code></p>
+                <p>• Patches <code className="text-secondary bg-ink-800 px-1 rounded">~/.claude/settings.json</code> to register hooks (backs up the original)</p>
+                <p>• Registers MCP server in <code className="text-secondary bg-ink-800 px-1 rounded">claude_desktop_config.json</code> as a fallback path</p>
                 <p>• Runs a smoke test to verify the chain works</p>
                 <p>• Idempotent — safe to re-run anytime</p>
               </div>
@@ -277,9 +277,9 @@ export default function InstallFlow({
        * is hidden, so non-CLI users see steps 1 → 2 → 3 sequentially. */}
       <Section number={verifyStepNum} title="Verify + record your first skill">
         <div className="space-y-3">
-          <p className="text-sm text-ink-200 leading-relaxed">
+          <p className="text-reading text-ink-200 ">
             {surface === 'code-cli'
-              ? <>If you launched <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> in Step B, you&apos;re already there — skip ahead. If Claude Code was already running before the curl, type <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/exit</code> and relaunch <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> so it picks up the new plugin.</>
+              ? <>If you launched <code className="bg-ink-800 px-1.5 py-0.5 rounded text-secondary">claude</code> in Step B, you&apos;re already there — skip ahead. If Claude Code was already running before the curl, type <code className="bg-ink-800 px-1.5 py-0.5 rounded text-secondary">/exit</code> and relaunch <code className="bg-ink-800 px-1.5 py-0.5 rounded text-secondary">claude</code> so it picks up the new plugin.</>
               : surface === 'code-desktop'
               ? <>Fully quit Claude Code with <strong>Cmd+Q</strong> (not just close the window), then relaunch.</>
               : surface === 'cowork'
@@ -287,48 +287,48 @@ export default function InstallFlow({
               : <>You don&apos;t need to restart for the Connector to work — but if it doesn&apos;t appear right away, try opening a new Desktop chat.</>}
           </p>
           {surface === 'chat-desktop' ? (
-            <div className="text-sm text-ink-200 leading-relaxed space-y-3">
+            <div className="text-secondary text-ink-200 leading-relaxed space-y-3">
               <p>
-                Plugin slash commands like <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:setup</code> don&apos;t exist on Desktop Chat (plugins are only available in Cowork and Code). Instead, you talk to Tukido in natural language — Claude will call the right MCP tool behind the scenes.
+                Plugin slash commands like <code className="bg-ink-800 px-1.5 py-0.5 rounded text-secondary">/implexa:setup</code> don&apos;t exist on Desktop Chat (plugins are only available in Cowork and Code). Instead, you talk to Tukido in natural language — Claude will call the right MCP tool behind the scenes.
               </p>
               <div className="bg-ink-800/40 border border-ink-700 rounded-md p-3 space-y-3">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-ink-400 mb-1">1. Verify the connection</p>
-                  <p className="text-sm">Paste this into a new Desktop chat:</p>
-                  <div className="mt-2 bg-ink-950 border border-ink-700 rounded px-3 py-2 text-xs font-mono text-ink-100">
+                  <p className="text-secondary uppercase tracking-wide text-ink-400 mb-1">1. Verify the connection</p>
+                  <p className="text-reading">Paste this into a new Desktop chat:</p>
+                  <div className="mt-2 bg-ink-950 border border-ink-700 rounded px-3 py-2 text-micro font-mono text-ink-100">
                     Tukido, what plan am I on?
                   </div>
-                  <p className="text-[11px] text-ink-400 mt-1.5">Claude will call <code className="text-[11px]">get_credits</code> and reply with your plan + remaining quota.</p>
+                  <p className="text-reading text-ink-400 mt-1.5">Claude will call <code className="text-secondary">get_credits</code> and reply with your plan + remaining quota.</p>
                 </div>
                 <div className="border-t border-ink-800 pt-3">
-                  <p className="text-xs uppercase tracking-wide text-ink-400 mb-1">2. Record your first workflow</p>
-                  <p className="text-sm">When you&apos;re ready to capture a workflow, say:</p>
-                  <div className="mt-2 bg-ink-950 border border-ink-700 rounded px-3 py-2 text-xs font-mono text-ink-100">
+                  <p className="text-secondary uppercase tracking-wide text-ink-400 mb-1">2. Record your first workflow</p>
+                  <p className="text-reading">When you&apos;re ready to capture a workflow, say:</p>
+                  <div className="mt-2 bg-ink-950 border border-ink-700 rounded px-3 py-2 text-micro font-mono text-ink-100">
                     Tukido, start recording. I want to capture how I research a company before a sales call.
                   </div>
-                  <p className="text-[11px] text-ink-400 mt-1.5">Claude calls <code className="text-[11px]">start_demonstration</code>, then runs your workflow alongside you, and finally synthesizes a SKILL.md when you say &ldquo;Implexa, stop recording.&rdquo;</p>
+                  <p className="text-reading text-ink-400 mt-1.5">Claude calls <code className="text-secondary">start_demonstration</code>, then runs your workflow alongside you, and finally synthesizes a SKILL.md when you say &ldquo;Implexa, stop recording.&rdquo;</p>
                 </div>
               </div>
-              <p className="text-xs text-ink-400">
+              <p className="text-reading text-ink-400">
                 If &ldquo;Tukido&rdquo; doesn&apos;t respond, the Connector toggle isn&apos;t ON. Click <strong>+</strong> in the chat input → Connectors → toggle <strong>Tukido</strong> ON.
               </p>
             </div>
           ) : (
-            <p className="text-sm text-ink-200 leading-relaxed">
-              Run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:setup</code> to verify you&apos;re connected, then{' '}
-              <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:record-skill</code> to capture your first workflow.
+            <p className="text-reading text-ink-200 ">
+              Run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-secondary">/implexa:setup</code> to verify you&apos;re connected, then{' '}
+              <code className="bg-ink-800 px-1.5 py-0.5 rounded text-secondary">/implexa:record-skill</code> to capture your first workflow.
             </p>
           )}
           {/* Capture-degraded warning: only fires for Cowork (until Anthropic
            * fixes hooks) and Claude chat (no hook system). Claude Code (Desktop)
            * and CLI both get full capture. */}
           {(surface === 'cowork' && !coworkHooksLive) && (
-            <p className="text-xs text-ink-400 leading-relaxed">
+            <p className="text-reading text-ink-400 ">
               Note: on Cowork, conversation-turn capture isn&apos;t available yet (Anthropic limitation — hooks don&apos;t fire here). You still get tool-call capture via MCP, which is the bulk of what&apos;s useful. For full conversation capture, switch to Claude Code (Desktop or CLI).
             </p>
           )}
           {surface === 'chat-desktop' && (
-            <p className="text-xs text-ink-400 leading-relaxed">
+            <p className="text-reading text-ink-400 ">
               Note: Claude chat (Desktop) has no plugin/hook system — only MCP tool calls are captured (not your prompts or Claude&apos;s replies). For full conversation capture, switch to Claude Code (Desktop or CLI).
             </p>
           )}
@@ -353,18 +353,18 @@ function SurfaceContent({ surface, hasKey, keyPrefix, coworkHooksLive, installCu
   if (surface === 'code-desktop') {
     return (
       <>
-        <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3 mb-4 text-xs text-ink-200 leading-relaxed">
+        <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3 mb-4 text-secondary text-ink-200 leading-relaxed">
           <p className="font-medium text-ink-100 mb-1">⭐ Easiest path — full capture with a visual install.</p>
           <p>
             Plugin install via the Customize panel inside Claude Code (Desktop). Same hook-based capture as the CLI version, but with a UI you click through instead of terminal commands.
           </p>
         </div>
 
-        <p className="text-sm text-ink-200 mb-2 leading-relaxed">
+        <p className="text-reading text-ink-200 mb-2 ">
           <strong className="text-ink-50">A.</strong> Open <strong>Claude Code</strong> on your Mac (the visual app, not the terminal command).
         </p>
 
-        <div className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+        <div className="text-secondary text-ink-200 mt-4 mb-2 leading-relaxed">
           <strong className="text-ink-50">B.</strong> Click{' '}
           <HoverImageHint src="/img/install/customize.png" alt="The Customize button in the Claude Code sidebar">
             <strong>Customize</strong>
@@ -372,7 +372,7 @@ function SurfaceContent({ surface, hasKey, keyPrefix, coworkHooksLive, installCu
           {' '}in the sidebar → scroll to <strong>Personal plugins</strong>.
         </div>
 
-        <div className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+        <div className="text-secondary text-ink-200 mt-4 mb-2 leading-relaxed">
           <strong className="text-ink-50">C.</strong> Click{' '}
           <HoverImageHint
             src="/img/install/create-plugin.png"
@@ -385,15 +385,15 @@ function SurfaceContent({ surface, hasKey, keyPrefix, coworkHooksLive, installCu
         </div>
         <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
 
-        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+        <p className="text-reading text-ink-200 mt-4 mb-2 ">
           <strong className="text-ink-50">D.</strong> You land on the <strong>Directory</strong> page. Under the <strong>Personal</strong> tab, find the <strong>Tukido</strong> tile and click to install.
         </p>
 
-        <p className="text-xs text-ink-400 mt-4 leading-relaxed">
+        <p className="text-reading text-ink-400 mt-4 ">
           You don&apos;t need to paste your API key for this step — the plugin pulls it from your account when Claude Code talks to Tukido.
         </p>
 
-        <p className="text-xs text-ink-400 mt-4 leading-relaxed border-t border-ink-800 pt-3">
+        <p className="text-reading text-ink-400 mt-4 border-t border-ink-800 pt-3">
           <strong className="text-ink-200">Why this gets full capture:</strong> the Customize panel writes the plugin to your local config which Claude Code Desktop honors for both MCP tool calls AND user-level hooks (the conversation-turn capture path). Step 3 below installs those hooks.
         </p>
       </>
@@ -407,7 +407,7 @@ function SurfaceContent({ surface, hasKey, keyPrefix, coworkHooksLive, installCu
         {/* Disambiguation callout — users frequently confuse Claude Code (CLI)
          * with the Claude chat app. These are different products and the slash
          * commands below ONLY work in the CLI. */}
-        <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3 mb-4 text-xs text-ink-200 leading-relaxed">
+        <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3 mb-4 text-secondary text-ink-200 leading-relaxed">
           <p className="font-medium text-ink-100 mb-1">💡 Quick clarification</p>
           <p>
             <strong>Claude Code (CLI)</strong> is the terminal version of Claude Code (you also have the visual Desktop app — see the previous tab). It runs in your <strong>terminal</strong>, not in a chat window. The <code className="bg-ink-900 px-1 rounded">/plugin</code> commands below only work inside Claude Code CLI — they won&apos;t work if you paste them into Claude chat (Desktop).
@@ -417,29 +417,29 @@ function SurfaceContent({ surface, hasKey, keyPrefix, coworkHooksLive, installCu
         {installCurl ? (
           // ── Pre-baked curl path (passwordless one-paste install) ──────
           <>
-            <p className="text-sm text-ink-200 mb-2 leading-relaxed">
+            <p className="text-reading text-ink-200 mb-2 ">
               <strong className="text-ink-50">A.</strong> Open <strong>Terminal</strong> on your Mac (<em>Cmd+Space</em>, type <em>terminal</em>, Enter). Then paste this <strong>one command</strong> — it does everything: API key, dependencies, hooks, <em>and</em> the plugin itself.
             </p>
             <CodeBlock code={installCurl} oneLine />
-            <p className="text-[11px] text-ink-400 mt-2 leading-relaxed">
+            <p className="text-reading text-ink-400 mt-2 ">
               The token in the URL is single-use and expires in 10 minutes — refresh this page if you wait too long.
             </p>
-            <details className="text-[11px] text-ink-400 mt-2">
+            <details className="text-secondary text-ink-400 mt-2">
               <summary className="cursor-pointer hover:text-ink-200 select-none">What does this script do? (details)</summary>
               <ul className="mt-2 pl-4 list-disc space-y-1 leading-relaxed">
                 <li>Redeems the install token → mints a fresh API key for your account</li>
-                <li>Saves it to <code className="text-[10px] bg-ink-800 px-1 rounded">~/.claude/implexa.env</code> (chmod 600)</li>
+                <li>Saves it to <code className="text-secondary bg-ink-800 px-1 rounded">~/.claude/implexa.env</code> (chmod 600)</li>
                 <li>Installs <strong>jq</strong> + <strong>Node.js</strong> via Homebrew if missing</li>
-                <li>Patches <code className="text-[10px] bg-ink-800 px-1 rounded">~/.claude/settings.json</code> to register hooks</li>
-                <li>Registers the MCP server in <code className="text-[10px] bg-ink-800 px-1 rounded">claude_desktop_config.json</code></li>
+                <li>Patches <code className="text-secondary bg-ink-800 px-1 rounded">~/.claude/settings.json</code> to register hooks</li>
+                <li>Registers the MCP server in <code className="text-secondary bg-ink-800 px-1 rounded">claude_desktop_config.json</code></li>
                 <li>Installs the <strong>Implexa plugin</strong> into Claude Code (skills + slash commands)</li>
                 <li>Runs a smoke test to verify the chain works</li>
               </ul>
             </details>
-            <details className="text-[11px] text-ink-400 mt-2">
+            <details className="text-secondary text-ink-400 mt-2">
               <summary className="cursor-pointer hover:text-ink-200 select-none">Prefer manual setup with your own API key?</summary>
               <div className="mt-2 pl-4 space-y-2 leading-relaxed">
-                <p>Set your API key in <code className="text-[10px] bg-ink-800 px-1 rounded">~/.zshrc</code> and run the install script directly:</p>
+                <p>Set your API key in <code className="text-secondary bg-ink-800 px-1 rounded">~/.zshrc</code> and run the install script directly:</p>
                 <CodeBlock
                   code={`echo 'export IMPLEXA_API_KEY="<paste your imp_live_... key>"' >> ~/.zshrc
 source ~/.zshrc
@@ -452,7 +452,7 @@ curl -fsSL https://raw.githubusercontent.com/Implexa-Inc/implexa-claude-plugin/m
         ) : (
           // ── Fallback: token mint failed, manual API-key flow ──────────
           <>
-            <p className="text-sm text-ink-200 mb-2 leading-relaxed">
+            <p className="text-reading text-ink-200 mb-2 ">
               <strong className="text-ink-50">A.</strong> Open <strong>Terminal</strong> on your Mac (<em>Cmd+Space</em>, type <em>terminal</em>, Enter). Then paste this to save your API key:
             </p>
             <CodeBlock
@@ -464,10 +464,10 @@ source ~/.zshrc`}
 
         {/* Step B — launch Claude Code. Plugin is already installed by Step A's
          * script so there's no third step inside Claude Code anymore. */}
-        <p className="text-sm text-ink-200 mt-5 mb-2 leading-relaxed">
-          <strong className="text-ink-50">B.</strong> Launch Claude Code by typing <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> in the same terminal and pressing Enter. The Implexa plugin is already installed — run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:setup</code> to verify, and you&apos;re ready.
+        <p className="text-reading text-ink-200 mt-5 mb-2 ">
+          <strong className="text-ink-50">B.</strong> Launch Claude Code by typing <code className="bg-ink-800 px-1.5 py-0.5 rounded text-secondary">claude</code> in the same terminal and pressing Enter. The Implexa plugin is already installed — run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-secondary">/implexa:setup</code> to verify, and you&apos;re ready.
         </p>
-        <p className="text-[11px] text-ink-400 mt-1 leading-relaxed">
+        <p className="text-reading text-ink-400 mt-1 ">
           Already had Claude Code open? Fully quit it (Cmd+Q) and relaunch — plugins load on startup.
         </p>
 
@@ -475,7 +475,7 @@ source ~/.zshrc`}
          * the plugin automatically; this is the escape hatch if that step
          * fails for any reason (e.g. older Claude Code that changes the
          * internal plugin storage format). */}
-        <details className="text-[11px] text-ink-400 mt-4">
+        <details className="text-secondary text-ink-400 mt-4">
           <summary className="cursor-pointer hover:text-ink-200 select-none">
             Script didn&apos;t install the plugin? Run these two commands inside Claude Code.
           </summary>
@@ -493,7 +493,7 @@ source ~/.zshrc`}
           </div>
         </details>
 
-        <p className="text-xs text-ink-400 mt-4 leading-relaxed border-t border-ink-800 pt-3">
+        <p className="text-reading text-ink-400 mt-4 border-t border-ink-800 pt-3">
           <strong className="text-ink-200">Why Claude Code CLI is the best surface:</strong> plugin hooks fire natively here — this is the only surface today with full conversation-turn capture (the killer feature). The Step A script installs everything you need in one paste.
         </p>
       </>
@@ -512,25 +512,25 @@ source ~/.zshrc`}
     const connectorUrl = 'https://core.implexa.ai/api/v2/mcp?api_key=imp_live_YOUR_KEY';
     return (
       <>
-        <div className="rounded-lg border border-success-400/40 bg-success-400/5 p-3 mb-3 text-xs text-ink-200 leading-relaxed">
+        <div className="rounded-lg border border-success-400/40 bg-success-400/5 p-3 mb-3 text-secondary text-ink-200 leading-relaxed">
           <p className="font-medium text-ink-100 mb-1">⚡ Fastest install — under a minute.</p>
           <p>
             Claude chat (Desktop) doesn&apos;t use plugins (those are Cowork + Claude Code only). Instead, you add Implexa as a <strong>Custom Connector</strong> — a remote MCP server. Just paste one URL with your API key in it.
           </p>
         </div>
 
-        <p className="text-sm text-ink-200 mb-2 leading-relaxed">
-          Copy this URL first and <strong>replace <code className="bg-ink-800 px-1 rounded text-xs">imp_live_YOUR_KEY</code> with your actual API key</strong> — you&apos;ll paste the edited URL in Step C below:
+        <p className="text-reading text-ink-200 mb-2 ">
+          Copy this URL first and <strong>replace <code className="bg-ink-800 px-1 rounded text-secondary">imp_live_YOUR_KEY</code> with your actual API key</strong> — you&apos;ll paste the edited URL in Step C below:
         </p>
         <CodeBlock code={connectorUrl} oneLine />
 
         {/* Inline API-key prompt — Chat Connector URL is the only surface
          * that exposes the raw key, so we surface the link here instead of
          * having a top-level Step 1 that's irrelevant to every other tab. */}
-        <p className="text-xs mt-2 leading-relaxed">
+        <p className="text-reading mt-2 ">
           {hasKey ? (
             <span className="text-ink-400">
-              ✓ You have an active key (<code className="font-mono text-[11px] bg-ink-800 px-1 rounded">imp_live_{keyPrefix}…</code>) — find the full value at{' '}
+              ✓ You have an active key (<code className="font-mono text-micro bg-ink-800 px-1 rounded">imp_live_{keyPrefix}…</code>) — find the full value at{' '}
               <Link href="/settings/api-keys" className="text-action-accent hover:underline">Connected installs →</Link>
             </span>
           ) : (
@@ -540,7 +540,7 @@ source ~/.zshrc`}
           )}
         </p>
 
-        <div className="text-sm text-ink-200 mt-5 mb-2 leading-relaxed">
+        <div className="text-secondary text-ink-200 mt-5 mb-2 leading-relaxed">
           <strong className="text-ink-50">A.</strong> Open <strong>Claude Desktop</strong>, switch to the <strong>Chat</strong> tab, then click{' '}
           <HoverImageHint src="/img/install/chat-customize.png" alt="The Customize button in the Chat sidebar">
             <strong>Customize</strong>
@@ -548,7 +548,7 @@ source ~/.zshrc`}
           {' '}in the sidebar.
         </div>
 
-        <div className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+        <div className="text-secondary text-ink-200 mt-4 mb-2 leading-relaxed">
           <strong className="text-ink-50">B.</strong> In the Customize panel, click <strong>Connectors</strong> in the left rail, then click the{' '}
           <HoverImageHint
             src="/img/install/chat-connectors.png"
@@ -559,7 +559,7 @@ source ~/.zshrc`}
           </HoverImageHint>.
         </div>
 
-        <div className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+        <div className="text-secondary text-ink-200 mt-4 mb-2 leading-relaxed">
           <strong className="text-ink-50">C.</strong> In the{' '}
           <HoverImageHint
             src="/img/install/chat-custom-connector.png"
@@ -569,29 +569,29 @@ source ~/.zshrc`}
             <strong>Add custom connector</strong> dialog
           </HoverImageHint>:
         </div>
-        <ul className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-disc marker:text-ink-500">
-          <li><strong>Name:</strong> type <code className="bg-ink-800 px-1 rounded text-xs">Implexa</code></li>
+        <ul className="text-secondary text-ink-200 mb-3 pl-5 space-y-1.5 list-disc marker:text-ink-500">
+          <li><strong>Name:</strong> type <code className="bg-ink-800 px-1 rounded text-secondary">Implexa</code></li>
           <li><strong>Remote MCP server URL:</strong> paste the URL you edited above</li>
           <li>Click <strong>Add</strong>.</li>
         </ul>
 
-        <p className="text-xs text-ink-400 mt-4 leading-relaxed">
+        <p className="text-reading text-ink-400 mt-4 ">
           Done — Implexa is now available across all your Claude chats. Try it with{' '}
           <em className="text-ink-200">&ldquo;Implexa, show my plan&rdquo;</em> or{' '}
           <em className="text-ink-200">&ldquo;Implexa, record this workflow&rdquo;</em>.
         </p>
 
-        <details className="text-xs text-ink-300 mt-4">
+        <details className="text-secondary text-ink-300 mt-4">
           <summary className="cursor-pointer hover:text-ink-100 select-none">Already use Cowork? You probably don&apos;t need this.</summary>
           <div className="mt-2 pl-4 leading-relaxed">
             <p>Installing the Implexa plugin via Cowork automatically registers a matching Custom Connector in Claude chat. Check Customize → Connectors first — Implexa may already be there as <em>Implexa</em>.</p>
           </div>
         </details>
-        <details className="text-xs text-ink-300 mt-2">
+        <details className="text-secondary text-ink-300 mt-2">
           <summary className="cursor-pointer hover:text-ink-100 select-none">What does this connector give me?</summary>
           <div className="mt-2 pl-4 leading-relaxed space-y-1">
             <p>All Implexa MCP tools — record-skill, list-org-skills, share-this, find-accounts, etc. — available via natural language in Claude chat.</p>
-            <p>Slash commands like <code className="bg-ink-800 px-1 rounded text-[11px]">/implexa:run</code> don&apos;t exist here (those require the plugin system). Instead, just ask Claude things like <em>&ldquo;Implexa, run my triage skill&rdquo;</em> or <em>&ldquo;Implexa, record this workflow&rdquo;</em>.</p>
+            <p>Slash commands like <code className="bg-ink-800 px-1 rounded text-secondary">/implexa:run</code> don&apos;t exist here (those require the plugin system). Instead, just ask Claude things like <em>&ldquo;Implexa, run my triage skill&rdquo;</em> or <em>&ldquo;Implexa, record this workflow&rdquo;</em>.</p>
           </div>
         </details>
       </>
@@ -604,19 +604,19 @@ source ~/.zshrc`}
   // ships the fix and we observe a Cowork-sourced hook event).
   return (
     <>
-      <div className="rounded-lg border border-brand-500/40 bg-brand-500/5 p-3 mb-3 text-xs text-ink-200 leading-relaxed">
+      <div className="rounded-lg border border-brand-500/40 bg-brand-500/5 p-3 mb-3 text-secondary text-ink-200 leading-relaxed">
         <p className="font-medium text-ink-100 mb-1">✨ Bonus: this also enables Claude chat.</p>
         <p>
           Installing the Implexa plugin in Cowork automatically registers the Custom Connector in your Claude chat (Desktop) too — one install, both surfaces. No extra step for Claude chat.
         </p>
       </div>
-      <div className="text-sm text-ink-200 mb-3 leading-relaxed">
+      <div className="text-secondary text-ink-200 mb-3 leading-relaxed">
         Open the Claude Desktop app and switch to <strong>Cowork</strong>, then in the left sidebar click{' '}
         <HoverImageHint src="/img/install/customize.png" alt="The Customize button in the Claude Code sidebar — same UI in Cowork">
           <strong>Customize</strong>
         </HoverImageHint>:
       </div>
-      <ol className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400">
+      <ol className="text-secondary text-ink-200 mb-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400">
         <li>Scroll to the <strong>Personal plugins</strong> section</li>
         <li>
           Click{' '}
@@ -628,17 +628,17 @@ source ~/.zshrc`}
             <strong>+ Create plugin</strong>
           </HoverImageHint>
           , then choose <strong>Add marketplace</strong>
-          <span className="block text-xs text-ink-400 mt-0.5">
+          <span className="block text-secondary text-ink-400 mt-0.5">
             ⚠ Don&apos;t click <em>&ldquo;Create with Claude&rdquo;</em> — that opens a chat to build a new plugin from scratch.
           </span>
         </li>
         <li>Paste this URL:</li>
       </ol>
       <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
-      <ol className="text-sm text-ink-200 mt-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400" start={4}>
+      <ol className="text-secondary text-ink-200 mt-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400" start={4}>
         <li>You&apos;ll land on the <strong>Directory</strong> page. Under the <strong>Personal</strong> tab, find the <strong>Implexa</strong> plugin tile and click it to install.</li>
       </ol>
-      <p className="text-xs text-ink-400 mt-3 leading-relaxed">
+      <p className="text-secondary text-ink-400 mt-3 leading-relaxed">
         You do <strong>not</strong> need your API key for this step. The plugin pulls it from your account.
       </p>
       {coworkHooksLive ? (
@@ -646,14 +646,14 @@ source ~/.zshrc`}
         // least one hook event arrive from a Cowork user-agent. Surface
         // a celebratory note + tell users to run Step 3 below to enable
         // full capture on Cowork too.
-        <div className="rounded-lg border border-success-400/40 bg-success-400/5 p-3 mt-3 text-xs text-ink-200 leading-relaxed">
+        <div className="rounded-lg border border-success-400/40 bg-success-400/5 p-3 mt-3 text-secondary text-ink-200 leading-relaxed">
           <p className="font-medium text-success-700 dark:text-success-400 mb-1">🎉 Cowork now supports hooks.</p>
           <p>
             Anthropic shipped the fix — conversation-turn capture now works on Cowork too. Run Step 3 below to install the hooks (or skip if you&apos;ve already done it for CLI; same script).
           </p>
         </div>
       ) : (
-        <details className="text-xs text-ink-300 mt-3">
+        <details className="text-secondary text-ink-300 mt-3">
           <summary className="cursor-pointer hover:text-ink-100 select-none">Why no hooks step for Cowork?</summary>
           <div className="mt-2 pl-4 leading-relaxed">
             <p>Anthropic&apos;s Cowork sandbox doesn&apos;t fire user-level hooks despite registering them. Tested on multiple fresh Macs — confirmed. So we&apos;ve removed the hooks installer step for Cowork to avoid wasting your time. You still get tool-call capture via MCP — just not conversation-turn capture. For full capture, use Claude Code CLI.</p>
@@ -688,16 +688,16 @@ function Section({ number, title, subtitle, children, done, required }: { number
   return (
     <section className="mb-6">
       <div className={`card relative ${cardBorder}`}>
-        <div className={`absolute -top-2.5 -left-2.5 w-7 h-7 rounded-full bg-ink-950 border-2 flex items-center justify-center text-xs font-bold ${circle}`}>
+        <div className={`absolute -top-2.5 -left-2.5 w-7 h-7 rounded-full bg-ink-950 border-2 flex items-center justify-center text-secondary font-bold ${circle}`}>
           {done ? '✓' : number}
         </div>
         <div className="pl-2">
           <h2 className="text-base font-medium text-ink-50 mb-1 flex items-center gap-2">
             {title}
-            {done && <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">Done</span>}
-            {!done && required && <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-red-500/15 text-state-fail">Required</span>}
+            {done && <span className="text-secondary uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">Done</span>}
+            {!done && required && <span className="text-secondary uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-red-500/15 text-state-fail">Required</span>}
           </h2>
-          {subtitle && <p className={`text-xs mb-3 leading-relaxed ${subtitleColor}`}>{subtitle}</p>}
+          {subtitle && <p className={`text-secondary mb-3 leading-relaxed ${subtitleColor}`}>{subtitle}</p>}
           {children}
         </div>
       </div>
@@ -742,7 +742,7 @@ function HoverImageHint({
         aria-label="Show screenshot"
       >
         {children}
-        <span className="ml-0.5 text-[10px] text-ink-500 group-open/imghint:rotate-90 transition-transform inline-block align-middle">▸</span>
+        <span className="ml-0.5 text-secondary text-ink-500 group-open/imghint:rotate-90 transition-transform inline-block align-middle">▸</span>
       </summary>
       <span className="block mt-2 mb-2">
         {/* Plain <img> — static UI screenshot, no loader chrome needed. */}
@@ -769,11 +769,11 @@ function CodeBlock({ code, oneLine = false }: { code: string; oneLine?: boolean 
 
   return (
     <div className="relative group">
-      <pre className={`bg-ink-950 border border-ink-700 rounded-md p-3 text-xs text-ink-100 font-mono ${oneLine ? 'overflow-x-auto whitespace-nowrap' : 'whitespace-pre-wrap'} pr-12`}>{code}</pre>
+      <pre className={`bg-ink-950 border border-ink-700 rounded-md p-3 text-micro text-ink-100 font-mono ${oneLine ? 'overflow-x-auto whitespace-nowrap' : 'whitespace-pre-wrap'} pr-12`}>{code}</pre>
       <button
         type="button"
         onClick={copy}
-        className={`absolute top-2 right-2 text-[10px] uppercase tracking-wider font-medium rounded px-2 py-1 transition-colors ${
+        className={`absolute top-2 right-2 text-ui uppercase tracking-wider font-medium rounded px-2 py-1 transition-colors ${
           copied
             ? 'bg-success-400/20 text-success-700 dark:text-success-400'
             : 'bg-ink-800 text-ink-300 hover:bg-ink-700 hover:text-ink-100 opacity-70 group-hover:opacity-100'

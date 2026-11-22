@@ -45,10 +45,10 @@ export default function GenerationClipResults({ vm, artifacts, artifactsLive }: 
 
   return (
     <section aria-label="Generated clips" className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-      <h2 className="text-sm font-medium text-ink-200">Generated clips</h2>
+      <h2 className="text-ui font-medium text-ink-200">Generated clips</h2>
 
       {result.state === 'artifacts_unavailable' && (
-        <p role="status" className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-state-needs">
+        <p role="status" className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-reading text-state-needs">
           We couldn&apos;t load this run&apos;s files just now, so these clips can&apos;t be
           opened from here yet. The clips themselves are listed from the durable
           generation receipt.
@@ -60,7 +60,7 @@ export default function GenerationClipResults({ vm, artifacts, artifactsLive }: 
           const acts = clipActions(row);
           return (
             <li key={row.taskId} className="rounded border border-ink-800 bg-ink-950 p-2.5">
-              <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2 text-secondary">
                 <span className="font-medium text-ink-200">{row.label}</span>
                 {row.window && <span className="font-mono text-ink-400">{row.window}</span>}
                 <span className={`ml-auto rounded px-1.5 py-0.5 ${STATUS_CLASSES[row.status]}`}>
@@ -69,7 +69,7 @@ export default function GenerationClipResults({ vm, artifacts, artifactsLive }: 
               </div>
 
               {!row.artifactId && row.noArtifactReason && (
-                <p className="mt-1.5 text-[11px] text-ink-500">{row.noArtifactReason}</p>
+                <p className="mt-1.5 text-reading text-ink-500">{row.noArtifactReason}</p>
               )}
 
               <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -77,13 +77,13 @@ export default function GenerationClipResults({ vm, artifacts, artifactsLive }: 
                   <>
                     <Link
                       href={clipReviewHref(vm.sourceRunId, row.artifactId)}
-                      className="rounded-md bg-ink-100 px-2.5 py-1 text-xs font-medium text-ink-950"
+                      className="rounded-md bg-ink-100 px-2.5 py-1 text-secondary font-medium text-ink-950"
                     >
                       Play in Review Room
                     </Link>
                     <Link
                       href={clipReviewHref(vm.sourceRunId, row.artifactId)}
-                      className="rounded-md border border-ink-700 px-2.5 py-1 text-xs text-ink-200"
+                      className="rounded-md border border-ink-700 px-2.5 py-1 text-secondary text-ink-200"
                     >
                       Comment on this clip
                     </Link>
@@ -93,7 +93,7 @@ export default function GenerationClipResults({ vm, artifacts, artifactsLive }: 
                   type="button"
                   disabled
                   title={acts.regenerate.reason}
-                  className="rounded-md border border-ink-800 px-2.5 py-1 text-xs text-ink-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-md border border-ink-800 px-2.5 py-1 text-ui text-ink-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Regenerate this clip
                 </button>
@@ -103,7 +103,7 @@ export default function GenerationClipResults({ vm, artifacts, artifactsLive }: 
         })}
       </ul>
 
-      <p className="mt-3 text-[11px] leading-snug text-ink-500">
+      <p className="mt-3 text-reading leading-snug text-ink-500">
         Regenerating a single clip isn&apos;t supported yet — the backend doesn&apos;t offer
         it. Comment on a clip and request fixes in the Review Room instead.
       </p>

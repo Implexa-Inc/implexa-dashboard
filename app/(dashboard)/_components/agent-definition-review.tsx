@@ -33,39 +33,39 @@ export default function AgentDefinitionReview({ slug, definition, versionSource,
     } catch { setReviewStatus('Runtime review availability could not be read.'); }
   }
   return <>
-    <button type="button" className="text-xs underline underline-offset-2 text-ink-400 hover:text-ink-200" onClick={() => setOpen(true)}>
+    <button type="button" className="text-ui underline underline-offset-2 text-ink-400 hover:text-ink-200" onClick={() => setOpen(true)}>
       Review definition
     </button>
     <Modal open={open} onClose={() => setOpen(false)} title="Agent definition" maxWidth="max-w-3xl">
-      <div className="space-y-4 text-sm text-ink-200">
+      <div className="space-y-4 text-secondary text-ink-200">
         <p>Read-only snapshot from the authenticated agent page. Reload the page to refresh it. Opening this screen does not check, edit or run the agent.</p>
         {statusUnavailable && <p role="status">Edit status is unavailable. This snapshot cannot establish whether a revision is in progress.</p>}
         {revisePending && <p role="status">An edit is pending. The displayed version may be superseded when it lands.</p>}
         {!definition ? <p role="status">The exact versioned definition is unavailable. Display summaries are not a substitute.</p> : <>
           <div className="rounded border border-ink-700 p-3 space-y-2">
             <p>{versionSource === 'live' ? 'Live version at page load' : versionSource === 'installed' ? 'Installed version — not necessarily the latest published definition' : 'Version source unknown — currentness not established'}</p>
-            <p className="break-all font-mono text-xs">Base version: {definition.workflow_version_id}</p>
+            <p className="break-all font-mono text-secondary">Base version: {definition.workflow_version_id}</p>
             {updateAvailable && <p>A newer version is available. This snapshot must not be treated as the current edit base.</p>}
           </div>
           <section aria-label="Learning and review map" className="rounded border border-ink-700 p-3 space-y-2">
             <h3 className="font-medium">Learning and review map</h3>
-            {slug && <button type="button" className="btn-secondary text-xs" onClick={refreshReviewMap}>Read runtime review map</button>}
-            <p className="text-xs text-ink-400">{reviewStatus}</p>
+            {slug && <button type="button" className="btn-secondary text-ui" onClick={refreshReviewMap}>Read runtime review map</button>}
+            <p className="text-secondary text-ink-400">{reviewStatus}</p>
             {reviewMap?.stages.map(stage => <details key={stage.order}>
               <summary>Stage {stage.order}: {stage.learning ? 'learning policy declared' : 'no learning policy declared'}</summary>
-              {stage.outputs.map((output, i) => <p key={i} className="text-xs mt-1">{output.name}: {output.review.kind} — {output.review.availability}</p>)}
-              {!!stage.learning && <pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(stage.learning, null, 2)}</pre>}
+              {stage.outputs.map((output, i) => <p key={i} className="text-secondary mt-1">{output.name}: {output.review.kind} — {output.review.availability}</p>)}
+              {!!stage.learning && <pre className="text-reading whitespace-pre-wrap break-words">{JSON.stringify(stage.learning, null, 2)}</pre>}
             </details>)}
           </section>
           {definition.steps.map((step) => <details key={step.order} className="rounded border border-ink-700 p-3">
             <summary className="cursor-pointer">Stage {step.order}</summary>
-            <pre className="mt-3 whitespace-pre-wrap break-words text-xs">{step.label}</pre>
+            <pre className="mt-3 whitespace-pre-wrap break-words text-reading">{step.label}</pre>
             <details className="mt-3"><summary className="cursor-pointer">Exact stage contract (including inputs and outputs)</summary>
-              <pre className="mt-2 whitespace-pre-wrap break-words text-xs">{JSON.stringify(step, null, 2)}</pre>
+              <pre className="mt-2 whitespace-pre-wrap break-words text-reading">{JSON.stringify(step, null, 2)}</pre>
             </details>
           </details>)}
           <details className="rounded border border-ink-700 p-3"><summary className="cursor-pointer">Full versioned definition</summary>
-            <pre className="mt-3 whitespace-pre-wrap break-words text-xs">{JSON.stringify(definition, null, 2)}</pre>
+            <pre className="mt-3 whitespace-pre-wrap break-words text-reading">{JSON.stringify(definition, null, 2)}</pre>
           </details>
         </>}
         <section className="rounded border border-amber-500/30 p-3 space-y-2" aria-label="Check availability">
@@ -138,7 +138,7 @@ export function DefinitionCheckAction({ slug, baseVersionId, blocked }: { slug: 
     <button type="button" className="btn-secondary" disabled={busy} onClick={refresh}>Refresh Check status</button>
     <button type="button" className="btn-secondary" disabled={busy || blocked || !ready || (!!live && !uncertain)} onClick={enqueue}>{uncertain ? 'Resubmit same Check request' : request ? 'Request another Check' : 'Check definition'}</button>
     <p role="status">{message}</p>
-    {request && <p className="text-xs break-all">Request: {request.requestId} — {request.state}</p>}
+    {request && <p className="text-secondary break-all">Request: {request.requestId} — {request.state}</p>}
     {blocked && <p>Reload a current, editable agent page before requesting Check.</p>}
   </section>;
 }
@@ -167,7 +167,7 @@ export function SavedDefinitionFindings({ slug, baseVersionId, previewBlocked }:
     {result?.historical && <p>Historical definition — preview is disabled.</p>}
     {result?.truncated && <p>Showing the latest 20 reports. Older reports are not included.</p>}
     {result?.state === 'saved_reports' && result.items?.length === 0 && <p>The saved report contains no findings; this is not execution verification.</p>}
-    {result?.reports?.map(report => <div key={report.reportId} className="text-xs space-y-1">
+    {result?.reports?.map(report => <div key={report.reportId} className="text-secondary space-y-1">
       <p className="break-all">Report {report.reportId}: {report.findingCount} finding(s) — {report.state === 'stale' ? 'source binding changed' : report.provenanceKind === 'system_generated' ? 'automated Check, not certification' : 'operator import, not certification'}.</p>
       {report.requestId && <p className="break-all">Check request: {report.requestId}</p>}
     </div>)}
@@ -225,11 +225,11 @@ function SavedFinding({ item, slug, baseVersionId, blocked }: { item: Finding; s
   return <article className="rounded border border-ink-700 p-3 space-y-3">
     <h4>{item.finding.id}: {item.classification.status}</h4>
     {item.classification.status === 'conflicting_assessments' && <p>Saved reviews disagree. An operator must import a new report and review it; adding another assessment here cannot clear the conflict.</p>}
-    <p>{item.finding.explanation}</p><p className="text-xs">{item.provenance}</p>
+    <p>{item.finding.explanation}</p><p className="text-secondary">{item.provenance}</p>
     {item.finding.plausibleCompliantInterpretation && <p>Possible compliant interpretation: {item.finding.plausibleCompliantInterpretation}</p>}
     {!!item.finding.missingEvidence?.length && <p>Evidence still needed: {item.finding.missingEvidence.join('; ')}</p>}
     {typeof item.assessment?.rationale === 'string' && <p>Assessment rationale: {item.assessment.rationale}</p>}
-    {item.finding.quotes.map((q, i) => <blockquote key={i} className="whitespace-pre-wrap text-xs">{q.location}: {q.text}</blockquote>)}
+    {item.finding.quotes.map((q, i) => <blockquote key={i} className="whitespace-pre-wrap text-reading">{q.location}: {q.text}</blockquote>)}
     {!blocked && item.assessmentId && item.classification.draftEligible && quote && <>
       <label className="block">Quoted text to replace<select disabled={busy || applied || uncertain} className="block w-full" value={quoteIndex} onChange={e => { setQuoteIndex(Number(e.target.value)); setPreview(null); setReviewed(false); }}>{item.finding.quotes.map((q, i) => <option key={i} value={i}>{q.location} — quote {i + 1}</option>)}</select></label>
       <label className="block">Proposed replacement<textarea disabled={busy || applied || uncertain} className="block w-full" value={after} onChange={e => { setAfter(e.target.value); setPreview(null); setReviewed(false); }} /></label>

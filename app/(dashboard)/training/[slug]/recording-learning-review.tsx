@@ -20,11 +20,11 @@ export default function RecordingLearningReview({fields,frame,origin,scope,disab
   const [editing,setEditing]=useState(false);
   return <section aria-label="Suggested learning from your recording" className="space-y-4 rounded-xl border border-ink-800 p-4">
     <h3 className="font-medium">Suggested learning</h3>
-    <p className="text-xs text-ink-400">{origin==='narration'?'From your narration':'Inferred from screenshots'} · {formatTrainingTime(frame.timeMs)}</p>
+    <p className="text-secondary text-ink-400">{origin==='narration'?'From your narration':'Inferred from screenshots'} · {formatTrainingTime(frame.timeMs)}</p>
     <div className="flex flex-wrap gap-4">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={frame.image} alt="Screenshot supporting the suggested learning" className="w-48 rounded-lg object-contain"/>
-      <div className="min-w-0 flex-1 space-y-2 text-sm">
+      <div className="min-w-0 flex-1 space-y-2 text-secondary">
         {editing?TEACHING_FIELDS.map(key=><label key={key} className="block">{labels[key]}
           <textarea value={lesson[key]} maxLength={400} disabled={disabled}
             onChange={event=>setLesson(current=>({...current,[key]:event.target.value}))}

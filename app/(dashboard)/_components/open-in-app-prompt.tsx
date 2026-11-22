@@ -42,21 +42,21 @@ export default function OpenInAppPrompt({ runId }: { runId: string }) {
 
   return (
     <div className="mb-5 rounded-lg border border-brand-500/30 bg-brand-500/10 p-3 flex items-center justify-between gap-3 flex-wrap">
-      <p className="text-sm text-ink-100">
+      <p className="text-reading text-ink-100">
         Open this run in the <span className="font-medium">Tukido app</span> to run, pause, or fix it in one place.
       </p>
       <div className="flex items-center gap-1.5 flex-none">
         <a
           href={appRunUrl(runId)}
           onClick={dismiss}
-          className="btn-success text-xs px-3 py-1.5 whitespace-nowrap"
+          className="btn-success text-secondary px-3 py-1.5 whitespace-nowrap"
         >
           Open in app ↗
         </a>
         <button
           type="button"
           onClick={dismiss}
-          className="text-xs text-ink-400 hover:text-ink-200 px-2 py-1.5 whitespace-nowrap"
+          className="text-ui text-ink-400 hover:text-ink-200 px-2 py-1.5 whitespace-nowrap"
         >
           Continue on web
         </button>

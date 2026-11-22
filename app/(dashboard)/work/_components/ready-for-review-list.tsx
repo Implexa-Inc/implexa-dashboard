@@ -38,16 +38,16 @@ export default function ReadyForReviewList({
       {/* Entry to /review/new (record or upload a video to review). A link only:
           the queue below is unchanged. */}
       {!training&&<div className="mb-3 flex justify-end">
-        <Link href="/review/new" className="text-sm text-state-running hover:underline">New review</Link>
+        <Link href="/review/new" className="text-secondary text-state-running hover:underline">New review</Link>
       </div>}
       {warning && (
         <div
           role="status"
-          className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-state-needs"
+          className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-secondary text-state-needs"
         >
           <p>{warning}</p>
           {broken.length > 0 && (
-            <p className="mt-1 text-xs text-state-needs">
+            <p className="mt-1 text-secondary text-state-needs">
               Could not read: {broken.join(', ')}.
             </p>
           )}
@@ -57,8 +57,8 @@ export default function ReadyForReviewList({
       {queue.items.length === 0 && (
         allClear ? (
           <div className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-10 text-center">
-            <p className="text-sm text-ink-300">Nothing is waiting for your review.</p>
-            <p className="mt-1 text-xs text-ink-500">
+            <p className="text-reading text-ink-300">Nothing is waiting for your review.</p>
+            <p className="mt-1 text-secondary text-ink-500">
               New results appear here when an agent delivers something.
             </p>
           </div>
@@ -66,8 +66,8 @@ export default function ReadyForReviewList({
           // NOT an all-clear: we could not see everything, so we say so instead
           // of implying the queue is empty.
           <div className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-10 text-center">
-            <p className="text-sm text-ink-300">We can&apos;t show your review queue right now.</p>
-            <p className="mt-1 text-xs text-ink-500">This is not the same as having nothing to review.</p>
+            <p className="text-reading text-ink-300">We can&apos;t show your review queue right now.</p>
+            <p className="mt-1 text-secondary text-ink-500">This is not the same as having nothing to review.</p>
           </div>
         )
       )}
@@ -85,7 +85,7 @@ export default function ReadyForReviewList({
                 <div className="min-w-0">
                   {/* Agent name leads. Run/revision text is secondary context. */}
                   <h3 className="truncate text-base font-medium text-ink-100">{name}</h3>
-                  <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-400">
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-reading text-ink-400">
                     <span
                       className={
                         isApproval
@@ -113,7 +113,7 @@ export default function ReadyForReviewList({
 
                 <Link
                   href={training&&item.slug&&!isApproval?trainingReviewHref(item.slug,item.latestRunId):`/review/${item.latestRunId}`}
-                  className="shrink-0 rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950 hover:bg-white focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900"
+                  className="shrink-0 rounded-md bg-ink-100 px-3 py-1.5 text-secondary font-medium text-ink-950 hover:bg-white focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900"
                 >
                   {primaryActionLabel(item)}
                 </Link>
@@ -124,7 +124,7 @@ export default function ReadyForReviewList({
       </ul>
 
       {queue.truncated && queue.items.length > 0 && (
-        <p className="mt-4 text-xs text-ink-500">
+        <p className="mt-4 text-secondary text-ink-500">
           Showing {queue.visibleCount}
           {typeof queue.total === 'number' ? ` of ${queue.total}` : ''}. There is more review work than fits here.
         </p>

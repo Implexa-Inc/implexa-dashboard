@@ -92,7 +92,7 @@ export default async function PricingPage() {
       </header>
 
       {/* Trust strip */}
-      <div className="text-center mb-10 text-xs text-ink-400">
+      <div className="text-center mb-10 text-secondary text-ink-400">
         ✓ Runs on your machine  &nbsp;·&nbsp;  ✓ No metered usage  &nbsp;·&nbsp;  ✓ No surprise bills  &nbsp;·&nbsp;  ✓ Cancel anytime
       </div>
 
@@ -111,13 +111,13 @@ export default async function PricingPage() {
               <h2 className="text-lg font-semibold text-ink-50 mb-1">
                 Skip Pro entirely — become a Founding Creator.
               </h2>
-              <p className="text-sm text-ink-200 leading-relaxed">
+              <p className="text-reading text-ink-200 ">
                 Build an agent <em>and</em> share it publicly. Your seat on Pro becomes
                 <strong> free for life</strong> — no checkout, no card. Plus a Founding Creator badge on every agent
                 you share. The earliest builders get permanent perks.
               </p>
               {isAuthed && (
-                <a href="/workflows" className="text-xs text-action-accent hover:underline font-medium mt-3 inline-block">
+                <a href="/workflows" className="text-secondary text-action-accent hover:underline font-medium mt-3 inline-block">
                   See your agents and start →
                 </a>
               )}
@@ -171,8 +171,8 @@ export default async function PricingPage() {
 function FaqItem({ q, a }: { q: string; a: string }) {
   return (
     <div className="card !p-4">
-      <div className="text-sm font-medium text-ink-50 mb-1">{q}</div>
-      <p className="text-xs text-ink-300 leading-relaxed">{a}</p>
+      <div className="text-secondary font-medium text-ink-50 mb-1">{q}</div>
+      <p className="text-secondary text-ink-300 leading-relaxed">{a}</p>
     </div>
   );
 }

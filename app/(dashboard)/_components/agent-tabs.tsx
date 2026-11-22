@@ -101,7 +101,7 @@ export default function AgentTabs({
               role="tab"
               aria-selected={on}
               onClick={() => openTab(t.key)}
-              className={`relative -mb-px px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+              className={`relative -mb-px px-4 py-2.5 text-ui font-medium whitespace-nowrap border-b-2 transition-colors ${
                 on
                   ? 'border-brand-500 text-ink-50'
                   : 'border-transparent text-ink-400 hover:text-ink-100'

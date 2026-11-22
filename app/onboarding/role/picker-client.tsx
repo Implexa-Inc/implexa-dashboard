@@ -57,11 +57,11 @@ export default function RolePickerClient({ jwt, roles }: { jwt: string; roles: R
             >
               <div className="text-3xl mb-2" aria-hidden="true">{role.icon}</div>
               <div className="font-medium text-ink-50 mb-1">{role.label}</div>
-              <div className="text-xs text-ink-400 mb-3 leading-snug">{role.tagline}</div>
-              <div className="text-[11px] text-ink-300 leading-relaxed">
+              <div className="text-secondary text-ink-400 mb-3 leading-snug">{role.tagline}</div>
+              <div className="text-secondary text-ink-300 leading-relaxed">
                 {role.rationale}
               </div>
-              <div className="mt-3 text-[11px] text-action-accent font-medium">
+              <div className="mt-3 text-secondary text-action-accent font-medium">
                 {isSelecting ? 'Setting up your agents…' : `→ Add ${role.starterPlaybooks.length} agents`}
               </div>
             </button>
@@ -70,7 +70,7 @@ export default function RolePickerClient({ jwt, roles }: { jwt: string; roles: R
       </div>
 
       {error && (
-        <div className="card !p-3 border-red-500/40 text-sm text-state-fail mb-4">
+        <div className="card !p-3 border-red-500/40 text-secondary text-state-fail mb-4">
           {error}
         </div>
       )}
@@ -80,7 +80,7 @@ export default function RolePickerClient({ jwt, roles }: { jwt: string; roles: R
           type="button"
           onClick={skip}
           disabled={!!selecting}
-          className="text-sm text-ink-400 hover:text-ink-200 underline disabled:opacity-50"
+          className="text-ui text-ink-400 hover:text-ink-200 underline disabled:opacity-50"
         >
           Skip — I&apos;ll build my own from scratch
         </button>

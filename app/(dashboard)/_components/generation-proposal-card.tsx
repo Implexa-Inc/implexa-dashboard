@@ -152,13 +152,13 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
     <section aria-label="Generation proposal" className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="text-sm font-medium text-ink-100">
+          <h2 className="text-ui font-medium text-ink-100">
             {qualityModeLabel(vm.qualityMode)} generation — {vm.candidateCount} clip{vm.candidateCount === 1 ? '' : 's'}
             {vm.repairCount > 0 && ` + ${vm.repairCount} repair reserve`}
           </h2>
-          <p className="mt-0.5 text-xs text-ink-400">{requestedByLine(vm, agentName)}</p>
+          <p className="mt-0.5 text-secondary text-ink-400">{requestedByLine(vm, agentName)}</p>
         </div>
-        <div className="text-right text-xs text-ink-400">
+        <div className="text-right text-secondary text-ink-400">
           {vm.provider && vm.model && <p>{vm.provider} · {vm.model}</p>}
           <p className="mt-0.5">Expires {new Date(vm.expiresAt).toLocaleString()}</p>
         </div>
@@ -188,7 +188,7 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
               : null,
           ])) as Record<QualityMode, ModeCompilation>}
         />
-        <p className="mt-1.5 text-[11px] text-ink-500">
+        <p className="mt-1.5 text-reading text-ink-500">
           To use a different quality mode, choose Edit — it produces a new proposal
           for that mode with its own approval.
         </p>
@@ -198,23 +198,23 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
       <ul className="mt-3 space-y-2">
         {vm.tasks.map((task) => (
           <li key={task.taskId} className="rounded border border-ink-800 bg-ink-950 p-2.5">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2 text-secondary">
               <span className="font-medium text-ink-200">{taskLabel(task)}</span>
               {task.kind === 'candidate' && <span className="font-mono text-ink-400">{formatWindow(task.window)}</span>}
               <span className="text-ink-500">{task.durationSeconds}s · {task.ratio}</span>
               <span className="ml-auto text-ink-300">{task.credits} credits</span>
             </div>
             {task.kind === 'repair' && (
-              <p className="mt-1 text-[11px] text-ink-500">
+              <p className="mt-1 text-reading text-ink-500">
                 Held in reserve — spent only if judging fails exactly one clip for this moment.
               </p>
             )}
-            <p className="mt-1.5 whitespace-pre-wrap text-xs leading-snug text-ink-400">{task.promptText}</p>
+            <p className="mt-1.5 whitespace-pre-wrap text-reading leading-snug text-ink-400">{task.promptText}</p>
           </li>
         ))}
       </ul>
 
-      <dl className="mt-3 space-y-1 text-xs text-ink-400">
+      <dl className="mt-3 space-y-1 text-secondary text-ink-400">
         <div className="flex gap-1.5">
           <dt className="font-medium text-ink-300">Maximum total:</dt>
           {/* Credits only. This contract supplies no dollar figure, so none is shown. */}
@@ -228,21 +228,21 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
         )}
       </dl>
 
-      {error && <p role="alert" className="mt-3 text-xs text-state-fail">{error}</p>}
-      {notice && <p role="status" className="mt-3 text-xs text-state-ok">{notice}</p>}
+      {error && <p role="alert" className="mt-3 text-secondary text-state-fail">{error}</p>}
+      {notice && <p role="status" className="mt-3 text-secondary text-state-ok">{notice}</p>}
 
       {previewOnly && (
-        <p className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-state-needs">
+        <p className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-secondary text-state-needs">
           {unavailableModeCopy(vm.qualityMode, vm.unavailableReason, vm.requiredMissingCapabilities)}
           {' '}This is a preview of the plan — it cannot be approved or run.
         </p>
       )}
 
       {!previewOnly && acts.blockedReason && !edited && (
-        <p className="mt-3 text-xs text-state-needs">{acts.blockedReason}</p>
+        <p className="mt-3 text-secondary text-state-needs">{acts.blockedReason}</p>
       )}
       {edited && (
-        <p className="mt-3 text-xs text-state-needs">
+        <p className="mt-3 text-reading text-state-needs">
           You chose to edit this proposal. This card can no longer approve it — the
           edit produces a new proposal with its own approval.
         </p>
@@ -255,14 +255,14 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
               type="button"
               disabled={busy || edited || !acts.canApprove || flight.phase === 'settled'}
               onClick={onApprove}
-              className="rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-950 disabled:opacity-40"
+              className="rounded-md bg-ink-100 px-3 py-2 text-ui font-medium text-ink-950 disabled:opacity-40"
             >
               {acts.approveLabel}
             </button>
             {acts.canEdit && (
               <button
                 type="button" disabled={busy} onClick={onEdit}
-                className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 disabled:opacity-40"
+                className="rounded-md border border-ink-700 px-3 py-2 text-ui text-ink-200 disabled:opacity-40"
               >
                 Edit
               </button>
@@ -270,13 +270,13 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
             {acts.canCancel && !edited && (
               <button
                 type="button" disabled={busy || cancelBusy} onClick={onCancel}
-                className="rounded-md border border-ink-800 px-3 py-2 text-sm text-ink-400 hover:text-state-fail disabled:opacity-40"
+                className="rounded-md border border-ink-800 px-3 py-2 text-ui text-ink-400 hover:text-state-fail disabled:opacity-40"
               >
                 Cancel
               </button>
             )}
           </div>
-          <p className="mt-2 text-[11px] leading-snug text-ink-500">
+          <p className="mt-2 text-reading leading-snug text-ink-500">
             Approving authorizes this exact set of clips and nothing else. It is not a
             payment — usage is recorded as the work actually runs.
           </p>

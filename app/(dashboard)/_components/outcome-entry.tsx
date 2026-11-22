@@ -309,69 +309,69 @@ export default function OutcomeEntry() {
   return (
     <div className="card p-6 sm:p-8">
       <h2 className="text-xl font-semibold tracking-tight text-ink-50">State the outcome</h2>
-      <p className="text-sm text-ink-400 mt-1.5">Describe the result you need. Tukido will ask at most one question, then show one recommended Backend plan before anything starts.</p>
+      <p className="text-reading text-ink-400 mt-1.5">Describe the result you need. Tukido will ask at most one question, then show one recommended Backend plan before anything starts.</p>
 
       <div className="mt-5 space-y-4">
         <div>
-          <label htmlFor="outcome-goal" className="block text-sm font-medium text-ink-200">What outcome do you need?</label>
-          <textarea id="outcome-goal" value={goal} onChange={(event) => editGoal(event.target.value)} rows={3} maxLength={2000} placeholder="e.g. Use my approved video sections and editable project to produce a high-quality final master." className="mt-1.5 w-full rounded-lg bg-ink-900 border border-ink-700 px-4 py-3 text-[15px] text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-ink-500" />
+          <label htmlFor="outcome-goal" className="block text-ui font-medium text-ink-200">What outcome do you need?</label>
+          <textarea id="outcome-goal" value={goal} onChange={(event) => editGoal(event.target.value)} rows={3} maxLength={2000} placeholder="e.g. Use my approved video sections and editable project to produce a high-quality final master." className="mt-1.5 w-full rounded-lg bg-ink-900 border border-ink-700 px-4 py-3 text-ui text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-ink-500" />
         </div>
 
         <div>
-          <span className="block text-sm font-medium text-ink-200">Verified inputs</span>
-          <p className="text-xs text-ink-500 mt-0.5">Optional. Implexa Desktop verifies each artifact; only its identity, digest, description, and input type are sent.</p>
+          <span className="block text-secondary font-medium text-ink-200">Verified inputs</span>
+          <p className="text-reading text-ink-500 mt-0.5">Optional. Implexa Desktop verifies each artifact; only its identity, digest, description, and input type are sent.</p>
           {artifacts.length > 0 && <ul className="mt-2 space-y-2">{artifacts.map((artifact) => (
-            <li key={`${artifact.artifactId}-${artifact.sha256}`} className="flex flex-wrap items-center gap-2 text-xs text-ink-300">
+            <li key={`${artifact.artifactId}-${artifact.sha256}`} className="flex flex-wrap items-center gap-2 text-secondary text-ink-300">
               <span className="truncate max-w-xs">{artifact.displayName}</span>
-              <span className="rounded bg-ink-900 border border-ink-700 px-2 py-1 text-xs">{artifact.inputType.replaceAll('_', ' ')}</span>
+              <span className="rounded bg-ink-900 border border-ink-700 px-2 py-1 text-secondary">{artifact.inputType.replaceAll('_', ' ')}</span>
               {artifact.storageMode === 'local_range_capability' && (
-                <span className="basis-full text-[11px] text-state-needs">Kept on its current drive — keep the drive connected and the file unchanged.</span>
+                <span className="basis-full text-secondary text-state-needs">Kept on its current drive — keep the drive connected and the file unchanged.</span>
               )}
               {artifact.storageMode === 'managed_copy' && (
-                <span className="basis-full text-[11px] text-ink-500">Copied into Tukido-managed storage for this run.</span>
+                <span className="basis-full text-secondary text-ink-500">Copied into Tukido-managed storage for this run.</span>
               )}
               <button type="button" aria-label={`Remove ${artifact.displayName}`} onClick={() => editArtifacts(artifacts.filter((item) => item.artifactId !== artifact.artifactId))} className="text-ink-500 hover:text-ink-200">×</button>
             </li>
           ))}</ul>}
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <select aria-label="Type of verified artifact to add" value={artifactType} onChange={(event) => setArtifactType(event.target.value as OutcomeInputType)} className="rounded bg-ink-900 border border-ink-700 px-2 py-1.5 text-xs text-ink-300">
+            <select aria-label="Type of verified artifact to add" value={artifactType} onChange={(event) => setArtifactType(event.target.value as OutcomeInputType)} className="rounded bg-ink-900 border border-ink-700 px-2 py-1.5 text-ui text-ink-300">
               {OUTCOME_INPUT_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}
             </select>
-            <button type="button" onClick={() => addArtifact()} disabled={picking || artifacts.length >= MAX_ARTIFACTS} className="rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 disabled:opacity-50">{picking ? 'Verifying…' : 'Add verified artifact'}</button>
+            <button type="button" onClick={() => addArtifact()} disabled={picking || artifacts.length >= MAX_ARTIFACTS} className="rounded-lg border border-ink-700 px-3 py-1.5 text-ui text-ink-300 disabled:opacity-50">{picking ? 'Verifying…' : 'Add verified artifact'}</button>
           </div>
           {verificationSurface === 'inputs' && verificationProgress && (
             <RunInputVerificationProgress progress={verificationProgress} canceling={cancelingVerification} onCancel={cancelVerification} />
           )}
-          {!inDesktop && <p role="status" className="mt-2 text-xs text-state-needs">Open Implexa Desktop to add verified artifacts. Browser filenames cannot be used.</p>}
-          {pickerError && <p role="status" className="mt-2 text-xs text-state-fail">{pickerError}</p>}
+          {!inDesktop && <p role="status" className="mt-2 text-secondary text-state-needs">Open Implexa Desktop to add verified artifacts. Browser filenames cannot be used.</p>}
+          {pickerError && <p role="status" className="mt-2 text-secondary text-state-fail">{pickerError}</p>}
         </div>
 
         <fieldset>
-          <legend className="text-sm font-medium text-ink-200">Quality</legend>
+          <legend className="text-secondary font-medium text-ink-200">Quality</legend>
           <div className="mt-1.5 grid sm:grid-cols-3 gap-2">{OUTCOME_QUALITIES.map((option) => (
             <label key={option.value} className={`rounded-lg border px-3 py-2.5 cursor-pointer ${quality === option.value ? 'border-brand-500 bg-brand-500/5' : 'border-ink-700 hover:border-ink-500'}`}>
-              <span className="flex items-center gap-2"><input type="radio" name="outcome-quality" value={option.value} checked={quality === option.value} onChange={() => editQuality(option.value)} /><span className="text-sm text-ink-100">{option.label}</span></span>
-              <span className="block text-xs text-ink-500 mt-1">{option.hint}</span>
+              <span className="flex items-center gap-2"><input type="radio" name="outcome-quality" value={option.value} checked={quality === option.value} onChange={() => editQuality(option.value)} /><span className="text-secondary text-ink-100">{option.label}</span></span>
+              <span className="block text-secondary text-ink-500 mt-1">{option.hint}</span>
             </label>
           ))}</div>
         </fieldset>
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <div><label htmlFor="outcome-deadline" className="block text-sm font-medium text-ink-200">Deadline <span className="text-ink-500 font-normal">(optional)</span></label><input id="outcome-deadline" type="datetime-local" value={deadline} onChange={(event) => editDeadline(event.target.value)} className="mt-1.5 w-full rounded-lg bg-ink-900 border border-ink-700 px-4 py-2.5 text-sm text-ink-50" /></div>
-          <div><label htmlFor="outcome-budget" className="block text-sm font-medium text-ink-200">Credit limit</label><input id="outcome-budget" type="number" min={1} max={100000} step={1} value={budgetCredits} onChange={(event) => editBudget(event.target.value)} className="mt-1.5 w-full rounded-lg bg-ink-900 border border-ink-700 px-4 py-2.5 text-sm text-ink-50" /><p className="text-xs text-ink-500 mt-1">Provider calls and consequential dollar spend still default to zero.</p></div>
+          <div><label htmlFor="outcome-deadline" className="block text-ui font-medium text-ink-200">Deadline <span className="text-ink-500 font-normal">(optional)</span></label><input id="outcome-deadline" type="datetime-local" value={deadline} onChange={(event) => editDeadline(event.target.value)} className="mt-1.5 w-full rounded-lg bg-ink-900 border border-ink-700 px-4 py-2.5 text-ui text-ink-50" /></div>
+          <div><label htmlFor="outcome-budget" className="block text-ui font-medium text-ink-200">Credit limit</label><input id="outcome-budget" type="number" min={1} max={100000} step={1} value={budgetCredits} onChange={(event) => editBudget(event.target.value)} className="mt-1.5 w-full rounded-lg bg-ink-900 border border-ink-700 px-4 py-2.5 text-ui text-ink-50" /><p className="text-secondary text-ink-500 mt-1">Provider calls and consequential dollar spend still default to zero.</p></div>
         </div>
 
-        <button type="button" onClick={() => requestPlan()} disabled={!requestReady || plan.phase === 'planning'} className="rounded-lg bg-brand-500 text-ink-950 px-6 py-3 text-sm font-medium hover:bg-brand-400 transition-colors disabled:opacity-50">{plan.phase === 'planning' ? 'Planning…' : 'Plan this outcome'}</button>
-        <p className="text-xs text-ink-500">Planning starts nothing. Credits are the planning unit; no client-side dollar conversion is performed.</p>
+        <button type="button" onClick={() => requestPlan()} disabled={!requestReady || plan.phase === 'planning'} className="rounded-lg bg-brand-500 text-ink-950 px-6 py-3 text-ui font-medium hover:bg-brand-400 transition-colors disabled:opacity-50">{plan.phase === 'planning' ? 'Planning…' : 'Plan this outcome'}</button>
+        <p className="text-secondary text-ink-500">Planning starts nothing. Credits are the planning unit; no client-side dollar conversion is performed.</p>
       </div>
 
-      {plan.phase === 'invalid' && <p role="status" className="mt-4 text-sm text-state-fail">{plan.message}</p>}
-      {plan.phase === 'unavailable' && <div role="status" aria-label="Planning unavailable" className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4"><p className="text-sm text-state-needs">{plan.message}</p></div>}
+      {plan.phase === 'invalid' && <p role="status" className="mt-4 text-reading text-state-fail">{plan.message}</p>}
+      {plan.phase === 'unavailable' && <div role="status" aria-label="Planning unavailable" className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4"><p className="text-reading text-state-needs">{plan.message}</p></div>}
       {plan.phase === 'plan' && plan.outcome.kind === 'clarification_required' && (
         <section aria-label="Outcome clarification" className="mt-5 card p-5">
-          <h3 className="text-sm font-semibold text-ink-50">One question</h3>
-          <p className="text-sm text-ink-300 mt-1">{plan.outcome.clarification.question}</p>
-          <div className="mt-3 flex flex-wrap gap-2">{plan.outcome.clarification.choices.map((choice) => <button key={choice.taskKey} type="button" onClick={() => requestPlan(choice.taskKey)} className="rounded-lg border border-ink-700 px-3 py-2 text-sm text-ink-200 hover:border-ink-500">{choice.label}</button>)}</div>
+          <h3 className="text-ui font-semibold text-ink-50">One question</h3>
+          <p className="text-reading text-ink-300 mt-1">{plan.outcome.clarification.question}</p>
+          <div className="mt-3 flex flex-wrap gap-2">{plan.outcome.clarification.choices.map((choice) => <button key={choice.taskKey} type="button" onClick={() => requestPlan(choice.taskKey)} className="rounded-lg border border-ink-700 px-3 py-2 text-ui text-ink-200 hover:border-ink-500">{choice.label}</button>)}</div>
         </section>
       )}
       {plan.phase === 'plan' && plan.outcome.kind !== 'clarification_required' && <div className="mt-5"><OutcomePlanCard outcome={plan.outcome} onStart={startProduction} onProvideInput={provideMissingInput} starting={starting} providingInput={picking} startError={startError} verificationProgress={verificationSurface === 'plan' ? verificationProgress : null} cancelingVerification={cancelingVerification} onCancelVerification={cancelVerification} runInstructions={runInstructions} onRunInstructionsChange={updateRunInstructions} instructionsDirty={instructionsDirty} instructionsError={runInstructionsError} onApplyRunInstructions={applyRunInstructions} /></div>}

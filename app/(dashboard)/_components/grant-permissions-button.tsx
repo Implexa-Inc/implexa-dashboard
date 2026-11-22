@@ -41,7 +41,7 @@ export const GRANT_PERMISSIONS_PROMPT =
 export default function GrantPermissionsButton({
   label = 'Grant browser access',
   surface = 'claude',
-  className = 'btn-success text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60',
+  className = 'btn-success text-secondary px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60',
 }: {
   label?: string;
   surface?: string;

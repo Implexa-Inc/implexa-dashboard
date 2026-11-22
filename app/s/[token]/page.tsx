@@ -104,7 +104,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
       <main className="min-h-screen flex items-center justify-center px-4">
         <div className="w-full max-w-md card text-center">
           <h1 className="text-2xl font-semibold mb-2">Link expired</h1>
-          <p className="text-ink-500 text-sm">This share link is no longer active. Ask whoever sent it for a fresh one.</p>
+          <p className="text-ink-500 text-reading">This share link is no longer active. Ask whoever sent it for a fresh one.</p>
         </div>
       </main>
     );
@@ -115,7 +115,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
       <main className="min-h-screen flex items-center justify-center px-4">
         <div className="w-full max-w-md card text-center">
           <h1 className="text-2xl font-semibold mb-2">Couldn't load this share</h1>
-          <p className="text-ink-500 text-sm">{data.error}</p>
+          <p className="text-ink-500 text-reading">{data.error}</p>
         </div>
       </main>
     );
@@ -165,7 +165,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
       <header className="max-w-3xl mx-auto flex items-center justify-between mb-10">
         <Link href="/" className="inline-flex items-center text-ink-50"><Logo height={20} /></Link>
         {isAuthed
-          ? <Link href="/skills" className="text-sm text-ink-200 hover:underline">Your skills →</Link>
+          ? <Link href="/skills" className="text-secondary text-ink-200 hover:underline">Your skills →</Link>
           : (
             // Preserve the share token in `next=` so the user lands BACK on
             // the share-preview-install flow after signing in/up — not the
@@ -174,7 +174,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
             // /s/[token]/install which auto-fires the install endpoint.
             <Link
               href={`/signup?next=${encodeURIComponent(`/s/${params.token}/install`)}`}
-              className="text-sm text-action-accent hover:underline"
+              className="text-secondary text-action-accent hover:underline"
             >
               Sign in / Sign up
             </Link>
@@ -184,7 +184,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
       <div className="max-w-3xl mx-auto">
         {/* Hero */}
         <div className="mb-6">
-          <div className="text-xs uppercase tracking-wide text-ink-400 mb-2">
+          <div className="text-secondary uppercase tracking-wide text-ink-400 mb-2">
             {sharedBy.userName || 'Someone'} shared a skill {timeAgo(sharedBy.sharedAt)}
           </div>
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight leading-tight text-ink-50">{skill.name}</h1>
@@ -251,10 +251,10 @@ export default async function SharePreviewPage({ params }: { params: { token: st
         <div className={`card mb-6 border-l-4 ${gate.shareMode === 'team' ? '!border-l-brand-500' : '!border-l-ink-600'}`}>
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="flex-1 min-w-0">
-              <div className={`text-xs uppercase tracking-wide font-medium mb-1 ${gate.shareMode === 'team' ? 'text-action-accent' : 'text-ink-300'}`}>
+              <div className={`text-secondary uppercase tracking-wide font-medium mb-1 ${gate.shareMode === 'team' ? 'text-action-accent' : 'text-ink-300'}`}>
                 {gate.shareMode === 'team' ? '🔒 Team-only link' : '🌐 Public link'}
               </div>
-              <p className="text-sm text-ink-200">{gate.gateDescription}</p>
+              <p className="text-reading text-ink-200">{gate.gateDescription}</p>
             </div>
             <InstallCta token={data.token} isAuthed={isAuthed} gate={gate} />
           </div>
@@ -264,7 +264,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
         <div className="card">
           <div className="flex items-baseline justify-between mb-4">
             <h2 className="text-lg font-medium text-ink-50">What this skill does</h2>
-            <div className="text-xs text-ink-400">v{skill.version} · {skill.contentLength} chars</div>
+            <div className="text-secondary text-ink-400">v{skill.version} · {skill.contentLength} chars</div>
           </div>
           <div className="prose prose-sm max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
@@ -272,14 +272,14 @@ export default async function SharePreviewPage({ params }: { params: { token: st
             </ReactMarkdown>
           </div>
           {skill.contentLength > skill.contentPreview.length && (
-            <div className="mt-4 text-xs text-ink-400 italic">
+            <div className="mt-4 text-secondary text-ink-400 italic">
               Preview truncated. Install the skill to see the full content.
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <footer className="mt-10 text-center text-xs text-ink-400">
+        <footer className="mt-10 text-center text-secondary text-ink-400">
           <p>
             Powered by <Link href="/" className="text-action-accent hover:underline font-medium">Tukido</Link> · Build and run powerful agents in your own Claude or Codex
           </p>
@@ -296,7 +296,7 @@ function Stat({ label, value, highlight = false }: { label: string; value: strin
   return (
     <div className={`card !p-3 text-center ${highlight ? '!border-success-400/40' : ''}`}>
       <div className={`text-xl font-semibold tabular-nums ${highlight ? 'text-success-600 dark:text-success-400' : 'text-ink-50'}`}>{value}</div>
-      <div className="text-xs text-ink-400 uppercase tracking-wide mt-0.5">{label}</div>
+      <div className="text-secondary text-ink-400 uppercase tracking-wide mt-0.5">{label}</div>
     </div>
   );
 }

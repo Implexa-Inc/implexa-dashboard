@@ -205,16 +205,16 @@ export default function UpdateBanner() {
           const failed = result[s.surface] === 'err';
           return (
             <div key={s.surface}>
-              <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-3 text-secondary">
                 <span className="flex-1 min-w-0 truncate text-state-needs">
                   <span aria-hidden="true" className="mr-1.5">⬆️</span>
                   Your <strong>{s.label}</strong> plugin is out of date
-                  <span className="font-mono text-xs text-state-needs"> (v{s.installed} → v{s.latest})</span>
+                  <span className="font-mono text-micro text-state-needs"> (v{s.installed} → v{s.latest})</span>
                 </span>
 
                 <span className="flex flex-none items-center gap-3">
                   {done ? (
-                    <span className="text-xs font-medium text-state-ok whitespace-nowrap">
+                    <span className="text-secondary font-medium text-state-ok whitespace-nowrap">
                       ✓ Updated · restart {s.label}
                     </span>
                   ) : (
@@ -224,7 +224,7 @@ export default function UpdateBanner() {
                           type="button"
                           disabled={running === s.surface}
                           onClick={() => runUpdate(s.surface)}
-                          className="text-xs font-semibold rounded-md px-2.5 py-1 bg-amber-400 text-[#1c1410] hover:bg-amber-300 disabled:opacity-60 disabled:cursor-wait whitespace-nowrap"
+                          className="text-ui font-semibold rounded-md px-2.5 py-1 bg-amber-400 text-[#1c1410] hover:bg-amber-300 disabled:opacity-60 disabled:cursor-wait whitespace-nowrap"
                         >
                           {running === s.surface ? 'Updating…' : 'Update now'}
                         </button>
@@ -232,7 +232,7 @@ export default function UpdateBanner() {
                       <button
                         type="button"
                         onClick={() => setOpen((o) => (o === s.surface ? null : s.surface))}
-                        className="text-xs text-state-needs underline underline-offset-2 hover:no-underline whitespace-nowrap"
+                        className="text-ui text-state-needs underline underline-offset-2 hover:no-underline whitespace-nowrap"
                       >
                         {open === s.surface ? 'Hide' : canRun ? 'copy command' : 'Update here'}
                       </button>
@@ -242,18 +242,18 @@ export default function UpdateBanner() {
               </div>
 
               {failed && (
-                <div className="mt-0.5 text-xs text-state-fail">Update failed — try the command instead.</div>
+                <div className="mt-0.5 text-secondary text-state-fail">Update failed — try the command instead.</div>
               )}
 
               {open === s.surface && (
                 <div className="mt-1.5 flex items-center gap-2">
-                  <code className="flex-1 min-w-0 text-[11px] font-mono text-ink-100 bg-ink-900/50 border border-ink-700 rounded px-2 py-1 truncate">
+                  <code className="flex-1 min-w-0 text-micro font-mono text-ink-100 bg-ink-900/50 border border-ink-700 rounded px-2 py-1 truncate">
                     {s.command}
                   </code>
                   <button
                     type="button"
                     onClick={() => copy(s.command, s.surface)}
-                    className="flex-none text-[11px] font-medium px-2 py-1 rounded border border-amber-400/40 text-state-needs hover:bg-amber-400/15 whitespace-nowrap"
+                    className="flex-none text-ui font-medium px-2 py-1 rounded border border-amber-400/40 text-state-needs hover:bg-amber-400/15 whitespace-nowrap"
                   >
                     {copied === s.surface ? '✓ copied' : 'copy'}
                   </button>
@@ -267,7 +267,7 @@ export default function UpdateBanner() {
         type="button"
         onClick={dismiss}
         aria-label="Dismiss"
-        className="absolute right-3 top-2 text-state-needs hover:text-state-needs hover:text-state-needs text-sm"
+        className="absolute right-3 top-2 text-state-needs hover:text-state-needs hover:text-state-needs text-ui"
       >
         ✕
       </button>

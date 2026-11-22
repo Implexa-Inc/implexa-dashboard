@@ -206,22 +206,22 @@ export default async function RunDetailPage({
     return (
       <main className="app-page">
         <div className="app-content">
-          <BackLink fallback="/work" label="Work" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
+          <BackLink fallback="/work" label="Work" className="text-secondary text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
           {existsElsewhere ? (
-            <div className="card mt-4 text-sm text-ink-300">
+            <div className="card mt-4 text-secondary text-ink-300">
               <p className="font-medium text-ink-100 mb-1">This run is in a different Tukido account.</p>
               <p className="leading-relaxed">
                 You&apos;re signed in as <span className="text-ink-100">{profile.email}</span>, but this run lives under another account.
                 Your agents and their runs belong to whichever account is connected to your Claude or Codex, so open the dashboard signed in with that account to see it.
               </p>
               <form action="/auth/signout" method="POST" className="mt-3">
-                <button className="text-sm font-medium rounded-md px-3.5 py-2 bg-brand-500/15 text-action-accent hover:bg-brand-500/25 transition-colors">
+                <button className="text-ui font-medium rounded-md px-3.5 py-2 bg-brand-500/15 text-action-accent hover:bg-brand-500/25 transition-colors">
                   Sign out to switch account
                 </button>
               </form>
             </div>
           ) : (
-            <div className="card mt-4 text-sm text-ink-300">
+            <div className="card mt-4 text-secondary text-ink-300">
               <p className="font-medium text-ink-100 mb-1">Run not found.</p>
               <p>This run doesn&apos;t exist (it may have been deleted). See your{' '}
                 <Link href="/work" className="text-action-accent hover:underline">Work</Link>.</p>
@@ -945,11 +945,11 @@ export default async function RunDetailPage({
         {stagePreview.state === 'ready' && <div className="mb-6"><StagePreviewReview summary={stagePreview.summary} /></div>}
         {(heldApprovalSurface === 'unavailable' || heldApprovalSurface === 'generic' && effectiveHoldKind === 'approval_before_action' && stagePreview.state === 'unavailable') && (
           <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-5" role="alert">
-            <p className="text-sm font-semibold text-ink-100">Approval details unavailable</p>
-            <p className="mt-2 text-sm leading-relaxed text-state-needs">
+            <p className="text-reading font-semibold text-ink-100">Approval details unavailable</p>
+            <p className="mt-2 text-reading text-state-needs">
               Tukido could not verify what this pending approval authorizes. No continuation is available until the exact hold details can be loaded.
             </p>
-            <a href={`/runs/${encodeURIComponent(r.id)}`} className="btn-outline mt-3 inline-flex px-4 py-2 text-sm">Reload approval details</a>
+            <a href={`/runs/${encodeURIComponent(r.id)}`} className="btn-outline mt-3 inline-flex px-4 py-2 text-secondary">Reload approval details</a>
           </div>
         )}
         {heldApprovalSurface === 'generic' && (effectiveHoldKind !== 'approval_before_action' || stagePreview.state === 'not_applicable') && (
@@ -988,20 +988,20 @@ export default async function RunDetailPage({
                 this stops being the page's conclusion and becomes a footnote.
                 Leading with "This run stalled" over a completed sibling is the
                 exact reading that made a successful production look broken. */}
-            <div className={`text-sm mb-1 ${supersededByRelated ? 'text-ink-300' : 'font-semibold text-ink-50'}`}>
+            <div className={`text-secondary mb-1 ${supersededByRelated ? 'text-ink-300' : 'font-semibold text-ink-50'}`}>
               {supersededByRelated
                 ? 'What this superseded attempt recorded before it was replaced'
                 : runProblemHeadline(recoveryPresentation, info.label === 'Failed')}
             </div>
-            <p className="text-sm text-ink-300 leading-relaxed">{closeReasonExplanation ?? info.reason}</p>
+            <p className="text-reading text-ink-300 ">{closeReasonExplanation ?? info.reason}</p>
             {info.permissionBlocked && (
-              <p className="text-xs text-state-needs mt-2 leading-relaxed">
+              <p className="text-reading text-state-needs mt-2 ">
                 It was blocked on a permission it could not auto-approve (often a file write or a tool outside the
                 pre-approved set). Open the agent, grant it on the setup card, then run it again.
               </p>
             )}
             {relatedRun && !productionLineage && (
-              <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-2.5 text-sm">
+              <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-2.5 text-secondary">
                 {/* Honest lead-in: only call it "good news" when the sibling is an
                     actual clean success. A held run (needs_input/pending) or a
                     sibling that's ALSO failed but wrote a real explanation (the
@@ -1033,8 +1033,8 @@ export default async function RunDetailPage({
                 nothing. */}
             {recovered.recoverable && (recovered.looksComplete ? (
               <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-3">
-                <div className="text-sm font-semibold text-ink-100 mb-0.5">Work recovered — review and finalize</div>
-                <p className="text-sm text-ink-300 leading-relaxed">
+                <div className="text-secondary font-semibold text-ink-100 mb-0.5">Work recovered — review and finalize</div>
+                <p className="text-reading text-ink-300 ">
                   A validated deliverable ({recovered.deliverable?.relativePath}) exists for this run, which stopped
                   without recording a result{recovered.stepCount ? ` after ${recovered.stepCount} step${recovered.stepCount === 1 ? '' : 's'}` : ''}.
                   The trace indicates the work finished; review it before marking the run recovered — marking it done records the validated artifact as the result, never the trace.
@@ -1045,8 +1045,8 @@ export default async function RunDetailPage({
               </div>
             ) : (
               <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/[0.07] px-3 py-3">
-                <div className="text-sm font-semibold text-ink-100 mb-0.5">Partial work is preserved — continuation required</div>
-                <p className="text-sm text-ink-300 leading-relaxed">
+                <div className="text-secondary font-semibold text-ink-100 mb-0.5">Partial work is preserved — continuation required</div>
+                <p className="text-reading text-ink-300 ">
                   A validated deliverable ({recovered.deliverable?.relativePath}) exists, but this run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and stopped before the trace showed completion.
                   Tukido will not offer “Mark as done.” Continue only through a typed recovery action that verifies and reuses the preserved work.
                 </p>
@@ -1057,8 +1057,8 @@ export default async function RunDetailPage({
                 step trace is not a deliverable, and nothing validated was recovered. */}
             {!recovered.recoverable && recovered.transcriptOnly && (
               <div className="mt-3 rounded-md border border-ink-800 px-3 py-3" data-testid="transcript-only-notice">
-                <div className="text-sm font-semibold text-ink-100 mb-0.5">No deliverable was recovered</div>
-                <p className="text-sm text-ink-300 leading-relaxed">
+                <div className="text-secondary font-semibold text-ink-100 mb-0.5">No deliverable was recovered</div>
+                <p className="text-reading text-ink-300 ">
                   This run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and then stopped without a validated result.
                   The step trace above is the agent&apos;s own narration, not a deliverable, so this run cannot be marked done.
                 </p>
@@ -1069,7 +1069,7 @@ export default async function RunDetailPage({
                 started. The component hides itself for every other failure. */}
             {controlPlaneRetryRequestId && !supersededByRelated && !(recovered.recoverable && !recovered.looksComplete) && (
               hasRetainedCreditOperation === null
-                ? <p role="alert" className="mt-3 text-sm text-ink-400">Saved media could not be checked. <a href={`/runs/${r.id}`} className="underline">Check again</a></p>
+                ? <p role="alert" className="mt-3 text-reading text-ink-400">Saved media could not be checked. <a href={`/runs/${r.id}`} className="underline">Check again</a></p>
                 : hasRetainedCreditOperation
                 ? <PreservedWorkContinuation runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
                 : <ControlPlaneRetry requestId={controlPlaneRetryRequestId} runId={params.id} />
@@ -1094,14 +1094,14 @@ export default async function RunDetailPage({
                   finished and already paid for. More work is ordered from the
                   production, not from a diagnostic page for one of its steps. */}
               {!productionLineage?.suppressRunAgain && !suppressDuplicateRetry(recoveryPresentation) && (
-                <Link href={agentHref} className="btn-outline text-sm px-4 py-2">Run again</Link>
+                <Link href={agentHref} className="btn-outline text-secondary px-4 py-2">Run again</Link>
               )}
               {productionLineage && (
-                <Link href={`/runs/productions/${productionLineage.productionId}`} className="btn-outline text-sm px-4 py-2">
+                <Link href={`/runs/productions/${productionLineage.productionId}`} className="btn-outline text-secondary px-4 py-2">
                   Open the production
                 </Link>
               )}
-              <Link href="/work" className="btn-outline text-sm px-4 py-2">Back to Work</Link>
+              <Link href="/work" className="btn-outline text-secondary px-4 py-2">Back to Work</Link>
             </div>
           </div>
         ) : r.run_state === 'running' && runLiveness(r).state !== 'alive' ? (
@@ -1111,11 +1111,11 @@ export default async function RunDetailPage({
           // the row's own last_progress_at had never moved off started_at (run
           // ec42bac6). We knew. We just didn't say. Say it.
           <div className="rounded-lg border border-ink-800 bg-ink-950/60 p-5">
-            <div className="text-sm font-semibold text-ink-50 mb-1">{info.label === 'Not started' ? 'This run has not actually started' : 'No progress reported recently'}</div>
-            <p className="text-sm text-ink-300 leading-relaxed">{info.reason}</p>
+            <div className="text-secondary font-semibold text-ink-50 mb-1">{info.label === 'Not started' ? 'This run has not actually started' : 'No progress reported recently'}</div>
+            <p className="text-reading text-ink-300 ">{info.reason}</p>
           </div>
         ) : (
-          <p className="text-sm text-ink-400 italic">
+          <p className="text-reading text-ink-400 italic">
             {approvalContinuationRecovery
               ? 'The review plan is ready; the final deliverable will be created after approval.'
               // "No deliverable recorded" is true of THIS row and, on a run that
@@ -1150,15 +1150,15 @@ export default async function RunDetailPage({
               higgsfieldCreditChoices={revisionCreditChoices}
               initialNote={judgment?.verdict === 'repair' ? (judgment.repair_prompt || judgment.next_action || '') : ''}
             />);
-  const judgmentPanel = <section className="finished-checks" aria-label="Checked before it reached you">{showFinishedReview&&<><h2 className="finished-checks-title">Checked before it reached you</h2>{(competencePacket.sources.verification!=='ready'||competencePacket.verification.receipts.length>0)&&<p className="finished-check-count">{competencePacket.sources.verification!=='ready'?'Recorded checks could not be loaded.':competencePacket.verification.receipts.length?competencePacket.verification.receipts.every(receipt=>['pass','fail'].includes(receipt.status))?`${competencePacket.verification.receipts.filter(receipt=>receipt.status==='pass').length} of ${competencePacket.verification.receipts.length} recorded checks passed`:`${competencePacket.verification.receipts.length} checks recorded`:'No checks recorded for this result.'}</p>}</>}{creativeGradeNotice && <p role="status" className="mb-4 text-sm text-state-needs">{showFinishedReview?creativeGradePlainNotice:creativeGradeNotice}</p>}
+  const judgmentPanel = <section className="finished-checks" aria-label="Checked before it reached you">{showFinishedReview&&<><h2 className="finished-checks-title">Checked before it reached you</h2>{(competencePacket.sources.verification!=='ready'||competencePacket.verification.receipts.length>0)&&<p className="finished-check-count">{competencePacket.sources.verification!=='ready'?'Recorded checks could not be loaded.':competencePacket.verification.receipts.length?competencePacket.verification.receipts.every(receipt=>['pass','fail'].includes(receipt.status))?`${competencePacket.verification.receipts.filter(receipt=>receipt.status==='pass').length} of ${competencePacket.verification.receipts.length} recorded checks passed`:`${competencePacket.verification.receipts.length} checks recorded`:'No checks recorded for this result.'}</p>}</>}{creativeGradeNotice && <p role="status" className="mb-4 text-reading text-state-needs">{showFinishedReview?creativeGradePlainNotice:creativeGradeNotice}</p>}
         <RunJudgmentCard presentation={showFinishedReview?'finished':undefined} judgment={judgment} repairRequest={repairRequest} currentRunId={r.id}
           finalOutputSha256={finalReviewArtifactSha256} reviewPending={judgmentPending} />
         {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
-        {judgmentReadUnavailable && <p className="text-sm text-state-needs">Final review status is unavailable. Refresh to check it again.</p>}
+        {judgmentReadUnavailable && <p className="text-reading text-state-needs">Final review status is unavailable. Refresh to check it again.</p>}
         {failedJudgeRetry && (
           <section className="card border-amber-500/30" aria-label="Final review recovery">
             <h2 className="font-medium text-ink-100">Final review is incomplete</h2>
-            <p className="mt-1 text-sm text-ink-300">Your delivered work is unchanged.</p>
+            <p className="mt-1 text-reading text-ink-300">Your delivered work is unchanged.</p>
             <ControlPlaneRetry requestId={failedJudgeRetry.requestId} runId={failedJudgeRetry.runId} />
           </section>
         )}
@@ -1172,11 +1172,11 @@ export default async function RunDetailPage({
             is still no-spend; the next page requires an explicit approval. */}
         {r.output_markdown && verifiedArtifacts.some(isValidatedVideoOutput) && (
           <div className="mb-6 rounded-lg border border-sky-500/30 bg-sky-500/[0.07] p-4">
-            <p className="text-sm font-medium text-ink-100">Add a B-roll moment</p>
-            <p className="mt-1 text-xs leading-relaxed text-ink-400">
+            <p className="text-reading font-medium text-ink-100">Add a B-roll moment</p>
+            <p className="mt-1 text-reading text-ink-400">
               Name one 2–10 second window, compare Quick, Professional, and Production, then review the exact maximum before approving anything paid.
             </p>
-            <Link href={`/runs/${encodeURIComponent(r.id)}/generate-broll`} className="mt-3 inline-flex btn-primary px-4 py-2 text-sm">
+            <Link href={`/runs/${encodeURIComponent(r.id)}/generate-broll`} className="mt-3 inline-flex btn-primary px-4 py-2 text-secondary">
               Generate B-roll
             </Link>
           </div>
@@ -1216,9 +1216,9 @@ export default async function RunDetailPage({
             Only when there's a deliverable to rate (matches the overlay). */}
         {r.output_markdown && (
           <div className="mt-5 rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-            {preferenceInstallationId&&<p className="mb-3 text-sm"><Link className="text-action-accent hover:underline"
+            {preferenceInstallationId&&<p className="mb-3 text-reading"><Link className="text-action-accent hover:underline"
               href={`/training/${encodeURIComponent(r.skill_slug)}?installationId=${preferenceInstallationId}`}>Remember preferences just for me</Link>
-              <span className="block text-xs text-ink-400">Review and save private examples for your future runs. The trainer’s agent stays unchanged.</span></p>}
+              <span className="block text-secondary text-ink-400">Review and save private examples for your future runs. The trainer’s agent stays unchanged.</span></p>}
             <RunFeedback
               runId={r.id}
               feedbackQuestions={feedbackQuestions}
@@ -1259,8 +1259,8 @@ export default async function RunDetailPage({
   return (
     <main className="app-page">
       <div className="app-content">
-        <BackLink fallback="/work" label="Work" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
-        {requiredTrainingHold && <div role="status" className="mt-4 rounded-lg border border-amber-500/40 px-4 py-3 text-sm text-ink-200">
+        <BackLink fallback="/work" label="Work" className="text-secondary text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
+        {requiredTrainingHold && <div role="status" className="mt-4 rounded-lg border border-amber-500/40 px-4 py-3 text-secondary text-ink-200">
           <p>Required reference training is missing. This run stopped before the worker started. Accept replacement training before starting a new run.</p>
           <Link href={`/training/${encodeURIComponent(r.skill_slug)}`} className="mt-2 inline-block underline">Open Training</Link>
         </div>}
@@ -1272,7 +1272,7 @@ export default async function RunDetailPage({
             redirect that swaps the run out from under the reader is worse than
             the confusion it was meant to fix. */}
         {arrivedFromSupersededShell && (
-          <p role="status" className="mt-4 rounded-lg border border-ink-800 bg-ink-950/40 px-3 py-2 text-xs text-ink-400 leading-relaxed">
+          <p role="status" className="mt-4 rounded-lg border border-ink-800 bg-ink-950/40 px-3 py-2 text-reading text-ink-400 ">
             You followed a link to an earlier execution attempt that was superseded. This is the run that actually
             carried out that step.{' '}
             <Link href={`/runs/${arrivedFromSupersededShell}?keep=1`} className="text-ink-300 hover:underline">
@@ -1314,11 +1314,11 @@ export default async function RunDetailPage({
           <div className="flex items-center gap-2.5 mt-2 flex-wrap">
             {showFinishedReview?<span className="finished-review-state">{competencePacket.sources.session!=='ready'?'Review status unavailable':competencePacket.session?.state==='accepted'?'Accepted':competencePacket.session?.state==='submitted'?'Changes requested':'Ready for your review'}</span>:<RunStateBadge info={info} size="xs" />}
             {!showFinishedReview&&<RunVerificationBadge status={verificationStatus} size="xs" />}
-            <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
+            <span className="text-secondary text-ink-500">{rel(r.ran_at)}</span>
 
             {desktopAppLive() && (
               <NotInApp>
-                <a href={appRunUrl(r.id)} className="text-xs text-action-accent hover:underline">
+                <a href={appRunUrl(r.id)} className="text-secondary text-action-accent hover:underline">
                   open in the Tukido app ↗
                 </a>
               </NotInApp>
@@ -1375,40 +1375,40 @@ export default async function RunDetailPage({
         <TasteFitReviewCard review={competencePacket.tasteFit} />
 
         <section className="mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4" aria-label="Learnings used">
-          <h2 className="text-sm font-semibold text-ink-100">Learnings used</h2>
-          <p className="mt-1 text-xs text-ink-500">Owner-approved rules frozen for this attempt. This is separate from stage skills above.</p>
+          <h2 className="text-ui font-semibold text-ink-100">Learnings used</h2>
+          <p className="mt-1 text-secondary text-ink-500">Owner-approved rules frozen for this attempt. This is separate from stage skills above.</p>
           {learningProofUnavailable && !learningProof ? (
-            <p className="mt-2 text-xs text-state-needs">The attempt-bound learning proof is unavailable. No handling state is inferred.</p>
+            <p className="mt-2 text-secondary text-state-needs">The attempt-bound learning proof is unavailable. No handling state is inferred.</p>
           ) : learningProof ? (
             <div className="mt-2">
-              <p className="text-[11px] text-ink-500">Frozen for attempt {learningProof.launch_attempt_id.slice(0, 12)} at fence {learningProof.fencing_epoch} · context {learningProof.context_digest.slice(0, 12)}</p>
-              <p className="text-[11px] text-ink-500">Human review: {humanReviewLabels[humanReview]}. This is separate from delivery and the Judge’s review.</p>
-              <p className="text-[11px] text-ink-500">{associatedHumanReview === 'not_associated'
+              <p className="text-reading text-ink-500">Frozen for attempt {learningProof.launch_attempt_id.slice(0, 12)} at fence {learningProof.fencing_epoch} · context {learningProof.context_digest.slice(0, 12)}</p>
+              <p className="text-reading text-ink-500">Human review: {humanReviewLabels[humanReview]}. This is separate from delivery and the Judge’s review.</p>
+              <p className="text-reading text-ink-500">{associatedHumanReview === 'not_associated'
                 ? 'No human outcome associated with this attempt.' : associatedHumanReview === 'unavailable'
                   ? 'Human outcome association unavailable.' : `Associated human review for this attempt: ${humanReviewLabels[associatedHumanReview]}.`}</p>
               <ul className="mt-2 space-y-2">
                 {(learningProof.context.rules || []).map((rule) => {
                   const receipt = learningHandling.find((item) => item.rule_version_id === rule.id);
                   return <li key={rule.id} className="rounded-md border border-ink-800 px-3 py-2">
-                    <p className="text-sm text-ink-100">{rule.instruction}</p>
-                    <p className="mt-1 text-[10px] uppercase tracking-wide text-ink-500">{rule.ruleClass} · v{rule.version} · {rule.id.slice(0, 8)} · {rule.versionDigest.slice(0, 12)}</p>
-                    <p className="mt-1 text-xs text-ink-400">Executor handling: {receipt ? receipt.handling.replaceAll('_', ' ') : 'pending'}</p>
-                    {receipt?.reason && <p className="mt-1 text-xs text-ink-500">Reason: {receipt.reason}</p>}
-                    <p className="mt-1 text-[11px] text-ink-500">Applied means the executor reported following the supplied rule. It does not prove causation or success.</p>
+                    <p className="text-reading text-ink-100">{rule.instruction}</p>
+                    <p className="mt-1 text-reading uppercase tracking-wide text-ink-500">{rule.ruleClass} · v{rule.version} · {rule.id.slice(0, 8)} · {rule.versionDigest.slice(0, 12)}</p>
+                    <p className="mt-1 text-secondary text-ink-400">Executor handling: {receipt ? receipt.handling.replaceAll('_', ' ') : 'pending'}</p>
+                    {receipt?.reason && <p className="mt-1 text-secondary text-ink-500">Reason: {receipt.reason}</p>}
+                    <p className="mt-1 text-reading text-ink-500">Applied means the executor reported following the supplied rule. It does not prove causation or success.</p>
                   </li>;
                 })}
               </ul>
             </div>
           ) : !learningSourceAvailable ? (
-            <p className="mt-2 text-xs text-state-needs">The frozen learning source is unavailable. This is not shown as an empty result.</p>
+            <p className="mt-2 text-secondary text-state-needs">The frozen learning source is unavailable. This is not shown as an empty result.</p>
           ) : (engineRouting?.learning_context?.rules || []).length === 0 ? (
-            <p className="mt-2 text-xs text-ink-500">No learning context was frozen for this run.</p>
+            <p className="mt-2 text-secondary text-ink-500">No learning context was frozen for this run.</p>
           ) : (
-            <div className="mt-2"><p className="text-xs text-ink-500">Legacy prepared context. This run predates attempt-bound handling receipts.</p><ul className="mt-2 space-y-2">
+            <div className="mt-2"><p className="text-secondary text-ink-500">Legacy prepared context. This run predates attempt-bound handling receipts.</p><ul className="mt-2 space-y-2">
               {(engineRouting?.learning_context?.rules || []).map((rule) => (
                 <li key={rule.id} className="rounded-md border border-ink-800 px-3 py-2">
-                  <p className="text-sm text-ink-100">{rule.instruction}</p>
-                  <p className="mt-1 text-[10px] uppercase tracking-wide text-ink-500">
+                  <p className="text-reading text-ink-100">{rule.instruction}</p>
+                  <p className="mt-1 text-reading uppercase tracking-wide text-ink-500">
                     {rule.ruleClass} · v{rule.version} · {rule.id.slice(0, 8)} · {rule.versionDigest.slice(0, 12)}
                   </p>
                 </li>
@@ -1429,18 +1429,18 @@ export default async function RunDetailPage({
             opposite face. */}
         {revisedResult && (
           <div className="mb-6 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-4">
-            <p className="text-sm font-semibold text-ink-50">This run was revised, and the revision delivered</p>
-            <p className="mt-1 text-sm text-ink-300 leading-relaxed">
+            <p className="text-reading font-semibold text-ink-50">This run was revised, and the revision delivered</p>
+            <p className="mt-1 text-reading text-ink-300 ">
               The revised result is on its own run
               {revisedResult.artifactCount > 0
                 ? `, with ${revisedResult.artifactCount} validated file${revisedResult.artifactCount === 1 ? '' : 's'}`
                 : ''}. The files listed above belong to this run.
             </p>
             <div className="mt-3 flex flex-wrap gap-3">
-              <Link href={`/review/${encodeURIComponent(revisedResult.runId)}`} className="btn-success text-sm px-4 py-2">
+              <Link href={`/review/${encodeURIComponent(revisedResult.runId)}`} className="btn-success text-secondary px-4 py-2">
                 Open the revised result
               </Link>
-              <Link href={`/runs/${encodeURIComponent(revisedResult.runId)}`} className="btn-outline text-sm px-4 py-2">
+              <Link href={`/runs/${encodeURIComponent(revisedResult.runId)}`} className="btn-outline text-secondary px-4 py-2">
                 Its files &amp; artifacts
               </Link>
             </div>
@@ -1449,21 +1449,21 @@ export default async function RunDetailPage({
 
         {recoveredFinalArtifact && (r.run_state === 'failed' || r.run_state === 'stalled') && (
           <div className="mb-6 rounded-lg border border-emerald-500/45 bg-emerald-500/[0.08] p-4" role="status">
-            <p className="text-sm font-semibold text-ink-50">A validated final output was recovered from this run</p>
-            <p className="mt-1 text-sm leading-relaxed text-ink-300">
+            <p className="text-reading font-semibold text-ink-50">A validated final output was recovered from this run</p>
+            <p className="mt-1 text-reading text-ink-300">
               The execution record is still {r.run_state}, but Tukido verified the final file on this Mac.
               Open it from Files &amp; artifacts above; no duplicate rerun is needed.
             </p>
-            <p className="mt-2 truncate font-mono text-[11px] text-ink-500">{recoveredFinalArtifact.relativePath}</p>
+            <p className="mt-2 truncate font-mono text-reading text-ink-500">{recoveredFinalArtifact.relativePath}</p>
           </div>
         )}
 
         {!recoveredFinalArtifact && recoveryPresentation.hasDeterministicContinuation && (
           <div className="mb-6 rounded-lg border border-sky-500/35 bg-sky-500/[0.07] p-4" role="status">
-            <p className="text-sm font-semibold text-ink-50">
+            <p className="text-reading font-semibold text-ink-50">
               {alreadyRecoveredElsewhere ? 'Automatic recovery already handled this run' : 'A deterministic recovery path is available'}
             </p>
-            <p className="mt-1 text-sm leading-relaxed text-ink-300">
+            <p className="mt-1 text-reading text-ink-300">
               {recoveryAttempt?.summary
                 || recoveryAttempt?.next_action
                 || (approvalContinuationRecovery
@@ -1471,7 +1471,7 @@ export default async function RunDetailPage({
                   : 'Review the recorded trace below, then use the recovery action shown with it. No completion is inferred from progress notes alone.')}
             </p>
             {recoveryAttempt?.recover_request_id && (
-              <p className="mt-2 font-mono text-[11px] text-ink-500">Recovery request {recoveryAttempt.recover_request_id.slice(0, 12)}…</p>
+              <p className="mt-2 font-mono text-reading text-ink-500">Recovery request {recoveryAttempt.recover_request_id.slice(0, 12)}…</p>
             )}
           </div>
         )}
@@ -1485,12 +1485,12 @@ export default async function RunDetailPage({
             permission dialog + pairs Chrome), instead of bouncing to onboarding. */}
         {!!r.output_markdown && NEEDS_BROWSER_GRANT_RE.test(r.output_markdown) && (
           <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-4">
-            <p className="text-sm font-medium text-ink-100">This run needed browser or screen access it didn&apos;t have here</p>
+            <p className="text-reading font-medium text-ink-100">This run needed browser or screen access it didn&apos;t have here</p>
             {/* Deliberately does NOT claim the Chrome extension is ungranted — it
                 often IS connected (the run says so), and asserting otherwise
                 misled the founder. The real gap is usually Computer Use, or the
                 run happening unattended in the background. Offer BOTH fixes. */}
-            <p className="text-xs mt-1 text-state-needs">
+            <p className="text-reading mt-1 text-state-needs">
               A step here drives a browser or your screen, and that wasn&apos;t fully available in this run — usually
               because Computer Use (Screen Recording + Accessibility) isn&apos;t granted yet, or it ran unattended in the
               background. Grant it once and re-run, or run it from the app while you&apos;re at your desk. Tukido never
@@ -1499,7 +1499,7 @@ export default async function RunDetailPage({
             <div className="mt-3">
               <GrantPermissionsButton />
             </div>
-            <p className="mt-2 text-xs text-state-needs">
+            <p className="mt-2 text-reading text-state-needs">
               Click → Tukido opens Claude with a pre-filled prompt → press Enter → Claude asks for permissions →
               choose &quot;Always Allow&quot; (preferred). Or just re-run it attended from the agent page.
             </p>
@@ -1558,7 +1558,7 @@ export default async function RunDetailPage({
         {/* Jump to this agent's OTHER runs. A held run often references sibling
             runs ("Day 16/17 are still pending") — make it one click to go act on
             them, instead of Open agent → Runs → hunt for the run. */}
-        <div className="mt-4 text-xs">
+        <div className="mt-4 text-secondary">
           <Link
             href={`${agentHref}${agentHref.includes('?') ? '&' : '?'}tab=runs`}
             className="text-ink-400 hover:text-ink-200 inline-flex items-center gap-1.5"

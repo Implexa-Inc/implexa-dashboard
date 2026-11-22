@@ -32,7 +32,7 @@ export default async function GenerationProposalPage({ params }: { params: { pro
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-16 text-center">
         <h1 className="text-lg font-medium text-ink-100">We couldn&apos;t load this proposal.</h1>
-        <p className="mt-2 text-sm text-ink-400">
+        <p className="mt-2 text-reading text-ink-400">
           That doesn&apos;t mean it failed or disappeared — the service didn&apos;t answer
           just now, or answered in a form we refused to guess about. If you were
           waiting on an approval, nothing has been approved from this page.
@@ -45,7 +45,7 @@ export default async function GenerationProposalPage({ params }: { params: { pro
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-16 text-center">
         <h1 className="text-lg font-medium text-ink-100">This proposal doesn&apos;t exist.</h1>
-        <p className="mt-2 text-sm text-ink-400">
+        <p className="mt-2 text-reading text-ink-400">
           Tukido has no generation proposal with this id for your account.
         </p>
       </div>
@@ -76,7 +76,7 @@ export default async function GenerationProposalPage({ params }: { params: { pro
       <div className="mx-auto w-full max-w-3xl px-4 py-6">
         <header className="mb-5">
           <h1 className="text-xl font-semibold text-ink-100">B-roll generation</h1>
-          <p className="mt-1 text-xs text-ink-400">
+          <p className="mt-1 text-reading text-ink-400">
             Requested by {name ?? read.vm.agentSubject}
             {read.vm.sourceRunId && (
               <>
@@ -123,7 +123,7 @@ export default async function GenerationProposalPage({ params }: { params: { pro
     <div className="mx-auto w-full max-w-3xl px-4 py-6">
       <header className="mb-5">
         <h1 className="text-xl font-semibold text-ink-100">B-roll generation</h1>
-        <p className="mt-1 text-xs text-ink-400">
+        <p className="mt-1 text-secondary text-ink-400">
           {requestedByLine(vm, agentName)}
           {vm.sourceRunId && (
             <>

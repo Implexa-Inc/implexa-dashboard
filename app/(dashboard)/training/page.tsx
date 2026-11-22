@@ -17,7 +17,7 @@ export default async function TrainingPage({searchParams}:{searchParams?:{view?:
  const recordingId=searchParams?.recordingId&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(searchParams.recordingId)?searchParams.recordingId:undefined;
  return <main className="app-page"><div className="app-content">
   <PageHeader title="Coach" actions={<Link href="/create?from=training" className="btn-primary"><svg width="16" height="16" aria-hidden="true"><use href="/brand/tukido-icons.svg#plus"/></svg>Train a new agent</Link>}><p className="app-page-description">Teach your agents, decide what they learn, and list them for others to rent.</p></PageHeader>
-  <Suspense fallback={<p role="status" className="mt-6 text-sm text-ink-400">Loading the agents you train…</p>}><CoachContents key={session.user.id} accountId={session.user.id} jwt={session.access_token} review={searchParams?.view==='review'} recordingId={recordingId}/></Suspense>
+  <Suspense fallback={<p role="status" className="mt-6 text-reading text-ink-400">Loading the agents you train…</p>}><CoachContents key={session.user.id} accountId={session.user.id} jwt={session.access_token} review={searchParams?.view==='review'} recordingId={recordingId}/></Suspense>
  </div></main>;
 }
 async function CoachContents({jwt,review,recordingId,accountId}:{jwt:string;review:boolean;recordingId?:string;accountId:string}){
@@ -27,8 +27,8 @@ async function CoachContents({jwt,review,recordingId,accountId}:{jwt:string;revi
  const owned=feed.workflows.filter(agent=>agent.source==='generated');
  const queue=review?reviewQueueForArea(await getReviewQueue(),feed,'training'):null;
  return <>
-  {!!feed.unavailableEntries&&<p role="status" className="mb-5 text-sm text-ink-400">Some agent details couldn’t be loaded. Known agents are shown below. <RetryButton/></p>}
-  {queue?<><Link href="/training" className="mb-5 inline-block text-sm text-ink-400">← All agents you train</Link><h2 className="mb-5 text-xl">Feedback from runs</h2><ReadyForReviewList queue={queue} nameBySlug={new Map(owned.map(agent=>[agent.slug,agent.name]))} training/></>:
+  {!!feed.unavailableEntries&&<p role="status" className="mb-5 text-reading text-ink-400">Some agent details couldn’t be loaded. Known agents are shown below. <RetryButton/></p>}
+  {queue?<><Link href="/training" className="mb-5 inline-block text-secondary text-ink-400">← All agents you train</Link><h2 className="mb-5 text-xl">Feedback from runs</h2><ReadyForReviewList queue={queue} nameBySlug={new Map(owned.map(agent=>[agent.slug,agent.name]))} training/></>:
    <TrainingAgentPicker key={accountId} countsReadKey={crypto.randomUUID()} owned={owned} recordingId={recordingId} partial={!!feed.unavailableEntries||feed.workflows.length>=500} loadSummary/>}
  </>;
 }

@@ -93,26 +93,26 @@ export default function AgentReadiness({
       <div className="min-w-0">
         {blocked ? (
           <>
-            <div className="text-sm font-semibold text-ink-100">
+            <div className="text-secondary font-semibold text-ink-100">
               {isActive ? 'Activated' : 'Not ready'} — {blockingQuestions} answer{blockingQuestions === 1 ? '' : 's'} needed to run
             </div>
             {/* Say WHY, so this doesn't read as bureaucracy: these are the answers
                 the agent cannot produce a correct result without. */}
-            <p className="text-sm text-ink-300 leading-relaxed mt-0.5">
+            <p className="text-reading text-ink-300 mt-0.5">
               This agent can’t produce the right result until {blockingQuestions === 1 ? 'this is' : 'these are'} answered.
             </p>
           </>
         ) : needsKeys ? (
           <>
-            <div className="text-sm font-semibold text-ink-100">Needs a key to run</div>
-            <p className="text-sm text-ink-300 leading-relaxed mt-0.5">
+            <div className="text-secondary font-semibold text-ink-100">Needs a key to run</div>
+            <p className="text-reading text-ink-300 mt-0.5">
               Still missing: {missingServices.join(', ')}.
             </p>
           </>
         ) : (
           <>
-            <div className="text-sm font-semibold text-ink-100">Ready to run</div>
-            <p className="text-sm text-ink-300 leading-relaxed mt-0.5">
+            <div className="text-secondary font-semibold text-ink-100">Ready to run</div>
+            <p className="text-reading text-ink-300 mt-0.5">
               Everything it needs is set up
               {optionalQuestions > 0
                 ? ` — ${optionalQuestions} optional preference${optionalQuestions === 1 ? '' : 's'} you can still set.`
@@ -134,12 +134,12 @@ export default function AgentReadiness({
         <button
           type="button"
           onClick={openSetup}
-          className="btn-outline text-sm px-4 py-2 flex-none"
+          className="btn-outline text-ui px-4 py-2 flex-none"
         >
           {blocked ? `Answer ${blockingQuestions}` : 'Edit setup'}
         </button>
       ) : (
-        <Link href={setupHref||`/workflows/${encodeURIComponent(slug)}?tab=setup`} className="btn-outline text-sm px-4 py-2 flex-none">
+        <Link href={setupHref||`/workflows/${encodeURIComponent(slug)}?tab=setup`} className="btn-outline text-secondary px-4 py-2 flex-none">
           Review setup
         </Link>
       )}

@@ -93,19 +93,19 @@ function ConnectionWarningRow({ w }: { w: ConnectionWarning }) {
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-ink-100 truncate">{w.label}</span>
+          <span className="text-secondary font-medium text-ink-100 truncate">{w.label}</span>
         </div>
-        <p className="text-xs text-ink-300 mt-0.5 line-clamp-2">{note || w.reason}</p>
+        <p className="text-secondary text-ink-300 mt-0.5 line-clamp-2">{note || w.reason}</p>
       </div>
       <div className="flex items-center gap-2 flex-none">
-        {w.detected_at && !note && <span className="text-[11px] text-ink-500 mt-0.5">{rel(w.detected_at)}</span>}
+        {w.detected_at && !note && <span className="text-secondary text-ink-500 mt-0.5">{rel(w.detected_at)}</span>}
         {bridge?.connectAccount ? (
           <>
             <button
               type="button"
               onClick={signIn}
               disabled={busy !== null}
-              className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap disabled:opacity-60"
+              className="text-ui font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap disabled:opacity-60"
             >
               {busy === 'signin' ? 'Opening…' : 'Sign in'}
             </button>
@@ -113,7 +113,7 @@ function ConnectionWarningRow({ w }: { w: ConnectionWarning }) {
               type="button"
               onClick={verify}
               disabled={busy !== null}
-              className="text-xs font-medium rounded-md px-2.5 py-1 border border-ink-700 text-ink-200 hover:bg-ink-800/60 transition-colors whitespace-nowrap disabled:opacity-60"
+              className="text-ui font-medium rounded-md px-2.5 py-1 border border-ink-700 text-ink-200 hover:bg-ink-800/60 transition-colors whitespace-nowrap disabled:opacity-60"
             >
               {busy === 'verify' ? 'Checking…' : 'Verify'}
             </button>
@@ -123,7 +123,7 @@ function ConnectionWarningRow({ w }: { w: ConnectionWarning }) {
           // works via the Implexa desktop's dedicated Chrome, so point at the app.
           <Link
             href={RECONNECT_HREF}
-            className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap"
+            className="text-secondary font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap"
           >
             Open the app
           </Link>
@@ -158,9 +158,9 @@ export function ConnectionAttentionBanner({
     >
       <div className="flex items-center gap-2">
         <span className="text-base leading-none" aria-hidden="true">⚠</span>
-        <h2 className="text-sm font-semibold text-ink-50">{heading}</h2>
+        <h2 className="text-ui font-semibold text-ink-50">{heading}</h2>
       </div>
-      <p className="text-xs text-ink-300 mt-1">
+      <p className="text-reading text-ink-300 mt-1">
         Your agents run as you in the Tukido browser. These accounts are signed out or unreachable, so anything that needs them cannot run. Sign in once to fix it.
       </p>
       <ul className="mt-3 space-y-2">
@@ -169,7 +169,7 @@ export function ConnectionAttentionBanner({
             {scope === 'global' && (
               <Link
                 href={`/workflows/${w.agent_slug}`}
-                className="text-[11px] uppercase tracking-wide text-ink-400 hover:text-ink-200"
+                className="text-secondary uppercase tracking-wide text-ink-400 hover:text-ink-200"
               >
                 {w.agent_name}
               </Link>
@@ -227,14 +227,14 @@ export function ConnectionAdvisoryNote({
     >
       <div className="flex items-center gap-2">
         <span className="text-base leading-none" aria-hidden="true">ℹ</span>
-        <h2 className="text-sm font-semibold text-ink-50">{heading}</h2>
+        <h2 className="text-ui font-semibold text-ink-50">{heading}</h2>
       </div>
       {/* Conditional, because the two cases are different facts. This paragraph used to
           say "the check ran in Implexa's workspace browser" for EVERY advisory — which is
           simply untrue of a stale pin, where the check did run through an agents'-browser
           extension, just not the one selected now. Telling that user to re-check "where it
           counts" described the wrong problem. */}
-      <p className="text-xs text-ink-300 mt-1">
+      <p className="text-secondary text-ink-300 mt-1">
         {onlyStale
           ? 'These were proven through an agents’ browser extension, but not the one currently selected. Run “Check agents’ connections” from the Tukido menu bar to re-confirm them in the browser your agents use now.'
           : onlyWorkspace
@@ -243,11 +243,11 @@ export function ConnectionAdvisoryNote({
       </p>
       <ul className="mt-3 space-y-2">
         {advisories.map((a, i) => (
-          <li key={`${a.agent_slug}-${a.domain}-${i}`} className="text-xs text-ink-200">
+          <li key={`${a.agent_slug}-${a.domain}-${i}`} className="text-secondary text-ink-200">
             {scope === 'global' && (
               <Link
                 href={`/workflows/${a.agent_slug}`}
-                className="text-[11px] uppercase tracking-wide text-ink-400 hover:text-ink-200 mr-2"
+                className="text-secondary uppercase tracking-wide text-ink-400 hover:text-ink-200 mr-2"
               >
                 {a.agent_name}
               </Link>

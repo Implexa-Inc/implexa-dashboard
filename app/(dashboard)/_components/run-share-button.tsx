@@ -43,7 +43,7 @@ export default function RunShareButton({ runId }: { runId: string }) {
 
   if (url) {
     return (
-      <div className="flex items-center gap-2 text-xs flex-wrap">
+      <div className="flex items-center gap-2 text-secondary flex-wrap">
         <span className="text-ink-500">Public Run Card:</span>
         <code className="bg-ink-900 border border-ink-700 rounded px-2 py-1 text-ink-200 truncate max-w-[260px]">{url}</code>
         <button type="button" onClick={copy} className="btn-outline px-2.5 py-1">{copied ? 'Copied' : 'Copy'}</button>
@@ -59,12 +59,12 @@ export default function RunShareButton({ runId }: { runId: string }) {
         onClick={share}
         disabled={busy}
         title="Create a public, forkable Run Card for this run"
-        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400 text-ink-950 hover:bg-amber-300 text-sm font-medium px-3.5 py-1.5 transition-colors disabled:opacity-60"
+        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400 text-ink-950 hover:bg-amber-300 text-ui font-medium px-3.5 py-1.5 transition-colors disabled:opacity-60"
       >
         <ShareIcon />
         {busy ? 'Creating…' : 'Share this run'}
       </button>
-      {err && <span className="text-xs text-state-fail">{err}</span>}
+      {err && <span className="text-secondary text-state-fail">{err}</span>}
     </div>
   );
 }

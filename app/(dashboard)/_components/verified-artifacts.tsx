@@ -149,13 +149,13 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
   const renderFile=(artifact:VerifiedArtifact)=>(
             <li key={artifact.validatedPath} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm text-ink-100" title={artifact.relativePath}>{artifact.relativePath.split('/').at(-1)}</div>
-                <div className="mt-0.5 truncate text-xs text-ink-500" title={artifact.relativePath}>
+                <div className="truncate text-secondary text-ink-100" title={artifact.relativePath}>{artifact.relativePath.split('/').at(-1)}</div>
+                <div className="mt-0.5 truncate text-secondary text-ink-500" title={artifact.relativePath}>
                   {roleLabel(artifact.role)}{size(artifact.sizeBytes) ? ` · ${size(artifact.sizeBytes)}` : ''}
                 </div>
-                {progress||finished?<details className="mt-1 text-xs text-ink-500"><summary>File details</summary><p className="break-all font-mono">{artifact.relativePath}</p></details>:<div className="mt-0.5 truncate font-mono text-[10px] text-ink-600" title={artifact.relativePath}>{artifact.relativePath}</div>}
+                {progress||finished?<details className="mt-1 text-secondary text-ink-500"><summary>File details</summary><p className="break-all font-mono">{artifact.relativePath}</p></details>:<div className="mt-0.5 truncate font-mono text-micro text-ink-600" title={artifact.relativePath}>{artifact.relativePath}</div>}
               </div>
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-2 text-secondary">
                 <button type="button" onClick={() => void open(artifact)} className="rounded border border-emerald-500/40 px-2.5 py-1 text-state-ok hover:bg-emerald-500/10 text-state-ok">Open</button>
                 <button type="button" onClick={() => void reveal(artifact)} className="rounded border border-ink-700 px-2.5 py-1 text-ink-300 hover:bg-ink-800">Finder</button>
               </div>
@@ -167,8 +167,8 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
       {splitFinishedFiles&&<ul className="finished-primary-files" aria-label="Finished files">{artifacts.filter(artifact=>artifact.role==='final_output').map(renderFile)}</ul>}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink-50">{finished?(artifacts.length>finalCount?'Also made':'Your files'):progress?'Files so far':<>Files &amp; artifacts</>}</h2>
-          <p className="mt-1 text-xs text-ink-400">
+          <h2 className="text-ui font-semibold text-ink-50">{finished?(artifacts.length>finalCount?'Also made':'Your files'):progress?'Files so far':<>Files &amp; artifacts</>}</h2>
+          <p className="mt-1 text-reading text-ink-400">
             {artifacts.length
               ? finished?`${splitFinishedFiles?artifacts.length-finalCount:artifacts.length} ${((splitFinishedFiles?artifacts.length-finalCount:artifacts.length)===1)?'file':'files'} ready to open or download.`:`Checked on this Mac by Tukido · ${finalCount} final ${finalCount === 1 ? 'output' : 'outputs'} · ${artifacts.length} total`
               : progress?'Your checked files will appear here as the agent makes them.':'No verified files yet. Refresh after this run creates or validates files.'}
@@ -179,7 +179,7 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
             type="button"
             onClick={() => refresh(() => router.refresh())}
             disabled={refreshing}
-            className="rounded border border-ink-700 px-2.5 py-1 text-xs text-ink-300 hover:bg-ink-800 disabled:opacity-60"
+            className="rounded border border-ink-700 px-2.5 py-1 text-ui text-ink-300 hover:bg-ink-800 disabled:opacity-60"
           >
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
@@ -189,7 +189,7 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
               onClick={() => setExpanded((value) => !value)}
               aria-expanded={expanded}
               aria-controls="run-artifact-list"
-              className="rounded border border-emerald-500/40 px-2.5 py-1 text-xs text-state-ok hover:bg-emerald-500/10 text-state-ok"
+              className="rounded border border-emerald-500/40 px-2.5 py-1 text-ui text-state-ok hover:bg-emerald-500/10 text-state-ok"
             >
               {expanded ? 'Hide files' : `View files (${splitFinishedFiles?artifacts.length-finalCount:artifacts.length})`}
             </button>
@@ -198,14 +198,14 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
       </div>
       {sourceReconnect?.required && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5">
-          <p className="min-w-0 flex-1 text-xs leading-relaxed text-ink-300">
+          <p className="min-w-0 flex-1 text-reading text-ink-300">
             Tukido forgot the private source path after restarting. Reconnect {sourceReconnect.label || 'the original source'} to verify its exact bytes; the file stays on this Mac.
           </p>
           <button
             type="button"
             onClick={() => void reconnectSource()}
             disabled={reconnecting}
-            className="rounded border border-amber-500/45 px-3 py-1.5 text-xs font-medium text-state-needs hover:bg-amber-500/10 disabled:opacity-60 text-state-needs"
+            className="rounded border border-amber-500/45 px-3 py-1.5 text-ui font-medium text-state-needs hover:bg-amber-500/10 disabled:opacity-60 text-state-needs"
           >
             {reconnecting ? 'Verifying source…' : 'Reconnect original source'}
           </button>
@@ -216,7 +216,7 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
           {artifacts.filter(artifact=>!splitFinishedFiles||artifact.role!=='final_output').map(renderFile)}
         </ul>
       )}
-      {message && <p className="mt-2 text-xs text-ink-300" role="status">{message}</p>}
+      {message && <p className="mt-2 text-secondary text-ink-300" role="status">{message}</p>}
     </section>
   );
 }

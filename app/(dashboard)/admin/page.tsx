@@ -115,7 +115,7 @@ export default async function AdminPage() {
         <header className="mb-8 flex items-baseline justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Admin</h1>
-            <p className="text-xs text-ink-400 mt-1">
+            <p className="text-secondary text-ink-400 mt-1">
               Internal-only. Auto-refreshes every 60s.
               {metrics?.generatedAt && (
                 <> · Snapshot: <span className="text-ink-300">{new Date(metrics.generatedAt).toLocaleTimeString()}</span></>
@@ -127,7 +127,7 @@ export default async function AdminPage() {
 
         {error && (
           <div className="card !border-red-500/40 !bg-red-500/5 mb-8">
-            <p className="text-sm text-state-fail">Failed to load metrics: {error}</p>
+            <p className="text-reading text-state-fail">Failed to load metrics: {error}</p>
           </div>
         )}
 
@@ -300,7 +300,7 @@ export default async function AdminPage() {
           </>
         )}
 
-        <footer className="mt-12 text-xs text-ink-400 text-center">
+        <footer className="mt-12 text-secondary text-ink-400 text-center">
           <Link href="/skills" className="hover:underline">← back to skills</Link>
         </footer>
       </div>
@@ -321,7 +321,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function SubHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-xs uppercase tracking-wider text-ink-400 font-medium mt-4 mb-2">{children}</h3>
+    <h3 className="text-ui uppercase tracking-wider text-ink-400 font-medium mt-4 mb-2">{children}</h3>
   );
 }
 
@@ -338,7 +338,7 @@ function Stat({
   return (
     <div className={`card !p-3 border ${accentClass}`}>
       <div className="text-xl font-semibold tabular-nums">{value}</div>
-      <div className="text-[10px] text-ink-400 uppercase tracking-wide mt-0.5">{label}</div>
+      <div className="text-secondary text-ink-400 uppercase tracking-wide mt-0.5">{label}</div>
     </div>
   );
 }
@@ -349,15 +349,15 @@ function Table({
   columns: string[]; rows: string[][]; emptyText: string;
 }) {
   if (rows.length === 0) {
-    return <div className="text-xs text-ink-400 italic py-2">{emptyText}</div>;
+    return <div className="text-secondary text-ink-400 italic py-2">{emptyText}</div>;
   }
   return (
     <div className="card !p-0 overflow-x-auto">
-      <table className="w-full text-xs">
+      <table className="w-full text-secondary">
         <thead>
           <tr className="border-b border-ink-700">
             {columns.map((c) => (
-              <th key={c} className="text-left text-[10px] uppercase tracking-wider text-ink-400 font-medium px-3 py-2">
+              <th key={c} className="text-left text-secondary uppercase tracking-wider text-ink-400 font-medium px-3 py-2">
                 {c}
               </th>
             ))}
