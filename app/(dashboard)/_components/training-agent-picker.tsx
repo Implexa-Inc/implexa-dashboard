@@ -40,7 +40,7 @@ export default function TrainingAgentPicker({owned,recordingId,partial=false,loa
  const [familyFacts,setFamilyFacts]=useState<Record<string,CoachAgent>>({}),[retrying,setRetrying]=useState<Set<string>>(new Set());
  const requests=useRef(new Set<AbortController>());
  const catalogKey=JSON.stringify(owned.map(a=>[a.source,a.slug,a.workflow_id]));
- const exactAgent=(slug:string)=>{const matches=owned.filter(a=>a.source==='generated'&&a.slug===slug),id=matches[0]?.workflow_id?.toLowerCase();return matches.length===1&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id||'')&&owned.filter(a=>a.source==='generated'&&a.workflow_id?.toLowerCase()===id).length===1?{...matches[0],workflow_id:id!}:null;};
+ const exactAgent=(slug:string)=>{const matches=owned.filter(a=>a.source==='generated'&&a.slug===slug),id=typeof matches[0]?.workflow_id==='string'?matches[0].workflow_id.toLowerCase():undefined;return matches.length===1&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id||'')&&owned.filter(a=>a.source==='generated'&&typeof a.workflow_id==='string'&&a.workflow_id.toLowerCase()===id).length===1?{...matches[0],workflow_id:id!}:null;};
  useEffect(()=>{
   if(!loadSummary)return;
   if(!owned.some(a=>a.source==='generated')){setCountsLoading(false);return;}

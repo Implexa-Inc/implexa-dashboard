@@ -94,3 +94,10 @@ test('Retry counts explicitly reopens one complete summary while keeping the sam
  let reads=0;const r=await render('training-agent-picker.tsx',{owned,loadSummary:true},{fetch:(async(url:any)=>{if(!String(url).includes('/coach?'))return {ok:false};reads++;return http(reads===1?unavailable:roster);}) as typeof fetch});
  try{await flush(r);assert.equal(reads,1);assert.match(r.text(),/Count unavailable/);const names=()=>Array.from(r.document.querySelectorAll('#all-coach-agents .coach-agent-row h3')).map(n=>n.textContent);const before=names();await r.click(r.getByText('Retry counts'));await flush(r);assert.equal(reads,2);assert.deepEqual(names(),before);assert.ok(r.document.querySelector('#coach-waiting'));assert.equal(r.document.querySelectorAll('#all-coach-agents .coach-agent-row').length,2);}finally{r.cleanup();}
 });
+
+test('malformed non-string catalog IDs leave only their own rows unknown instead of crashing the roster',async()=>{
+ for(const workflow_id of [42,{},null]){
+  const r=await render('training-agent-picker.tsx',{owned:[{...owned[0],workflow_id},owned[1]],loadSummary:true},{fetch:(async(url:any)=>String(url).includes('/coach?')?http(roster):{ok:false}) as typeof fetch});
+  try{await flush(r);assert.equal(r.document.querySelectorAll('#all-coach-agents .coach-agent-row').length,2);assert.match(r.document.querySelector('#all-coach-agents .coach-agent-row')!.textContent||'',/Count unavailable/);assert.equal((r.document.querySelector('#all-coach-agents .coach-agent-row button') as HTMLButtonElement).disabled,true);assert.match(r.document.querySelectorAll('#all-coach-agents .coach-agent-row')[1].textContent||'',/No active version/);}finally{r.cleanup();}
+ }
+});
