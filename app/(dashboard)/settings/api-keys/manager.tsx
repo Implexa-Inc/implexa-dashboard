@@ -71,11 +71,11 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
       {revealedKey && (
         <div className="card !border-2 !border-brand-500 !bg-gradient-to-r !from-brand-500/10 !to-brand-500/5">
           <h3 className="font-medium text-ink-50">✨ Key created — copy it now</h3>
-          <p className="text-sm text-ink-200 mt-1">
+          <p className="text-reading text-ink-200 mt-1">
             This is the only time the full value will be shown. Save it in your password manager.
           </p>
           <div className="mt-3 flex items-center gap-2">
-            <code className="flex-1 bg-ink-950 border border-ink-700 text-ink-100 rounded px-3 py-2 text-sm font-mono break-all">{revealedKey.rawKey}</code>
+            <code className="flex-1 bg-ink-950 border border-ink-700 text-ink-100 rounded px-3 py-2 text-micro font-mono break-all">{revealedKey.rawKey}</code>
             <button
               onClick={() => { navigator.clipboard.writeText(revealedKey.rawKey); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
               className={`btn-primary whitespace-nowrap ${copied ? '!bg-success-400' : ''}`}
@@ -86,7 +86,7 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
 
           {next ? (
             <div className="mt-4 pt-4 border-t border-brand-500/30">
-              <p className="text-sm text-ink-200 mb-3">
+              <p className="text-reading text-ink-200 mb-3">
                 Copied your key? Go back to finish installing.
               </p>
               <button
@@ -99,7 +99,7 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
               </button>
             </div>
           ) : (
-            <button onClick={() => setRevealedKey(null)} className="btn-ghost mt-3 text-xs">I&apos;ve saved it — dismiss</button>
+            <button onClick={() => setRevealedKey(null)} className="btn-ghost mt-3 text-ui">I&apos;ve saved it — dismiss</button>
           )}
         </div>
       )}
@@ -108,12 +108,12 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
       <div className="card">
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="font-medium text-ink-50">Active installs</h2>
-          <span className="text-xs text-ink-400">{activeInstalls.length} connected</span>
+          <span className="text-secondary text-ink-400">{activeInstalls.length} connected</span>
         </div>
         {activeInstalls.length === 0 ? (
-          <div className="text-sm text-ink-300 leading-relaxed">
+          <div className="text-secondary text-ink-300 leading-relaxed">
             <p className="mb-2">No active installs.</p>
-            <p className="text-xs text-ink-400">
+            <p className="text-reading text-ink-400">
               Run <code className="bg-ink-800 px-1 rounded">curl -fsSL https://core.implexa.ai/install.sh | bash</code> to install Tukido — it creates the connection automatically.
             </p>
           </div>
@@ -129,7 +129,7 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
       {/* ── Revoked installs (collapsed, audit-only) ── */}
       {revokedInstalls.length > 0 && (
         <details className="card !p-0 group">
-          <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-6 py-3 select-none flex items-center gap-2 text-sm text-ink-300">
+          <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-6 py-3 select-none flex items-center gap-2 text-ui text-ink-300">
             <span className="text-ink-500 group-open:rotate-90 transition-transform inline-block">▸</span>
             <span>Revoked installs ({revokedInstalls.length})</span>
           </summary>
@@ -148,12 +148,12 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
         *   - Power users / scripted integrations
         */}
       <details className="card !p-0 group">
-        <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-6 py-3 select-none flex items-center gap-2 text-sm text-ink-300">
+        <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-6 py-3 select-none flex items-center gap-2 text-ui text-ink-300">
           <span className="text-ink-500 group-open:rotate-90 transition-transform inline-block">▸</span>
           <span>Advanced — generate a key manually</span>
         </summary>
         <div className="px-6 pb-5 pt-2 border-t border-ink-700/60">
-          <p className="text-xs text-ink-400 mb-3 leading-relaxed">
+          <p className="text-reading text-ink-400 mb-3 ">
             Most users don&apos;t need this — the install script creates keys automatically.
             Generate one manually only if you&apos;re wiring the Chat (Desktop) Custom
             Connector URL, or running a scripted integration.
@@ -170,7 +170,7 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
               {busy ? 'Creating…' : 'Generate'}
             </button>
           </div>
-          {error && <p className="text-sm text-state-fail mt-3">{error}</p>}
+          {error && <p className="text-reading text-state-fail mt-3">{error}</p>}
         </div>
       </details>
     </div>
@@ -190,7 +190,7 @@ function InstallRow({ k, onRevoke }: { k: KeyRow; onRevoke: (id: string) => void
     <li className="px-6 py-3.5 flex items-center gap-4">
       <div className="flex-1 min-w-0">
         <div className="font-medium text-ink-50 truncate">{k.name}</div>
-        <div className="text-xs text-ink-400 mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+        <div className="text-secondary text-ink-400 mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
           <span>Created {created.toLocaleDateString()}</span>
           {lastUsed && <span>Last active {timeSince(lastUsed)}</span>}
           <span className="font-mono text-ink-500">imp_live_{k.key_prefix}…</span>
@@ -199,12 +199,12 @@ function InstallRow({ k, onRevoke }: { k: KeyRow; onRevoke: (id: string) => void
       {k.status === 'active' ? (
         <button
           onClick={() => onRevoke(k.id)}
-          className="text-xs text-state-fail hover:underline whitespace-nowrap"
+          className="text-ui text-state-fail hover:underline whitespace-nowrap"
         >
           Revoke
         </button>
       ) : (
-        <span className="text-xs text-ink-500 italic">revoked</span>
+        <span className="text-secondary text-ink-500 italic">revoked</span>
       )}
     </li>
   );

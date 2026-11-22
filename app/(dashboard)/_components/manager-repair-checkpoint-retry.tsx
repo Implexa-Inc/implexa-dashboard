@@ -59,14 +59,14 @@ export function ManagerRepairCheckpointRetry({ requestId }: { requestId: string 
 
   return (
     <div className="mt-3 rounded-lg border border-violet-500/25 bg-violet-500/5 px-3 py-3">
-      <p className="text-xs text-ink-300">
+      <p className="text-secondary text-ink-300">
         {eligibility.checkpointCount === 1 ? 'An exact original editable-input checkpoint was captured' : 'Exact original editable-input checkpoints were captured'} on the required Desktop. The Desktop will verify the saved bytes again before it starts.
       </p>
       <button type="button" onClick={retry} disabled={busy}
-        className="mt-2 rounded-md bg-action-strong px-3 py-1.5 text-xs font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover disabled:cursor-not-allowed disabled:opacity-60">
+        className="mt-2 rounded-md bg-action-strong px-3 py-1.5 text-ui font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover disabled:cursor-not-allowed disabled:opacity-60">
         {busy ? 'Queuing retry…' : 'Retry from original checkpoint'}
       </button>
-      {error && <p role="alert" className="mt-2 text-xs text-state-fail">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-secondary text-state-fail">{error}</p>}
     </div>
   );
 }

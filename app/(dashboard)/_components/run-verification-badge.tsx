@@ -68,7 +68,7 @@ export function RunVerificationBadge({
   if (!status) return null;
   const spec = SPEC[status];
   if (!spec) return null; // failed + blocked_* are covered by the state badge / action surfaces
-  const pad = size === 'xs' ? 'text-[10px] px-2 py-0.5' : 'text-xs px-2.5 py-1';
+  const pad = size === 'xs' ? 'text-micro px-2 py-0.5' : 'text-secondary px-2.5 py-1';
   return (
     <span
       title={spec.tip}

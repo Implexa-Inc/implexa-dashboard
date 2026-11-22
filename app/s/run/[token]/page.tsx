@@ -58,21 +58,21 @@ export default async function RunCardPage({ params }: { params: { token: string 
       <div className="max-w-2xl mx-auto">
         <header className="flex items-center justify-between mb-6">
           <Logo />
-          <Link href="/signup" className="text-xs text-ink-400 hover:text-ink-200">Build your own →</Link>
+          <Link href="/signup" className="text-secondary text-ink-400 hover:text-ink-200">Build your own →</Link>
         </header>
 
         {/* The outcome */}
         <div className="rounded-xl border border-ink-800 bg-ink-900/40 p-5">
-          <div className="flex items-center gap-2 text-[11px] text-ink-500 mb-2">
+          <div className="flex items-center gap-2 text-secondary text-ink-500 mb-2">
             <span className="text-state-ok">●</span> Agent run
             {card.creatorName ? <span>· by {card.creatorName}</span> : null}
             {card.ranAt ? <span>· {new Date(card.ranAt).toLocaleDateString()}</span> : null}
           </div>
           <h1 className="text-xl font-semibold tracking-tight text-ink-50">{card.headline}</h1>
-          <p className="text-sm text-ink-400 mt-1">
+          <p className="text-reading text-ink-400 mt-1">
             from the <span className="font-mono text-ink-300">{agentName}</span> agent
             {pct !== null && card.grade ? (
-              <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/[0.07] px-2 py-0.5 text-[11px] text-state-ok">
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/[0.07] px-2 py-0.5 text-secondary text-state-ok">
                 ✓ delivered {pct}% · {card.grade.runs} real runs
               </span>
             ) : null}
@@ -80,10 +80,10 @@ export default async function RunCardPage({ params }: { params: { token: string 
 
           {/* What it did */}
           {card.stepsState && card.stepsState.length > 0 && (
-            <ol className="mt-4 space-y-1.5 text-sm">
+            <ol className="mt-4 space-y-1.5 text-secondary">
               {card.stepsState.map((s) => (
                 <li key={s.index} className="flex items-start gap-2 text-ink-300">
-                  <span className={s.status === 'done' ? 'text-state-ok' : 'text-ink-600'}>
+                  <span className={s.status === 'done' ? 'text-state-ok' : 'text-ink-500'}>
                     {s.status === 'done' ? '✓' : '•'}
                   </span>
                   <span>{s.label}</span>
@@ -95,28 +95,28 @@ export default async function RunCardPage({ params }: { params: { token: string 
 
         {/* The deliverable (scrubbed) */}
         <div className="mt-4 rounded-xl border border-ink-800 bg-ink-900/20 p-5">
-          <div className="text-[11px] uppercase tracking-wide text-ink-500 mb-3">What it produced</div>
+          <div className="text-secondary uppercase tracking-wide text-ink-500 mb-3">What it produced</div>
           <div className="prose prose-invert prose-sm max-w-none prose-pre:bg-ink-950 prose-pre:border prose-pre:border-ink-800">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{card.output}</ReactMarkdown>
           </div>
         </div>
 
         {/* Trust line */}
-        <p className="mt-4 text-xs text-ink-400 flex items-start gap-2">
+        <p className="mt-4 text-secondary text-ink-400 flex items-start gap-2">
           <span aria-hidden>🔒</span>
           <span>{card.trustLine}</span>
         </p>
 
         {/* The fork CTA — the loop */}
         <div className="mt-6 rounded-xl border border-brand-500/30 bg-brand-500/[0.06] p-5 text-center">
-          <p className="text-sm text-ink-200 font-medium">Want this running for you?</p>
-          <p className="text-xs text-ink-400 mt-1">
+          <p className="text-reading text-ink-200 font-medium">Want this running for you?</p>
+          <p className="text-reading text-ink-400 mt-1">
             Run this agent inside the Claude or Codex you already pay for. It never touches your credentials, and it&apos;s free to use with the tools you have.
           </p>
           <ForkRunCta skillSlug={card.skillSlug} />
         </div>
 
-        <p className="mt-6 text-center text-[11px] text-ink-600">
+        <p className="mt-6 text-center text-reading text-ink-500">
           Built and graded on real runs by Tukido · {card.viewCount} view{card.viewCount === 1 ? '' : 's'}
         </p>
       </div>

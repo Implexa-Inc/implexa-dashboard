@@ -26,10 +26,10 @@ function Item({ title, detail, href, cta, warn = false }: {
   return (
     <div className={`card flex items-center justify-between gap-3 ${warn ? 'border-amber-500/40' : ''}`}>
       <div className="min-w-0">
-        <p className="text-sm font-medium text-ink-100 truncate">{title}</p>
-        <p className={`text-xs mt-0.5 ${warn ? 'text-state-needs' : 'text-ink-500'}`}>{detail}</p>
+        <p className="text-reading font-medium text-ink-100 truncate">{title}</p>
+        <p className={`text-secondary mt-0.5 ${warn ? 'text-state-needs' : 'text-ink-500'}`}>{detail}</p>
       </div>
-      <Link href={href} className="btn-outline text-xs px-3 py-1.5 flex-none">{cta}</Link>
+      <Link href={href} className="btn-outline text-secondary px-3 py-1.5 flex-none">{cta}</Link>
     </div>
   );
 }
@@ -55,13 +55,13 @@ function AttentionCard({ item }: { item: AttentionItem }) {
   return (
     <div className="card flex items-center justify-between gap-3 border-amber-500/40">
       <div className="min-w-0">
-        <p className="text-sm font-medium text-ink-100 truncate">{who}</p>
-        <p className="text-xs mt-0.5 text-state-needs">{item.whatHappened}</p>
+        <p className="text-reading font-medium text-ink-100 truncate">{who}</p>
+        <p className="text-secondary mt-0.5 text-state-needs">{item.whatHappened}</p>
         {item.actionDetail && (
-          <p className="text-[11px] mt-1 text-ink-400">{item.actionDetail}</p>
+          <p className="text-reading mt-1 text-ink-400">{item.actionDetail}</p>
         )}
       </div>
-      <Link href={href} className="btn-outline text-xs px-3 py-1.5 flex-none">
+      <Link href={href} className="btn-outline text-secondary px-3 py-1.5 flex-none">
         {item.primaryAction.label}
       </Link>
     </div>
@@ -88,13 +88,13 @@ export default function NeedsYouStrip({
   return (
     <section className={`space-y-3 ${className}`}>
       {variant === 'home' && (
-        <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">Set up</h2>
+        <h2 className="text-ui font-semibold text-ink-300 uppercase tracking-wide">Set up</h2>
       )}
 
       {warning && (
         <p
           role="status"
-          className="text-xs text-state-needs border border-amber-500/40 rounded-md px-3 py-2"
+          className="text-secondary text-state-needs border border-amber-500/40 rounded-md px-3 py-2"
         >
           {warning}
         </p>
@@ -144,15 +144,15 @@ export default function NeedsYouStrip({
       {data.missed.map((m) => (
         <div key={`missed-${m.id}`} className="card flex items-center justify-between gap-3 border-amber-500/40">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-ink-100 truncate">{m.name}</p>
-            <p className="text-xs mt-0.5 text-state-needs">
+            <p className="text-reading font-medium text-ink-100 truncate">{m.name}</p>
+            <p className="text-reading mt-0.5 text-state-needs">
               {m.neverArmed
                 ? `Scheduled for ${m.when}, but it hasn't started running yet. Tap Start (keep the Claude app open) and it runs on its own from then on.`
                 : m.failed
                 ? 'Its schedule is marked failed. Tap Fix now and it re-runs on its own.'
                 : `Missed its schedule (${m.when}). Tap Fix now — it re-runs on its own and the result lands on Home.`}
             </p>
-            <Link href={`/workflows/${m.slug}`} className="text-[11px] text-ink-500 hover:text-ink-300 hover:underline mt-1 inline-block">
+            <Link href={`/workflows/${m.slug}`} className="text-secondary text-ink-500 hover:text-ink-300 hover:underline mt-1 inline-block">
               Open agent details
             </Link>
           </div>

@@ -24,7 +24,7 @@ export default function ProWaitlistButton({ jwt, alreadyOnWaitlist }: { jwt: str
         type="button"
         onClick={toggle}
         disabled={isPending}
-        className={`w-full rounded-md py-2 text-sm font-medium border transition-colors disabled:opacity-50 ${
+        className={`w-full rounded-md py-2 text-ui font-medium border transition-colors disabled:opacity-50 ${
           onWaitlist
             ? 'border-success-400/40 bg-success-400/10 text-success-700 dark:text-success-400 hover:bg-success-400/20'
             : 'border-brand-500 bg-brand-500 text-ink-950 hover:bg-brand-400 hover:shadow-glow'
@@ -36,9 +36,9 @@ export default function ProWaitlistButton({ jwt, alreadyOnWaitlist }: { jwt: str
             ? '✓ On the waitlist — we\'ll email you'
             : 'Join the Pro waitlist'}
       </button>
-      {error && <p className="text-xs text-state-fail mt-1.5">{error}</p>}
+      {error && <p className="text-secondary text-state-fail mt-1.5">{error}</p>}
       {!onWaitlist && (
-        <p className="text-[10px] text-ink-400 mt-1.5 text-center">
+        <p className="text-reading text-ink-400 mt-1.5 text-center">
           No charge today. We&apos;ll only email when Pro launches.
         </p>
       )}

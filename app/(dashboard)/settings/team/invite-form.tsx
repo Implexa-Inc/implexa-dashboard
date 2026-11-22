@@ -59,20 +59,20 @@ export default function InviteForm({ jwt }: { jwt: string }) {
         </button>
       </form>
 
-      {error && <p className="text-xs text-state-fail mt-2">{error}</p>}
+      {error && <p className="text-secondary text-state-fail mt-2">{error}</p>}
 
       {created && (
         <div className="card !p-3 !border-success-400/40 mt-3 bg-gradient-to-b from-ink-900 to-success-50/10">
-          <div className="text-xs font-medium text-success-700 dark:text-success-400 mb-2">
+          <div className="text-secondary font-medium text-success-700 dark:text-success-400 mb-2">
             ✓ Invite link {created.reused ? 'already exists' : 'created'} for {created.email} {created.reused ? '(reused)' : '(copied to clipboard)'}
           </div>
           <div className="flex items-center gap-2">
-            <code className="text-xs break-all flex-1 bg-ink-800 text-ink-100 rounded px-2 py-1.5 border border-success-400/20 font-mono">
+            <code className="text-micro break-all flex-1 bg-ink-800 text-ink-100 rounded px-2 py-1.5 border border-success-400/20 font-mono">
               {created.inviteUrl}
             </code>
             <button
               onClick={copy}
-              className={`text-xs px-2.5 py-1.5 rounded-md border whitespace-nowrap transition-colors ${
+              className={`text-ui px-2.5 py-1.5 rounded-md border whitespace-nowrap transition-colors ${
                 copied
                   ? 'border-success-400/50 text-success-700 dark:text-success-400 bg-success-400/10'
                   : 'border-ink-700 text-ink-300 hover:bg-ink-800 hover:text-ink-100'
@@ -81,7 +81,7 @@ export default function InviteForm({ jwt }: { jwt: string }) {
               {copied ? '✓ Copied' : 'Copy'}
             </button>
           </div>
-          <p className="text-xs text-ink-300 mt-2 leading-relaxed">
+          <p className="text-reading text-ink-300 mt-2 ">
             Send this link to {created.email}. When they sign up via this URL, they&apos;ll auto-join your org without going through the workspace picker. Link expires in 30 days.
           </p>
         </div>

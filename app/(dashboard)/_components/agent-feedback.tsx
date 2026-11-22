@@ -66,11 +66,11 @@ export default function AgentFeedback({ slug, statusUnavailable = false, reviseP
   if (done) {
     return (
       <div className="max-w-2xl w-full rounded-lg border border-success-500/30 bg-success-500/5 p-3">
-        <p className="text-xs text-success-600 dark:text-success-400 leading-relaxed">{msg}</p>
+        <p className="text-secondary text-success-600 dark:text-success-400 leading-relaxed">{msg}</p>
         <button
           type="button"
           onClick={() => { setDone(false); setOpen(false); setMsg(''); }}
-          className="mt-2 text-xs text-ink-500 hover:text-ink-300"
+          className="mt-2 text-ui text-ink-500 hover:text-ink-300"
         >
           Suggest another change
         </button>
@@ -87,8 +87,8 @@ export default function AgentFeedback({ slug, statusUnavailable = false, reviseP
           disabled={statusUnavailable || revisePending}
           title={statusUnavailable ? 'Edit status is unavailable. Reload before queueing another edit.' : revisePending ? 'An edit is already queued.' : undefined}
           className={statusUnavailable || revisePending
-            ? 'self-start text-xs text-ink-600 cursor-not-allowed underline underline-offset-2'
-            : 'self-start text-xs text-ink-400 hover:text-ink-200 underline underline-offset-2'}
+            ? 'self-start text-ui text-ink-500 cursor-not-allowed underline underline-offset-2'
+            : 'self-start text-ui text-ink-400 hover:text-ink-200 underline underline-offset-2'}
         >
           {statusUnavailable ? 'Edit status unavailable' : revisePending ? 'Edit already queued' : 'Change how this agent works →'}
         </button>
@@ -99,11 +99,11 @@ export default function AgentFeedback({ slug, statusUnavailable = false, reviseP
 
   return (
     <div className="max-w-2xl w-full rounded-lg border border-ink-700 bg-ink-900/40 p-3">
-      <p className="text-sm font-medium text-ink-100">Change how this agent works</p>
-      <p className="text-xs text-ink-400 mt-0.5 mb-2.5">
+      <p className="text-reading font-medium text-ink-100">Change how this agent works</p>
+      <p className="text-secondary text-ink-400 mt-0.5 mb-2.5">
         Applies to <span className="text-ink-200">every future run</span> — this permanently updates the agent.
       </p>
-      <label className="block text-xs text-ink-300 mb-1.5">
+      <label className="block text-ui text-ink-300 mb-1.5">
         What should this agent do differently? (e.g. &ldquo;ask which file is the raw video and let me pick it&rdquo;)
       </label>
       <textarea
@@ -113,33 +113,33 @@ export default function AgentFeedback({ slug, statusUnavailable = false, reviseP
         autoFocus
         placeholder="Describe the change…"
         disabled={statusUnavailable || revisePending}
-        className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-none"
+        className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none resize-none"
       />
       <div className="mt-2 flex items-center gap-3">
         <button
           type="button"
           onClick={send}
           disabled={!canSubmitAgentRevision({ statusUnavailable, revisionPending: revisePending, busy: sending, note: text })}
-          className={!canSubmitAgentRevision({ statusUnavailable, revisionPending: revisePending, busy: sending, note: text }) ? 'btn-outline text-xs px-3 py-1.5 opacity-50 cursor-not-allowed' : 'btn-success text-xs px-3 py-1.5'}
+          className={!canSubmitAgentRevision({ statusUnavailable, revisionPending: revisePending, busy: sending, note: text }) ? 'btn-outline text-ui px-3 py-1.5 opacity-50 cursor-not-allowed' : 'btn-success text-ui px-3 py-1.5'}
         >
           {sending ? 'Sending…' : 'Update the agent'}
         </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-xs text-ink-500 hover:text-ink-300">
+        <button type="button" onClick={() => setOpen(false)} className="text-ui text-ink-500 hover:text-ink-300">
           Cancel
         </button>
-        {msg && <span className="text-xs text-ink-300">{msg}</span>}
+        {msg && <span className="text-secondary text-ink-300">{msg}</span>}
       </div>
-      <p className="mt-2.5 text-[11px] text-ink-500 leading-relaxed">
+      <p className="mt-2.5 text-reading text-ink-500 ">
         This agent also learns automatically from each run — use this only to change it on purpose.
         To steer just one run, use the note in “Run now” instead.
       </p>
       {statusUnavailable && (
-        <p className="mt-2 text-xs text-state-needs">
+        <p className="mt-2 text-secondary text-state-needs">
           Run and edit status is unavailable. Reload before queueing another permanent change.
         </p>
       )}
       {!statusUnavailable && revisePending && (
-        <p className="mt-2 text-xs text-state-review">
+        <p className="mt-2 text-secondary text-state-review">
           An edit is already queued. Wait for it to create a new version before adding another.
         </p>
       )}

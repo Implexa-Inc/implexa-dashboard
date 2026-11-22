@@ -55,21 +55,21 @@ export default function RunStopControl({ runId, runState, cancelRequestedAt }: {
   if (!stoppable) return null;
   return (
     <section className="mb-6 rounded-lg border border-amber-500/35 bg-amber-500/[0.05] p-4" aria-label="Run cancellation">
-      <p className="text-sm text-ink-200">
+      <p className="text-reading text-ink-200">
         {ended ? 'This run has already ended. Refreshing its recorded result.'
           : pending ? 'Stop requested. Waiting for the owning executor or Desktop to confirm closure.'
             : 'You can stop this run. Files already created will be kept.'}
       </p>
       {!pending && !ended && (!confirm ? (
-        <button type="button" className="btn-outline mt-3 text-sm" onClick={() => setConfirm(true)}>Stop run</button>
+        <button type="button" className="btn-outline mt-3 text-ui" onClick={() => setConfirm(true)}>Stop run</button>
       ) : (
         <div className="mt-3">
-          <p className="text-sm text-ink-300">Stop this run and its remaining checks? Existing files will stay saved.</p>
-          <button type="button" className="btn-outline mt-3 text-sm" disabled={busy} onClick={stop}>{busy ? 'Requesting Stop…' : 'Confirm stop'}</button>
-          <button type="button" className="ml-3 text-sm" disabled={busy} onClick={() => setConfirm(false)}>Keep open</button>
+          <p className="text-reading text-ink-300">Stop this run and its remaining checks? Existing files will stay saved.</p>
+          <button type="button" className="btn-outline mt-3 text-ui" disabled={busy} onClick={stop}>{busy ? 'Requesting Stop…' : 'Confirm stop'}</button>
+          <button type="button" className="ml-3 text-ui" disabled={busy} onClick={() => setConfirm(false)}>Keep open</button>
         </div>
       ))}
-      {error && <p role="alert" className="mt-2 text-sm text-state-fail">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-reading text-state-fail">{error}</p>}
     </section>
   );
 }

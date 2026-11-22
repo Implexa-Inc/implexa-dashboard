@@ -42,16 +42,16 @@ export default async function OutcomeProductionPage({ params }: { params: { id: 
     <main className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-3xl mx-auto">
         <div className="mb-6">
-          <Link href="/work" className="text-xs text-ink-400 hover:text-ink-200 hover:underline">← Work</Link>
+          <Link href="/work" className="text-secondary text-ink-400 hover:text-ink-200 hover:underline">← Work</Link>
           <h1 className="text-2xl font-semibold tracking-tight text-ink-50 mt-2">Production</h1>
         </div>
 
         {load.status === 'unavailable' ? (
           <div role="status" aria-label="Production unavailable" className="card p-6 border-amber-500/40">
-            <p className="text-sm text-state-needs">
+            <p className="text-reading text-state-needs">
               We can’t show this production right now — this is not the same as it having stopped or finished.
             </p>
-            <p className="text-xs text-ink-500 mt-2">{load.reason}</p>
+            <p className="text-secondary text-ink-500 mt-2">{load.reason}</p>
           </div>
         ) : load.status === 'absent' ? (
           // The monitor read fine; this deployment's backend simply has no
@@ -61,7 +61,7 @@ export default async function OutcomeProductionPage({ params }: { params: { id: 
           <div className="space-y-6">
             <OutcomeProductionMonitor production={load.production} />
             <div role="status" aria-label="Agent detail unavailable" className="card p-5 border-ink-800">
-              <p className="text-sm text-ink-300">
+              <p className="text-reading text-ink-300">
                 This deployment can’t yet show the per-agent breakdown for a production. The steps, handoffs and
                 trace are unread — this is not a claim that none exist.
               </p>
@@ -100,7 +100,7 @@ export default async function OutcomeProductionPage({ params }: { params: { id: 
                 beats a silent gap between the header and the trace. */}
             {load.detail.nodes.length === 0 && (
               <div role="status" aria-label="No agents dispatched" className="card p-5">
-                <p className="text-sm text-ink-300">
+                <p className="text-reading text-ink-300">
                   No agent has been dispatched for this production yet.
                 </p>
               </div>
@@ -120,7 +120,7 @@ export default async function OutcomeProductionPage({ params }: { params: { id: 
                 receipt route", and we cannot tell which. */}
             {load.receiptStatus === 'unavailable' && (
               <div role="status" aria-label="Receipt unavailable" className="card p-5 border-amber-500/40">
-                <p className="text-sm text-state-needs">
+                <p className="text-reading text-state-needs">
                   This production has settled, but we couldn’t read its receipt. Its costs and artifacts are unread — this is not a claim that none exist.
                 </p>
               </div>

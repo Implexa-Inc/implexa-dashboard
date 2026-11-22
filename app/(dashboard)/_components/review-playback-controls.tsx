@@ -109,7 +109,7 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
     } catch { setError('Fullscreen could not open. You can keep reviewing here.'); }
   }
 
-  const buttonClass = 'playback-button rounded border border-ink-700 px-2 py-1.5 text-xs text-ink-200 hover:bg-ink-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400 disabled:opacity-40';
+  const buttonClass = 'playback-button rounded border border-ink-700 px-2 py-1.5 text-secondary text-ink-200 hover:bg-ink-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400 disabled:opacity-40';
   return (
     <div
       ref={playerRef}
@@ -140,16 +140,16 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
           <button type="button" className={buttonClass} aria-label={state.paused ? 'Play' : 'Pause'} onClick={() => void togglePlayback()}>{state.paused ? 'Play' : 'Pause'}</button>
           <button type="button" className={buttonClass} aria-label="Step back 1/30 second" title="Time step; exact source frame rate is unavailable" disabled={!state.duration} onClick={() => step(-1)}>{variant?'‹':'−1/30 s'}</button>
           <button type="button" className={buttonClass} aria-label="Step forward 1/30 second" title="Time step; exact source frame rate is unavailable" disabled={!state.duration} onClick={() => step(1)}>{variant?'›':'+1/30 s'}</button>
-          <span className="font-mono text-xs text-ink-400" title={`${formatMs(Math.round(state.time*1000))} / ${formatMs(Math.round(state.duration*1000))}`}>{(variant?formatMediaTime:formatMs)(Math.round(state.time * 1000))} / {(variant?formatMediaTime:formatMs)(Math.round(state.duration * 1000))}</span>
+          <span className="font-mono text-micro text-ink-400" title={`${formatMs(Math.round(state.time*1000))} / ${formatMs(Math.round(state.duration*1000))}`}>{(variant?formatMediaTime:formatMs)(Math.round(state.time * 1000))} / {(variant?formatMediaTime:formatMs)(Math.round(state.duration * 1000))}</span>
           <div className="playback-speeds" role="group" aria-label="Playback speed">{[.5,1,2].map(rate=><button key={rate} type="button" aria-pressed={state.rate===rate} onClick={()=>{const media=mediaRef.current;if(media){media.playbackRate=rate;setState(current=>({...current,rate}));}}}>{rate}×</button>)}</div>
           <button type="button" className={buttonClass} aria-label={state.muted ? 'Unmute' : 'Mute'} onClick={() => { const media = mediaRef.current; if (media) media.muted = !media.muted; }}>{variant?(state.muted?'Sound off':'Sound on'):(state.muted ? 'Unmute' : 'Mute')}</button>
           <label className="playback-volume">{variant&&<span>Volume</span>}<input type="range" aria-label="Volume" min={0} max={1} step={0.05} value={state.muted ? 0 : state.volume}
             className="w-20 accent-[var(--action-strong)]" onChange={(event) => { const media = mediaRef.current; if (media) { media.volume = Number(event.currentTarget.value); media.muted = false; } }} /></label>
           <button type="button" className={buttonClass} disabled={!canFullscreen} aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} onClick={() => void toggleFullscreen()}>{fullscreen ? 'Exit fullscreen' : 'Fullscreen'}</button>
           {trailingAction}
-          {state.seeking && <span role="status" className="text-xs text-ink-400">Seeking…</span>}
+          {state.seeking && <span role="status" className="text-secondary text-ink-400">Seeking…</span>}
         </div>
-        {error && <p role="alert" className="text-xs text-state-fail">{error}</p>}
+        {error && <p role="alert" className="text-secondary text-state-fail">{error}</p>}
       </div>
     </div>
   );

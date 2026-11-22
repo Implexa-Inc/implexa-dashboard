@@ -42,12 +42,12 @@ function Row({ production }: { production: Production }) {
         className="block border border-ink-800 rounded-lg px-4 py-3 hover:border-ink-600 transition-colors"
       >
         <div className="flex items-start justify-between gap-3">
-          <span className="text-sm text-ink-100 line-clamp-2">{production.goal}</span>
-          <span className={`flex-none rounded-full border px-2.5 py-0.5 text-xs font-medium ${stateClass(production.state)}`}>
+          <span className="text-secondary text-ink-100 line-clamp-2">{production.goal}</span>
+          <span className={`flex-none rounded-full border px-2.5 py-0.5 text-secondary font-medium ${stateClass(production.state)}`}>
             {STATE_LABELS[production.state] || production.state}
           </span>
         </div>
-        <span className="block text-xs text-ink-500 mt-1.5">
+        <span className="block text-secondary text-ink-500 mt-1.5">
           {production.progress.completedNodes} of {production.progress.totalNodes} steps ·{' '}
           {budget.spentCredits.toLocaleString()} credits spent
         </span>
@@ -108,10 +108,10 @@ export default function OutcomeProductionsList({ load }: { load: OutcomeProducti
   if (load.status === 'unavailable') {
     return (
       <section role="status" aria-label="Productions unavailable" className="card p-5 border-amber-500/40 mb-6">
-        <p className="text-sm text-state-needs">
+        <p className="text-reading text-state-needs">
           We can’t show your outcome productions right now — this is not the same as having none.
         </p>
-        <p className="text-xs text-ink-500 mt-1">{load.reason}</p>
+        <p className="text-secondary text-ink-500 mt-1">{load.reason}</p>
       </section>
     );
   }
@@ -133,7 +133,7 @@ export default function OutcomeProductionsList({ load }: { load: OutcomeProducti
 
   return (
     <section aria-label="Outcome productions" className="mb-6">
-      <h2 className="text-sm font-semibold text-ink-50">
+      <h2 className="text-ui font-semibold text-ink-50">
         Productions
         {counts.length > 0 && <span className="text-ink-400 font-normal"> · {counts.join(' · ')}</span>}
       </h2>

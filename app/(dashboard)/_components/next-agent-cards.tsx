@@ -139,7 +139,7 @@ export default function NextAgentCards({
         />
       )}
       <div className="mb-3">
-        <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider">Next agents to build</h2>
+        <h2 className="text-ui font-medium text-ink-300 uppercase tracking-wider">Next agents to build</h2>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {recs.map((rec) => {
@@ -152,13 +152,13 @@ export default function NextAgentCards({
                 onClick={() => dismiss(rec)}
                 aria-label="Dismiss suggestion"
                 title="Dismiss"
-                className="absolute top-3 right-3 text-ink-600 hover:text-ink-300 transition-colors text-sm leading-none"
+                className="absolute top-3 right-3 text-ink-500 hover:text-ink-300 transition-colors text-ui leading-none"
               >
                 ✕
               </button>
-              <div className="text-sm font-medium text-ink-50 pr-5">{rec.title}</div>
+              <div className="text-secondary font-medium text-ink-50 pr-5">{rec.title}</div>
               {(rec.rationale || rec.intent) && (
-                <div className="text-xs text-ink-400 mt-1.5 flex-1">
+                <div className="text-secondary text-ink-400 mt-1.5 flex-1">
                   {rec.rationale && (
                     <p className={expanded.has(rec.id) ? '' : 'line-clamp-3'}>{rec.rationale}</p>
                   )}
@@ -171,7 +171,7 @@ export default function NextAgentCards({
                     <button
                       type="button"
                       onClick={() => toggle(rec.id)}
-                      className="mt-1 text-[11px] text-ink-500 hover:text-ink-200 transition-colors"
+                      className="mt-1 text-ui text-ink-500 hover:text-ink-200 transition-colors"
                     >
                       {expanded.has(rec.id) ? 'Show less' : 'Read more'}
                     </button>
@@ -179,7 +179,7 @@ export default function NextAgentCards({
                 </div>
               )}
               {hint && (
-                <div className="text-[11px] text-ink-500 mt-2 inline-flex items-center gap-1">
+                <div className="text-secondary text-ink-500 mt-2 inline-flex items-center gap-1">
                   <span aria-hidden>🕑</span>{hint}
                 </div>
               )}
@@ -188,7 +188,7 @@ export default function NextAgentCards({
                   type="button"
                   onClick={() => build(rec)}
                   disabled={st === 'queuing' || st === 'built'}
-                  className={`text-xs font-medium rounded-md px-3 py-1.5 transition-colors ${
+                  className={`text-ui font-medium rounded-md px-3 py-1.5 transition-colors ${
                     st === 'built'
                       ? 'bg-emerald-500/15 text-state-ok'
                       : 'btn-success'
@@ -197,7 +197,7 @@ export default function NextAgentCards({
                   {st === 'queuing' ? 'Queuing…' : st === 'built' ? '✓ Building in Claude Code' : 'Build it'}
                 </button>
                 {st === 'error' && (
-                  <span className="ml-2 text-xs text-state-fail">Couldn’t queue — try again</span>
+                  <span className="ml-2 text-secondary text-state-fail">Couldn’t queue — try again</span>
                 )}
               </div>
             </div>

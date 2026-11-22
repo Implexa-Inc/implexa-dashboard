@@ -133,7 +133,7 @@ export default function RunFeedback({
 
   if (answered) {
     return (
-      <p className="text-sm text-success-700 dark:text-success-400">
+      <p className="text-reading text-success-700 dark:text-success-400">
         ✓ Thanks. {editAgent
           ? permanentEditQueued
             ? 'The permanent edit request was queued for every future run.'
@@ -157,8 +157,8 @@ export default function RunFeedback({
           already says this. */}
       {heading && (
         <div className="mb-3">
-          <span className="text-sm font-medium text-ink-100">How did this run do?</span>{' '}
-          <span className="text-xs text-ink-500">Your answers ride into the next run.</span>
+          <span className="text-secondary font-medium text-ink-100">How did this run do?</span>{' '}
+          <span className="text-secondary text-ink-500">Your answers ride into the next run.</span>
         </div>
       )}
       <div className="space-y-3">
@@ -171,7 +171,7 @@ export default function RunFeedback({
               <div className="flex items-start gap-3">
                 <span
                   aria-hidden
-                  className={`flex-none inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold tabular-nums mt-0.5 transition-colors ${
+                  className={`flex-none inline-flex items-center justify-center w-6 h-6 rounded-full text-micro font-semibold tabular-nums mt-0.5 transition-colors ${
                     qDone
                       ? 'bg-emerald-500/20 text-state-ok'
                       : 'bg-ink-800 text-ink-400'
@@ -180,7 +180,7 @@ export default function RunFeedback({
                   {qDone ? '✓' : i + 1}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <label className="block text-sm text-ink-100 leading-relaxed">{q.question}</label>
+                  <label className="block text-ui text-ink-100 leading-relaxed">{q.question}</label>
                   <div className="mt-2.5">
                     {q.kind === 'text' ? (
                       <input
@@ -188,7 +188,7 @@ export default function RunFeedback({
                         value={val}
                         onChange={(e) => setVal(e.target.value)}
                         placeholder="A short note (optional)"
-                        className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
+                        className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none"
                       />
                     ) : (
                       <div className="flex flex-wrap gap-2">
@@ -198,7 +198,7 @@ export default function RunFeedback({
                             type="button"
                             onClick={() => setVal(val === o ? '' : o)}
                             aria-pressed={val === o}
-                            className={`text-[13px] px-3.5 py-1.5 rounded-full border transition-colors ${
+                            className={`text-ui px-3.5 py-1.5 rounded-full border transition-colors ${
                               val === o
                                 ? 'border-brand-500 bg-brand-500/15 text-action-accent font-medium'
                                 : 'border-ink-700 text-ink-300 hover:border-ink-400 hover:text-ink-100'
@@ -221,7 +221,7 @@ export default function RunFeedback({
           <div className="flex items-start gap-3">
             <span
               aria-hidden
-              className={`flex-none inline-flex items-center justify-center w-6 h-6 rounded-full text-[12px] font-semibold mt-0.5 transition-colors ${
+              className={`flex-none inline-flex items-center justify-center w-6 h-6 rounded-full text-secondary font-semibold mt-0.5 transition-colors ${
                 hasFreeform
                   ? 'bg-emerald-500/20 text-state-ok'
                   : 'bg-ink-800 text-ink-400'
@@ -230,7 +230,7 @@ export default function RunFeedback({
               {hasFreeform ? '✓' : '+'}
             </span>
             <div className="min-w-0 flex-1">
-              <label className="block text-sm text-ink-100 leading-relaxed">
+              <label className="block text-ui text-ink-100 leading-relaxed">
                 Anything else?{' '}
                 <span className="text-ink-500 font-normal">in your own words (optional)</span>
               </label>
@@ -239,7 +239,7 @@ export default function RunFeedback({
                 onChange={(e) => setFreeform(e.target.value)}
                 rows={2}
                 placeholder="Tell the agent anything — what to do differently, what you liked, a new instruction…"
-                className="mt-2.5 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
+                className="mt-2.5 w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none resize-y"
               />
             </div>
           </div>
@@ -258,9 +258,9 @@ export default function RunFeedback({
             onChange={(e) => setEditAgent(e.target.checked)}
             className="mt-0.5 h-4 w-4 accent-brand-500 cursor-pointer"
           />
-          <span className="text-[13px] text-ink-200 leading-snug">
+          <span className="text-secondary text-ink-200 leading-snug">
             Also apply this to <span className="font-medium text-ink-50">future runs</span> — edit the agent so it does this every time
-            <span className="block text-[11px] text-ink-500 mt-0.5">Otherwise this only improves the next run.</span>
+            <span className="block text-secondary text-ink-500 mt-0.5">Otherwise this only improves the next run.</span>
           </span>
         </label>
       )}
@@ -272,13 +272,13 @@ export default function RunFeedback({
           disabled={!canSend}
           className={
             canSend
-              ? 'btn-success text-sm px-5 py-2'
-              : 'btn-outline text-sm px-5 py-2 opacity-50 cursor-not-allowed'
+              ? 'btn-success text-ui px-5 py-2'
+              : 'btn-outline text-ui px-5 py-2 opacity-50 cursor-not-allowed'
           }
         >
           {busy ? 'Saving…' : (editAgent ? 'Send + edit agent' : 'Send feedback')}
         </button>
-        <span className="text-xs text-ink-500">
+        <span className="text-secondary text-ink-500">
           {error ? (
             <span className="text-state-fail">{error}</span>
           ) : answeredCount === 0 && !hasFreeform ? (

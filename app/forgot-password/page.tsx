@@ -39,11 +39,11 @@ function ForgotPasswordInner() {
         <div className="w-full max-w-sm card text-center">
           <div className="text-3xl mb-3">📬</div>
           <h1 className="text-2xl font-semibold mb-2">Check your inbox</h1>
-          <p className="text-ink-500 text-sm mb-4">
+          <p className="text-ink-500 text-reading mb-4">
             If <strong>{email}</strong> matches an account, we sent a reset link.
             Click it to set a new password.
           </p>
-          <Link href="/login" className="text-xs text-action-accent hover:underline">← Back to sign in</Link>
+          <Link href="/login" className="text-secondary text-action-accent hover:underline">← Back to sign in</Link>
         </div>
       </main>
     );
@@ -54,7 +54,7 @@ function ForgotPasswordInner() {
       <div className="w-full max-w-sm">
         <div className="mb-6"><Logo height={18} /></div>
         <h1 className="text-3xl font-semibold tracking-tight mb-2 text-ink-50">Reset your password</h1>
-        <p className="text-ink-300 text-sm mb-8">
+        <p className="text-ink-300 text-reading mb-8">
           Enter your email and we&apos;ll send you a link to set a new password.
         </p>
 
@@ -70,13 +70,13 @@ function ForgotPasswordInner() {
               className="input"
               autoFocus
             />
-            {error && <p className="text-sm text-state-fail">{error}</p>}
+            {error && <p className="text-reading text-state-fail">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? 'Sending…' : 'Send reset link'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-ink-500 pt-4 mt-4 border-t border-ink-700">
+          <p className="text-center text-reading text-ink-500 pt-4 mt-4 border-t border-ink-700">
             Remembered it? <Link href="/login" className="text-action-accent hover:underline">Back to sign in</Link>
           </p>
         </div>

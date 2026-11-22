@@ -11,7 +11,7 @@ import type {TrainingDirectionScope} from '@/lib/training-local-ingress';
 
 export function TrainingDirectionLabel({scope}:{scope:TrainingDirectionScope|undefined}) {
  if (scope === undefined) return null;
- return <p className={`mt-2 text-xs ${scope === null ? 'text-state-needs' : 'text-ink-500'}`}>
+ return <p className={`mt-2 text-secondary ${scope === null ? 'text-state-needs' : 'text-ink-500'}`}>
   {scope === null ? 'Creative direction needs review' : scope.length === 0 ? 'Applies to: every creative direction' : `Applies to: ${scope[0]} runs`}
  </p>;
 }
@@ -32,16 +32,16 @@ export function TrainingAttention({cards}:{cards:TrainingAction[]}){
  const [laterActions,setLaterActions]=useState<string[]>([]);
  if(!cards.some(card=>!laterActions.includes(card.key)))return null;
  return <section aria-label="Your input needed" className="space-y-3">
-      <h2 className="text-sm font-medium text-ink-300">Your input needed</h2>
+      <h2 className="text-ui font-medium text-ink-300">Your input needed</h2>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.filter(card=>!laterActions.includes(card.key)).map(card=><article key={card.key} className="flex flex-col rounded-xl border border-ink-700 bg-ink-900/30 p-5">
-        <h3 className="font-medium">{card.title}</h3><p className="mt-2 flex-1 text-sm leading-6 text-ink-400">{card.description}</p><div className="mt-4 flex items-center justify-between gap-3"><button type="button" onClick={card.action} className="text-sm font-medium text-action-accent hover:underline">{card.label} →</button>{card.optional&&<button type="button" aria-label={`Later: ${card.title}`} onClick={()=>setLaterActions(items=>[...items,card.key])} className="text-xs text-ink-500 hover:text-ink-200">Later</button>}</div>
+        <h3 className="font-medium">{card.title}</h3><p className="mt-2 flex-1 text-reading text-ink-400">{card.description}</p><div className="mt-4 flex items-center justify-between gap-3"><button type="button" onClick={card.action} className="text-ui font-medium text-action-accent hover:underline">{card.label} →</button>{card.optional&&<button type="button" aria-label={`Later: ${card.title}`} onClick={()=>setLaterActions(items=>[...items,card.key])} className="text-ui text-ink-500 hover:text-ink-200">Later</button>}</div>
       </article>)}</div>
     </section>;
 }
 /** New bullet responses stay readable; older prose is preserved as plain text. */
 export function TrainingExplanation({text}:{text:string}){
  const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
- return lines.length>0&&lines.every(line=>line.startsWith('- '))?<ul className="list-disc space-y-2 pl-5">{lines.map((line,index)=><li key={index}>{line.slice(2)}</li>)}</ul>:<p className="whitespace-pre-wrap">{text}</p>;
+ return lines.length>0&&lines.every(line=>line.startsWith('- '))?<ul className="list-disc space-y-2 pl-5">{lines.map((line,index)=><li key={index}>{line.slice(2)}</li>)}</ul>:<p className="text-reading whitespace-pre-wrap">{text}</p>;
 }
 /** Applicability is labelled by the card, not repeated inside its saved sentence. */
 export function trainingApplicability(text:string){return text.replace(/^(?:applies\s+when\s*:?\s*)+/i,'');}
@@ -59,8 +59,8 @@ export function TrainingInfo({label,children}:{label:string;children:ReactNode})
   return()=>{window.removeEventListener('resize',place);window.removeEventListener('scroll',place,true);};
  },[open]);
  return <span className="relative inline-flex align-middle" onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} onKeyDown={e=>{if(e.key==='Escape'&&open){e.stopPropagation();setPinned(false);setHover(false);}}}>
-  <button ref={button} type="button" aria-label={label} aria-expanded={open} aria-controls={id} onClick={()=>setPinned(!pinned)} onBlur={e=>{if(!e.currentTarget.parentElement?.contains(e.relatedTarget as Node))setPinned(false);}} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs text-ink-500 hover:text-ink-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">ⓘ</button>
-  <span ref={tooltip} id={id} role="tooltip" hidden={!open} style={position} className="fixed z-50 w-64 max-w-[75vw] rounded-xl border border-ink-700 bg-ink-900 p-4 text-left text-xs font-normal leading-5 text-ink-300 shadow-xl">{children}</span>
+  <button ref={button} type="button" aria-label={label} aria-expanded={open} aria-controls={id} onClick={()=>setPinned(!pinned)} onBlur={e=>{if(!e.currentTarget.parentElement?.contains(e.relatedTarget as Node))setPinned(false);}} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-ui text-ink-500 hover:text-ink-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">ⓘ</button>
+  <span ref={tooltip} id={id} role="tooltip" hidden={!open} style={position} className="fixed z-50 w-64 max-w-[75vw] rounded-xl border border-ink-700 bg-ink-900 p-4 text-left text-secondary font-normal leading-5 text-ink-300 shadow-xl">{children}</span>
  </span>;
 }
 
@@ -117,25 +117,25 @@ export function TrainingImage({token,recordId,recordDigest,frameSha256,alt,enabl
 /** One source picker. Existing Training, recorder and Review Room still own each action. */
 export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,actions,onChat,chatExpanded=false,chatDisabled=false,onSelectRun,selectedRunId,sourceActive=false}:{slug:string;lastRunId?:string|null;runs?:TrainingRun[];runsUnavailable?:boolean;actions?:ReactNode;onChat?:()=>void;chatExpanded?:boolean;chatDisabled?:boolean;onSelectRun?:(run:TrainingRun)=>void;selectedRunId?:string|null;sourceActive?:boolean}){
  return <section className="space-y-4 py-3" aria-label="Teach this agent">
-  <div className="border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Show it</h3><p className="mt-2 text-sm text-ink-400">Point at the screen and talk it through.</p><div className="training-best-for"><span>How to use a tool</span><span>A detailed step</span><span>A judgment call</span></div></div>
+  <div className="border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Show it</h3><p className="mt-2 text-reading text-ink-400">Point at the screen and talk it through.</p><div className="training-best-for"><span>How to use a tool</span><span>A detailed step</span><span>A judgment call</span></div></div>
   <div id="training-recent-results"  className="rounded-xl border border-ink-800 bg-ink-900/20 p-4">
-   {<><div className="mb-3 flex items-baseline justify-between gap-4"><h2 className="text-sm font-medium text-ink-200">Mark up a result</h2><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/training/${encodeURIComponent(slug)}/runs`}>All runs →</Link></div>
+   {<><div className="mb-3 flex items-baseline justify-between gap-4"><h2 className="text-ui font-medium text-ink-200">Mark up a result</h2><Link className="text-secondary text-ink-400 hover:text-ink-100" href={`/training/${encodeURIComponent(slug)}/runs`}>All runs →</Link></div>
    {runs.length?<div className="flex snap-x gap-3 overflow-x-auto pb-1">{runs.map((run,index)=>{
     const content=<>
-     {run.artifact?<RunImage artifact={run.artifact}/>:<span className="flex aspect-video items-center justify-center rounded-lg bg-ink-900 text-xs text-ink-500">No preview</span>}
-     <span className="flex items-baseline justify-between gap-2 text-xs"><span>{index===0?'Latest result':`Result ${index+1}`}</span><span className="text-ink-500">{run.status}</span></span>
-     <time dateTime={run.date} className="block text-[11px] text-ink-500">{new Date(run.date).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}</time>
+     {run.artifact?<RunImage artifact={run.artifact}/>:<span className="flex aspect-video items-center justify-center rounded-lg bg-ink-900 text-secondary text-ink-500">No preview</span>}
+     <span className="flex items-baseline justify-between gap-2 text-secondary"><span>{index===0?'Latest result':`Result ${index+1}`}</span><span className="text-ink-500">{run.status}</span></span>
+     <time dateTime={run.date} className="block text-secondary text-ink-500">{new Date(run.date).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}</time>
     </>;
     const className=`w-40 shrink-0 snap-start space-y-2 rounded-xl p-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 sm:w-44 ${selectedRunId===run.id?'ring-1 ring-brand-500':'hover:bg-ink-800/30'}`;
     return onSelectRun?<button key={run.id} type="button" aria-pressed={selectedRunId===run.id} aria-label={`Teach from ${index===0?'latest result':`result ${index+1}`}`} className={className} onClick={()=>onSelectRun(run)}>{content}</button>:<Link key={run.id} href={`/training/${encodeURIComponent(slug)}/review/${encodeURIComponent(run.id)}`} className={className}>{content}</Link>;
-   })}</div>:<p className="text-sm text-ink-500">{runsUnavailable?'Recent results couldn’t load. ':lastRunId?'Open your latest result to give feedback. ':'Record or upload an example, or run your agent to review its work. '}{lastRunId&&<Link href={`/training/${encodeURIComponent(slug)}/review/${encodeURIComponent(lastRunId)}`} className="text-ink-300 underline underline-offset-4">Latest result →</Link>}</p>}</>}
+   })}</div>:<p className="text-reading text-ink-500">{runsUnavailable?'Recent results couldn’t load. ':lastRunId?'Open your latest result to give feedback. ':'Record or upload an example, or run your agent to review its work. '}{lastRunId&&<Link href={`/training/${encodeURIComponent(slug)}/review/${encodeURIComponent(lastRunId)}`} className="text-ink-300 underline underline-offset-4">Latest result →</Link>}</p>}</>}
   </div>
-  <div className="space-y-3 border-t border-ink-800 pt-6"><h3 className="text-sm font-medium">Or just record your screen while you work</h3><div className="flex flex-wrap items-center gap-2" aria-label="Choose a training source">{actions}</div></div>
+  <div className="space-y-3 border-t border-ink-800 pt-6"><h3 className="text-ui font-medium">Or just record your screen while you work</h3><div className="flex flex-wrap items-center gap-2" aria-label="Choose a training source">{actions}</div></div>
  </section>;
 }
 
 export function TrainingDetails({title,children,open=false}:{title:string;children:ReactNode;open?:boolean}){
- return <details open={open} className="rounded-xl border border-ink-800 bg-ink-900/20"><summary className="cursor-pointer px-4 py-3 text-sm font-medium text-ink-200">{title}</summary><div className="space-y-5 border-t border-ink-800 p-4 text-sm leading-6 [&_button]:rounded-md [&_button]:border [&_button]:border-ink-700 [&_button]:px-3 [&_button]:py-1.5 [&_button]:text-xs [&_button:disabled]:opacity-40">{children}</div></details>;
+ return <details open={open} className="rounded-xl border border-ink-800 bg-ink-900/20"><summary className="cursor-pointer px-4 py-3 text-ui font-medium text-ink-200">{title}</summary><div className="space-y-5 border-t border-ink-800 p-4 text-secondary leading-6 [&_button]:rounded-md [&_button]:border [&_button]:border-ink-700 [&_button]:px-3 [&_button]:py-1.5 [&_button]:text-secondary [&_button:disabled]:opacity-40">{children}</div></details>;
 }
 
 export function revealTrainingElement(id:string){

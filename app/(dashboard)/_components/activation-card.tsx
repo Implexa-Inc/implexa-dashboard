@@ -40,7 +40,7 @@ const TIER_PRESENTATION: Record<PermissionTier, { label: string; classes: string
 function StatusDot({ status }: { status: ActivationStep['status'] }) {
   if (status === 'done' || status === 'auto') {
     return (
-      <span className="flex-none mt-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/15 text-state-ok text-xs">
+      <span className="flex-none mt-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/15 text-state-ok text-secondary">
         ✓
       </span>
     );
@@ -68,15 +68,15 @@ function PermissionList({ items, optIns, onToggle, savingGroup }: {
           >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-ink-100">{it.label}</span>
-                <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${spec.classes}`}>
+                <span className="text-secondary text-ink-100">{it.label}</span>
+                <span className={`text-secondary uppercase tracking-wide px-1.5 py-0.5 rounded border ${spec.classes}`}>
                   {required ? 'Required' : it.optional ? 'Optional' : spec.label}
                 </span>
-                {it.optional && <span className="text-[10px] text-ink-500">{it.group === 'send' ? 'autopost only' : 'optional'}</span>}
+                {it.optional && <span className="text-secondary text-ink-500">{it.group === 'send' ? 'autopost only' : 'optional'}</span>}
               </div>
-              {it.detail && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{it.detail}</p>}
+              {it.detail && <p className="text-secondary text-ink-500 mt-0.5 leading-snug">{it.detail}</p>}
               {required && (
-                <p className="text-[11px] text-state-needs mt-1 leading-snug">
+                <p className="text-reading text-state-needs mt-1 ">
                   Grant once to this agent. It stays available for its future runs until you revoke it.
                 </p>
               )}
@@ -87,7 +87,7 @@ function PermissionList({ items, optIns, onToggle, savingGroup }: {
                 data-permission-action={it.group}
                 disabled={savingGroup === it.group}
                 onClick={() => onToggle(it.group, !optIns[it.group])}
-                className={`flex-none text-xs font-medium rounded-md px-2.5 py-1 transition-colors disabled:opacity-60 ${
+                className={`flex-none text-ui font-medium rounded-md px-2.5 py-1 transition-colors disabled:opacity-60 ${
                   optIns[it.group]
                     ? 'bg-amber-500/20 text-state-needs'
                     : 'border border-ink-700 text-ink-400 hover:text-ink-200'
@@ -96,7 +96,7 @@ function PermissionList({ items, optIns, onToggle, savingGroup }: {
                 {savingGroup === it.group ? 'Saving…' : optIns[it.group] ? 'Allowed for this agent' : required ? 'Allow for this agent' : 'Allow'}
               </button>
             ) : (
-              <span className="flex-none text-[11px] text-state-ok mt-1">granted</span>
+              <span className="flex-none text-secondary text-state-ok mt-1">granted</span>
             )}
           </li>
         );
@@ -183,21 +183,21 @@ function ConnectionRow({ item, onChanged, workedAround, onToggleWorkAround, slug
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-ink-100">{item.label || domain}</span>
+            <span className="text-secondary text-ink-100">{item.label || domain}</span>
             {reachable
-              ? <span className="text-[11px] text-state-ok">connected{item.identity ? ` as ${item.identity}` : ''}</span>
+              ? <span className="text-secondary text-state-ok">connected{item.identity ? ` as ${item.identity}` : ''}</span>
               : workedAround
-                ? <span className="text-[11px] text-state-ok">Claude will work around it</span>
-                : <span className="text-[11px] text-state-needs">not connected</span>}
+                ? <span className="text-secondary text-state-ok">Claude will work around it</span>
+                : <span className="text-secondary text-state-needs">not connected</span>}
           </div>
-          {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
+          {note && <p className="text-secondary text-ink-500 mt-0.5 leading-snug">{note}</p>}
         </div>
         {!reachable && bridge?.connectAccount && (
           <div className="flex-none flex items-center gap-1.5">
-            <button type="button" onClick={signIn} disabled={busy !== null} className="btn-outline text-xs px-2.5 py-1">
+            <button type="button" onClick={signIn} disabled={busy !== null} className="btn-outline text-ui px-2.5 py-1">
               {busy === 'signin' ? 'Opening…' : 'Sign in'}
             </button>
-            <button type="button" onClick={verify} disabled={busy !== null} className="btn-outline text-xs px-2.5 py-1">
+            <button type="button" onClick={verify} disabled={busy !== null} className="btn-outline text-ui px-2.5 py-1">
               {busy === 'verify' ? 'Checking…' : 'Verify'}
             </button>
           </div>
@@ -206,7 +206,7 @@ function ConnectionRow({ item, onChanged, workedAround, onToggleWorkAround, slug
       {/* The escape hatch — when you don't have the sign-in, let Claude route around
           it. Ticking this satisfies the connection so "Turn it on" goes green. */}
       {!reachable && (
-        <label className="mt-1.5 flex items-start gap-2 text-xs text-ink-300 cursor-pointer select-none">
+        <label className="mt-1.5 flex items-start gap-2 text-ui text-ink-300 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={workedAround}
@@ -215,7 +215,7 @@ function ConnectionRow({ item, onChanged, workedAround, onToggleWorkAround, slug
           />
           <span>
             Don&apos;t have access? <span className="text-ink-100">Let Claude figure out an alternative</span>
-            <span className="block text-[11px] text-ink-500">It&apos;ll try another way (read the public site, web search) and only ask if it truly can&apos;t.</span>
+            <span className="block text-secondary text-ink-500">It&apos;ll try another way (read the public site, web search) and only ask if it truly can&apos;t.</span>
           </span>
         </label>
       )}
@@ -227,11 +227,11 @@ function ConnectionRow({ item, onChanged, workedAround, onToggleWorkAround, slug
             type="button"
             onClick={removePermanently}
             disabled={waiving}
-            className="text-[11px] text-ink-500 hover:text-ink-200 underline-offset-2 hover:underline disabled:opacity-60"
+            className="text-ui text-ink-500 hover:text-ink-200 underline-offset-2 hover:underline disabled:opacity-60"
           >
             {waiving ? 'Removing…' : 'This isn’t a sign-in this agent needs — remove it'}
           </button>
-          {waiveNote && <p className="text-[11px] text-state-needs mt-0.5">{waiveNote}</p>}
+          {waiveNote && <p className="text-reading text-state-needs mt-0.5">{waiveNote}</p>}
         </div>
       )}
     </li>
@@ -268,14 +268,14 @@ function AgentMacSetup({ target, onReady }: { target: AgentSetupTarget | null; o
   const unavailable = state?.ok === false || state?.routeResolved === false;
   return <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-ink-800 pb-3">
     <div>
-      <p className="text-sm text-ink-200">{ready ? '✓ Mac access ready' : unavailable ? 'Mac access not verified' : state ? 'Mac access needs setup' : 'Checking Mac access…'}</p>
-      {state?.ok && !ready && <p className="mt-1 text-xs text-ink-400">{state.routeResolved === false ? 'The browser route is checked before execution. Saved browser access can be reviewed here.' : 'Review only the missing permissions in Set Up.'}</p>}
-      {state?.ok === false && <p className="mt-1 text-xs text-ink-400">{state.reason === 'setup_context_missing' ? 'Install or update this Agent, then refresh. If it is already installed, setup is waiting for the matching service update.' : state.reason === 'account_mismatch' ? 'Sign in to the same account in Desktop and this page.' : state.reason === 'agent_setup_changed' ? 'This Agent was updated. Refresh the page and reopen Set Up.' : 'Could not check this Mac. Reconnect Desktop and try again.'}</p>}
-      {error && <p role="alert" className="mt-1 text-xs text-state-needs">{error}</p>}
+      <p className="text-reading text-ink-200">{ready ? '✓ Mac access ready' : unavailable ? 'Mac access not verified' : state ? 'Mac access needs setup' : 'Checking Mac access…'}</p>
+      {state?.ok && !ready && <p className="mt-1 text-secondary text-ink-400">{state.routeResolved === false ? 'The browser route is checked before execution. Saved browser access can be reviewed here.' : 'Review only the missing permissions in Set Up.'}</p>}
+      {state?.ok === false && <p className="mt-1 text-secondary text-ink-400">{state.reason === 'setup_context_missing' ? 'Install or update this Agent, then refresh. If it is already installed, setup is waiting for the matching service update.' : state.reason === 'account_mismatch' ? 'Sign in to the same account in Desktop and this page.' : state.reason === 'agent_setup_changed' ? 'This Agent was updated. Refresh the page and reopen Set Up.' : 'Could not check this Mac. Reconnect Desktop and try again.'}</p>}
+      {error && <p role="alert" className="mt-1 text-secondary text-state-needs">{error}</p>}
     </div>
     <div className="flex items-center gap-2">
     <button type="button" data-computer-use-setup disabled={!target || !bridge?.openAgentSetup || opening}
-      className="btn-outline text-xs px-3 py-1.5 disabled:opacity-50" onClick={async () => {
+      className="btn-outline text-ui px-3 py-1.5 disabled:opacity-50" onClick={async () => {
         if (!target || !bridge?.openAgentSetup) return;
         setOpening(true); setError(null);
         try { const result = await bridge.openAgentSetup(target); if (!result.ok) setError('Could not open this Agent’s setup. Refresh and try again.'); }
@@ -283,7 +283,7 @@ function AgentMacSetup({ target, onReady }: { target: AgentSetupTarget | null; o
         finally { setOpening(false); }
       }}>{opening ? 'Opening…' : ready ? 'View access' : 'Set Up'}</button>
     <button type="button" disabled={!target || !bridge?.agentSetupReadiness || !state || opening}
-      className="btn-outline text-xs px-3 py-1.5 disabled:opacity-50"
+      className="btn-outline text-ui px-3 py-1.5 disabled:opacity-50"
       onClick={() => setCheckIndex((value) => value + 1)}>Test setup</button>
     </div>
   </div>;
@@ -315,7 +315,7 @@ function ConnectionsList({ items, onChanged, workedAround, onToggleWorkAround, s
         })}
       </ul>
       {!bridge?.connectAccount && (
-        <p className="text-xs text-ink-500 mt-2 leading-snug">
+        <p className="text-reading text-ink-500 mt-2 ">
           Open this page in the Tukido app to sign in with one click — the app keeps a dedicated browser workspace your agents use.
         </p>
       )}
@@ -356,15 +356,15 @@ function ToolRow({ item }: { item: ToolItem }) {
     <li className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-ink-100">{item.name}</span>
-          {state === 'installed' && <span className="text-[11px] text-state-ok">installed</span>}
-          {(state === 'missing' || state === 'failed') && <span className="text-[11px] text-state-needs">not installed</span>}
-          {state === 'checking' && <span className="text-[11px] text-ink-500">checking…</span>}
+          <span className="text-secondary text-ink-100">{item.name}</span>
+          {state === 'installed' && <span className="text-secondary text-state-ok">installed</span>}
+          {(state === 'missing' || state === 'failed') && <span className="text-secondary text-state-needs">not installed</span>}
+          {state === 'checking' && <span className="text-secondary text-ink-500">checking…</span>}
         </div>
-        {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
+        {note && <p className="text-secondary text-ink-500 mt-0.5 leading-snug">{note}</p>}
       </div>
       {(state === 'missing' || state === 'failed' || state === 'installing') && canInstall && (
-        <button type="button" onClick={install} disabled={state === 'installing'} className="btn-outline text-xs px-2.5 py-1 flex-none">
+        <button type="button" onClick={install} disabled={state === 'installing'} className="btn-outline text-ui px-2.5 py-1 flex-none">
           {state === 'installing' ? 'Installing…' : state === 'failed' ? 'Retry' : 'Install'}
         </button>
       )}
@@ -380,7 +380,7 @@ function ToolsList({ items }: { items: ToolItem[] }) {
         {items.map((it) => <ToolRow key={it.key} item={it} />)}
       </ul>
       {!bridge?.installTool && (
-        <p className="text-xs text-ink-500 mt-2 leading-snug">
+        <p className="text-reading text-ink-500 mt-2 ">
           The agent installs anything missing the first time it runs. In the Tukido app you can install these ahead of time with one click.
         </p>
       )}
@@ -497,9 +497,9 @@ export function SchedulePicker({ slug, onSaved, initial }: { slug: string; onSav
     }
   }
 
-  const selectCls = 'bg-ink-900 border border-ink-700 rounded-md text-sm px-2 py-1 text-ink-100';
+  const selectCls = 'bg-ink-900 border border-ink-700 rounded-md text-ui px-2 py-1 text-ink-100';
   const tabCls = (on: boolean) =>
-    `text-xs font-medium rounded-md px-2.5 py-1 transition-colors ${
+    `text-secondary font-medium rounded-md px-2.5 py-1 transition-colors ${
       on ? 'bg-ink-100 text-ink-900' : 'border border-ink-700 text-ink-400 hover:text-ink-200'
     }`;
 
@@ -525,14 +525,14 @@ export function SchedulePicker({ slug, onSaved, initial }: { slug: string; onSav
           )}
           {freq !== 'hour' && (
             <>
-              <span className="text-sm text-ink-500">at</span>
+              <span className="text-secondary text-ink-500">at</span>
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={selectCls} />
             </>
           )}
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-ink-500">Run once on</span>
+          <span className="text-secondary text-ink-500">Run once on</span>
           <input
             type="datetime-local"
             value={fireAtLocal}
@@ -544,17 +544,17 @@ export function SchedulePicker({ slug, onSaved, initial }: { slug: string; onSav
       )}
 
       <div className="flex items-center gap-3">
-        <button type="button" onClick={save} disabled={saving} className={saving ? 'btn-outline text-xs px-3 py-1.5 opacity-50' : 'btn-success text-xs px-3 py-1.5'}>
+        <button type="button" onClick={save} disabled={saving} className={saving ? 'btn-outline text-ui px-3 py-1.5 opacity-50' : 'btn-success text-ui px-3 py-1.5'}>
           {saving ? 'Saving…' : 'Save schedule'}
         </button>
-        <span className="text-xs text-ink-500">
+        <span className="text-secondary text-ink-500">
           {mode === 'once'
             ? (fireAtLocal ? `Runs once on ${humanizeLocal(fireAtLocal)}, then turns off.` : 'Pick when it should run once.')
             : `Runs ${buildNl()}.`}
         </span>
-        {err && <span className="text-xs text-state-fail">{err}</span>}
+        {err && <span className="text-secondary text-state-fail">{err}</span>}
       </div>
-      <p className="text-[11px] text-ink-600 leading-snug">Condition triggers (“only when a new file appears”) are coming next.</p>
+      <p className="text-reading text-ink-500 ">Condition triggers (“only when a new file appears”) are coming next.</p>
     </div>
   );
 }
@@ -581,32 +581,32 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
   // Resolve the CTA target/behavior per step.
   let cta: React.ReactNode = null;
   if (step.id === 'schedule' && step.data?.reason === 'training_served_snapshot_version_mismatch' && !step.data?.requiresScheduleConfiguration) {
-    cta = <a href={`/training/${encodeURIComponent(slug)}`} className="btn-outline text-xs px-2.5 py-1">Review Training</a>;
+    cta = <a href={`/training/${encodeURIComponent(slug)}`} className="btn-outline text-secondary px-2.5 py-1">Review Training</a>;
   } else if (step.id === 'schedule') {
     // Inline picker (the fix): toggle a panel, never navigate away. Available
     // when todo ("Set schedule") and when done ("Change").
     const label = effectiveStatus === 'done' ? 'Change' : (step.cta || 'Set schedule');
-    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : label}</button>;
+    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : label}</button>;
   } else if (step.id === 'tools' && ((step.data?.items ?? []) as unknown as ToolItem[]).length > 0) {
     // Always offered (status is 'auto'): in the app each tool gets a one-click
     // Install; on the web it explains the first-run auto-install.
-    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : 'View'}</button>;
+    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : 'View'}</button>;
   } else if (step.id === 'permissions' && ((step.data?.items ?? []) as PermissionItem[]).length > 0) {
     // Always expandable (even when fully granted) so the user can see what's
     // automatic vs. explicitly granted to this agent, and revoke it.
-    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : (step.cta || 'View')}</button>;
+    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : (step.cta || 'View')}</button>;
 
   } else if (step.id === 'api-keys' && ((step.data?.items ?? []) as unknown as KeyItem[]).length > 0) {
     // Expandable whether todo (Add key) or done (View) — the paste/create flow is
     // inline, never a navigation. Soft gate: this never blocks Activate.
-    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : (step.cta || 'Add key')}</button>;
+    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : (step.cta || 'Add key')}</button>;
   } else if (isTodo && step.cta) {
     if (step.id === 'connections') {
       // Inline connect (no navigation): sign in + verify right here, for exactly
       // the accounts THIS agent needs.
-      cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : step.cta}</button>;
+      cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : step.cta}</button>;
     } else {
-      cta = <button type="button" className="btn-outline text-xs px-2.5 py-1">{step.cta}</button>;
+      cta = <button type="button" className="btn-outline text-ui px-2.5 py-1">{step.cta}</button>;
     }
   }
 
@@ -619,10 +619,10 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
           <StatusDot status={effectiveStatus} />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-ink-100">{step.title}</span>
-              {effectiveStatus === 'auto' && <span className="text-[10px] uppercase tracking-wide text-ink-500">auto</span>}
+              <span className="text-secondary font-medium text-ink-100">{step.title}</span>
+              {effectiveStatus === 'auto' && <span className="text-secondary uppercase tracking-wide text-ink-500">auto</span>}
             </div>
-            <p className="text-xs text-ink-400 mt-0.5 leading-snug">{step.detail}</p>
+            <p className="text-secondary text-ink-400 mt-0.5 leading-snug">{step.detail}</p>
           </div>
         </div>
         {cta && <div className="flex-none">{cta}</div>}
@@ -631,7 +631,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
         <>
           <PermissionList items={items} optIns={optIns} onToggle={onToggleOptIn} savingGroup={savingGroup} />
           {permissionNote && (
-            <p className="mt-2 text-[11px] text-state-ok leading-snug">{permissionNote}</p>
+            <p className="mt-2 text-reading text-state-ok ">{permissionNote}</p>
           )}
         </>
       )}
@@ -922,37 +922,37 @@ export function ActivationCard({
             {setupSurface ? 'Required setup' : checklist.name}
           </h2>
           {setupSurface ? (
-            <p className="text-sm text-ink-400 mt-1 leading-snug">
+            <p className="text-reading text-ink-400 mt-1 ">
               This agent is ready once the required items are done.
             </p>
           ) : checklist.summary ? (
-            <p className="text-sm text-ink-400 mt-1 leading-snug">{checklist.summary}</p>
+            <p className="text-reading text-ink-400 mt-1 ">{checklist.summary}</p>
           ) : null}
           {checklist.requiresLocal && (
-            <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-ink-400">
+            <p className="mt-2 inline-flex items-center gap-1.5 text-reading text-ink-400">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-500 flex-none" aria-hidden />
               Runs on your computer, in the Tukido app (not on a server).
             </p>
           )}
         </div>
-        {!setupSurface && <span className={`flex-none text-xs font-medium rounded-full px-2.5 py-1 ${badge.classes}`}>{badge.label}</span>}
+        {!setupSurface && <span className={`flex-none text-secondary font-medium rounded-full px-2.5 py-1 ${badge.classes}`}>{badge.label}</span>}
       </div>
 
       {!setupSurface && checklist.state !== 'active' && (
-        <p className="text-xs text-ink-500 mb-1">
+        <p className="text-secondary text-ink-500 mb-1">
           {checklist.stepsLeft === 0 ? 'Ready to switch on.' : `${checklist.stepsLeft} step${checklist.stepsLeft === 1 ? '' : 's'} left`}
         </p>
       )}
 
       {/* Guided reassurance for novice/beginner: take the fear out of the steps. */}
       {!setupSurface && guided && checklist.state !== 'active' && (
-        <p className="text-xs text-ink-300 mb-2 rounded-md bg-brand-500/10 border border-brand-500/20 px-3 py-2 leading-relaxed">
+        <p className="text-reading text-ink-300 mb-2 rounded-md bg-brand-500/10 border border-brand-500/20 px-3 py-2 ">
           Don&apos;t worry about the details below; they&apos;re here if you want them. When the steps are green, hit <span className="font-medium text-ink-100">Turn it on</span> and your agent is live.
         </p>
       )}
 
       {showMacSetup && <AgentMacSetup target={setupTarget} onReady={onMacAccessReady} />}
-      {setupSurface && setupTarget?.requiredRouteClass === 'browser' && <details className="text-xs text-ink-500">
+      {setupSurface && setupTarget?.requiredRouteClass === 'browser' && <details className="text-secondary text-ink-500">
         <summary>Advanced beta browser diagnostics</summary>
         <ManagedBrowserOwnerDeclaration key={setupTargetKey}
           target={{ accountId: setupTarget.accountId, slug: setupTarget.slug, versionId: setupTarget.versionId }} />
@@ -976,7 +976,7 @@ export function ActivationCard({
         ))}
       </ul>
 
-      {setupSurface&&checklist.steps.some(step=>step.id==='notifications')&&<><h3 className="mt-6 mb-2 text-sm font-medium">Optional</h3><ul>{checklist.steps.filter(step=>step.id==='notifications').map(step=><StepRow key={step.id} step={step} slug={checklist.slug} optIns={optIns} onToggleOptIn={toggleOptIn} onChanged={()=>router.refresh()} savingGroup={savingGroup} permissionNote={localGrantNote} workedAround={workedAround} onToggleWorkAround={toggleWorkAround}/>)}</ul></>}
+      {setupSurface&&checklist.steps.some(step=>step.id==='notifications')&&<><h3 className="mt-6 mb-2 text-ui font-medium">Optional</h3><ul>{checklist.steps.filter(step=>step.id==='notifications').map(step=><StepRow key={step.id} step={step} slug={checklist.slug} optIns={optIns} onToggleOptIn={toggleOptIn} onChanged={()=>router.refresh()} savingGroup={savingGroup} permissionNote={localGrantNote} workedAround={workedAround} onToggleWorkAround={toggleWorkAround}/>)}</ul></>}
 
       {/* Optional quality layer at activation, where the user is deciding how
           this agent should run. It never blocks activation. The same control also
@@ -1005,22 +1005,22 @@ export function ActivationCard({
       <CapabilityGapsNotice gaps={checklist.capabilityGaps} />
 
       <div className="mt-5 flex items-start gap-3">
-        {setupSurface&&versionedSetup&&!isActive?<div role="status" className="text-sm text-ink-400">{activating?'Completing setup…':error?<><p className="text-state-fail">{error}</p><button type="button" className="btn-outline mt-3" disabled={!automaticReady} onClick={()=>{setError(null);setCompletionRetry(n=>n+1);}}>Try again</button></>:setupBlockedReason?setupBlockedReason:!boundSetupVersion?'The agent changed. Reload Setup.':statusUnavailable||checklist.setupReadAvailable!==true?'Setup status could not be checked. Reload to try again.':revisePending?'Setup will finish after the pending edit is ready.':'Complete the required items above.'}{suggestedCadence&&<p className="mt-2 text-xs">Suggested schedule: {suggestedCadence}. Setup does not start it; enable it in Schedule below.</p>}</div>:setupSurface && isActive && allSavedGranted ? null : isActive && allSavedGranted ? (
+        {setupSurface&&versionedSetup&&!isActive?<div role="status" className="text-secondary text-ink-400">{activating?'Completing setup…':error?<><p className="text-state-fail">{error}</p><button type="button" className="btn-outline mt-3" disabled={!automaticReady} onClick={()=>{setError(null);setCompletionRetry(n=>n+1);}}>Try again</button></>:setupBlockedReason?setupBlockedReason:!boundSetupVersion?'The agent changed. Reload Setup.':statusUnavailable||checklist.setupReadAvailable!==true?'Setup status could not be checked. Reload to try again.':revisePending?'Setup will finish after the pending edit is ready.':'Complete the required items above.'}{suggestedCadence&&<p className="mt-2 text-secondary">Suggested schedule: {suggestedCadence}. Setup does not start it; enable it in Schedule below.</p>}</div>:setupSurface && isActive && allSavedGranted ? null : isActive && allSavedGranted ? (
           // The moment of highest motivation must not dead-end at "Active."
           // (founder: "I activated this agent but what to do next, Im clueless").
           // Offer the first run right here; the schedule row above covers later.
           <div className="flex flex-col gap-2">
             {verifiedHandsFree ? (
-              <span className="text-sm text-state-ok">✓ Active — runs hands-free. Take it for its first run:</span>
+              <span className="text-secondary text-state-ok">✓ Active — runs hands-free. Take it for its first run:</span>
             ) : !computerUseSatisfied ? (
               <div className="rounded-md bg-amber-500/10 border border-amber-500/25 px-3 py-2.5">
-                <p className="text-sm text-state-needs font-medium">Active — Mac access needs setup</p>
-                <p className="text-xs text-state-needs mt-0.5 leading-snug">Open Permissions &amp; access above and grant Screen Recording plus Accessibility to Tukido before this agent reaches its web-app step.</p>
+                <p className="text-reading text-state-needs font-medium">Active — Mac access needs setup</p>
+                <p className="text-reading text-state-needs mt-0.5 ">Open Permissions &amp; access above and grant Screen Recording plus Accessibility to Tukido before this agent reaches its web-app step.</p>
               </div>
             ) : browserCheck ? (
               <div className="rounded-md bg-amber-500/10 border border-amber-500/25 px-3 py-2.5">
-                <p className="text-sm text-state-needs font-medium">Active — one check left before it runs on its own</p>
-                <p className="text-xs text-state-needs mt-0.5 leading-snug">
+                <p className="text-reading text-state-needs font-medium">Active — one check left before it runs on its own</p>
+                <p className="text-secondary text-state-needs mt-0.5 leading-snug">
                   {browserCheck.status === 'unknown'
                     ? 'This agent works in your browser. We couldn’t confirm your browser is connected yet — grant it once and it’ll run unattended.'
                     : 'This agent works in your browser. Connect it once and it’ll run unattended — until then a run will pause to ask.'}
@@ -1035,14 +1035,14 @@ export function ActivationCard({
               </div>
             ) : !capabilityReady ? (
               <div className="rounded-md bg-amber-500/10 border border-amber-500/25 px-3 py-2.5">
-                <p className="text-sm text-state-needs font-medium">Active — can&apos;t yet deliver part of its result</p>
-                <p className="text-xs text-state-needs mt-0.5 leading-snug">See the gap above. A run will still work, just without that part, until it&apos;s resolved.</p>
+                <p className="text-reading text-state-needs font-medium">Active — can&apos;t yet deliver part of its result</p>
+                <p className="text-secondary text-state-needs mt-0.5 leading-snug">See the gap above. A run will still work, just without that part, until it&apos;s resolved.</p>
               </div>
             ) : (
-              <span className="text-sm text-state-ok">✓ Active. Take it for its first run:</span>
+              <span className="text-secondary text-state-ok">✓ Active. Take it for its first run:</span>
             )}
             {showStallNudge && (
-              <p className="text-xs text-state-needs leading-snug max-w-md">
+              <p className="text-reading text-state-needs max-w-md">
                 Recommended: allow “{ungrantedOptional[0].label}” in Permissions above — without it a scheduled run can stall waiting on a prompt. (Allowing saves instantly.)
               </p>
             )}
@@ -1062,7 +1062,7 @@ export function ActivationCard({
                 an agent that genuinely declares no inputs runs fine and that is
                 the common case; what the user gets is the reason, in advance. */}
             {runInputs === null && (
-              <p className="text-xs text-state-needs leading-snug max-w-md">
+              <p className="text-reading text-state-needs max-w-md">
                 We couldn’t load what this agent asks for before a run. You can still start it —
                 but if it does ask for files or links, this run will be turned down until that
                 loads. Reload the page to try again.
@@ -1101,7 +1101,7 @@ export function ActivationCard({
               <button
                 type="button"
                 onClick={() => router.push(`/workflows/${encodeURIComponent(checklist.slug)}?source=${encodeURIComponent(checklist.source || 'generated')}`)}
-                className="text-sm text-ink-400 hover:text-ink-200 mt-2"
+                className="text-ui text-ink-400 hover:text-ink-200 mt-2"
               >
                 Done
               </button>
@@ -1120,9 +1120,9 @@ export function ActivationCard({
               {activating ? 'Granting…' : 'Grant access'}
             </button>
             {error ? (
-              <span className="text-xs text-state-fail">{error}</span>
+              <span className="text-secondary text-state-fail">{error}</span>
             ) : !allLocalGranted ? (
-              <span className="text-xs text-ink-500">Allow the highlighted permission above, then grant.</span>
+              <span className="text-secondary text-ink-500">Allow the highlighted permission above, then grant.</span>
             ) : null}
           </>
         ) : !allLocalGranted ? (
@@ -1134,7 +1134,7 @@ export function ActivationCard({
             >
               Allow required permission
             </button>
-            <span className="text-xs text-state-needs max-w-md leading-snug">
+            <span className="text-secondary text-state-needs max-w-md leading-snug">
               This agent cannot deliver its final output without the highlighted permission. Grant it once to this agent, or leave the agent inactive.
             </span>
           </div>
@@ -1151,7 +1151,7 @@ export function ActivationCard({
             >
               Set up required Mac access
             </button>
-            <span className="text-xs text-state-needs max-w-md leading-snug">This agent cannot deliver its final output without Screen Recording and Accessibility on this Mac. macOS will identify the requester as Tukido because it launches the local Codex runner.</span>
+            <span className="text-secondary text-state-needs max-w-md leading-snug">This agent cannot deliver its final output without Screen Recording and Accessibility on this Mac. macOS will identify the requester as Tukido because it launches the local Codex runner.</span>
           </div>
         ) : (
           <>
@@ -1165,13 +1165,13 @@ export function ActivationCard({
               {activating ? (guided ? 'Turning on…' : 'Activating…') : (setupSurface?'Finish setup':guided ? 'Turn it on' : 'Activate')}
             </button>
             {error ? (
-              <span className="text-xs text-state-fail">{error}</span>
+              <span className="text-secondary text-state-fail">{error}</span>
             ) : !ready && unmetConns.length > 0 ? (
-              <span className="text-xs text-ink-500">Sign in above, or tick “let Claude figure out an alternative”.</span>
+              <span className="text-secondary text-ink-500">Sign in above, or tick “let Claude figure out an alternative”.</span>
             ) : suggestedCadence ? (
               // Recurring agent → activates on its inferred clock by default, with a
               // one-tap opt-out to on-demand.
-              <span className="text-xs text-ink-500 basis-full">
+              <span className="text-secondary text-ink-500 basis-full">
                 {forceOnDemand
                   ? <>Will run <span className="text-ink-200">on-demand</span> (only when you start it). <button type="button" onClick={() => setForceOnDemand(false)} className="text-action-accent hover:underline">Run {suggestedCadence} instead</button></>
                   : <>Will run <span className="text-ink-200">{suggestedCadence}</span> once on (change it in Schedule above). <button type="button" onClick={() => setForceOnDemand(true)} className="text-action-accent hover:underline">Run on-demand instead</button></>}

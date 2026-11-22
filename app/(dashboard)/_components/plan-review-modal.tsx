@@ -114,27 +114,27 @@ export default function PlanReviewModal({
         {/* "Suggested setup" until the user actually changes a tool — these are
             deterministic defaults, not choices a model deliberated over, so the
             heading must not overclaim (2026-07-23 fix spec). */}
-        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">{hasChanges ? 'Your plan' : 'Suggested setup'}</div>
+        <div className="mb-1 text-secondary font-semibold uppercase tracking-wide text-ink-500">{hasChanges ? 'Your plan' : 'Suggested setup'}</div>
         <h2 className="text-lg font-semibold text-ink-100">{plan?.proposedName || 'Your new agent'}</h2>
-        <p className="mt-1 text-sm text-ink-400 leading-snug">
+        <p className="mt-1 text-reading text-ink-400 ">
           Review the tools this agent will use. Accept the recommended setup in one click, or change any tool.
         </p>
 
         {error && (
-          <div className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-state-fail">
+          <div className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-secondary text-state-fail">
             {error}
           </div>
         )}
 
         {!plan && !error && (
-          <div className="mt-6 text-sm text-ink-500">Composing the plan…</div>
+          <div className="mt-6 text-secondary text-ink-500">Composing the plan…</div>
         )}
 
         {plan && (
           <>
             <ul className="mt-4 divide-y divide-ink-800 rounded-lg border border-ink-800">
               {plan.capabilities.length === 0 && (
-                <li className="px-3 py-3 text-sm text-ink-400">
+                <li className="px-3 py-3 text-secondary text-ink-400">
                   This agent works with text only — no external tools to choose. It’s ready to build.
                 </li>
               )}
@@ -145,20 +145,20 @@ export default function PlanReviewModal({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm text-ink-100">{cap.label}</span>
-                          <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${
+                          <span className="text-secondary text-ink-100">{cap.label}</span>
+                          <span className={`text-secondary uppercase tracking-wide px-1.5 py-0.5 rounded border ${
                             cap.requiredness === 'required_to_deliver'
                               ? 'border-amber-500/50 text-state-needs'
                               : 'border-ink-700 text-ink-400'
                           }`}>{REQUIREDNESS_LABEL[cap.requiredness]}</span>
                         </div>
-                        <p className="text-xs text-ink-500 mt-0.5 leading-snug">{cap.purpose}</p>
+                        <p className="text-secondary text-ink-500 mt-0.5 leading-snug">{cap.purpose}</p>
                         {cap.unresolved ? (
-                          <p className="text-xs text-state-needs mt-1 leading-snug">
+                          <p className="text-secondary text-state-needs mt-1 leading-snug">
                             No tool available: {cap.unresolved.reason}
                           </p>
                         ) : cap.recommendedTool ? (
-                          <p className="text-xs text-ink-500 mt-1">
+                          <p className="text-secondary text-ink-500 mt-1">
                             {cap.recommendedTool.accessModeLabel}
                             {cap.recommendedTool.costNote ? ` · ${cap.recommendedTool.costNote}` : ''}
                           </p>
@@ -166,7 +166,7 @@ export default function PlanReviewModal({
                         {(() => {
                           const also = alsoHandledLabels(plan.capabilities, cap);
                           return also.length ? (
-                            <p className="text-[11px] text-state-running mt-1 leading-snug">
+                            <p className="text-reading text-state-running mt-1 ">
                               {cap.recommendedTool?.label ?? 'This tool'} also handles {also.join(' and ')}.
                             </p>
                           ) : null;
@@ -176,7 +176,7 @@ export default function PlanReviewModal({
                         {options.length > 0 ? (
                           <select
                             aria-label={`Tool for ${cap.label}`}
-                            className="text-xs rounded-md border border-ink-700 bg-ink-900 text-ink-100 px-2 py-1"
+                            className="text-ui rounded-md border border-ink-700 bg-ink-900 text-ink-100 px-2 py-1"
                             value={cap.selectedToolId || ''}
                             onChange={(e) => {
                               const t = options.find((o) => o.id === e.target.value);
@@ -189,7 +189,7 @@ export default function PlanReviewModal({
                             ))}
                           </select>
                         ) : (
-                          <span className="text-[11px] text-state-needs">no tool</span>
+                          <span className="text-secondary text-state-needs">no tool</span>
                         )}
                       </div>
                     </div>
@@ -199,12 +199,12 @@ export default function PlanReviewModal({
             </ul>
 
             {hasGap && (
-              <p className="mt-2 text-xs text-state-needs leading-snug">
+              <p className="mt-2 text-reading text-state-needs ">
                 A required capability has no available tool. You can still create the agent — it will flag the gap instead of substituting a different tool.
               </p>
             )}
             {plan.unresolvedOverrides.length > 0 && (
-              <p className="mt-2 text-xs text-state-needs leading-snug">
+              <p className="mt-2 text-secondary text-state-needs leading-snug">
                 Couldn’t recognize: {plan.unresolvedOverrides.join(', ')}. Using the recommended tools for those.
               </p>
             )}
@@ -214,16 +214,16 @@ export default function PlanReviewModal({
                 type="button"
                 onClick={create}
                 disabled={creating}
-                className="rounded-md bg-action-strong px-4 py-2 text-sm font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover disabled:opacity-60"
+                className="rounded-md bg-action-strong px-4 py-2 text-ui font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover disabled:opacity-60"
               >
                 {creating ? 'Creating…' : hasChanges ? 'Create this agent' : 'Create with recommended plan'}
               </button>
               {hasChanges && (
-                <button type="button" onClick={resetToRecommended} disabled={creating} className="btn-outline text-sm px-3 py-2">
+                <button type="button" onClick={resetToRecommended} disabled={creating} className="btn-outline text-ui px-3 py-2">
                   Reset to recommended
                 </button>
               )}
-              <button type="button" onClick={onCancel} disabled={creating} className="text-sm text-ink-400 hover:text-ink-200 px-2 py-2">
+              <button type="button" onClick={onCancel} disabled={creating} className="text-ui text-ink-400 hover:text-ink-200 px-2 py-2">
                 Cancel
               </button>
             </div>

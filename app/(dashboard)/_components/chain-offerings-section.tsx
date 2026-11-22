@@ -16,16 +16,16 @@ export default function ChainOfferingsSection({ offerings }: { offerings: ChainO
   if (!offerings.length) return null;
   return (
     <section className="mt-10" aria-label="Agent chains">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Agent chains</h2>
-      <p className="mt-1 text-xs text-ink-500">One outcome, several agents run in order. You choose the result; the chain composes the steps.</p>
+      <h2 className="text-ui font-semibold uppercase tracking-wide text-ink-300">Agent chains</h2>
+      <p className="mt-1 text-secondary text-ink-500">One outcome, several agents run in order. You choose the result; the chain composes the steps.</p>
       <ul className="mt-4 grid gap-4 md:grid-cols-2">
         {offerings.map((offering) => (
           <li key={offering.slug} className="rounded-lg border border-ink-800 p-4">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-medium text-ink-100">{offering.name}</p>
-              {offering.privatePreview && <span className="rounded border border-violet-500/40 px-2 py-0.5 text-xs text-state-review">Private preview</span>}
+              <p className="text-reading font-medium text-ink-100">{offering.name}</p>
+              {offering.privatePreview && <span className="rounded border border-violet-500/40 px-2 py-0.5 text-secondary text-state-review">Private preview</span>}
             </div>
-            <p className="mt-2 text-xs text-ink-400">
+            <p className="mt-2 text-secondary text-ink-400">
               {offering.orderedChain.map((node, index) => (
                 <span key={node.ordinal}>
                   {index > 0 ? ' → ' : ''}
@@ -33,12 +33,12 @@ export default function ChainOfferingsSection({ offerings }: { offerings: ChainO
                 </span>
               ))}
             </p>
-            <p className="mt-2 text-xs text-ink-500">
+            <p className="mt-2 text-secondary text-ink-500">
               Requires a {offering.requiredInput.label.toLowerCase()} · delivers a {offering.finalArtifactKind.replace('_', ' ')} ·{' '}
               {offering.consequentialCeiling.zeroDefault ? 'zero provider calls by default' : 'uses your connected providers'} ·
               up to {offering.creditPolicy.maxTotalCredits} credits
             </p>
-            <Link href={`/workflows/chains/${encodeURIComponent(offering.slug)}`} className="mt-3 inline-block text-sm text-action-accent hover:underline">
+            <Link href={`/workflows/chains/${encodeURIComponent(offering.slug)}`} className="mt-3 inline-block text-secondary text-action-accent hover:underline">
               View &amp; use this chain
             </Link>
           </li>

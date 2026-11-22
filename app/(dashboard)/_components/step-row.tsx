@@ -58,7 +58,7 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
   return (
     <li className="flex gap-3 py-3">
       <div className="flex-none mt-0.5">
-        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold tabular-nums ${
+        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-micro font-semibold tabular-nums ${
           bound ? 'bg-emerald-500/15 text-state-ok' : 'bg-ink-800 text-ink-400'
         }`}>
           {step.order}
@@ -66,32 +66,32 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
       </div>
       <div className="min-w-0">
         <details className="agent-step-details">
-          <summary className="cursor-pointer text-sm text-ink-100">{displayLabel||`Step ${step.order}`}</summary>
+          <summary className="cursor-pointer text-ui text-ink-100">{displayLabel||`Step ${step.order}`}</summary>
           <div className="mt-3">
         <div className="flex items-center gap-2 mb-0.5">
           {step.kind !== 'skill' && (
-            <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">{step.kind}</span>
+            <span className="text-secondary uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">{step.kind}</span>
           )}
           {step.gap && (
-            <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/40 text-state-needs">gap</span>
+            <span className="text-secondary uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/40 text-state-needs">gap</span>
           )}
         </div>
-        <p className="text-sm text-ink-100">{step.label}</p>
+        <p className="text-reading text-ink-100">{step.label}</p>
         {step.detail ? (
-          <p className="mt-1 text-xs text-ink-400 leading-relaxed">{step.detail}</p>
+          <p className="mt-1 text-secondary text-ink-400 leading-relaxed">{step.detail}</p>
         ) : bound && step.ref_summary?.description ? (
-          <p className="mt-1 text-xs text-ink-400 leading-relaxed">{step.ref_summary.description}</p>
+          <p className="mt-1 text-secondary text-ink-400 leading-relaxed">{step.ref_summary.description}</p>
         ) : null}
         {bound && step.same_as_step ? (
-          <p className="mt-1 text-xs text-ink-500">
+          <p className="mt-1 text-secondary text-ink-500">
             ↳ same {noun} as step {step.same_as_step}{step.ref_summary?.name ? ` (${step.ref_summary.name})` : ''}
           </p>
         ) : null}
         {bound && !step.same_as_step && step.ref_summary?.preview ? (
-          <p className="mt-1.5 text-xs text-ink-500 leading-relaxed border-l border-ink-700 pl-3">{step.ref_summary.preview}</p>
+          <p className="mt-1.5 text-secondary text-ink-500 leading-relaxed border-l border-ink-700 pl-3">{step.ref_summary.preview}</p>
         ) : null}
         {showBuildEvidence && pattern && patternEvidence && Number(patternEvidence.provenRuns || 0) > 0 ? (
-          <div className="mt-1 text-xs text-state-ok">
+          <div className="mt-1 text-secondary text-state-ok">
             <p>
               Adapted from delivered agent “{pattern.workflow.name}” · {patternEvidence.provenRuns} delivered run{patternEvidence.provenRuns === 1 ? '' : 's'}
               {Number(patternEvidence.verifiedRuns || 0) > 0 ? ` · ${patternEvidence.verifiedRuns} verified` : ''}
@@ -101,12 +101,12 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
             ) : null}
           </div>
         ) : showBuildEvidence && bound && directEvidence ? (
-          <p className="mt-1 text-xs text-state-ok">
+          <p className="mt-1 text-secondary text-state-ok">
             Proven by {directEvidence.provenRuns} delivered run{directEvidence.provenRuns === 1 ? '' : 's'}
             {Number(directEvidence.verifiedRuns || 0) > 0 ? ` · ${directEvidence.verifiedRuns} verified` : ''}
           </p>
         ) : showBuildEvidence && bound ? (
-          <p className="mt-1 text-xs text-ink-500">No proven run history yet</p>
+          <p className="mt-1 text-secondary text-ink-500">No proven run history yet</p>
         ) : null}
 
         {/* Bound step → clickable, opens a modal (no navigation, no browser). */}
@@ -114,22 +114,22 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="mt-1.5 inline-flex items-center gap-1 text-xs text-state-ok hover:underline"
+            className="mt-1.5 inline-flex items-center gap-1 text-ui text-state-ok hover:underline"
           >
             {isAgent ? `View agent: ${name}` : isOrg ? `Your skill: ${name}` : `View skill: ${name}`}
             <span aria-hidden="true">→</span>
           </button>
         ) : step.kind === 'decision' ? (
-          <span className="mt-1 block text-xs text-ink-500">decision step</span>
+          <span className="mt-1 block text-secondary text-ink-500">decision step</span>
         ) : (
-          <span className="mt-1 block text-xs text-ink-500">your model fills this step</span>
+          <span className="mt-1 block text-secondary text-ink-500">your model fills this step</span>
         )}
 
         {step.fallbacks.length > 0 ? (
           <ul className="mt-1.5 space-y-0.5">
             {step.fallbacks.map((fb) => (
-              <li key={fb} className="text-xs text-ink-500">
-                <span className="text-ink-600">no integration? </span>{fb}
+              <li key={fb} className="text-secondary text-ink-500">
+                <span className="text-ink-500">no integration? </span>{fb}
               </li>
             ))}
           </ul>
@@ -147,24 +147,24 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
           maxWidth="max-w-lg"
         >
           {step.ref_summary?.description && (
-            <p className="text-sm text-ink-200 leading-relaxed">{step.ref_summary.description}</p>
+            <p className="text-reading text-ink-200 ">{step.ref_summary.description}</p>
           )}
           {/* Full SKILL.md content (lazy-loaded). Falls back to the preview. */}
           {content ? (
-            <pre className="mt-3 max-h-[50vh] overflow-auto rounded-lg border border-ink-800 bg-ink-950/60 p-3 text-xs text-ink-300 leading-relaxed whitespace-pre-wrap font-mono">
+            <pre className="mt-3 max-h-[50vh] overflow-auto rounded-lg border border-ink-800 bg-ink-950/60 p-3 text-micro text-ink-300 leading-relaxed whitespace-pre-wrap font-mono">
               {content}
             </pre>
           ) : loadingContent ? (
-            <div className="mt-3 flex items-center gap-2 text-xs text-ink-500">
+            <div className="mt-3 flex items-center gap-2 text-secondary text-ink-500">
               <span className="inline-block w-3.5 h-3.5 border-2 border-ink-600 border-t-brand-500 rounded-full animate-spin" aria-hidden="true" />
               Loading the full {noun}…
             </div>
           ) : step.ref_summary?.preview ? (
-            <p className="mt-3 text-xs text-ink-400 leading-relaxed border-l border-ink-700 pl-3 whitespace-pre-wrap">
+            <p className="mt-3 text-reading text-ink-400 border-l border-ink-700 pl-3 whitespace-pre-wrap">
               {step.ref_summary.preview}
             </p>
           ) : (
-            <p className="mt-3 text-sm text-ink-400">This {noun} runs as step {step.order} of the chain.</p>
+            <p className="mt-3 text-reading text-ink-400">This {noun} runs as step {step.order} of the chain.</p>
           )}
           {/* Open the full thing IN-APP (never an external browser tab). */}
           {isAgent && (
@@ -172,7 +172,7 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
               <button
                 type="button"
                 onClick={() => router.push(`/workflows/${encodeURIComponent(step.ref!.slug)}?source=${encodeURIComponent(step.ref!.source)}`)}
-                className="btn-success text-sm px-4 py-2"
+                className="btn-success text-ui px-4 py-2"
               >
                 Open this agent →
               </button>

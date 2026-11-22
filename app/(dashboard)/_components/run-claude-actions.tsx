@@ -106,7 +106,7 @@ export default function RunClaudeActions({
   }
 
   if (done) {
-    return <p className="text-xs text-success-600 dark:text-success-400">{msg}</p>;
+    return <p className="text-secondary text-success-600 dark:text-success-400">{msg}</p>;
   }
 
   return (
@@ -121,7 +121,7 @@ export default function RunClaudeActions({
           type="button"
           onClick={approveAndFinish}
           disabled={busy}
-          className="btn-success text-xs px-3 py-1.5 whitespace-nowrap disabled:opacity-60"
+          className="btn-success text-ui px-3 py-1.5 whitespace-nowrap disabled:opacity-60"
         >
           {busy ? 'Working…' : 'Approve & finish'}
         </button>
@@ -133,7 +133,7 @@ export default function RunClaudeActions({
         type="button"
         onClick={openInClaude}
         disabled={busy}
-        className="text-xs text-action-accent hover:underline whitespace-nowrap disabled:opacity-60"
+        className="text-ui text-action-accent hover:underline whitespace-nowrap disabled:opacity-60"
       >
         continue in Claude ↗
       </button>
@@ -141,12 +141,12 @@ export default function RunClaudeActions({
         <a
           href={routineHref}
           title="Opens Claude's Routines list (Claude doesn't support deep-linking to a specific routine)"
-          className="text-xs text-action-accent hover:underline whitespace-nowrap"
+          className="text-secondary text-action-accent hover:underline whitespace-nowrap"
         >
           Open Claude Routines ↗
         </a>
       )}
-      {err ? <span className="text-xs text-state-fail" role="alert">{err}</span> : null}
+      {err ? <span className="text-secondary text-state-fail" role="alert">{err}</span> : null}
     </div>
   );
 }

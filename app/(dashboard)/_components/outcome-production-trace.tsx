@@ -69,18 +69,18 @@ export default function OutcomeProductionTrace({
   if (!trace.length) return null;
   return (
     <section aria-label="Production trace" className="card p-5">
-      <h2 className="text-sm font-semibold text-ink-100">Production trace</h2>
-      <p className="text-xs text-ink-500 mt-0.5">
+      <h2 className="text-ui font-semibold text-ink-100">Production trace</h2>
+      <p className="text-secondary text-ink-500 mt-0.5">
         Every recorded step of this production, across all agents, in the order it happened.
       </p>
       <ol className="mt-4 space-y-2">
         {trace.map((entry, index) => {
           const detail = detailLine(entry);
           return (
-            <li key={`${entry.at}:${entry.type}:${entry.ordinal ?? 'parent'}:${index}`} className="flex items-start gap-3 text-xs">
-              <span className="font-mono text-ink-600 shrink-0 tabular-nums">{clock(entry.at)}</span>
+            <li key={`${entry.at}:${entry.type}:${entry.ordinal ?? 'parent'}:${index}`} className="flex items-start gap-3 text-secondary">
+              <span className="font-mono text-ink-500 shrink-0 tabular-nums">{clock(entry.at)}</span>
               <span
-                className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                className={`shrink-0 rounded px-1.5 py-0.5 text-secondary font-medium ${
                   entry.ordinal === null
                     ? 'bg-ink-800 text-ink-400'
                     : 'bg-brand-500/15 text-action-accent'
@@ -97,7 +97,7 @@ export default function OutcomeProductionTrace({
         })}
       </ol>
       {truncated && (
-        <p className="mt-3 text-[11px] text-ink-500">
+        <p className="mt-3 text-reading text-ink-500">
           This production recorded more events than shown here; the oldest are omitted.
         </p>
       )}

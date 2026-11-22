@@ -17,9 +17,9 @@ export default function SavedIntakeDecision({item,disabled,onChanged,onClose}:{i
    if(!exact)throw Error('This saved change is no longer available for this version.');setPlan(exact);
   }).catch(e=>{if(!controller.signal.aborted&&current.current===captured)setError(e instanceof Error?e.message:'Saved change unavailable.');});return()=>controller.abort();
  },[identity]);
- return error?<p role="alert" className="text-sm text-state-needs">{error}</p>:plan?<TrainingIntakePlan plan={plan} disabled={disabled} onClose={onClose} onQueue={async selected=>{
+ return error?<p role="alert" className="text-reading text-state-needs">{error}</p>:plan?<TrainingIntakePlan plan={plan} disabled={disabled} onClose={onClose} onQueue={async selected=>{
    const captured=identity,value=await request({mode:'intake-queue',expectedActiveVersionId:item.versionId,consent:true,methodContract:METHOD_CONTRACT,planId:plan.planId,planDigest:plan.planDigest,selected});
    if(current.current!==captured)throw Error('The review target changed. Refresh its status.');
    if(value.application!=='edit_queued'||!UUID.test(value.requestId||''))throw Error('The queued change is unconfirmed. Refresh its status before trying again.');onChanged();
- }}/>:<p role="status" className="text-sm text-ink-400">Opening the saved agent change…</p>;
+ }}/>:<p role="status" className="text-reading text-ink-400">Opening the saved agent change…</p>;
 }

@@ -196,17 +196,17 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
     <section aria-label="Professional generation plan" className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="text-sm font-medium text-ink-100">
+          <h2 className="text-ui font-medium text-ink-100">
             {/* COVERAGE and TAKES, always as two numbers. */}
             Professional timeline — {compiled.momentCount} B-roll moment{compiled.momentCount === 1 ? '' : 's'}
             {' from '}{compiled.candidateTaskCount} generated take{compiled.candidateTaskCount === 1 ? '' : 's'}
             {compiled.repairTaskCount > 0 && ` + ${compiled.repairTaskCount} repair reserve${compiled.repairTaskCount === 1 ? '' : 's'}`}
           </h2>
-          <p className="mt-0.5 text-xs text-ink-400">
+          <p className="mt-0.5 text-secondary text-ink-400">
             Requested by {agentName ?? vm.agentSubject} · plan {compiled.controlContractVersion}
           </p>
         </div>
-        <div className="text-right text-xs text-ink-400">
+        <div className="text-right text-secondary text-ink-400">
           <p>{compiled.moments[0]?.providerIdentity.provider} · {compiled.moments[0]?.providerIdentity.model}</p>
           <p className="mt-0.5">Expires {new Date(vm.expiresAt).toLocaleString()}</p>
         </div>
@@ -230,14 +230,14 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
       <ol className="mt-4 space-y-3">
         {compiled.moments.map((moment, index) => (
           <li key={moment.momentId} className="rounded border border-ink-800 bg-ink-950 p-3">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2 text-secondary">
               <span className="font-medium text-ink-200">Moment {index + 1}</span>
               <span className="font-mono text-ink-400">{formatWindow(moment.startMs, moment.endMs)}</span>
               <span className="text-ink-500">{moment.durationSeconds}s · {moment.ratio}</span>
               <span className="ml-auto text-ink-300">{moment.maximumCredits} credits max</span>
             </div>
-            <p className="mt-1.5 whitespace-pre-wrap text-xs leading-snug text-ink-300">{moment.prompt}</p>
-            <p className="mt-1.5 text-[11px] text-ink-500">
+            <p className="mt-1.5 whitespace-pre-wrap text-reading text-ink-300">{moment.prompt}</p>
+            <p className="mt-1.5 text-reading text-ink-500">
               {moment.variantsRequested} take{moment.variantsRequested === 1 ? '' : 's'} at {moment.creditsPerTask} credits each ·
               {' '}Judge {moment.judgeMode === 'off' ? 'off — every take is returned, nothing is selected' : 'ranked — one take is selected'} ·
               {' '}{moment.maxRepairs === 0 ? 'no repair reserve' : `${moment.maxRepairs} repair held in reserve`}
@@ -248,19 +248,19 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
                 if (!task) return null;
                 return (
                   <li key={taskId} className="rounded border border-ink-800/70 bg-ink-900/40 p-2">
-                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    <div className="flex flex-wrap items-center gap-2 text-secondary">
                       <span className="font-medium text-ink-300">
                         {task.kind === 'candidate' ? `Take ${task.ordinal}` : `Repair reserve ${task.ordinal}`}
                       </span>
                       <span className="ml-auto text-ink-400">{task.credits} credits</span>
                     </div>
                     {task.kind === 'repair' && (
-                      <p className="mt-1 text-[11px] text-ink-500">
+                      <p className="mt-1 text-reading text-ink-500">
                         Contingent — spent only if the Judge fails a take for this moment.
                       </p>
                     )}
                     {/* The EXACT string the provider receives, not the source text. */}
-                    <p className="mt-1 whitespace-pre-wrap text-[11px] leading-snug text-ink-500">{task.promptText}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-reading text-ink-500">{task.promptText}</p>
                   </li>
                 );
               })}
@@ -269,23 +269,23 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
         ))}
       </ol>
 
-      <p className="mt-3 text-[11px] text-ink-500">
+      <p className="mt-3 text-reading text-ink-500">
         This plan authorizes per-moment generation and a projection. It does not authorize a
         final rendered file{compiled.finalRenderAuthorized ? '' : ' — assembly stays a projection'}.
       </p>
 
-      {error && <p role="alert" className="mt-3 text-xs text-state-fail">{error}</p>}
-      {notice && <p role="status" className="mt-3 text-xs text-state-ok">{notice}</p>}
+      {error && <p role="alert" className="mt-3 text-secondary text-state-fail">{error}</p>}
+      {notice && <p role="status" className="mt-3 text-secondary text-state-ok">{notice}</p>}
 
       {previewOnly && (
-        <p className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-state-needs">
+        <p className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-reading text-state-needs">
           Professional generation is not available on your account yet, so this plan cannot be
           approved or run. Missing: {compiled.requiredMissingCapabilities.map(capabilityWords).join(', ')}.
         </p>
       )}
 
       {edited && (
-        <p className="mt-3 text-xs text-state-needs">
+        <p className="mt-3 text-reading text-state-needs">
           You chose to edit this plan. This card can no longer approve it — the edit produces a
           new plan with its own approval.
         </p>
@@ -293,7 +293,7 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
 
       {!previewOnly && (
         <>
-          <label className="mt-4 flex items-start gap-2 text-xs text-ink-200">
+          <label className="mt-4 flex items-start gap-2 text-ui text-ink-200">
             <input
               type="checkbox" checked={confirmedCeiling} disabled={inFlight || settled || edited}
               onChange={(e) => setConfirmedCeiling(e.target.checked)}
@@ -310,14 +310,14 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button" onClick={onApprove} disabled={!decision.ok}
-              className="rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-950 disabled:opacity-40"
+              className="rounded-md bg-ink-100 px-3 py-2 text-ui font-medium text-ink-950 disabled:opacity-40"
             >
               {inFlight ? 'Approving…' : settled ? 'Approved' : `Approve up to ${compiled.maximumCredits} credits`}
             </button>
             {editHref && (
               <button
                 type="button" onClick={onEdit} disabled={inFlight || editBusy}
-                className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 disabled:opacity-40"
+                className="rounded-md border border-ink-700 px-3 py-2 text-ui text-ink-200 disabled:opacity-40"
               >
                 {editBusy ? 'Opening for editing…' : 'Edit plan'}
               </button>
@@ -325,16 +325,16 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
             {!edited && vm.lifecycle === 'awaiting_approval' && (
               <button
                 type="button" onClick={onCancel} disabled={inFlight || cancelBusy}
-                className="rounded-md border border-ink-800 px-3 py-2 text-sm text-ink-400 hover:text-state-fail disabled:opacity-40"
+                className="rounded-md border border-ink-800 px-3 py-2 text-ui text-ink-400 hover:text-state-fail disabled:opacity-40"
               >
                 Cancel
               </button>
             )}
           </div>
           {!decision.ok && !inFlight && !settled && (
-            <p className="mt-2 text-[11px] text-state-needs">{decision.message}</p>
+            <p className="mt-2 text-reading text-state-needs">{decision.message}</p>
           )}
-          <p className="mt-2 text-[11px] leading-snug text-ink-500">
+          <p className="mt-2 text-reading text-ink-500">
             Approving authorizes this exact timeline and nothing else. It is not a payment —
             usage is recorded as the work actually runs.
             {editHref && ' Editing cancels this plan and reopens its moments in the builder, so it can never be approved after you change it.'}
@@ -346,11 +346,11 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
         <div className="mt-3">
           <button
             type="button" onClick={onEdit} disabled={editBusy}
-            className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 disabled:opacity-40"
+            className="rounded-md border border-ink-700 px-3 py-2 text-ui text-ink-200 disabled:opacity-40"
           >
             {editBusy ? 'Opening for editing…' : 'Edit this plan'}
           </button>
-          <p className="mt-1.5 text-[11px] text-ink-500">
+          <p className="mt-1.5 text-reading text-ink-500">
             Opens these moments in the builder. This plan was never approvable, so nothing is retired.
           </p>
         </div>

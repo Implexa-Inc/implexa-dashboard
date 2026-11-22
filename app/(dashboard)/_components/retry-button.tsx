@@ -28,7 +28,7 @@ export default function RetryButton({appearance='link'}:{appearance?:'link'|'but
         setTried(true);
         startTransition(() => router.refresh());
       }}
-      className={appearance==='button'?'btn-outline mt-2 text-sm disabled:opacity-60':'mt-2 inline-block underline hover:no-underline disabled:opacity-60'}
+      className={appearance==='button'?'btn-outline mt-2 text-ui disabled:opacity-60':'mt-2 inline-block underline hover:no-underline disabled:opacity-60'}
     >
       {appearance==='button'?(pending?'Trying again…':'Try again'):pending ? 'Retrying…' : tried ? 'Retry again' : 'Retry'}
     </button>

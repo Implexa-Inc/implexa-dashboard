@@ -70,7 +70,7 @@ function BuildButton({ intent }: { intent: string }) {
         type="button"
         onClick={build}
         disabled={state === 'queuing' || state === 'queued'}
-        className={`text-xs font-medium rounded-md px-3 py-1.5 transition-colors ${
+        className={`text-ui font-medium rounded-md px-3 py-1.5 transition-colors ${
           state === 'queued'
             ? 'bg-emerald-500/15 text-state-ok'
             : 'btn-success'
@@ -82,7 +82,7 @@ function BuildButton({ intent }: { intent: string }) {
         <button
           type="button"
           onClick={shapeInClaude}
-          className="text-[11px] text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline"
+          className="text-ui text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline"
         >
           …or shape it in Claude ↗
         </button>
@@ -96,19 +96,19 @@ export default function SuggestedShelf({ suggestions }: { suggestions: Suggested
   return (
     <section className="mt-12">
       <div className="mb-4">
-        <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider">Suggested for you</h2>
-        <p className="text-xs text-ink-500 mt-1">
+        <h2 className="text-ui font-medium text-ink-300 uppercase tracking-wider">Suggested for you</h2>
+        <p className="text-secondary text-ink-500 mt-1">
           One tap each: Tukido builds it, you activate it, it runs in your Claude Code.
         </p>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {suggestions.slice(0, 6).map((s, i) => (
           <div key={`${s.workflow_slug || s.skill_slug || s.title}-${i}`} className="card p-5 flex flex-col">
-            <div className="text-sm font-medium text-ink-50">{s.title}</div>
-            {s.reason && <div className="text-xs text-ink-400 mt-1.5 line-clamp-2 flex-1">{s.reason}</div>}
+            <div className="text-secondary font-medium text-ink-50">{s.title}</div>
+            {s.reason && <div className="text-secondary text-ink-400 mt-1.5 line-clamp-2 flex-1">{s.reason}</div>}
             <div className="mt-4">
               {s.workflow_slug ? (
-                <Link href={`/workflows/${s.workflow_slug}`} className="text-xs font-medium rounded-md px-3 py-1.5 btn-success inline-block">
+                <Link href={`/workflows/${s.workflow_slug}`} className="text-secondary font-medium rounded-md px-3 py-1.5 btn-success inline-block">
                   View &amp; activate
                 </Link>
               ) : s.suggested_intent ? (

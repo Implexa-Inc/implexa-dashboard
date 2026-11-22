@@ -37,7 +37,7 @@ export default async function RolePickerPage() {
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">
             {profile.display_name ? `One quick thing, ${profile.display_name.split(' ')[0]}` : 'One quick thing'}
           </h1>
-          <p className="text-ink-300 text-sm mt-3 max-w-xl mx-auto">
+          <p className="text-ink-300 text-reading mt-3 max-w-xl mx-auto">
             What do you spend most of your time doing? We&apos;ll set up a starter set of
             agents tailored to your role — turn them on, run them, and tweak them to fit
             how you actually work.
@@ -46,7 +46,7 @@ export default async function RolePickerPage() {
 
         <RolePickerClient jwt={session.access_token} roles={ROLE_PACKS} />
 
-        <footer className="text-center text-xs text-ink-400 mt-8">
+        <footer className="text-center text-secondary text-ink-400 mt-8">
           You can pick another role later — or build your own agents from scratch.
         </footer>
       </div>

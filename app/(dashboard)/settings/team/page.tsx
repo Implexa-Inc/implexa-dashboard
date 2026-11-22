@@ -54,7 +54,7 @@ export default async function TeamSettingsPage() {
       <div className="settings-page-content">
 
         <PageHeader title="Team">
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Invite teammates so the whole team can run your shared agents. Everyone&apos;s runs and results land in one place; each person&apos;s own runs stay private.
           </p>
         </PageHeader>
@@ -64,12 +64,12 @@ export default async function TeamSettingsPage() {
           <div className="flex items-start gap-3">
             <div className="text-xl shrink-0" aria-hidden="true">👥</div>
             <div className="flex-1">
-              <div className="text-sm font-medium text-ink-50 capitalize">{plan} plan</div>
-              <div className="text-xs text-ink-300 mt-0.5">
+              <div className="text-secondary font-medium text-ink-50 capitalize">{plan} plan</div>
+              <div className="text-secondary text-ink-300 mt-0.5">
                 {members.length} member{members.length === 1 ? '' : 's'} · {invites.length} pending invite{invites.length === 1 ? '' : 's'}
               </div>
               {plan === 'free' && (
-                <div className="mt-2 text-xs text-ink-400 leading-relaxed">
+                <div className="mt-2 text-secondary text-ink-400 leading-relaxed">
                   A shared agent library across a workspace is a Team-plan feature.{' '}
                   <Link href="/pricing" className="text-action-accent hover:underline font-medium">See plans →</Link>
                 </div>
@@ -87,7 +87,7 @@ export default async function TeamSettingsPage() {
         {/* Pending invites */}
         {invites.length > 0 && (
           <section className="mb-10">
-            <h2 className="text-base font-medium text-ink-50 mb-3">Pending invites <span className="text-ink-400 font-normal text-sm">({invites.length})</span></h2>
+            <h2 className="text-base font-medium text-ink-50 mb-3">Pending invites <span className="text-ink-400 font-normal text-secondary">({invites.length})</span></h2>
             <div className="space-y-2">
               {invites.map((inv) => (
                 <PendingInviteRow key={inv.id} invite={inv} jwt={session.access_token} />
@@ -98,19 +98,19 @@ export default async function TeamSettingsPage() {
 
         {/* Members */}
         <section>
-          <h2 className="text-base font-medium text-ink-50 mb-3">Members <span className="text-ink-400 font-normal text-sm">({members.length})</span></h2>
+          <h2 className="text-base font-medium text-ink-50 mb-3">Members <span className="text-ink-400 font-normal text-secondary">({members.length})</span></h2>
           <div className="space-y-2">
             {members.map((m) => (
               <div key={m.id} className="card !p-3 flex items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-ink-50 truncate">
+                  <div className="text-secondary font-medium text-ink-50 truncate">
                     {m.displayName || m.email.split('@')[0]}
-                    {m.id === session.user.id && <span className="ml-2 text-[10px] uppercase tracking-wider text-ink-400">you</span>}
-                    {m.isFoundingCreator && <span className="ml-2 text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">🏆 Founding Creator</span>}
+                    {m.id === session.user.id && <span className="ml-2 text-secondary uppercase tracking-wider text-ink-400">you</span>}
+                    {m.isFoundingCreator && <span className="ml-2 text-secondary uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">🏆 Founding Creator</span>}
                   </div>
-                  <div className="text-xs text-ink-400 truncate">{m.email}</div>
+                  <div className="text-secondary text-ink-400 truncate">{m.email}</div>
                 </div>
-                <div className="text-[11px] text-ink-400 whitespace-nowrap">
+                <div className="text-secondary text-ink-400 whitespace-nowrap">
                   Joined {new Date(m.joinedAt).toLocaleDateString()}
                 </div>
               </div>

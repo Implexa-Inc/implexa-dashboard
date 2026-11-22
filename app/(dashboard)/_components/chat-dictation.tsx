@@ -43,5 +43,5 @@ export default function ChatDictation({scope,disabled,onInsert,onBusy}:{scope:st
   finally{if(current()){discard();active.current=false;busy.current(false);}}
  }
  if(!available)return null;
- return <div className="text-xs"><button type="button" aria-label="Dictate message" title="Dictate message" disabled={disabled||active.current} onClick={()=>void start()} className="rounded-lg border border-ink-700 px-3 py-2 text-ink-300 hover:text-ink-100 disabled:opacity-40">🎙 {active.current?'Listening…':'Voice'}</button>{error?<p role="alert" className="mt-2 text-state-needs">{error}</p>:state&&<p role="status" className="mt-2 text-ink-400">{state}</p>}</div>;
+ return <div className="text-secondary"><button type="button" aria-label="Dictate message" title="Dictate message" disabled={disabled||active.current} onClick={()=>void start()} className="rounded-lg border border-ink-700 px-3 py-2 text-ink-300 hover:text-ink-100 disabled:opacity-40">🎙 {active.current?'Listening…':'Voice'}</button>{error?<p role="alert" className="mt-2 text-state-needs">{error}</p>:state&&<p role="status" className="mt-2 text-ink-400">{state}</p>}</div>;
 }

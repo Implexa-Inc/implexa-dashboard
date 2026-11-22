@@ -42,15 +42,15 @@ export default function CheckpointedContinuationHistoryCard({ history }:
   if (history.status === 'available' && history.items.length === 0) return null;
   if (history.status === 'unavailable') {
     return <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] p-4">
-      <p className="text-sm font-medium text-ink-100">Continuation history could not be checked</p>
-      <p className="mt-1 text-xs text-ink-400">The run itself is unchanged. Refresh to check its preserved-work history again.</p>
+      <p className="text-reading font-medium text-ink-100">Continuation history could not be checked</p>
+      <p className="mt-1 text-secondary text-ink-400">The run itself is unchanged. Refresh to check its preserved-work history again.</p>
     </div>;
   }
   return <section className="mb-6 rounded-lg border border-sky-500/30 bg-sky-500/[0.06] p-4" aria-label="Checkpointed continuation history">
-    <h2 className="text-sm font-semibold text-ink-100">Preserved-work continuations</h2>
-    <p className="mt-1 text-xs text-ink-400">Technical continuations resume automatically; they do not need your input. Preview continuation requires the owner’s exact approval. This shows past approval and durable attempt state—not new permission or delivered video. Desktop verifies preserved files locally before launch.</p>
+    <h2 className="text-ui font-semibold text-ink-100">Preserved-work continuations</h2>
+    <p className="mt-1 text-reading text-ink-400">Technical continuations resume automatically; they do not need your input. Preview continuation requires the owner’s exact approval. This shows past approval and durable attempt state—not new permission or delivered video. Desktop verifies preserved files locally before launch.</p>
     <ol className="mt-3 space-y-3">
-      {history.items.map((item) => <li key={item.intentId} className="rounded-md border border-ink-800 bg-ink-950/40 p-3 text-xs">
+      {history.items.map((item) => <li key={item.intentId} className="rounded-md border border-ink-800 bg-ink-950/40 p-3 text-secondary">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ink-300">
           <span className="font-medium text-ink-100">{item.kind==='owner_preview'?'Preview approval used':item.kind==='owner_compose_revision'?'Compose revision authorized':`Continuation ${item.continuationNumber}`}</span>
           <span>step {item.lastCompletedStage} → {item.nextStage}</span>
@@ -59,7 +59,7 @@ export default function CheckpointedContinuationHistoryCard({ history }:
           {item.kind==='owner_preview'&&item.destinationRequestStatus==='cancelled'&&<span>Queued Master continuation cancelled; approval remains consumed.</span>}
           {item.kind==='owner_compose_revision'&&<span>Fresh Compose and Preview required; this is not Master approval.</span>}
         </div>
-        <div className="mt-2 grid gap-1 font-mono text-[11px] text-ink-500 sm:grid-cols-2">
+        <div className="mt-2 grid gap-1 font-mono text-micro text-ink-500 sm:grid-cols-2">
           <span title={item.checkpointDigest}>checkpoint {short(item.checkpointId)}</span>
           <span title={item.requestId}>request {short(item.requestId)}</span>
           <span>fence {item.sourceFence} → {item.continuationFence??'pending'}{item.kind?' (new request)':''}</span>

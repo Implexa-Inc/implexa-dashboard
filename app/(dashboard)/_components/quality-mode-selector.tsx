@@ -49,7 +49,7 @@ export default function QualityModeSelector({ value, onChange, compiledByMode, d
   const selectorState = qualityModeSelectorState(compiledByMode);
   return (
     <fieldset disabled={disabled} className="min-w-0">
-      <legend className="text-sm font-medium text-ink-200">Quality</legend>
+      <legend className="text-secondary font-medium text-ink-200">Quality</legend>
       <div role="presentation" className="mt-2 grid gap-2 sm:grid-cols-3">
         {QUALITY_MODES.map((mode) => {
           const option = qualityModeOption(mode);
@@ -81,20 +81,20 @@ export default function QualityModeSelector({ value, onChange, compiledByMode, d
               />
               <span className="flex items-center gap-2">
                 <span aria-hidden className={`h-3 w-3 shrink-0 rounded-full border ${selected ? 'border-ink-100 bg-ink-100' : 'border-ink-600'}`} />
-                <span className="text-sm font-medium text-ink-100">{option.label}</span>
+                <span className="text-secondary font-medium text-ink-100">{option.label}</span>
                 {markedUnavailable && (
-                  <span className="ml-auto rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-state-needs">
+                  <span className="ml-auto rounded bg-amber-500/15 px-1.5 py-0.5 text-secondary text-state-needs">
                     Not available yet
                   </span>
                 )}
               </span>
-              <span className="mt-1 text-xs text-ink-400">{option.description}</span>
+              <span className="mt-1 text-secondary text-ink-400">{option.description}</span>
 
               {/* An unavailable mode explains itself with the translated backend
                   reason. Its compiled differences (Professional keeps its graph
                   for preview) still render beneath — described, not promised. */}
               {markedUnavailable && (
-                <span className="mt-2 text-[11px] leading-snug text-state-needs">
+                <span className="mt-2 text-secondary leading-snug text-state-needs">
                   {unavailableModeCopy(
                     mode,
                     compiled?.unavailableReason ?? null,
@@ -105,7 +105,7 @@ export default function QualityModeSelector({ value, onChange, compiledByMode, d
               {differences.length > 0 ? (
                 <dl className="mt-2 space-y-0.5">
                   {differences.map((row) => (
-                    <div key={row.term} className="flex gap-1.5 text-[11px] text-ink-500">
+                    <div key={row.term} className="flex gap-1.5 text-secondary text-ink-500">
                       <dt className="shrink-0 font-medium text-ink-400">{row.term}:</dt>
                       <dd className="min-w-0">{row.detail}</dd>
                     </div>
@@ -114,7 +114,7 @@ export default function QualityModeSelector({ value, onChange, compiledByMode, d
               ) : !markedUnavailable ? (
                 // No compiled proposal for this mode yet: say so instead of
                 // describing behavior nobody compiled.
-                <span className="mt-2 text-[11px] text-ink-600">
+                <span className="mt-2 text-secondary text-ink-500">
                   Details appear once this mode is compiled for your request.
                 </span>
               ) : null}

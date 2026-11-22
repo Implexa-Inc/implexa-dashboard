@@ -129,7 +129,7 @@ function ActionRow({
   if (serverDone && !actedLine) {
     return (
       <div className="flex items-center gap-2 py-2.5">
-        <span className="text-sm text-state-ok">✓ {a.label} — done</span>
+        <span className="text-secondary text-state-ok">✓ {a.label} — done</span>
       </div>
     );
   }
@@ -141,7 +141,7 @@ function ActionRow({
             type="button"
             onClick={() => onPrimaryClick(a)}
             disabled={!!busy || !!confirmation}
-            className={`${ready ? 'btn-success' : 'btn-outline'} text-sm px-3.5 py-1.5 disabled:opacity-60`}
+            className={`${ready ? 'btn-success' : 'btn-outline'} text-ui px-3.5 py-1.5 disabled:opacity-60`}
           >
             {busy === a.id
               ? (human ? 'Saving…' : 'Queuing…')
@@ -152,21 +152,21 @@ function ActionRow({
                   : (human ? humanConfirmationLabel(a) : a.label)}
           </button>
           {human && !confirmation && (
-            <span className="text-[10px] uppercase tracking-wide text-ink-500 font-medium">
+            <span className="text-secondary uppercase tracking-wide text-ink-500 font-medium">
               human action
             </span>
           )}
           {!ready && !confirmation && (
-            <span className="text-[10px] uppercase tracking-wide text-state-needs font-medium">
+            <span className="text-secondary uppercase tracking-wide text-state-needs font-medium">
               needs setup
             </span>
           )}
         </div>
         {confirmation ? (
           <div className="mt-1.5">
-            <p className="text-xs text-state-ok">{confirmation}</p>
+            <p className="text-secondary text-state-ok">{confirmation}</p>
             {!human && (
-              <Link href={AGENTS_RUNNING_HREF} className="mt-1 inline-block text-[11px] text-state-running hover:underline">
+              <Link href={AGENTS_RUNNING_HREF} className="mt-1 inline-block text-secondary text-state-running hover:underline">
                 Watch in Active Agents →
               </Link>
             )}
@@ -174,17 +174,17 @@ function ActionRow({
         ) : (
           <>
             {retryableApproval ? (
-              <p className="mt-1 text-xs text-state-needs leading-snug">
+              <p className="mt-1 text-reading text-state-needs ">
                 The previous continuation stopped safely before completing. Retry this approval through the protected recovery path.
               </p>
-            ) : a.summary ? <p className="mt-1 text-xs text-ink-400 leading-snug">{a.summary}</p> : null}
-            {!ready && a.blocker && <p className="mt-0.5 text-[11px] text-state-needs">{a.blocker}</p>}
+            ) : a.summary ? <p className="mt-1 text-secondary text-ink-400 leading-snug">{a.summary}</p> : null}
+            {!ready && a.blocker && <p className="mt-0.5 text-reading text-state-needs">{a.blocker}</p>}
 
             {/* needs_setup panel — collect the missing info / confirm setup BEFORE
                 queuing, so a blocked action never fires blind. */}
             {!human && !ready && open && (
               <div className="mt-2.5 rounded-md border border-amber-500/25 bg-amber-500/[0.06] p-3">
-                <p className="text-[11px] text-ink-300">
+                <p className="text-reading text-ink-300">
                   This needs you to set something up first. Add what it needs below (e.g. the blog slugs, a path,
                   or a note), <span className="text-ink-400">or run it from a session where the setup is in place</span> — then it goes hands-off.
                 </p>
@@ -194,16 +194,16 @@ function ActionRow({
                   rows={2}
                   autoFocus
                   placeholder={a.blocker || 'Add the missing inputs or setup notes…'}
-                  className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-2.5 py-1.5 text-ink-100 placeholder:text-ink-600 focus:border-amber-500/50 focus:outline-none resize-y"
+                  className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-2.5 py-1.5 text-ink-100 placeholder:text-ink-500 focus:border-amber-500/50 focus:outline-none resize-y"
                 />
                 <div className="mt-2 flex items-center gap-3">
                   <button type="button" onClick={() => onAct(a)} disabled={!!busy}
-                    className="btn-success text-sm px-3.5 py-1.5 disabled:opacity-60">
+                    className="btn-success text-ui px-3.5 py-1.5 disabled:opacity-60">
                     {busy === a.id ? 'Queuing…' : 'Run it'}
                   </button>
                   <button type="button"
                     onClick={() => onCloseSetup(a.id)}
-                    className="text-xs text-ink-500 hover:text-ink-300">Cancel</button>
+                    className="text-ui text-ink-500 hover:text-ink-300">Cancel</button>
                 </div>
               </div>
             )}
@@ -217,7 +217,7 @@ function ActionRow({
           disabled={!!busy}
           title="Not needed"
           aria-label="Dismiss this action"
-          className="shrink-0 text-ink-600 hover:text-ink-300 text-sm leading-none px-1 pt-2 disabled:opacity-50"
+          className="shrink-0 text-ink-500 hover:text-ink-300 text-ui leading-none px-1 pt-2 disabled:opacity-50"
         >
           ✕
         </button>
@@ -304,8 +304,8 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
   return (
     <section className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-medium text-ink-100">What&apos;s next for this run</h2>
-        <span className="text-[11px] text-ink-500">{live.length} action{live.length === 1 ? '' : 's'} identified</span>
+        <h2 className="text-ui font-medium text-ink-100">What&apos;s next for this run</h2>
+        <span className="text-secondary text-ink-500">{live.length} action{live.length === 1 ? '' : 's'} identified</span>
       </div>
       <div className="mt-1.5 divide-y divide-ink-800/70">
         {primary.map((a) => (
@@ -328,12 +328,12 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
         <button
           type="button"
           onClick={() => setShowAll(true)}
-          className="mt-2 text-xs text-ink-500 hover:text-ink-300"
+          className="mt-2 text-ui text-ink-500 hover:text-ink-300"
         >
           More actions ({moreCount}) ▾
         </button>
       )}
-      {err && <p className="mt-2 text-xs text-state-fail">{err}</p>}
+      {err && <p className="mt-2 text-secondary text-state-fail">{err}</p>}
     </section>
   );
 }

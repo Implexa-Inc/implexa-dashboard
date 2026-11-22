@@ -70,7 +70,7 @@ export function DownloadSkillButton({
 
   const baseClass = variant === 'primary'
     ? 'btn-primary'
-    : 'text-xs px-2.5 py-1 rounded-md border border-ink-700 text-ink-100 hover:bg-ink-800 transition-colors';
+    : 'text-secondary px-2.5 py-1 rounded-md border border-ink-700 text-ink-100 hover:bg-ink-800 transition-colors';
 
   return (
     <span className="inline-flex items-center gap-2">
@@ -83,7 +83,7 @@ export function DownloadSkillButton({
       >
         {busy ? 'Packaging…' : 'Download'}
       </button>
-      {error && <span className="text-xs text-state-fail">{error}</span>}
+      {error && <span className="text-secondary text-state-fail">{error}</span>}
     </span>
   );
 }

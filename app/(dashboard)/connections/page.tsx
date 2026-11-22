@@ -31,7 +31,7 @@ export default async function NeedsYouPage() {
       <div className="app-content">
         <header className="mb-8">
           <h1 className="text-2xl font-semibold tracking-tight text-ink-50">Needs you</h1>
-          <p className="text-sm text-ink-400 mt-2 max-w-2xl">
+          <p className="text-reading text-ink-400 mt-2 max-w-2xl">
             Only the things waiting on you, each with one action. When this is empty, your agents are running on their own.
           </p>
         </header>
@@ -44,14 +44,14 @@ export default async function NeedsYouPage() {
         {needsYou.total === 0 && !needsYou.partial && !needsYou.truncated ? (
           <div className="card text-center py-10">
             <div className="text-xl mb-1" aria-hidden>✓</div>
-            <p className="text-ink-100 font-medium text-sm">Nothing needs you right now.</p>
-            <p className="text-xs text-ink-500 mt-1">Grants, reviews, missed schedules, and sign-ins will show up here.</p>
+            <p className="text-ink-100 font-medium text-reading">Nothing needs you right now.</p>
+            <p className="text-secondary text-ink-500 mt-1">Grants, reviews, missed schedules, and sign-ins will show up here.</p>
           </div>
         ) : (
           <NeedsYouStrip data={needsYou} variant="full" />
         )}
 
-        <p className="text-xs text-ink-500 mt-10">
+        <p className="text-secondary text-ink-500 mt-10">
           Looking for the full account list? <Link href="/settings/connections" className="text-action-accent hover:underline">All your accounts →</Link>
         </p>
       </div>

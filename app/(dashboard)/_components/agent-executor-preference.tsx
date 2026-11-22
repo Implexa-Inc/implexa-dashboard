@@ -46,19 +46,19 @@ export default function AgentExecutorPreference({ slug }: { slug: string }) {
   return (
     <section className="card max-w-2xl mb-6">
       <div className="flex items-start justify-between gap-3">
-        <div><h2 className="text-base font-semibold text-ink-50">Execution engine</h2><p className="text-xs text-ink-400 mt-1">Auto picks whichever of your AI apps is ready. Choose one to always use it.</p></div>
-        {saving && <span className="text-[11px] text-ink-500">Saving…</span>}
+        <div><h2 className="text-base font-semibold text-ink-50">Execution engine</h2><p className="text-secondary text-ink-400 mt-1">Auto picks whichever of your AI apps is ready. Choose one to always use it.</p></div>
+        {saving && <span className="text-secondary text-ink-500">Saving…</span>}
       </div>
       <div className="grid sm:grid-cols-3 gap-2 mt-4" aria-label="Execution engine preference">
         {OPTIONS.map((option) => (
           <button key={option.value} type="button" disabled={loading || saving} onClick={() => choose(option.value)}
             className={`text-left rounded-lg border p-3 transition-colors ${value === option.value ? 'border-brand-500/60 bg-brand-500/10' : 'border-ink-800 bg-ink-900/30 hover:border-ink-700'}`}>
-            <span className="block text-sm font-medium text-ink-100">{option.label}</span>
-            <span className="block text-[11px] text-ink-400 mt-1 leading-snug">{option.detail}</span>
+            <span className="block text-secondary font-medium text-ink-100">{option.label}</span>
+            <span className="block text-secondary text-ink-400 mt-1 leading-snug">{option.detail}</span>
           </button>
         ))}
       </div>
-      {error && <p className="text-xs text-state-fail mt-3">{error}</p>}
+      {error && <p className="text-secondary text-state-fail mt-3">{error}</p>}
     </section>
   );
 }

@@ -81,16 +81,16 @@ export default function AccountForm({
     <div className="space-y-6">
       {typeof desktop?.openSetup === 'function' && <section className="card">
         <h2 className="text-base font-medium text-ink-50 mb-1">Desktop account</h2>
-        <p className="text-xs text-ink-300 mb-4">Link or switch the account Tukido uses on this Mac.</p>
+        <p className="text-secondary text-ink-300 mb-4">Link or switch the account Tukido uses on this Mac.</p>
         <button type="button" className="btn-outline" disabled={desktopSetupOpening} onClick={openDesktopSetup}>
           {desktopSetupOpening ? 'Opening…' : 'Open Desktop setup'}
         </button>
-        {desktopSetupError && <p role="alert" className="text-xs text-state-fail mt-2">Couldn’t open Desktop setup. Try again.</p>}
+        {desktopSetupError && <p role="alert" className="text-secondary text-state-fail mt-2">Couldn’t open Desktop setup. Try again.</p>}
       </section>}
       {/* Display name */}
       <section className="card">
         <h2 className="text-base font-medium text-ink-50 mb-1">Display name</h2>
-        <p className="text-xs text-ink-300 mb-4">
+        <p className="text-secondary text-ink-300 mb-4">
           Shown on shared skills and to teammates in your org.
         </p>
         <form onSubmit={saveName} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
@@ -111,21 +111,21 @@ export default function AccountForm({
             {nameSaving ? 'Saving…' : nameDone ? '✓ Saved' : 'Save name'}
           </button>
         </form>
-        {nameError && <p className="text-xs text-state-fail mt-2">{nameError}</p>}
+        {nameError && <p className="text-secondary text-state-fail mt-2">{nameError}</p>}
       </section>
 
       {/* Email */}
       <section className="card">
         <h2 className="text-base font-medium text-ink-50 mb-1">Email address</h2>
-        <p className="text-xs text-ink-300 mb-3">
-          Current: <code className="text-xs bg-ink-800 px-1.5 py-0.5 rounded font-mono">{currentEmail}</code>
+        <p className="text-secondary text-ink-300 mb-3">
+          Current: <code className="text-micro bg-ink-800 px-1.5 py-0.5 rounded font-mono">{currentEmail}</code>
         </p>
-        <p className="text-xs text-ink-400 mb-4 leading-relaxed">
+        <p className="text-reading text-ink-400 mb-4 ">
           Changing your email sends a confirmation link to the <em>new</em> address. Your email won&apos;t update until you click that link. Until confirmed, sign in with your current address.
         </p>
 
         {emailSent ? (
-          <div className="text-sm text-success-700 dark:text-success-400">
+          <div className="text-secondary text-success-700 dark:text-success-400">
             ✓ Confirmation email sent to <strong>{newEmail}</strong>. Click the link in that email to complete the change.
           </div>
         ) : (
@@ -148,18 +148,18 @@ export default function AccountForm({
             </button>
           </form>
         )}
-        {emailError && <p className="text-xs text-state-fail mt-2">{emailError}</p>}
+        {emailError && <p className="text-secondary text-state-fail mt-2">{emailError}</p>}
       </section>
 
       {/* Account deletion — punt to support */}
       <section className="card !border-red-500/20">
         <h2 className="text-base font-medium text-ink-50 mb-1">Delete your account</h2>
-        <p className="text-xs text-ink-300 mb-3 leading-relaxed">
+        <p className="text-reading text-ink-300 mb-3 ">
           Account deletion is currently white-glove — email us and we&apos;ll handle it within 1 business day.
           You can also export your captured skills first via your dashboard.
         </p>
         <a href={`mailto:support@implexa.ai?subject=${encodeURIComponent('Delete my Tukido account')}&body=${encodeURIComponent(`Please delete my account: ${currentEmail}`)}`}
-           className="text-xs text-state-fail hover:underline">
+           className="text-secondary text-state-fail hover:underline">
           Email support to delete →
         </a>
       </section>

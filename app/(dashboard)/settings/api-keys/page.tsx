@@ -53,14 +53,14 @@ export default async function ApiKeysPage({
   return (
     <section className="settings-page">
       <div className="settings-page-content">
-        <nav className="text-xs text-ink-500 mb-4">
+        <nav className="text-secondary text-ink-500 mb-4">
           {cameFromInstall ? (
             <Link href="/install" className="hover:underline">← Back to install</Link>
           ) : null}
         </nav>
 
         <PageHeader title="Devices & installs">
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Every device or session connected to your Tukido account.
             Revoke any you don&apos;t recognize. New installs created automatically
             when you run the install script — you don&apos;t need to generate
@@ -69,7 +69,7 @@ export default async function ApiKeysPage({
         </PageHeader>
 
         {cameFromInstall && (
-          <div className="card !p-3 !bg-gradient-to-r !from-brand-500/10 !to-brand-500/5 !border-brand-500/40 mb-6 text-sm text-ink-200 flex items-start gap-2">
+          <div className="card !p-3 !bg-gradient-to-r !from-brand-500/10 !to-brand-500/5 !border-brand-500/40 mb-6 text-secondary text-ink-200 flex items-start gap-2">
             <span>🪜</span>
             <span>
               You probably don&apos;t need to be here. Go back to{' '}

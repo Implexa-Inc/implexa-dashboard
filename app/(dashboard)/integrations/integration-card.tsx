@@ -49,18 +49,18 @@ export default function IntegrationCard({
         <div className="flex items-center gap-3 min-w-0">
           <span className="text-2xl shrink-0" aria-hidden="true">{integration.logo}</span>
           <div className="min-w-0">
-            <div className="text-sm font-medium text-ink-50 truncate">{integration.name}</div>
+            <div className="text-secondary font-medium text-ink-50 truncate">{integration.name}</div>
             <StatusBadge status={integration.status} />
           </div>
         </div>
       </div>
 
       {/* Description */}
-      <p className="text-xs text-ink-300 leading-relaxed flex-1">{integration.description}</p>
+      <p className="text-secondary text-ink-300 leading-relaxed flex-1">{integration.description}</p>
 
       {/* Recommendation reason — only if surfaced from workflow */}
       {recommendationReason && (
-        <div className="text-xs text-success-700 dark:text-success-400 bg-success-50/40 dark:bg-success-900/20 rounded-md px-2 py-1.5">
+        <div className="text-secondary text-success-700 dark:text-success-400 bg-success-50/40 dark:bg-success-900/20 rounded-md px-2 py-1.5">
           💡 {recommendationReason}
         </div>
       )}
@@ -74,7 +74,7 @@ export default function IntegrationCard({
             )}&body=${encodeURIComponent(
               `I'd like to wire up ${integration.name} (${integration.authType === 'apikey' ? 'API key' : 'OAuth'}) to my Tukido org.\n\nMy ${integration.name} API key:\n[paste here — we encrypt at rest]\n\nAnything else we should know:\n`,
             )}`}
-            className="btn-primary !py-1.5 !px-3 text-xs w-full inline-flex items-center justify-center gap-1.5"
+            className="btn-primary !py-1.5 !px-3 text-secondary w-full inline-flex items-center justify-center gap-1.5"
           >
             Connect
             <span aria-hidden="true">→</span>
@@ -86,7 +86,7 @@ export default function IntegrationCard({
             href={`mailto:support@implexa.ai?subject=${encodeURIComponent(
               `Beta access — ${integration.name}`,
             )}`}
-            className="btn-outline !py-1.5 !px-3 text-xs w-full inline-flex items-center justify-center gap-1.5"
+            className="btn-outline !py-1.5 !px-3 text-secondary w-full inline-flex items-center justify-center gap-1.5"
           >
             Try the beta
             <span aria-hidden="true">→</span>
@@ -98,7 +98,7 @@ export default function IntegrationCard({
             type="button"
             onClick={handleWaitlistClick}
             disabled={isPending}
-            className={`!py-1.5 !px-3 text-xs w-full rounded-md border transition-colors disabled:opacity-50 ${
+            className={`!py-1.5 !px-3 text-ui w-full rounded-md border transition-colors disabled:opacity-50 ${
               onWaitlist
                 ? 'border-success-400/40 bg-success-400/10 text-success-700 dark:text-success-400 hover:bg-success-400/20'
                 : 'border-ink-600 text-ink-200 hover:bg-ink-800 hover:border-ink-500'
@@ -109,11 +109,11 @@ export default function IntegrationCard({
           </button>
         )}
 
-        {error && <p className="text-xs text-state-fail mt-1.5">{error}</p>}
+        {error && <p className="text-secondary text-state-fail mt-1.5">{error}</p>}
       </div>
 
       {/* Auth type micro-label */}
-      <div className="text-[10px] uppercase tracking-wider text-ink-400 -mt-1">
+      <div className="text-secondary uppercase tracking-wider text-ink-400 -mt-1">
         {integration.authType === 'apikey' ? '🔑 API key' : '🔐 OAuth login'}
       </div>
     </div>
@@ -128,7 +128,7 @@ function StatusBadge({ status }: { status: Integration['status'] }) {
   } as const;
   const { label, color } = map[status];
   return (
-    <div className={`inline-block text-[10px] uppercase tracking-wider font-medium rounded px-1.5 py-0.5 mt-0.5 ${color}`}>
+    <div className={`inline-block text-secondary uppercase tracking-wider font-medium rounded px-1.5 py-0.5 mt-0.5 ${color}`}>
       {label}
     </div>
   );

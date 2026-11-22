@@ -47,7 +47,7 @@ export default async function SettingsHubPage() {
             {profile.display_name ? `${profile.display_name} · ` : ''}{profile.email}
             {org?.name ? ` · ${org.name}` : ''}
             {' · '}<span className="capitalize">{plan}</span> plan
-            {isFoundingCreator && <span className="ml-2 text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">Founding creator</span>}
+            {isFoundingCreator && <span className="ml-2 text-secondary uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">Founding creator</span>}
           </p>
         </PageHeader>
 
@@ -136,7 +136,7 @@ function SettingsCard({ href, title, description }: { href: string; title: strin
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="font-medium text-ink-50 mb-1">{title}</div>
-          <div className="text-xs text-ink-300 leading-relaxed">{description}</div>
+          <div className="text-secondary text-ink-300 leading-relaxed">{description}</div>
         </div>
         <div className="text-ink-500 shrink-0 self-center">→</div>
       </div>

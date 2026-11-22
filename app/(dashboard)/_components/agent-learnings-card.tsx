@@ -257,9 +257,9 @@ function AuthorAgentLearningsCard({ slug, initialPayload = null, initialSource =
   if (source !== 'ready' || !payload) {
     return (
       <section className="card max-w-3xl border-amber-500/30" aria-label="Train learnings unavailable">
-        <p className="text-[11px] uppercase tracking-widest text-ink-500">Train → Learnings</p>
+        <p className="text-reading uppercase tracking-widest text-ink-500">Train → Learnings</p>
         <h2 className="mt-1 text-base font-semibold text-ink-50">Learnings unavailable</h2>
-        <p className="mt-2 text-sm text-state-needs">
+        <p className="mt-2 text-reading text-state-needs">
           {source === 'disabled'
             ? 'This deployment has not enabled the immutable learning-rule source. No learning can influence a run.'
             : 'The learning source could not be verified. Nothing is shown as empty and every learning action is disabled.'}
@@ -271,26 +271,26 @@ function AuthorAgentLearningsCard({ slug, initialPayload = null, initialSource =
 
   return (
     <section className="card max-w-3xl" aria-label="Train learnings">
-      <p className="text-[11px] uppercase tracking-widest text-ink-500">Train → Learnings</p>
+      <p className="text-reading uppercase tracking-widest text-ink-500">Train → Learnings</p>
       <h2 className="mt-1 text-base font-semibold text-ink-50">What this agent may carry forward</h2>
-      <p className="mt-1 text-xs leading-relaxed text-ink-400">
+      <p className="mt-1 text-reading text-ink-400">
         Private to this agent. Suggestions stay inert until you approve them; every active rule is versioned, frozen into a run, and reversible.
       </p>
 
       <div className="mt-4 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
-        <p className="text-sm font-medium text-ink-100">Use feedback you already gave</p>
-        <p className="mt-1 text-xs leading-relaxed text-ink-400">
+        <p className="text-reading font-medium text-ink-100">Use feedback you already gave</p>
+        <p className="mt-1 text-reading text-ink-400">
           Analyze up to 180 days of this agent&apos;s implemented Review Room feedback. Reviewer words select a small, reviewed rule vocabulary; suggestions remain inert until they meet the evidence threshold and you approve them.
         </p>
         <button type="button" disabled={busy !== null} onClick={() => void analyzePastFeedback()}
-          className="btn-outline mt-3 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40">
+          className="btn-outline mt-3 px-3 py-1.5 text-ui disabled:cursor-not-allowed disabled:opacity-40">
           {busy === 'historical-backfill' ? 'Analyzing past feedback…' : 'Analyze past feedback'}
         </button>
         <button type="button" disabled={busy !== null} onClick={() => { setProposalError(null); setProposalOpen(true); }}
-          className="btn-outline ml-2 mt-3 px-3 py-1.5 text-xs disabled:opacity-40">Propose from a Review issue</button>
-        {proposalStatus && <p role="status" className="mt-2 text-xs text-state-running">{proposalStatus}</p>}
+          className="btn-outline ml-2 mt-3 px-3 py-1.5 text-ui disabled:opacity-40">Propose from a Review issue</button>
+        {proposalStatus && <p role="status" className="mt-2 text-secondary text-state-running">{proposalStatus}</p>}
         {analysis && (
-          <p role="status" className="mt-2 text-xs text-state-running">
+          <p role="status" className="mt-2 text-reading text-state-running">
             {analysis.agentEvidence === 0
               ? 'No implemented feedback from this agent was found in the last 180 days.'
               : analysis.matchedEvidence === 0
@@ -304,7 +304,7 @@ function AuthorAgentLearningsCard({ slug, initialPayload = null, initialSource =
         subtitle="Use a completed Review revision. This records inert evidence only; approval is a separate human decision.">
         <form onSubmit={(event) => { event.preventDefault(); void proposeFromFeedback(); }} className="space-y-3">
           {(['requestId', 'issueId'] as const).map((key) => (
-            <label key={key} className="block text-xs text-ink-300">{key === 'requestId' ? 'Review request ID' : 'Review issue ID'}
+            <label key={key} className="block text-ui text-ink-300">{key === 'requestId' ? 'Review request ID' : 'Review issue ID'}
               <input required value={proposal[key]} disabled={busy === 'propose'} className="mt-1 w-full rounded border border-ink-700 bg-ink-900 p-2"
                 onChange={(event) => setProposal({ ...proposal, [key]: event.target.value })} />
             </label>
@@ -314,35 +314,35 @@ function AuthorAgentLearningsCard({ slug, initialPayload = null, initialSource =
             ['ruleClass', 'Rule class', ['preference', 'reliability']],
             ['polarity', 'Rule direction', ['negative', 'positive']],
           ] as const).map(([key, label, options]) => (
-            <label key={key} className="block text-xs text-ink-300">{label}
+            <label key={key} className="block text-ui text-ink-300">{label}
               <select value={proposal[key]} disabled={busy === 'propose'} className="ml-2 rounded border border-ink-700 bg-ink-900 p-2"
                 onChange={(event) => setProposal({ ...proposal, [key]: event.target.value })}>
                 {options.map((value) => <option key={value} value={value}>{value}</option>)}
               </select>
             </label>
           ))}
-          <label className="block text-xs text-ink-300">General rule (no private names, paths or IDs)
+          <label className="block text-ui text-ink-300">General rule (no private names, paths or IDs)
             <textarea required minLength={12} maxLength={300} value={proposal.rule} disabled={busy === 'propose'}
               className="mt-1 w-full rounded border border-ink-700 bg-ink-900 p-2" rows={3}
               onChange={(event) => setProposal({ ...proposal, rule: event.target.value })} />
           </label>
-          {proposalError && <p role="alert" className="text-xs text-state-fail">{proposalError}</p>}
+          {proposalError && <p role="alert" className="text-secondary text-state-fail">{proposalError}</p>}
           <button type="submit" disabled={busy !== null} className="btn-primary">{busy === 'propose' ? 'Proposing…' : 'Record suggestion'}</button>
         </form>
       </Modal>
 
       <div className="mt-5">
-        <h3 className="text-sm font-semibold text-ink-100">Suggested</h3>
-        {payload.suggested.length === 0 ? <p className="mt-2 text-xs text-ink-500">No suggestions awaiting review.</p> : (
+        <h3 className="text-ui font-semibold text-ink-100">Suggested</h3>
+        {payload.suggested.length === 0 ? <p className="mt-2 text-secondary text-ink-500">No suggestions awaiting review.</p> : (
           <ul className="mt-2 space-y-3">
             {payload.suggested.map((item) => (
               <li key={item.id} className="rounded-lg border border-ink-800 bg-ink-900/50 p-3">
-                <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-ink-500">
+                <div className="flex flex-wrap items-center gap-2 text-secondary uppercase tracking-wide text-ink-500">
                   <span>{item.ruleClass}</span><span>Private agent</span><span>{reason(item.eligibilityReason)}</span>
                 </div>
-                <p className="mt-2 text-sm text-ink-100">{item.summary || item.instruction}</p>
-                {item.summary && <p className="mt-1 text-xs text-ink-400">Rule: {item.instruction}</p>}
-                <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-500">
+                <p className="mt-2 text-reading text-ink-100">{item.summary || item.instruction}</p>
+                {item.summary && <p className="mt-1 text-secondary text-ink-400">Rule: {item.instruction}</p>}
+                <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-secondary text-ink-500">
                   <div><dt className="inline">Evidence </dt><dd className="inline text-ink-300">{item.evidenceCount}</dd></div>
                   <div><dt className="inline">Runs </dt><dd className="inline text-ink-300">{item.recurrenceCount}</dd></div>
                   <div><dt className="inline">Task coverage </dt><dd className="inline text-ink-300">{item.taskCoverage}</dd></div>
@@ -353,26 +353,26 @@ function AuthorAgentLearningsCard({ slug, initialPayload = null, initialSource =
                   <div><dt className="inline">Tool </dt><dd className="inline text-ink-300">{item.scope.toolIdentity || 'all'}</dd></div>
                 </dl>
                 {approvalExplanation(item) && (
-                  <p className="mt-2 text-xs text-state-needs">{approvalExplanation(item)}</p>
+                  <p className="mt-2 text-secondary text-state-needs">{approvalExplanation(item)}</p>
                 )}
                 {editingId === item.id && (
                   <div className="mt-3 rounded-md border border-sky-500/30 bg-sky-500/5 p-3">
-                    <label htmlFor={`learning-rule-${item.id}`} className="text-xs font-medium text-ink-200">Refine this rule</label>
-                    <p className="mt-1 text-[11px] leading-relaxed text-ink-500">
+                    <label htmlFor={`learning-rule-${item.id}`} className="text-ui font-medium text-ink-200">Refine this rule</label>
+                    <p className="mt-1 text-reading text-ink-500">
                       This creates an auditable replacement with the same evidence and scope. It does not manufacture another supporting run or rewrite the original evidence.
                     </p>
                     <textarea id={`learning-rule-${item.id}`} value={editInstruction} maxLength={300}
                       onChange={(event) => setEditInstruction(event.target.value)} rows={3}
-                      className="mt-2 w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100" />
-                    <p className="mt-1 text-[11px] text-ink-500">{editInstruction.trim().length}/300 characters</p>
-                    {editError && <p role="alert" className="mt-1 text-xs text-state-fail">{editError}</p>}
+                      className="mt-2 w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-ui text-ink-100" />
+                    <p className="mt-1 text-reading text-ink-500">{editInstruction.trim().length}/300 characters</p>
+                    {editError && <p role="alert" className="mt-1 text-secondary text-state-fail">{editError}</p>}
                     <div className="mt-2 flex flex-wrap gap-2">
                       <button type="button" disabled={busy !== null} onClick={() => void saveEdit(item, true)}
-                        className="btn-success px-3 py-1.5 text-xs disabled:opacity-40">Save &amp; approve</button>
+                        className="btn-success px-3 py-1.5 text-ui disabled:opacity-40">Save &amp; approve</button>
                       <button type="button" disabled={busy !== null} onClick={() => void saveEdit(item, false)}
-                        className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Save only</button>
+                        className="btn-outline px-3 py-1.5 text-ui disabled:opacity-40">Save only</button>
                       <button type="button" disabled={busy !== null} onClick={() => { setEditingId(null); setEditError(null); }}
-                        className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Cancel</button>
+                        className="btn-outline px-3 py-1.5 text-ui disabled:opacity-40">Cancel</button>
                     </div>
                   </div>
                 )}
@@ -381,14 +381,14 @@ function AuthorAgentLearningsCard({ slug, initialPayload = null, initialSource =
                     onClick={() => act(`candidates/${item.id}/approve`, {
                       candidateKey: item.candidateKey, allowLowEvidence: canApproveLowEvidence(item),
                     }, item.id)}
-                    className="btn-success px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40">
+                    className="btn-success px-3 py-1.5 text-ui disabled:cursor-not-allowed disabled:opacity-40">
                     {canApproveLowEvidence(item) ? 'Approve anyway' : 'Approve'}
                   </button>
                   <button type="button" disabled={busy === item.id}
                     onClick={() => act(`candidates/${item.id}/dismiss`, { candidateKey: item.candidateKey }, item.id)}
-                    className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Dismiss</button>
+                    className="btn-outline px-3 py-1.5 text-ui disabled:opacity-40">Dismiss</button>
                   <button type="button" disabled={busy !== null} onClick={() => beginEdit(item)}
-                    className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Edit rule</button>
+                    className="btn-outline px-3 py-1.5 text-ui disabled:opacity-40">Edit rule</button>
                 </div>}
               </li>
             ))}
@@ -397,73 +397,73 @@ function AuthorAgentLearningsCard({ slug, initialPayload = null, initialSource =
       </div>
 
       <div className="mt-6 border-t border-ink-800 pt-5">
-        <h3 className="text-sm font-semibold text-ink-100">Approved competence</h3>
-        <p className="mt-1 text-xs text-ink-500">
+        <h3 className="text-ui font-semibold text-ink-100">Approved competence</h3>
+        <p className="mt-1 text-secondary text-ink-500">
           Active means owner-approved. Only rules marked Eligible for v{payload.selectedVersion.version} can be frozen into a new run.
         </p>
-        {payload.active.length === 0 ? <p className="mt-2 text-xs text-ink-500">No active approved rules.</p> : (
+        {payload.active.length === 0 ? <p className="mt-2 text-secondary text-ink-500">No active approved rules.</p> : (
           <ul className="mt-2 space-y-3">
             {payload.active.map((rule) => (
               <li key={rule.id} className={`rounded-lg border p-3 ${rule.eligibleForVersion
                 ? 'border-emerald-500/20 bg-emerald-500/5'
                 : 'border-amber-500/25 bg-amber-500/5'}`}>
-                <div className={`text-[10px] uppercase tracking-wide ${rule.eligibleForVersion
+                <div className={`text-secondary uppercase tracking-wide ${rule.eligibleForVersion
                   ? 'text-state-ok'
                   : 'text-state-needs'}`}>
                   {rule.ruleClass} · rule v{rule.version} · Active · {rule.eligibleForVersion
                     ? `Eligible for agent v${payload.selectedVersion.version}`
                     : `Not eligible for agent v${payload.selectedVersion.version}`}
                 </div>
-                <p className="mt-2 text-sm text-ink-100">{rule.instruction}</p>
+                <p className="mt-2 text-reading text-ink-100">{rule.instruction}</p>
                 {!rule.eligibleForVersion && rule.influenceState === 'active' && (
-                  <p className="mt-2 text-xs text-state-needs">
+                  <p className="mt-2 text-reading text-state-needs">
                     This approved rule remains private and active, but the selected agent version changed its task identity or consequential task contract. It will not be frozen or supplied to runs of v{payload.selectedVersion.version}.
                   </p>
                 )}
                 {rule.influenceState === 'suspended_contradiction' && (
-                  <p className="mt-2 text-xs text-state-needs">
+                  <p className="mt-2 text-reading text-state-needs">
                     Suspended from future runs after {rule.contradictionCount} contradictory evidence record{rule.contradictionCount === 1 ? '' : 's'}. Already-frozen runs are unchanged; review by disabling or undoing this rule.
                   </p>
                 )}
                 {rule.influenceState === 'suspended_scope' && (
-                  <p className="mt-2 text-xs text-state-needs">
+                  <p className="mt-2 text-reading text-state-needs">
                     Suspended from future runs because this runtime cannot enforce its exact step, capability, or tool scope. It remains visible for review and cannot be broadened.
                   </p>
                 )}
-                <p className="mt-2 text-[11px] text-ink-500">
+                <p className="mt-2 text-reading text-ink-500">
                   {rule.evidenceIds.length} supporting evidence records · {rule.contradictionCount} contradictions · task {short(rule.scope.taskSignatureDigest)} · step {rule.scope.stepIndex == null ? 'agent task-wide' : rule.scope.stepIndex} · capability {rule.scope.capabilityIdentity || 'all'} · tool {rule.scope.toolIdentity || 'all'} · last supplied {rule.lastSuppliedRun ? short(rule.lastSuppliedRun) : 'never'} · last applied {rule.lastAppliedRun ? short(rule.lastAppliedRun) : 'never'}
                 </p>
                 {rule.compatibilityReceiptId && (
-                  <p className="mt-1 font-mono text-[10px] text-ink-600">compatibility {short(rule.compatibilityReceiptId)}</p>
+                  <p className="mt-1 font-mono text-reading text-ink-500">compatibility {short(rule.compatibilityReceiptId)}</p>
                 )}
                 {activeEditingId === rule.id && (
                   <div className="mt-3 rounded-md border border-sky-500/30 bg-sky-500/5 p-3">
-                    <label htmlFor={`active-learning-rule-${rule.id}`} className="text-xs font-medium text-ink-200">Edit active rule</label>
-                    <p className="mt-1 text-[11px] leading-relaxed text-ink-500">
+                    <label htmlFor={`active-learning-rule-${rule.id}`} className="text-ui font-medium text-ink-200">Edit active rule</label>
+                    <p className="mt-1 text-reading text-ink-500">
                       Saving appends v{rule.version + 1}. The current version, its evidence, and rules already frozen into runs remain unchanged and auditable.
                     </p>
                     <textarea id={`active-learning-rule-${rule.id}`} value={activeEditInstruction} maxLength={300}
                       onChange={(event) => setActiveEditInstruction(event.target.value)} rows={3}
-                      className="mt-2 w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100" />
-                    <p className="mt-1 text-[11px] text-ink-500">{activeEditInstruction.trim().length}/300 characters</p>
-                    {activeEditError && <p role="alert" className="mt-1 text-xs text-state-fail">{activeEditError}</p>}
+                      className="mt-2 w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-ui text-ink-100" />
+                    <p className="mt-1 text-reading text-ink-500">{activeEditInstruction.trim().length}/300 characters</p>
+                    {activeEditError && <p role="alert" className="mt-1 text-secondary text-state-fail">{activeEditError}</p>}
                     <div className="mt-2 flex gap-2">
                       <button type="button" disabled={busy !== null} onClick={() => void saveActiveEdit(rule)}
-                        className="btn-success px-3 py-1.5 text-xs disabled:opacity-40">Save new version</button>
+                        className="btn-success px-3 py-1.5 text-ui disabled:opacity-40">Save new version</button>
                       <button type="button" disabled={busy !== null} onClick={() => { setActiveEditingId(null); setActiveEditError(null); }}
-                        className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Cancel</button>
+                        className="btn-outline px-3 py-1.5 text-ui disabled:opacity-40">Cancel</button>
                     </div>
                   </div>
                 )}
                 {activeEditingId !== rule.id && <div className="mt-3 flex flex-wrap gap-2">
                   <button type="button" disabled={busy !== null} onClick={() => beginActiveEdit(rule)}
-                    className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Edit active rule</button>
+                    className="btn-outline px-3 py-1.5 text-ui disabled:opacity-40">Edit active rule</button>
                   <button type="button" disabled={busy === rule.id}
                     onClick={() => act(`rules/${rule.ruleId}/disable`, { versionDigest: rule.versionDigest }, rule.id)}
-                    className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Disable</button>
+                    className="btn-outline px-3 py-1.5 text-ui disabled:opacity-40">Disable</button>
                   <button type="button" disabled={busy === rule.id}
                     onClick={() => act(`rules/${rule.ruleId}/undo`, { versionDigest: rule.versionDigest }, rule.id)}
-                    className="text-xs text-state-fail hover:text-state-fail disabled:opacity-40">Undo</button>
+                    className="text-ui text-state-fail hover:text-state-fail disabled:opacity-40">Undo</button>
                 </div>}
               </li>
             ))}
@@ -471,28 +471,28 @@ function AuthorAgentLearningsCard({ slug, initialPayload = null, initialSource =
         )}
       </div>
       <div className="mt-6 border-t border-ink-800 pt-5">
-        <h3 className="text-sm font-semibold text-ink-100">Rule history</h3>
+        <h3 className="text-ui font-semibold text-ink-100">Rule history</h3>
         {(payload.history || []).length === 0 ? (
-          <p className="mt-2 text-xs text-ink-500">No frozen learning context has been recorded yet.</p>
+          <p className="mt-2 text-secondary text-ink-500">No frozen learning context has been recorded yet.</p>
         ) : (
           <ul className="mt-2 space-y-3">
             {(payload.history || []).map((item) => (
               <li key={item.ruleVersionId} className="rounded-lg border border-ink-800 bg-ink-900/40 p-3">
-                <p className="text-xs font-medium text-ink-200">Rule v{item.version} · {item.state}</p>
+                <p className="text-secondary font-medium text-ink-200">Rule v{item.version} · {item.state}</p>
                 {item.state === 'disabled' && item.action === 'disable' && item.latest === true
                   && /^[0-9a-f]{64}$/i.test(item.versionDigest || '') && (
-                  <button type="button" className="btn-outline mt-2 text-xs" disabled={busy !== null}
+                  <button type="button" className="btn-outline mt-2 text-ui" disabled={busy !== null}
                     onClick={() => void act(`rules/${item.ruleId}/enable`, { versionDigest: item.versionDigest! }, item.ruleVersionId)}>
                     {busy === item.ruleVersionId ? 'Enabling…' : 'Enable rule'}
                   </button>
                 )}
                 {item.runs.length === 0 ? (
-                  <p className="mt-2 text-[11px] text-ink-500">Suggested → approved → not yet supplied</p>
+                  <p className="mt-2 text-reading text-ink-500">Suggested → approved → not yet supplied</p>
                 ) : item.runs.map((run) => (
-                  <div key={`${run.executionAttemptId}:${item.ruleVersionId}`} className="mt-2 text-[11px] leading-relaxed text-ink-400">
+                  <div key={`${run.executionAttemptId}:${item.ruleVersionId}`} className="mt-2 text-secondary leading-relaxed text-ink-400">
                     <p>Suggested → approved → {run.suppliedAt ? `supplied to run ${short(run.runId)}` : 'supply pending'} → {run.handling ? run.handling.replaceAll('_', ' ') : 'handling pending'} → outcome {run.outcome}</p>
                     {run.handlingReason && <p className="text-ink-500">Executor reason: {run.handlingReason}</p>}
-                    <p className="font-mono text-[10px] text-ink-600">attempt {short(run.executionAttemptId)} · fence {run.fencingEpoch} · context {short(run.contextDigest)}</p>
+                    <p className="font-mono text-reading text-ink-500">attempt {short(run.executionAttemptId)} · fence {run.fencingEpoch} · context {short(run.contextDigest)}</p>
                     <p className="text-ink-500">Applied is the executor&apos;s handling report. It does not prove this rule caused the outcome.</p>
                   </div>
                 ))}
@@ -501,7 +501,7 @@ function AuthorAgentLearningsCard({ slug, initialPayload = null, initialSource =
           </ul>
         )}
       </div>
-      {error && <p role="alert" className="mt-3 text-xs text-state-fail">{error}</p>}
+      {error && <p role="alert" className="mt-3 text-secondary text-state-fail">{error}</p>}
     </section>
   );
 }

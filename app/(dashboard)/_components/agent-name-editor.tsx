@@ -72,11 +72,11 @@ export default function AgentNameEditor({
           maxLength={120}
           className="text-2xl font-semibold tracking-tight bg-ink-900 border border-ink-600 rounded-md px-2 py-1 text-ink-50 focus:border-brand-500/60 focus:outline-none min-w-[260px]"
         />
-        <button type="button" onClick={save} disabled={saving} className="btn-success text-xs px-3 py-1.5 disabled:opacity-50">
+        <button type="button" onClick={save} disabled={saving} className="btn-success text-ui px-3 py-1.5 disabled:opacity-50">
           {saving ? 'Saving…' : 'Save'}
         </button>
-        <button type="button" onClick={() => { setDraft(name); setEditing(false); }} className="text-xs text-ink-400 hover:text-ink-200">Cancel</button>
-        {error && <span className="text-xs text-state-fail w-full">{error}</span>}
+        <button type="button" onClick={() => { setDraft(name); setEditing(false); }} className="text-ui text-ink-400 hover:text-ink-200">Cancel</button>
+        {error && <span className="text-secondary text-state-fail w-full">{error}</span>}
       </div>
     );
   }
@@ -89,7 +89,7 @@ export default function AgentNameEditor({
         onClick={() => { setDraft(name); setEditing(true); }}
         aria-label="Rename agent"
         title="Rename"
-        className="text-ink-500 hover:text-ink-200 text-sm opacity-0 group-hover:opacity-100 transition-opacity"
+        className="text-ink-500 hover:text-ink-200 text-ui opacity-0 group-hover:opacity-100 transition-opacity"
       >
         ✎
       </button>

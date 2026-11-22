@@ -40,7 +40,7 @@ export default function OutcomeHandoffRow({ handoff }: { handoff: ProductionHand
       aria-label={`Handoff from agent ${handoff.producerOrdinal + 1} to agent ${handoff.consumerOrdinal + 1}`}
       className={`rounded-lg border px-4 py-3 ${STATE_TONE[handoff.state]}`}
     >
-      <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-secondary">
         <li className="text-ink-200">
           {producer}{handoff.producerAgentName ? ` — ${handoff.producerAgentName}` : ''}
           {' '}
@@ -49,7 +49,7 @@ export default function OutcomeHandoffRow({ handoff }: { handoff: ProductionHand
           </span>
         </li>
 
-        <li aria-hidden="true" className="text-ink-600">→</li>
+        <li aria-hidden="true" className="text-ink-500">→</li>
         <li className="text-ink-200">
           {handoff.artifactName || (handoff.artifactKind ? handoff.artifactKind.replace(/_/g, ' ') : 'output')}
           {handoff.digestPrefix && (
@@ -57,12 +57,12 @@ export default function OutcomeHandoffRow({ handoff }: { handoff: ProductionHand
           )}
         </li>
 
-        <li aria-hidden="true" className="text-ink-600">→</li>
+        <li aria-hidden="true" className="text-ink-500">→</li>
         <li className={validated ? 'text-state-ok' : 'text-ink-400'}>
           {validated ? 'digest verified' : handoff.validationStatus === 'not_reached' ? 'never produced' : 'not validated'}
         </li>
 
-        <li aria-hidden="true" className="text-ink-600">→</li>
+        <li aria-hidden="true" className="text-ink-500">→</li>
         <li className="text-ink-200">
           {handoff.state === 'accepted'
             ? `handed to ${consumer}${handoff.consumerAgentName ? ` — ${handoff.consumerAgentName}` : ''}`
@@ -73,7 +73,7 @@ export default function OutcomeHandoffRow({ handoff }: { handoff: ProductionHand
 
         {handoff.state === 'accepted' && (
           <>
-            <li aria-hidden="true" className="text-ink-600">→</li>
+            <li aria-hidden="true" className="text-ink-500">→</li>
             <li className="text-ink-400">
               {consumer} dispatched{clock(handoff.dispatchedAt) ? ` ${clock(handoff.dispatchedAt)}` : ''}
             </li>
@@ -84,12 +84,12 @@ export default function OutcomeHandoffRow({ handoff }: { handoff: ProductionHand
       {/* The typed reason a handoff did not happen. Rendered verbatim — the
           parent already decided what went wrong and why. */}
       {handoff.failureReason && (
-        <p role="status" className="mt-2 text-xs text-state-needs leading-relaxed">
+        <p role="status" className="mt-2 text-secondary text-state-needs leading-relaxed">
           {handoff.failureReason}
         </p>
       )}
       {validated && handoff.validatedAt && (
-        <p className="mt-1.5 text-[11px] text-ink-500">Validated {clock(handoff.validatedAt)}</p>
+        <p className="mt-1.5 text-reading text-ink-500">Validated {clock(handoff.validatedAt)}</p>
       )}
     </section>
   );

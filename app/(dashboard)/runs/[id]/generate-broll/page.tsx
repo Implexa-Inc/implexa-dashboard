@@ -68,10 +68,10 @@ export default async function GenerateBrollPage({ params, searchParams }: {
     return (
       <main className="app-page">
         <div className="mx-auto max-w-3xl">
-          <Link href={`/runs/${encodeURIComponent(params.id)}`} className="text-xs text-ink-500 hover:text-ink-200">← Back to run</Link>
+          <Link href={`/runs/${encodeURIComponent(params.id)}`} className="text-secondary text-ink-500 hover:text-ink-200">← Back to run</Link>
           <div className="mt-4 rounded-lg border border-ink-800 bg-ink-950/50 p-5">
             <h1 className="text-lg font-medium text-ink-100">This run has no result to build from yet.</h1>
-            <p className="mt-2 text-sm text-ink-400">Wait for it to deliver, then choose Generate B-roll from the run.</p>
+            <p className="mt-2 text-reading text-ink-400">Wait for it to deliver, then choose Generate B-roll from the run.</p>
           </div>
         </div>
       </main>
@@ -140,25 +140,25 @@ export default async function GenerateBrollPage({ params, searchParams }: {
     return (
       <main className="app-page">
         <div className="mx-auto max-w-3xl">
-          <Link href={`/runs/${encodeURIComponent(params.id)}`} className="text-xs text-ink-500 hover:text-ink-200">← Back to run</Link>
+          <Link href={`/runs/${encodeURIComponent(params.id)}`} className="text-secondary text-ink-500 hover:text-ink-200">← Back to run</Link>
           <div className="mt-4 rounded-lg border border-ink-800 bg-ink-950/50 p-5">
             <h1 className="text-lg font-medium text-ink-100">{copy.title}</h1>
-            <p className="mt-2 text-sm text-ink-400">{copy.body}</p>
+            <p className="mt-2 text-reading text-ink-400">{copy.body}</p>
             {copy.action && (
-              <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">{copy.action}</p>
+              <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-reading text-state-needs">{copy.action}</p>
             )}
             {alternates.length > 0 && (
               <div className="mt-4">
-                <p className="text-xs font-medium text-ink-300">Change source and recompile these moments</p>
+                <p className="text-secondary font-medium text-ink-300">Change source and recompile these moments</p>
                 <ul className="mt-2 space-y-2">
                   {alternates.map((candidate) => (
                     <li key={candidate.artifactId}>
                       <Link
                         href={`/runs/${encodeURIComponent(params.id)}/generate-broll?from=${encodeURIComponent(String(searchParams?.from))}&source=${encodeURIComponent(candidate.artifactId)}`}
-                        className="flex items-center justify-between rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 hover:border-ink-500"
+                        className="flex items-center justify-between rounded-md border border-ink-700 px-3 py-2 text-secondary text-ink-200 hover:border-ink-500"
                       >
                         <span>{candidate.relativePath}</span>
-                        <span className="text-xs text-ink-400">{formatDurationMs(candidate.mediaDurationMs as number)}</span>
+                        <span className="text-secondary text-ink-400">{formatDurationMs(candidate.mediaDurationMs as number)}</span>
                       </Link>
                     </li>
                   ))}
@@ -183,12 +183,12 @@ export default async function GenerateBrollPage({ params, searchParams }: {
     return (
       <main className="app-page">
         <div className="mx-auto max-w-3xl">
-          <Link href={`/runs/${encodeURIComponent(params.id)}`} className="text-xs text-ink-500 hover:text-ink-200">← Back to run</Link>
+          <Link href={`/runs/${encodeURIComponent(params.id)}`} className="text-secondary text-ink-500 hover:text-ink-200">← Back to run</Link>
           <div className="mt-4 rounded-lg border border-ink-800 bg-ink-950/50 p-5">
             <h1 className="text-lg font-medium text-ink-100">{copy.title}</h1>
-            <p className="mt-2 text-sm text-ink-400">{copy.body}</p>
+            <p className="mt-2 text-reading text-ink-400">{copy.body}</p>
             {copy.action && (
-              <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">
+              <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-reading text-state-needs">
                 {copy.action}
               </p>
             )}
@@ -198,10 +198,10 @@ export default async function GenerateBrollPage({ params, searchParams }: {
                   <li key={candidate.artifactId}>
                     <Link
                       href={`/runs/${encodeURIComponent(params.id)}/generate-broll?source=${encodeURIComponent(candidate.artifactId)}${searchParams?.from ? `&from=${encodeURIComponent(searchParams.from)}` : ''}`}
-                      className="flex items-center justify-between rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 hover:border-ink-500"
+                      className="flex items-center justify-between rounded-md border border-ink-700 px-3 py-2 text-secondary text-ink-200 hover:border-ink-500"
                     >
                       <span>{candidate.relativePath}</span>
-                      <span className="text-xs text-ink-400">
+                      <span className="text-secondary text-ink-400">
                         {/* An unverified candidate is offered and LABELLED, not
                             hidden: the file the user meant may be this one, and
                             choosing it should tell them what is missing. */}
@@ -226,9 +226,9 @@ export default async function GenerateBrollPage({ params, searchParams }: {
   return (
     <main className="app-page">
       <div className="mx-auto max-w-3xl">
-        <Link href={`/runs/${encodeURIComponent(params.id)}`} className="text-xs text-ink-500 hover:text-ink-200">← Back to run</Link>
+        <Link href={`/runs/${encodeURIComponent(params.id)}`} className="text-secondary text-ink-500 hover:text-ink-200">← Back to run</Link>
         {editRequestedButUnavailable && (
-          <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">
+          <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-reading text-state-needs">
             {/* Say what happened. Silently opening a blank builder would look like
                 the edit worked and leave the user rebuilding without knowing it. */}
             Tukido couldn&apos;t load the plan you asked to edit, so this builder is starting
@@ -236,7 +236,7 @@ export default async function GenerateBrollPage({ params, searchParams }: {
           </p>
         )}
         {editResolution && editResolution.kind === 'source_changed' && (
-          <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-state-needs">
+          <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-reading text-state-needs">
             {/* A stated change, never a silent one: the moments came from a plan
                 compiled against a different video, and the new source's length is
                 what these windows will now be checked against. */}

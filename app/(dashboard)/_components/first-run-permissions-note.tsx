@@ -52,7 +52,7 @@ export default function FirstRunPermissionsNote({ active }: { active: boolean })
       </button>
       <div className="flex items-start gap-3 pr-6">
         <span className="text-lg leading-none mt-0.5" aria-hidden="true">💡</span>
-        <p className="text-sm text-ink-200 leading-relaxed">
+        <p className="text-reading text-ink-200 ">
           <span className="font-medium text-ink-50">Heads up:</span> your first run may pause for a
           permission it can&apos;t auto-approve. Watch Alerts (Active Agents / Home), your email, or a
           desktop notification. Approving is one tap.

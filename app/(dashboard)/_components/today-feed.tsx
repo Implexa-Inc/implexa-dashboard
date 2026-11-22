@@ -48,10 +48,10 @@ function Row({ title, detail, href, cta, warn = false }: {
   return (
     <div className={`card flex items-center justify-between gap-3 ${warn ? 'border-amber-500/40' : ''}`}>
       <div className="min-w-0">
-        <p className="text-sm font-medium text-ink-100 truncate">{title}</p>
-        <p className={`text-xs mt-0.5 ${warn ? 'text-state-needs' : 'text-ink-500'}`}>{detail}</p>
+        <p className="text-reading font-medium text-ink-100 truncate">{title}</p>
+        <p className={`text-secondary mt-0.5 ${warn ? 'text-state-needs' : 'text-ink-500'}`}>{detail}</p>
       </div>
-      <Link href={href} className="btn-outline text-xs px-3 py-1.5 flex-none">{cta}</Link>
+      <Link href={href} className="btn-outline text-secondary px-3 py-1.5 flex-none">{cta}</Link>
     </div>
   );
 }
@@ -98,7 +98,7 @@ export default function TodayFeed({ data, warning, className = '' }: {
 
   return (
     <section className={className}>
-      <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide mb-3">Today</h2>
+      <h2 className="text-ui font-semibold text-ink-300 uppercase tracking-wide mb-3">Today</h2>
 
       {/* An unverifiable list is NOT an empty one. When a source could not be read
           this says so instead of letting the all-clear below imply everything is
@@ -106,7 +106,7 @@ export default function TodayFeed({ data, warning, className = '' }: {
       {warning && (
         <p
           role="status"
-          className="text-xs text-state-needs border border-amber-500/40 rounded-md px-3 py-2 mb-3"
+          className="text-secondary text-state-needs border border-amber-500/40 rounded-md px-3 py-2 mb-3"
         >
           {warning}
         </p>
@@ -117,7 +117,7 @@ export default function TodayFeed({ data, warning, className = '' }: {
       {liveUnavailable && (
         <p
           role="status"
-          className="text-xs text-state-needs border border-amber-500/40 rounded-md px-3 py-2 mb-3"
+          className="text-secondary text-state-needs border border-amber-500/40 rounded-md px-3 py-2 mb-3"
         >
           We couldn&apos;t check your live runs just now, so this list may be incomplete. It retries on its own.
         </p>
@@ -152,15 +152,15 @@ export default function TodayFeed({ data, warning, className = '' }: {
           {data.missed.map((m) => (
             <div key={`missed-${m.id}`} className="card flex items-center justify-between gap-3 border-amber-500/40">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-ink-100 truncate">{m.name}</p>
-                <p className="text-xs mt-0.5 text-state-needs">
+                <p className="text-reading font-medium text-ink-100 truncate">{m.name}</p>
+                <p className="text-reading mt-0.5 text-state-needs">
                   {m.neverArmed
                     ? `Scheduled for ${m.when}, but it hasn't started running yet. Tap Start (keep the Claude app open) and it runs on its own from then on.`
                     : m.failed
                     ? 'Its schedule is marked failed. Tap Fix now and it re-runs on its own.'
                     : `Missed its schedule (${m.when}). Tap Fix now — it re-runs on its own and the result lands on Home.`}
                 </p>
-                <Link href={`/workflows/${m.slug}`} className="text-[11px] text-ink-500 hover:text-ink-300 hover:underline mt-1 inline-block">
+                <Link href={`/workflows/${m.slug}`} className="text-secondary text-ink-500 hover:text-ink-300 hover:underline mt-1 inline-block">
                   Open agent details
                 </Link>
               </div>
@@ -177,7 +177,7 @@ export default function TodayFeed({ data, warning, className = '' }: {
         <div className="card p-6 text-center">
           <div className="text-2xl mb-2" aria-hidden="true">✓</div>
           <p className="text-ink-100 font-medium">Nothing needs you right now.</p>
-          <p className="text-ink-400 text-sm mt-1">
+          <p className="text-ink-400 text-reading mt-1">
             Your agents run on their own. Anything that needs a decision shows up here.
           </p>
         </div>

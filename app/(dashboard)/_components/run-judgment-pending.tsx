@@ -83,11 +83,11 @@ export function RunJudgmentPending({
       <div className="mb-6 rounded-xl border border-ink-700 bg-ink-900/40 px-4 py-3" role="status">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-ink-500" aria-hidden />
-          <span className="text-sm font-medium text-ink-200">
+          <span className="text-secondary font-medium text-ink-200">
             {phase === 'repair' ? 'The repair attempt was cancelled' : 'Tukido Judge review was cancelled'}
           </span>
         </div>
-        <p className="text-xs text-ink-500 mt-1">No verdict will be produced for this request.</p>
+        <p className="text-secondary text-ink-500 mt-1">No verdict will be produced for this request.</p>
       </div>
     );
   }
@@ -97,11 +97,11 @@ export function RunJudgmentPending({
       <div className="mb-6 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3" role="status">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden />
-          <span className="text-sm font-medium text-ink-200">
+          <span className="text-secondary font-medium text-ink-200">
             {phase === 'repair' ? 'This repair is taking unusually long' : 'This review is taking unusually long'}
           </span>
         </div>
-        <p className="text-xs text-ink-500 mt-1">
+        <p className="text-reading text-ink-500 mt-1">
           It may have stalled. Refresh the page to check again — this banner stops auto-refreshing past 20 minutes so an open tab doesn&apos;t poll forever.
         </p>
       </div>
@@ -112,11 +112,11 @@ export function RunJudgmentPending({
     <div className="mb-6 rounded-xl border border-violet-500/25 bg-violet-500/5 px-4 py-3" role="status">
       <div className="flex items-center gap-2">
         <span className="h-2 w-2 rounded-full bg-violet-400 animate-pulse" aria-hidden />
-        <span className="text-sm font-medium text-ink-200">
+        <span className="text-secondary font-medium text-ink-200">
           {phase === 'repair' ? 'Tukido is repairing this run' : 'Tukido Judge is reviewing this run'}
         </span>
       </div>
-      <p className="text-xs text-ink-500 mt-1">
+      <p className="text-secondary text-ink-500 mt-1">
         {phase === 'repair'
           ? 'The agent is applying the Judge’s qualitative feedback hands-off. Its updated result will be reviewed again in a fresh session.'
           : 'A fresh session is checking the request, criteria, memory, and actual artifacts. The verdict will appear here.'}

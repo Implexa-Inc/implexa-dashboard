@@ -91,10 +91,10 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
   return (
     <section className="card mb-6">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium text-ink-100">Before your agents can run, you&apos;ll need a few things</h2>
-        <span className="text-xs text-ink-500 tabular-nums">{doneCount}/{steps.length} ready</span>
+        <h2 className="text-ui font-medium text-ink-100">Before your agents can run, you&apos;ll need a few things</h2>
+        <span className="text-micro text-ink-500 tabular-nums">{doneCount}/{steps.length} ready</span>
       </div>
-      <p className="text-xs text-ink-500 mt-1 mb-4">A one-time setup. We&apos;ll keep it simple.</p>
+      <p className="text-secondary text-ink-500 mt-1 mb-4">A one-time setup. We&apos;ll keep it simple.</p>
       <ol className="space-y-3">
         {steps.map((s, i) => (
           <li key={s.title} className="flex items-start gap-3">
@@ -105,23 +105,23 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
                 </svg>
               </span>
             ) : (
-              <span className="flex-none inline-flex items-center justify-center w-6 h-6 rounded-full bg-ink-800 text-ink-300 text-[11px] font-semibold tabular-nums mt-0.5">
+              <span className="flex-none inline-flex items-center justify-center w-6 h-6 rounded-full bg-ink-800 text-ink-300 text-micro font-semibold tabular-nums mt-0.5">
                 {i + 1}
               </span>
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-sm font-medium ${s.done ? 'text-ink-300 line-through decoration-ink-600' : 'text-ink-100'}`}>{s.title}</span>
+                <span className={`text-secondary font-medium ${s.done ? 'text-ink-300 line-through decoration-ink-600' : 'text-ink-100'}`}>{s.title}</span>
               </div>
               {s.done ? (
-                <p className="text-xs text-success-600 dark:text-success-400 mt-0.5 leading-relaxed">{s.doneNote}</p>
+                <p className="text-secondary text-success-600 dark:text-success-400 mt-0.5 leading-relaxed">{s.doneNote}</p>
               ) : (
                 <>
-                  <p className="text-xs text-ink-400 mt-0.5 leading-relaxed">{s.body}</p>
+                  <p className="text-secondary text-ink-400 mt-0.5 leading-relaxed">{s.body}</p>
                   {s.links && s.links.length > 0 && (
                     <div className="mt-1.5 flex items-center gap-4 flex-wrap">
                       {s.links.map((l) => (
-                        <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" className="inline-block text-xs text-action-accent hover:underline">
+                        <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" className="inline-block text-secondary text-action-accent hover:underline">
                           {l.label} ↗
                         </a>
                       ))}

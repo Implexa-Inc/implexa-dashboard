@@ -124,10 +124,10 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
         {showWelcome && welcomeBanner}
 
         <PageHeader title="Run your agents">
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             One download. The app connects Tukido to your own Claude or Codex and runs your agents there, as you, free. That&apos;s it.
           </p>
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Claude Code runs in the background, so you don&apos;t work there. Build, run, and approve every agent right here in Tukido.
           </p>
         </PageHeader>
@@ -143,7 +143,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
             >
               ↓ Download Implexa for Mac
             </a>
-            <span className="text-[11px] text-ink-500">Universal · macOS 11+ · signed &amp; notarized · free · connects your Claude or Codex for you</span>
+            <span className="text-secondary text-ink-500">Universal · macOS 11+ · signed &amp; notarized · free · connects your Claude or Codex for you</span>
           </div>
         )}
 
@@ -151,7 +151,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
          * Open by default for an already-connected user so they still see the
          * "connection active" status HeroInstall renders. */}
         <details className="card !p-0 group mt-2" {...(hasKey ? { open: true } : {})}>
-          <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+          <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-ui text-ink-100">
             <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
             <span>Prefer the terminal? Connect Claude Code or Codex with one command <span className="text-ink-500">(advanced)</span></span>
           </summary>
@@ -173,12 +173,12 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
          * terminal. The CLI tab also lives here for users who want the detailed walkthrough.
          */}
         <details className="card !p-0 group mt-2">
-          <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+          <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-ui text-ink-100">
             <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
             <span>Other runtimes: <strong>Cursor</strong>, <strong>Gemini CLI</strong>, <strong>Cowork</strong>, <strong>Chat</strong>, or visual <strong>Desktop UI</strong></span>
           </summary>
           <div className="px-4 pb-4 pt-2 border-t border-ink-700/60">
-            <p className="text-xs text-ink-400 mb-4 leading-relaxed">
+            <p className="text-secondary text-ink-400 mb-4 leading-relaxed">
               Same agents + library across every Claude surface. Pick whichever you actually use day-to-day.
             </p>
             <InstallFlow
@@ -196,106 +196,106 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
          * Adding entries: prepend new ones (most recent friction first).
          * ────────────────────────────────────────────────────────── */}
         <section className="mt-16">
-          <h2 className="text-xs uppercase tracking-wider text-ink-400 font-bold mb-3">Frequently asked</h2>
+          <h2 className="text-ui uppercase tracking-wider text-ink-400 font-bold mb-3">Frequently asked</h2>
           <div className="space-y-2">
 
             <details className="card !p-0 group">
-              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-ui text-ink-100">
                 <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
                 How do I fully uninstall or reset Tukido on this machine?
               </summary>
-              <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-3 border-t border-ink-700/60">
-                <p>
-                  One command. Reverses everything the install script set up: API key file, hooks, MCP wiring, Claude Code plugin, AND the launchctl-set env vars (those survive shell <code className="text-xs bg-ink-800 px-1 rounded">unset</code> and re-leak into new Terminal tabs on macOS — biggest source of &ldquo;why does my fresh install still pick up the old account?&rdquo;).
+              <div className="px-4 pb-4 pt-1 text-secondary text-ink-200 leading-relaxed space-y-3 border-t border-ink-700/60">
+                <p className="text-reading">
+                  One command. Reverses everything the install script set up: API key file, hooks, MCP wiring, Claude Code plugin, AND the launchctl-set env vars (those survive shell <code className="text-secondary bg-ink-800 px-1 rounded">unset</code> and re-leak into new Terminal tabs on macOS — biggest source of &ldquo;why does my fresh install still pick up the old account?&rdquo;).
                 </p>
-                <pre className="bg-ink-950 border border-ink-700 rounded-md p-3 text-xs text-ink-100 font-mono overflow-x-auto">curl -fsSL https://core.implexa.ai/uninstall.sh | bash</pre>
-                <p className="text-xs text-ink-400">
+                <pre className="bg-ink-950 border border-ink-700 rounded-md p-3 text-micro text-ink-100 font-mono overflow-x-auto">curl -fsSL https://core.implexa.ai/uninstall.sh | bash</pre>
+                <p className="text-reading text-ink-400">
                   Idempotent — safe to re-run anytime. After it finishes, opening a fresh Terminal and running the install command gives you a true fresh-install experience (browser auth runs, no env vars leak through).
                 </p>
-                <p className="text-xs text-ink-400">
+                <p className="text-reading text-ink-400">
                   <strong className="text-ink-200">What&apos;s NOT removed:</strong> your API keys in the cloud (revoke at <Link href="/settings/api-keys" className="text-action-accent hover:underline">Connected installs</Link> if you want a fully clean slate), your Tukido account, and your agents and library.
                 </p>
               </div>
             </details>
 
             <details className="card !p-0 group">
-              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-ui text-ink-100">
                 <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
                 I uninstalled + reinstalled the plugin but I&apos;m still on the old version. What gives?
               </summary>
-              <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-3 border-t border-ink-700/60">
-                <p>
-                  Claude Code keeps a local clone of the Implexa marketplace at <code className="text-xs bg-ink-800 px-1 rounded">~/.claude/plugins/marketplaces/implexa/</code>. It doesn&apos;t auto-pull on reinstall — so you get whatever version that local clone was last synced to.
+              <div className="px-4 pb-4 pt-1 text-secondary text-ink-200 leading-relaxed space-y-3 border-t border-ink-700/60">
+                <p className="text-reading">
+                  Claude Code keeps a local clone of the Implexa marketplace at <code className="text-secondary bg-ink-800 px-1 rounded">~/.claude/plugins/marketplaces/implexa/</code>. It doesn&apos;t auto-pull on reinstall — so you get whatever version that local clone was last synced to.
                 </p>
                 <p>
                   <strong className="text-ink-100">Quick fix</strong>, in your terminal:
                 </p>
-                <pre className="bg-ink-950 border border-ink-700 rounded-md p-3 text-xs text-ink-100 font-mono overflow-x-auto">cd ~/.claude/plugins/marketplaces/implexa && git pull origin main</pre>
-                <p>
-                  Then reinstall the plugin (Customize → Personal plugins → uninstall + reinstall, OR CLI <code className="text-xs bg-ink-800 px-1 rounded">/plugin install implexa@implexa</code>). You&apos;ll get the latest version.
+                <pre className="bg-ink-950 border border-ink-700 rounded-md p-3 text-micro text-ink-100 font-mono overflow-x-auto">cd ~/.claude/plugins/marketplaces/implexa && git pull origin main</pre>
+                <p className="text-reading">
+                  Then reinstall the plugin (Customize → Personal plugins → uninstall + reinstall, OR CLI <code className="text-secondary bg-ink-800 px-1 rounded">/plugin install implexa@implexa</code>). You&apos;ll get the latest version.
                 </p>
-                <p className="text-xs text-ink-400">
-                  Alternative: <code className="text-xs bg-ink-800 px-1 rounded">rm -rf ~/.claude/plugins/marketplaces/implexa</code> then re-add the marketplace from scratch.
+                <p className="text-secondary text-ink-400">
+                  Alternative: <code className="text-secondary bg-ink-800 px-1 rounded">rm -rf ~/.claude/plugins/marketplaces/implexa</code> then re-add the marketplace from scratch.
                 </p>
-                <p className="text-xs text-ink-400">
+                <p className="text-reading text-ink-400">
                   This is a Claude Code plugin-manager quirk — Anthropic should auto-pull on reinstall. We&apos;re tracking the fix.
                 </p>
               </div>
             </details>
 
             <details className="card !p-0 group">
-              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-ui text-ink-100">
                 <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
                 Which runtime should I pick?
               </summary>
-              <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
-                <p><strong className="text-ink-100">Claude Code (CLI)</strong> is the most-tested install. Best capture, full plugin support, and what we run end-to-end QA against.</p>
-                <p><strong className="text-ink-100">Codex (CLI)</strong> is fully supported as of v0.16. Same agents and library, same <code className="text-xs bg-ink-800 px-1 rounded">/implexa:run</code> wedge. Use the second curl above.</p>
+              <div className="px-4 pb-4 pt-1 text-secondary text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
+                <p className="text-reading"><strong className="text-ink-100">Claude Code (CLI)</strong> is the most-tested install. Best capture, full plugin support, and what we run end-to-end QA against.</p>
+                <p><strong className="text-ink-100">Codex (CLI)</strong> is fully supported as of v0.16. Same agents and library, same <code className="text-secondary bg-ink-800 px-1 rounded">/implexa:run</code> wedge. Use the second curl above.</p>
                 <p><strong className="text-ink-100">Claude Code (Desktop)</strong> if you prefer a visual install — same capture as the CLI version, just clicked-through.</p>
-                <p>All three give you the full 7 slash commands and 30+ MCP tools. Your agents and library are cloud-hosted and shared across whichever runtimes you install on.</p>
-                <p className="text-xs text-ink-400">Cursor, Gemini CLI, Cowork, and Claude chat work for read-only browsing but don&apos;t support full capture yet — pick Claude Code or Codex if you want to build and capture agents.</p>
+                <p className="text-reading">All three give you the full 7 slash commands and 30+ MCP tools. Your agents and library are cloud-hosted and shared across whichever runtimes you install on.</p>
+                <p className="text-reading text-ink-400">Cursor, Gemini CLI, Cowork, and Claude chat work for read-only browsing but don&apos;t support full capture yet — pick Claude Code or Codex if you want to build and capture agents.</p>
               </div>
             </details>
 
             <details className="card !p-0 group">
-              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-ui text-ink-100">
                 <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
                 Do I need to install Tukido on every Claude surface?
               </summary>
-              <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
-                <p>
+              <div className="px-4 pb-4 pt-1 text-secondary text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
+                <p className="text-reading">
                   No. Pick whichever surface you actually use day-to-day. Your agents and library live in our cloud — they&apos;re shared across all surfaces you install on, and surfaces you don&apos;t install on simply don&apos;t have local plugin commands.
                 </p>
-                <p className="text-xs text-ink-400">
+                <p className="text-reading text-ink-400">
                   Tip: Cowork install also auto-registers Implexa as a Connector in Claude chat (Desktop). One install, two surfaces.
                 </p>
               </div>
             </details>
 
             <details className="card !p-0 group">
-              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-ui text-ink-100">
                 <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
                 Why doesn&apos;t Cowork get full capture?
               </summary>
-              <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
-                <p>
+              <div className="px-4 pb-4 pt-1 text-secondary text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
+                <p className="text-reading">
                   Anthropic&apos;s Cowork sandbox currently doesn&apos;t invoke user-level hooks the way Claude Code does. We&apos;ve reported the issue. Until they ship the fix, Cowork captures MCP tool calls (the bulk of useful data) but not conversation turns.
                 </p>
-                <p>
+                <p className="text-reading">
                   We&apos;ll detect the moment the fix lands automatically — the install page will flip itself to show hooks installation for Cowork too.
                 </p>
-                <p className="text-xs text-ink-400">
+                <p className="text-secondary text-ink-400">
                   Want full capture today? Use Claude Code (Desktop or CLI).
                 </p>
               </div>
             </details>
 
             <details className="card !p-0 group">
-              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-ui text-ink-100">
                 <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
                 Where do I find / regenerate my API key?
               </summary>
-              <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed border-t border-ink-700/60">
+              <div className="px-4 pb-4 pt-1 text-secondary text-ink-200 leading-relaxed border-t border-ink-700/60">
                 <p>
                   <Link href="/settings/api-keys" className="text-action-accent hover:underline">Settings → API keys</Link>. You can list, copy, rotate, or revoke from there.
                 </p>
@@ -305,8 +305,8 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
           </div>
         </section>
 
-        <footer className="mt-12 text-xs text-ink-400 leading-relaxed">
-          <p>
+        <footer className="mt-12 text-secondary text-ink-400 leading-relaxed">
+          <p className="text-reading">
             Once connected, try the wedge first: <code className="bg-ink-800 px-1 rounded">/implexa:run draft a cold outreach email</code>{' '}
             builds a small agent for that, picks the best building blocks, and runs it inline in your current session.{' '}
             Nothing to install per task, no SKILL.md copying.
@@ -385,7 +385,7 @@ function renderWelcomeBanner({
     headline = <>Welcome to Tukido.</>;
     body = (
       <>
-        One step before your agents can run: connect Tukido to your own Claude Code or Codex below. Takes about 2 minutes. After that, try <code className="bg-ink-800 px-1 rounded text-xs">/implexa:run draft a cold outreach email</code> to see one run for yourself.
+        One step before your agents can run: connect Tukido to your own Claude Code or Codex below. Takes about 2 minutes. After that, try <code className="bg-ink-800 px-1 rounded text-secondary">/implexa:run draft a cold outreach email</code> to see one run for yourself.
       </>
     );
   }
@@ -394,7 +394,7 @@ function renderWelcomeBanner({
     <div className="mb-8 rounded-lg border border-success-400/40 bg-gradient-to-r from-success-400/10 to-brand-500/5 p-4">
       <div className="flex items-start gap-3">
         <span className="text-2xl leading-none mt-0.5" aria-hidden="true">🎉</span>
-        <div className="flex-1 text-sm">
+        <div className="flex-1 text-secondary">
           <p className="font-semibold text-ink-50 mb-1">{headline}</p>
           <p className="text-ink-200 leading-relaxed">{body}</p>
         </div>

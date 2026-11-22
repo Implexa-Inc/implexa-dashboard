@@ -23,9 +23,9 @@ export default async function MachineSetupPage({ slug, machineId = null, workflo
   return (
     <section className="settings-page">
       <div className="settings-page-content">
-        <Link href={`/workflows/${encodeURIComponent(slug)}`} className="text-xs text-action-accent hover:underline">← Back to the agent</Link>
+        <Link href={`/workflows/${encodeURIComponent(slug)}`} className="text-secondary text-action-accent hover:underline">← Back to the agent</Link>
         <PageHeader title="Set up this computer">
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Each requirement below is checked on the selected computer, in the exact environment the agent runs in. Install or sign in yourself, then Recheck.
           </p>
         </PageHeader>

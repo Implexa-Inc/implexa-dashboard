@@ -51,7 +51,7 @@ export default async function ChainsPage() {
       <div className="app-content">
         <header className="mb-7">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Agent Chains</h1>
-          <p className="text-ink-300 text-sm mt-1">
+          <p className="text-ink-300 text-reading mt-1">
             Chain your agents — one agent&apos;s output feeds the next. One tap builds the pipeline.
             Build the agents on <Link href="/workflows" className="text-action-accent hover:underline">Agents</Link>.
           </p>
@@ -60,7 +60,7 @@ export default async function ChainsPage() {
         {agents.length >= 2 ? (
           <ChainSuggestions agents={agents} />
         ) : (
-          <div className="card text-sm text-ink-300">
+          <div className="card text-secondary text-ink-300">
             <p className="font-medium text-ink-100 mb-1">You need at least two agents to chain.</p>
             <p>Build a couple on <Link href="/workflows" className="text-action-accent hover:underline">Agents</Link>, then come back to wire them into a pipeline.</p>
           </div>

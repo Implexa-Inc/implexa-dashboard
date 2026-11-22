@@ -92,11 +92,11 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
 
   return (
     <section className="mb-7">
-      <h2 className="text-xs font-medium text-ink-400 uppercase tracking-wider mb-1">Chain your agents</h2>
-      <p className="text-xs text-ink-500 mb-3">One agent&apos;s output feeds the next. One tap builds the pipeline.</p>
+      <h2 className="text-ui font-medium text-ink-400 uppercase tracking-wider mb-1">Chain your agents</h2>
+      <p className="text-secondary text-ink-500 mb-3">One agent&apos;s output feeds the next. One tap builds the pipeline.</p>
 
       {loading && !suggestions.length && (
-        <div className="flex items-center gap-2 text-xs text-ink-500 mb-4" aria-live="polite">
+        <div className="flex items-center gap-2 text-secondary text-ink-500 mb-4" aria-live="polite">
           <span className="inline-block w-3.5 h-3.5 border-2 border-ink-600 border-t-brand-500 rounded-full animate-spin" aria-hidden="true" />
           Looking for chains you can build…
         </div>
@@ -104,24 +104,24 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
 
       {suggestions.length > 0 && (
         <>
-          <h3 className="text-[11px] font-medium text-ink-500 mb-2">Recommended chains</h3>
+          <h3 className="text-ui font-medium text-ink-500 mb-2">Recommended chains</h3>
           <div className="grid sm:grid-cols-2 gap-3 mb-5">
             {suggestions.map((s) => {
               const key = `${s.fromSlug}>${s.toSlug}`;
               const existing = created[key] || s.existingSlug;
               return (
                 <div key={key} className="card p-4 flex flex-col">
-                  <div className="flex items-center gap-2 text-sm text-ink-100 flex-wrap">
+                  <div className="flex items-center gap-2 text-secondary text-ink-100 flex-wrap">
                     <span className="font-medium">{s.fromName}</span>
                     <span className="text-action-accent" aria-hidden="true">→</span>
                     <span className="font-medium">{s.toName}</span>
                   </div>
-                  {s.rationale && <p className="text-xs text-ink-400 mt-1.5 leading-relaxed flex-1">{s.rationale}</p>}
+                  {s.rationale && <p className="text-secondary text-ink-400 mt-1.5 leading-relaxed flex-1">{s.rationale}</p>}
                   <div className="mt-3">
                     {existing ? (
                       <div className="flex items-center gap-3">
-                        <span className="text-xs text-success-600 dark:text-success-400">✓ Saved</span>
-                        <a href={`/workflows/${existing}`} className="text-xs font-medium text-action-accent hover:underline">
+                        <span className="text-secondary text-success-600 dark:text-success-400">✓ Saved</span>
+                        <a href={`/workflows/${existing}`} className="text-secondary font-medium text-action-accent hover:underline">
                           Open it — run or schedule →
                         </a>
                       </div>
@@ -130,7 +130,7 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
                         type="button"
                         onClick={() => createRecommended(s)}
                         disabled={!!busy}
-                        className="btn-success text-xs px-3 py-1.5 disabled:opacity-60"
+                        className="btn-success text-ui px-3 py-1.5 disabled:opacity-60"
                       >
                         {busy === key ? 'Building…' : 'Create chain'}
                       </button>
@@ -147,13 +147,13 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
         <button
           type="button"
           onClick={() => setShowCustom(true)}
-          className="btn-outline text-xs px-3 py-1.5"
+          className="btn-outline text-ui px-3 py-1.5"
         >
           + Create custom chain
         </button>
       )}
 
-      {err && <p className="text-xs text-state-fail mt-2">{err}</p>}
+      {err && <p className="text-secondary text-state-fail mt-2">{err}</p>}
 
       <Modal
         open={showCustom}
@@ -211,7 +211,7 @@ function CustomChainBuilder({
         {slots.map((sl, i) => (
           <div key={i}>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-ink-600 w-4 tabular-nums">{i + 1}</span>
+              <span className="text-micro text-ink-500 w-4 tabular-nums">{i + 1}</span>
               <select
                 value={sl}
                 onChange={(e) => setSlot(i, e.target.value)}
@@ -219,7 +219,7 @@ function CustomChainBuilder({
                 // long agent/chain name gives the <select> an intrinsic min-width
                 // that overflows the modal (the default flex min-width:auto). The
                 // browser then truncates the long option to the box width.
-                className="flex-1 min-w-0 truncate rounded-md bg-ink-900 border border-ink-700 px-3 py-2 text-sm text-ink-100 focus:outline-none focus:border-ink-500"
+                className="flex-1 min-w-0 truncate rounded-md bg-ink-900 border border-ink-700 px-3 py-2 text-ui text-ink-100 focus:outline-none focus:border-ink-500"
               >
                 <option value="">{i === 0 ? 'Select an agent…' : 'Chain to an agent…'}</option>
                 {agents.map((a) => (
@@ -227,13 +227,13 @@ function CustomChainBuilder({
                 ))}
               </select>
               {slots.length > 2 && (
-                <button type="button" onClick={() => removeSlot(i)} aria-label="Remove" className="text-ink-500 hover:text-state-fail text-sm px-1">×</button>
+                <button type="button" onClick={() => removeSlot(i)} aria-label="Remove" className="text-ink-500 hover:text-state-fail text-ui px-1">×</button>
               )}
             </div>
             {i < slots.length - 1 && (
               <div className="flex items-center gap-2 pl-6 my-0.5">
                 <span className="text-action-accent" aria-hidden="true">↓</span>
-                <span className="text-[11px] text-ink-500">output feeds into</span>
+                <span className="text-secondary text-ink-500">output feeds into</span>
               </div>
             )}
           </div>
@@ -243,17 +243,17 @@ function CustomChainBuilder({
         <button
           type="button"
           onClick={addSlot}
-          className="text-xs text-ink-300 hover:text-ink-100 border border-ink-700 hover:border-ink-500 rounded-md px-2.5 py-1.5"
+          className="text-ui text-ink-300 hover:text-ink-100 border border-ink-700 hover:border-ink-500 rounded-md px-2.5 py-1.5"
         >
           + Add agent
         </button>
       </div>
       <div className="mt-5 flex items-center justify-end gap-3 border-t border-ink-800 pt-4">
-        {!valid && <span className="text-[11px] text-ink-600 mr-auto">Pick at least 2 different agents.</span>}
+        {!valid && <span className="text-secondary text-ink-500 mr-auto">Pick at least 2 different agents.</span>}
         <button
           type="button"
           onClick={onCancel}
-          className="text-sm text-ink-400 hover:text-ink-200 px-3 py-2"
+          className="text-ui text-ink-400 hover:text-ink-200 px-3 py-2"
         >
           Cancel
         </button>
@@ -261,7 +261,7 @@ function CustomChainBuilder({
           type="button"
           onClick={create}
           disabled={!valid || !!busy}
-          className="btn-success text-sm px-4 py-2 disabled:opacity-50"
+          className="btn-success text-ui px-4 py-2 disabled:opacity-50"
         >
           {busy === '__custom__' ? 'Building…' : 'Create chain'}
         </button>

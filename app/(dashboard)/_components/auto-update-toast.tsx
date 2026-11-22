@@ -68,23 +68,23 @@ export default function AutoUpdateToast() {
         <div className="flex items-start gap-2.5">
           <span aria-hidden="true" className="mt-0.5 text-base leading-none">⬆️</span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-ink-100">
+            <p className="text-reading font-medium text-ink-100">
               {version ? `Tukido v${version} is ready` : 'An Tukido update is ready'}
             </p>
-            <p className="mt-0.5 text-xs text-ink-300">Restart to update.</p>
+            <p className="mt-0.5 text-secondary text-ink-300">Restart to update.</p>
             <div className="mt-2.5 flex items-center gap-2">
               <button
                 type="button"
                 onClick={restart}
                 disabled={restarting}
-                className="text-xs font-semibold rounded-md px-2.5 py-1 bg-ink-100 text-ink-950 hover:bg-white disabled:opacity-60 disabled:cursor-wait"
+                className="text-ui font-semibold rounded-md px-2.5 py-1 bg-ink-100 text-ink-950 hover:bg-white disabled:opacity-60 disabled:cursor-wait"
               >
                 {restarting ? 'Restarting…' : 'Restart'}
               </button>
               <button
                 type="button"
                 onClick={() => setDismissed(true)}
-                className="text-xs text-ink-400 hover:text-ink-200"
+                className="text-ui text-ink-400 hover:text-ink-200"
               >
                 Later
               </button>
@@ -94,7 +94,7 @@ export default function AutoUpdateToast() {
             type="button"
             onClick={() => setDismissed(true)}
             aria-label="Dismiss"
-            className="-mr-1 -mt-1 flex-none text-ink-500 hover:text-ink-300 text-sm leading-none"
+            className="-mr-1 -mt-1 flex-none text-ink-500 hover:text-ink-300 text-ui leading-none"
           >
             ✕
           </button>

@@ -67,14 +67,14 @@ export default function PreservedWorkContinuation({ runId, slug = null, workflow
         type="button"
         onClick={queue}
         disabled={busy}
-        className="btn-success text-sm px-4 py-2 disabled:opacity-60"
+        className="btn-success text-ui px-4 py-2 disabled:opacity-60"
       >
         {busy ? 'Queuing continuation…' : 'Continue preserved work'}
       </button>
-      <p className="mt-2 text-xs text-ink-400 leading-relaxed">
+      <p className="mt-2 text-reading text-ink-400 ">
         Starts a managed continuation with the same frozen inputs. It verifies and reuses completed work, then resumes at the first unfinished step.
       </p>
-      {error && <p role="alert" className="mt-2 text-xs text-state-fail">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-secondary text-state-fail">{error}</p>}
       {setupGate.modal}
     </div>
   );

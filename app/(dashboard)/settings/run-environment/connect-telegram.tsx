@@ -47,7 +47,7 @@ export default function ConnectTelegram() {
   return (
     <section className="card">
       <h2 className="text-base font-medium text-ink-50 mb-1">Run from your phone (Telegram)</h2>
-      <p className="text-xs text-ink-300 mb-4 leading-relaxed">
+      <p className="text-reading text-ink-300 mb-4 ">
         Link a Telegram chat and you can text <span className="font-mono text-ink-100">run &lt;agent&gt;</span> or{' '}
         <span className="font-mono text-ink-100">build an agent that …</span> from anywhere. It runs on this
         machine under your own accounts; the result comes back in the chat. Tukido never holds your keys.
@@ -62,7 +62,7 @@ export default function ConnectTelegram() {
 
       {/* Bot not configured server-side */}
       {info && !info.enabled && (
-        <p className="text-sm text-ink-300">
+        <p className="text-reading text-ink-300">
           Telegram isn&apos;t switched on for Tukido yet — it&apos;s coming soon. Nothing to do here for now.
         </p>
       )}
@@ -71,31 +71,31 @@ export default function ConnectTelegram() {
       {info && info.enabled && info.code && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-ink-400">Your link code:</span>
-            <code className="text-sm font-mono text-ink-50 bg-ink-900/60 border border-ink-700 rounded px-2 py-1 tracking-widest">{info.code}</code>
-            <button type="button" onClick={copyCode} className="text-xs text-action-accent hover:underline">
+            <span className="text-secondary text-ink-400">Your link code:</span>
+            <code className="text-micro font-mono text-ink-50 bg-ink-900/60 border border-ink-700 rounded px-2 py-1 tracking-widest">{info.code}</code>
+            <button type="button" onClick={copyCode} className="text-ui text-action-accent hover:underline">
               {copied ? 'Copied ✓' : 'Copy'}
             </button>
           </div>
 
           {info.deepLink ? (
-            <a href={info.deepLink} target="_blank" rel="noreferrer" className="btn-success inline-flex text-sm px-4 py-2">
+            <a href={info.deepLink} target="_blank" rel="noreferrer" className="btn-success inline-flex text-secondary px-4 py-2">
               Open {info.botUsername ? `@${info.botUsername}` : 'the bot'} in Telegram →
             </a>
           ) : (
-            <p className="text-xs text-ink-400 leading-relaxed">
+            <p className="text-secondary text-ink-400 leading-relaxed">
               Open your Tukido bot in Telegram and send <span className="font-mono text-ink-100">/link {info.code}</span> to bind this chat.
             </p>
           )}
 
-          <p className="text-[11px] text-ink-500 leading-relaxed">
+          <p className="text-reading text-ink-500 ">
             Tapping the button sends <span className="font-mono">/start {info.code}</span> automatically. After it says “Linked”, text{' '}
             <span className="font-mono">run &lt;agent&gt;</span> or <span className="font-mono">build an agent that …</span> anytime.
           </p>
         </div>
       )}
 
-      {error && <p className="text-xs text-state-fail mt-2">{error}</p>}
+      {error && <p className="text-secondary text-state-fail mt-2">{error}</p>}
     </section>
   );
 }

@@ -69,7 +69,7 @@ export function ImplexaJudgePolicy({ slug, compact = false }: { slug: string; co
   const setAutoRepair = (auto: boolean) => save(auto ? 'every_run' : 'observe');
 
   if (loading) return (
-    <div className={`${compact ? '' : 'card max-w-2xl'} text-xs text-ink-500`}>Loading Tukido Judge…</div>
+    <div className={`${compact ? '' : 'card max-w-2xl'} text-secondary text-ink-500`}>Loading Tukido Judge…</div>
   );
 
   // ON means judging at all — observe OR every_run. Reading only 'every_run' as
@@ -81,19 +81,19 @@ export function ImplexaJudgePolicy({ slug, compact = false }: { slug: string; co
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className={`${compact ? 'text-sm' : 'text-base'} font-semibold text-ink-50`}>Tukido Judge</h2>
-            <span className="text-[10px] uppercase tracking-wide rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-state-review">Optional</span>
+            <h2 className={`${compact ? 'text-ui' : 'text-base'} font-semibold text-ink-50`}>Tukido Judge</h2>
+            <span className="text-secondary uppercase tracking-wide rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-state-review">Optional</span>
           </div>
           {/* The old copy promised automatic fixing unconditionally. That is only
               true in every_run; in observe the Judge reviews and reports and
               changes nothing. Describing work the feature will not do is the same
               class of lie as an all-clear over an unread source. */}
-          <p className="text-xs text-ink-400 mt-1 leading-relaxed">An independent AI reviews the result. Repairs are a separate choice.</p>
-          <details className="mt-2 text-xs text-ink-500"><summary>How reviews work</summary>
-          <p className="text-xs text-ink-400 mt-1 leading-relaxed max-w-xl">
+          <p className="text-secondary text-ink-400 mt-1 leading-relaxed">An independent AI reviews the result. Repairs are a separate choice.</p>
+          <details className="mt-2 text-secondary text-ink-500"><summary>How reviews work</summary>
+          <p className="text-reading text-ink-400 mt-1 max-w-xl">
             After every run, a fresh AI session checks the original request, agent criteria, memory, feedback, and actual artifacts. It reports what it finds — nothing is changed and nothing is re-run unless you turn on automatic repair below.
           </p>
-          <p className="text-[11px] text-ink-500 mt-1.5 leading-relaxed">
+          <p className="text-reading text-ink-500 mt-1.5 ">
             Tukido prefers the other engine (Claude reviews Codex, or Codex reviews Claude); if it isn&apos;t ready, a new session on the same engine reviews it. Missing inputs, new permissions, approvals, and consequential actions come back to you instead of being guessed or repeated. Reviews and repairs use your own subscriptions and stay separate from evidence-based “Verified complete.”
           </p>
           </details>
@@ -115,7 +115,7 @@ export function ImplexaJudgePolicy({ slug, compact = false }: { slug: string; co
           <span className="sr-only">{enabled ? 'Turn off Tukido Judge' : 'Add Tukido Judge'}</span>
         </button>
       </div>
-      <div className="mt-2 flex items-center gap-2 text-xs">
+      <div className="mt-2 flex items-center gap-2 text-secondary">
         <span className={enabled ? 'text-state-ok' : 'text-ink-500'}>
           {saving ? 'Saving…'
             : autoRepair ? '✓ Reviews every run and safely repairs what it can'
@@ -129,7 +129,7 @@ export function ImplexaJudgePolicy({ slug, compact = false }: { slug: string; co
           Claude/Codex subscription re-running work, so it may never ride along
           with simply switching reviews on. */}
       {enabled && (
-        <label className="mt-3 flex items-start gap-2 text-xs text-ink-400 cursor-pointer">
+        <label className="mt-3 flex items-start gap-2 text-ui text-ink-400 cursor-pointer">
           <input
             type="checkbox"
             checked={autoRepair}

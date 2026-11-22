@@ -35,16 +35,16 @@ export default function WelcomeBanner({ welcome, forked }: Props) {
             <h2 className="text-lg font-medium text-ink-50 mb-1">
               We forked <strong>{count} Playbook{count === 1 ? '' : 's'}</strong> into your library
             </h2>
-            <p className="text-sm text-ink-200 mb-3 leading-relaxed">
+            <p className="text-reading text-ink-200 mb-3 ">
               These are your starting point — fork, customize, run them in Claude.
               Then when you&apos;re ready, capture <em>your own</em> workflow once and
               Tukido will save it as a sharable skill.
             </p>
             <div className="flex flex-wrap gap-3 items-baseline">
-              <Link href="/install" className="btn-primary !py-1.5 !px-3 text-xs">
+              <Link href="/install" className="btn-primary !py-1.5 !px-3 text-secondary">
                 Install in Claude →
               </Link>
-              <span className="text-xs text-ink-400">
+              <span className="text-secondary text-ink-400">
                 Already installed? Pick a skill below and run it.
               </span>
             </div>
@@ -62,7 +62,7 @@ export default function WelcomeBanner({ welcome, forked }: Props) {
           <div className="text-3xl shrink-0">👥</div>
           <div className="flex-1">
             <h2 className="text-lg font-medium text-ink-50 mb-1">You joined your team</h2>
-            <p className="text-sm text-ink-200 leading-relaxed">
+            <p className="text-reading text-ink-200 ">
               Welcome! Your team&apos;s saved skills are below. Run any of them in Claude,
               or capture your own workflows to add to the library.
             </p>
@@ -80,7 +80,7 @@ export default function WelcomeBanner({ welcome, forked }: Props) {
           <div className="text-3xl shrink-0">🤝</div>
           <div className="flex-1">
             <h2 className="text-lg font-medium text-ink-50 mb-1">You joined an existing team</h2>
-            <p className="text-sm text-ink-200 leading-relaxed">
+            <p className="text-reading text-ink-200 ">
               Your team&apos;s saved skills are below. Run any of them in Claude, or capture
               your own workflows to add to the library.
             </p>
@@ -98,9 +98,9 @@ export default function WelcomeBanner({ welcome, forked }: Props) {
           <div className="text-3xl shrink-0">📚</div>
           <div className="flex-1">
             <h2 className="text-lg font-medium text-ink-50 mb-1">Browse the library</h2>
-            <p className="text-sm text-ink-200 leading-relaxed">
+            <p className="text-reading text-ink-200 ">
               The base Playbooks cover most common workflows. Fork any to customize, or
-              capture your own from scratch via <code className="font-mono text-xs bg-ink-800 px-1 rounded">/implexa:record-skill</code> in Claude Code.
+              capture your own from scratch via <code className="font-mono text-micro bg-ink-800 px-1 rounded">/implexa:record-skill</code> in Claude Code.
             </p>
           </div>
         </div>

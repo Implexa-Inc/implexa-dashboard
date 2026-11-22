@@ -306,8 +306,8 @@ export default function RunActions({
   if (holdKind === 'approval_before_action' && !nonPaidApprovalVerified) {
     return (
       <section className="rounded-lg border border-amber-500/30 bg-ink-950/40 p-4">
-        <p className="text-sm text-ink-200">Review the exact paid provider batch before continuing.</p>
-        <a href={`/runs/${encodeURIComponent(runId)}`} className="btn-primary mt-3 inline-flex px-4 py-2 text-sm">
+        <p className="text-reading text-ink-200">Review the exact paid provider batch before continuing.</p>
+        <a href={`/runs/${encodeURIComponent(runId)}`} className="btn-primary mt-3 inline-flex px-4 py-2 text-secondary">
           Review exact paid batch
         </a>
       </section>
@@ -329,24 +329,24 @@ export default function RunActions({
   if (reviewAmendment) {
     return (
       <section className="rounded-lg border border-amber-500/30 bg-ink-950/40 p-4">
-        <p className="text-sm text-ink-200">{reviewAmendment.state === 'ready'
+        <p className="text-reading text-ink-200">{reviewAmendment.state === 'ready'
           ? 'This revision uses frozen Review Room feedback.'
           : 'The continuation route could not be verified.'}</p>
         {reviewAmendment.state === 'ready' ? (
           <>
-            <p className="mt-1 text-xs text-ink-400">
+            <p className="mt-1 text-reading text-ink-400">
               To answer its question or change a correction, open the original Review Room and choose
               “Add more feedback”. Earlier feedback stays in the history; review the remaining changes before sending a new revision.
               Opening Review Room does not start a run.
             </p>
-            <a href={reviewAmendment.href} className="btn-success mt-3 inline-flex px-4 py-2 text-sm">
+            <a href={reviewAmendment.href} className="btn-success mt-3 inline-flex px-4 py-2 text-secondary">
               Update feedback in Review Room
             </a>
           </>
         ) : (
           <>
-            <p className="mt-1 text-xs text-ink-400">The original Review Room could not be verified. No continuation will be sent from here.</p>
-            <button type="button" onClick={() => router.refresh()} className="btn-outline mt-3 px-4 py-2 text-sm">
+            <p className="mt-1 text-secondary text-ink-400">The original Review Room could not be verified. No continuation will be sent from here.</p>
+            <button type="button" onClick={() => router.refresh()} className="btn-outline mt-3 px-4 py-2 text-ui">
               Reload run details
             </button>
           </>
@@ -359,7 +359,7 @@ export default function RunActions({
     <section className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
       {setupGate.modal}
       {/* One-line context, not a paragraph. */}
-      <p className="text-sm text-ink-200">
+      <p className="text-reading text-ink-200">
         {needsInput
           ? <>This run <span className="text-ink-50 font-medium">needs your input</span> to finish.</>
           : resumesWork
@@ -372,18 +372,18 @@ export default function RunActions({
         {/* PRIMARY */}
         {needsInput ? (
           // needs-input: the changes box below is the action; the primary lives there.
-          <span className="text-xs text-ink-500">
+          <span className="text-secondary text-ink-500">
             {localRecovery === 'required' || localRecovery === 'verified'
               ? 'Reconnect the original input below ↓' : 'Add what it needs below ↓'}
           </span>
         ) : resumesWork ? (
           <button type="button" onClick={approveFinish} disabled={!!busy}
-            className="btn-success text-sm px-4 py-2 disabled:opacity-60">
+            className="btn-success text-ui px-4 py-2 disabled:opacity-60">
             {busy === 'approve' ? 'Approving…' : primaryLabel}
           </button>
         ) : (
           <button type="button" onClick={markDone} disabled={!!busy}
-            className="btn-success text-sm px-4 py-2 disabled:opacity-60">
+            className="btn-success text-ui px-4 py-2 disabled:opacity-60">
             {busy === 'done' ? 'Closing…' : primaryLabel}
           </button>
         )}
@@ -392,13 +392,13 @@ export default function RunActions({
             changes box is already the primary for needs-input). */}
         {!needsInput && (
           <button type="button" onClick={() => setShowChanges((v) => !v)} disabled={!!busy}
-            className="btn-outline text-sm px-3.5 py-2 disabled:opacity-60">
+            className="btn-outline text-ui px-3.5 py-2 disabled:opacity-60">
             {showChanges ? 'Hide changes' : 'Request changes'}
           </button>
         )}
 
         {/* QUIET: dismiss + more */}
-        <span className="ml-auto inline-flex items-center gap-4 text-xs">
+        <span className="ml-auto inline-flex items-center gap-4 text-secondary">
           {confirmDismiss ? (
             <span className="inline-flex items-center gap-2 text-ink-400">
               {resumesWork ? "Dismiss without finishing?" : 'Dismiss this?'}
@@ -420,14 +420,14 @@ export default function RunActions({
       </div>
 
       {needsInput && localRecovery === 'checking' && (
-        <p className="mt-3 text-xs text-ink-500">Checking the original local input…</p>
+        <p className="mt-3 text-secondary text-ink-500">Checking the original local input…</p>
       )}
       {needsInput && (localRecovery === 'required' || localRecovery === 'verified') && (
         <div className="mt-3 rounded-md border border-amber-700/50 bg-amber-950/20 p-3">
-          <p className="text-sm text-ink-100">Reconnect the original file to continue from the approved plan.</p>
-          <p className="mt-1 text-xs text-ink-400">Tukido verifies the exact bytes locally. It does not upload or copy the source.</p>
+          <p className="text-reading text-ink-100">Reconnect the original file to continue from the approved plan.</p>
+          <p className="mt-1 text-secondary text-ink-400">Tukido verifies the exact bytes locally. It does not upload or copy the source.</p>
           <button type="button" onClick={reconnectAndContinue} disabled={!!busy}
-            className="btn-success mt-3 text-sm px-4 py-2 disabled:opacity-50">
+            className="btn-success mt-3 text-ui px-4 py-2 disabled:opacity-50">
             {busy === 'reconnect'
               ? localRecovery === 'verified' ? 'Continuing…'
                 : `Verifying${verificationPercent === null ? '…' : `… ${verificationPercent}%`}`
@@ -447,7 +447,7 @@ export default function RunActions({
             rows={3}
             autoFocus
             placeholder={needsInput ? 'Answer its question or add the missing inputs…' : 'What should it change? (e.g. punch up the hook)'}
-            className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
+            className="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 placeholder:text-ink-500 focus:border-brand-500/60 focus:outline-none resize-y"
           />
           <AttachFiles files={files} canAttach={canAttach} canAttachFolder={canAttachFolder}
             onAttach={attachFile} onAttachFolder={attachFolder} onRemove={removeFile} error={attachError}
@@ -458,7 +458,7 @@ export default function RunActions({
             <label className="mt-2.5 flex items-start gap-2.5 cursor-pointer">
               <input type="checkbox" checked={editAgent} onChange={(e) => setEditAgent(e.target.checked)}
                 className="mt-0.5 h-4 w-4 accent-brand-500 cursor-pointer" />
-              <span className="text-[13px] text-ink-200 leading-snug">
+              <span className="text-secondary text-ink-200 leading-snug">
                 Also apply this to <span className="font-medium text-ink-50">future runs</span> — edit the agent so it does this every time
               </span>
             </label>
@@ -466,7 +466,7 @@ export default function RunActions({
           <div className="mt-2">
             <button type="button" onClick={continueWithChanges}
               disabled={!!busy || (!note.trim() && files.length === 0)}
-              className="btn-success text-sm px-4 py-2 disabled:opacity-50">
+              className="btn-success text-ui px-4 py-2 disabled:opacity-50">
               {busy === 'changes' ? 'Queuing…' : (needsInput ? 'Send & continue' : 'Continue & re-run')}
             </button>
           </div>
@@ -475,7 +475,7 @@ export default function RunActions({
 
       {/* MORE (power-user escape hatches) */}
       {showMore && (
-        <div className="mt-3 pt-3 border-t border-ink-800 flex flex-col gap-2 text-xs">
+        <div className="mt-3 pt-3 border-t border-ink-800 flex flex-col gap-2 text-secondary">
           <button type="button" onClick={continueInClaude} className="text-action-accent hover:underline text-left w-fit">
             Continue live in Claude ↗
           </button>
@@ -491,7 +491,7 @@ export default function RunActions({
         </div>
       )}
 
-      {err && <p className="mt-2 text-xs text-state-fail">{err}</p>}
+      {err && <p className="mt-2 text-secondary text-state-fail">{err}</p>}
       {refusal?.recoverable && refusal.requestId && (
         <ReviewContinuationRecovery
           requestId={refusal.requestId}

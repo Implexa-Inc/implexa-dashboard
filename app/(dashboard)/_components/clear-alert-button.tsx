@@ -59,7 +59,7 @@ export default function ClearAlertButton({ runId, pending }: { runId: string; pe
 
   if (confirming) {
     return (
-      <span className="inline-flex items-center gap-2 text-sm flex-wrap">
+      <span className="inline-flex items-center gap-2 text-secondary flex-wrap">
         <span className="text-ink-400">Dismiss without approving? The gated step won’t run.</span>
         <button
           type="button"
@@ -82,7 +82,7 @@ export default function ClearAlertButton({ runId, pending }: { runId: string; pe
   }
 
   return (
-    <span className="inline-flex items-center gap-4 text-sm">
+    <span className="inline-flex items-center gap-4 text-secondary">
       <button
         type="button"
         onClick={hide}

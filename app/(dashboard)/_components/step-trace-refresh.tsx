@@ -24,9 +24,9 @@ export default function StepTraceRefresh() {
       disabled={pending}
       aria-label="Refresh step trace"
       title="Refresh — the trace doesn't auto-update while a run is in progress"
-      className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-xs font-medium text-ink-300 hover:border-ink-500 hover:text-ink-100 transition-colors disabled:opacity-60"
+      className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-ui font-medium text-ink-300 hover:border-ink-500 hover:text-ink-100 transition-colors disabled:opacity-60"
     >
-      <span className={`inline-block text-sm leading-none ${pending ? 'animate-spin' : ''}`} aria-hidden>⟳</span>
+      <span className={`inline-block text-secondary leading-none ${pending ? 'animate-spin' : ''}`} aria-hidden>⟳</span>
       {pending ? 'Refreshing…' : 'Refresh'}
     </button>
   );

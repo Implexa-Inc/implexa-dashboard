@@ -86,14 +86,14 @@ export default function RunsCalendar({ runs }: { runs: CalRun[] }) {
       {/* Month header */}
       <div className="flex items-center justify-between mb-3">
         <button type="button" onClick={() => shiftMonth(-1)} className="text-ink-400 hover:text-ink-100 px-2 py-1 rounded hover:bg-ink-800" aria-label="Previous month">◀</button>
-        <div className="text-sm font-medium text-ink-100">{MONTHS[view.m]} {view.y}</div>
+        <div className="text-secondary font-medium text-ink-100">{MONTHS[view.m]} {view.y}</div>
         <button type="button" onClick={() => shiftMonth(1)} className="text-ink-400 hover:text-ink-100 px-2 py-1 rounded hover:bg-ink-800" aria-label="Next month">▶</button>
       </div>
 
       {/* Grid */}
       <div className="grid grid-cols-7 gap-1 text-center">
         {WEEKDAYS.map((w, i) => (
-          <div key={i} className="text-[10px] uppercase tracking-wide text-ink-500 py-1">{w}</div>
+          <div key={i} className="text-secondary uppercase tracking-wide text-ink-500 py-1">{w}</div>
         ))}
         {cells.map((date, i) => {
           if (!date) return <div key={i} />;
@@ -107,7 +107,7 @@ export default function RunsCalendar({ runs }: { runs: CalRun[] }) {
               key={i}
               type="button"
               onClick={() => setSelected(key)}
-              className={`aspect-square rounded-md flex flex-col items-center justify-center gap-0.5 text-xs transition-colors ${
+              className={`aspect-square rounded-md flex flex-col items-center justify-center gap-0.5 text-ui transition-colors ${
                 isSel ? 'bg-brand-500/15 border border-brand-500/50' : 'border border-transparent hover:bg-ink-800'
               } ${isToday && !isSel ? 'ring-1 ring-ink-600' : ''}`}
             >
@@ -115,7 +115,7 @@ export default function RunsCalendar({ runs }: { runs: CalRun[] }) {
               {dayRuns.length > 0 && (
                 <span className="flex items-center gap-0.5">
                   <span className={`h-1.5 w-1.5 rounded-full ${DOT[worst]}`} />
-                  {dayRuns.length > 1 && <span className="text-[9px] text-ink-500">{dayRuns.length}</span>}
+                  {dayRuns.length > 1 && <span className="text-secondary text-ink-500">{dayRuns.length}</span>}
                 </span>
               )}
             </button>
@@ -126,13 +126,13 @@ export default function RunsCalendar({ runs }: { runs: CalRun[] }) {
       {/* Selected day's runs */}
       <div className="mt-6">
         {selected && (
-          <div className="text-xs text-ink-400 mb-2">
+          <div className="text-secondary text-ink-400 mb-2">
             {new Date(selected).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
             {' · '}{selectedRuns.length} run{selectedRuns.length === 1 ? '' : 's'}
           </div>
         )}
         {selectedRuns.length === 0 ? (
-          <p className="text-sm text-ink-500 italic">No runs on this day.</p>
+          <p className="text-reading text-ink-500 italic">No runs on this day.</p>
         ) : (
           <ul className="space-y-2">
             {selectedRuns.map((r) => {
@@ -144,11 +144,11 @@ export default function RunsCalendar({ runs }: { runs: CalRun[] }) {
                   className="flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-2.5 hover:border-ink-700 transition-colors"
                 >
                   <span className={`h-2 w-2 rounded-full shrink-0 ${DOT[t]}`} aria-hidden="true" />
-                  <span className="text-sm text-ink-100 truncate flex-1">{r.skillSlug.replace(/[-_]+/g, ' ')}</span>
+                  <span className="text-secondary text-ink-100 truncate flex-1">{r.skillSlug.replace(/[-_]+/g, ' ')}</span>
                   {r.reviewStatus === 'pending' && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-state-needs">held</span>
+                    <span className="text-secondary font-semibold uppercase tracking-wider text-state-needs">held</span>
                   )}
-                  <span className="text-xs text-ink-500 shrink-0">{timeOf(r.ranAt)}</span>
+                  <span className="text-secondary text-ink-500 shrink-0">{timeOf(r.ranAt)}</span>
                 </Link>
               );
             })}

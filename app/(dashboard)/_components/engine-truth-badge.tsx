@@ -41,7 +41,7 @@ export function EngineTruthBadge({
     if (!requestedEngine && !selectedExecutor) return null;
     return (
       <span
-        className="inline-flex items-center gap-1.5 rounded-full border border-ink-700 bg-ink-900/60 px-2.5 py-0.5 text-xs text-ink-400"
+        className="inline-flex items-center gap-1.5 rounded-full border border-ink-700 bg-ink-900/60 px-2.5 py-0.5 text-secondary text-ink-400"
         title="No engine has reported executing this step yet. The engine below is what was requested, not what ran."
       >
         <span className="h-1.5 w-1.5 rounded-full bg-ink-600" aria-hidden="true" />
@@ -60,7 +60,7 @@ export function EngineTruthBadge({
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       <span
-        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${tone}`}
+        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-secondary font-medium ${tone}`}
         title={failover
           ? `Requested ${requestedEngine ? ENGINE_LABELS[requestedEngine] : 'auto'}, executed on ${ENGINE_LABELS[actualEngine]}.`
           : `Executed on ${ENGINE_LABELS[actualEngine]}.`}
@@ -69,14 +69,14 @@ export function EngineTruthBadge({
         Ran on {ENGINE_LABELS[actualEngine]}
       </span>
       {failover && requestedEngine && requestedEngine !== actualEngine && (
-        <span className="text-xs text-ink-500">
+        <span className="text-secondary text-ink-500">
           requested {ENGINE_LABELS[requestedEngine]}
           {selectedExecutor && selectedExecutor !== requestedEngine && selectedExecutor !== actualEngine
             ? ` · routed to ${ENGINE_LABELS[selectedExecutor]}` : ''}
         </span>
       )}
       {failover && failoverReason && !compact && (
-        <span className="basis-full text-xs text-ink-400 leading-relaxed">{failoverReason}</span>
+        <span className="basis-full text-secondary text-ink-400 leading-relaxed">{failoverReason}</span>
       )}
     </span>
   );

@@ -89,8 +89,8 @@ export default function LoginForm({
       <main className="min-h-screen flex items-center justify-center px-4">
         <div className="w-full max-w-sm card text-center">
           <h1 className="text-2xl font-semibold mb-2">Check your inbox</h1>
-          <p className="text-ink-500 text-sm">We sent a magic link to <strong>{email}</strong>. Click it to sign in — no password needed.</p>
-          <button onClick={() => setMagicSent(false)} className="text-xs text-action-accent hover:underline mt-4">← Back to sign in</button>
+          <p className="text-ink-500 text-reading">We sent a magic link to <strong>{email}</strong>. Click it to sign in — no password needed.</p>
+          <button onClick={() => setMagicSent(false)} className="text-ui text-action-accent hover:underline mt-4">← Back to sign in</button>
         </div>
       </main>
     );
@@ -101,12 +101,12 @@ export default function LoginForm({
       <div className="w-full max-w-sm">
         <div className="mb-6"><Logo height={18} /></div>
         <h1 className="text-3xl font-semibold tracking-tight mb-2 text-ink-50">Sign in</h1>
-        <p className="text-ink-300 text-sm mb-8">Build and run powerful agents in your own Claude or Codex.</p>
+        <p className="text-ink-300 text-reading mb-8">Build and run powerful agents in your own Claude or Codex.</p>
 
         {error && (
-          <div className="card !p-3 !border-red-500/40 !bg-red-500/5 mb-4 text-sm text-state-fail leading-relaxed">
+          <div className="card !p-3 !border-red-500/40 !bg-red-500/5 mb-4 text-secondary text-state-fail leading-relaxed">
             {error}
-            <button onClick={() => setError(null)} className="ml-2 text-xs text-ink-400 hover:underline">dismiss</button>
+            <button onClick={() => setError(null)} className="ml-2 text-ui text-ink-400 hover:underline">dismiss</button>
           </div>
         )}
 
@@ -138,7 +138,7 @@ export default function LoginForm({
             {loading === 'azure' ? 'Redirecting…' : 'Continue with Microsoft'}
           </button>
 
-          <div className="relative my-2 text-center text-xs text-ink-400">
+          <div className="relative my-2 text-center text-secondary text-ink-400">
             <span className="bg-ink-900 px-2 relative z-10">or with email</span>
             <div className="absolute top-1/2 left-0 right-0 h-px bg-ink-700" />
           </div>
@@ -153,7 +153,7 @@ export default function LoginForm({
             </button>
           </form>
 
-          <div className="flex items-center justify-between text-xs pt-1">
+          <div className="flex items-center justify-between text-secondary pt-1">
             <button
               type="button"
               onClick={handleMagicLink}
@@ -167,7 +167,7 @@ export default function LoginForm({
             </Link>
           </div>
 
-          <p className="text-center text-sm text-ink-500 pt-2 border-t border-ink-700">
+          <p className="text-center text-reading text-ink-500 pt-2 border-t border-ink-700">
             {/* CRITICAL: preserve `next` so the device-auth chain (and any
              * other deep link) survives the login → signup pivot. Without
              * this, a user landing at /login?next=/cli-auth?code=... who

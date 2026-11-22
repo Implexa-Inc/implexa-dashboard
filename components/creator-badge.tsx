@@ -34,8 +34,8 @@ export function CreatorBadge({ displayName, memberSince, userId, size = 'lg', ka
   // next to their name. The pill only appears once they've earned something.
   const showKarma = typeof karma === 'number' && karma > 0;
 
-  const avatarSize = size === 'lg' ? 'h-9 w-9 text-sm' : 'h-6 w-6 text-xs';
-  const nameSize   = size === 'lg' ? 'text-sm'        : 'text-xs';
+  const avatarSize = size === 'lg' ? 'h-9 w-9 text-ui' : 'h-6 w-6 text-secondary';
+  const nameSize   = size === 'lg' ? 'text-ui'        : 'text-secondary';
 
   return (
     <div className="inline-flex items-center gap-2.5" aria-label={`Created by ${name}${showKarma ? `, ${karma} karma` : ''}`}>
@@ -59,7 +59,7 @@ export function CreatorBadge({ displayName, memberSince, userId, size = 'lg', ka
             // text-state-needs unconditionally, which rendered as ghost-text
             // on light backgrounds.
             <span
-              className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-400/20 text-state-needs font-semibold tabular-nums leading-none"
+              className="text-micro px-1.5 py-0.5 rounded-full bg-amber-400/20 text-state-needs font-semibold tabular-nums leading-none"
               title={`${karma} creator karma earned from installs, forks, and public-share promotions`}
             >
               <span aria-hidden="true">✨ </span>{karma!.toLocaleString()} karma
@@ -67,7 +67,7 @@ export function CreatorBadge({ displayName, memberSince, userId, size = 'lg', ka
           )}
         </div>
         {memberLine && size === 'lg' && (
-          <div className="text-xs text-ink-400 mt-0.5">{memberLine}</div>
+          <div className="text-secondary text-ink-400 mt-0.5">{memberLine}</div>
         )}
       </div>
     </div>

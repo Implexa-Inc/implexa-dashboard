@@ -44,11 +44,11 @@ export function EngineOverrideBanner({
       className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 mb-4"
       role="status"
     >
-      <p className="text-sm text-ink-100">
+      <p className="text-reading text-ink-100">
         <span aria-hidden="true">⚠</span>{' '}
         <strong>This run used {d.ranLabel}</strong>, not your pinned {d.pinLabel} (billed to your {d.ranLabel} account).
       </p>
-      <p className="text-xs text-ink-400 mt-1">
+      <p className="text-secondary text-ink-400 mt-1">
         {d.selectionReason || `${d.pinLabel} wasn't available for this run.`}
       </p>
     </div>

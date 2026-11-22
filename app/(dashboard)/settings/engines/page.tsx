@@ -22,7 +22,7 @@ export default async function EnginesPage() {
     <section className="settings-page">
       <div className="settings-page-content">
         <PageHeader title="AI engines">
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Claude and Codex are independent execution engines. Tukido can use either automatically, while each agent can be pinned to one in its Setup tab.
           </p>
         </PageHeader>

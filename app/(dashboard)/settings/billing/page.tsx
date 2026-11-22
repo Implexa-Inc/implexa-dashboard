@@ -69,16 +69,16 @@ export default async function BillingPage() {
         <div className="card space-y-4 mb-6">
           <div className="flex justify-between items-baseline gap-4 flex-wrap">
             <div>
-              <div className="text-xs text-ink-500 uppercase tracking-wide">Current plan</div>
+              <div className="text-secondary text-ink-500 uppercase tracking-wide">Current plan</div>
               <div className="flex items-baseline gap-2 mt-1 flex-wrap">
                 <div className="text-2xl font-semibold text-ink-50">{PLAN_LABEL[plan] || plan}</div>
                 {isFoundingCreator && (
-                  <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">
+                  <span className="text-secondary uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">
                     🏆 Founding Creator
                   </span>
                 )}
               </div>
-              <div className="text-sm text-ink-400 mt-1 max-w-md leading-relaxed">
+              <div className="text-secondary text-ink-400 mt-1 max-w-md leading-relaxed">
                 {isFree
                   ? 'Unlimited agents, built and run in your own Claude or Codex. No per-run metering, no second AI bill , free forever for one person.'
                   : 'Everything in Free, plus a shared agent library, every teammate’s runs and results in one place, and roles.'}
@@ -89,15 +89,15 @@ export default async function BillingPage() {
 
           <div className="grid grid-cols-2 gap-4 pt-4 border-t border-ink-700">
             <div>
-              <div className="text-xs text-ink-500 uppercase tracking-wide">Members</div>
+              <div className="text-secondary text-ink-500 uppercase tracking-wide">Members</div>
               <div className="text-xl font-semibold mt-1 tabular-nums text-ink-50">{seatCount}</div>
-              <Link href="/settings/team" className="text-[10px] text-action-accent hover:underline mt-0.5 inline-block">
+              <Link href="/settings/team" className="text-secondary text-action-accent hover:underline mt-0.5 inline-block">
                 Manage team →
               </Link>
             </div>
             {periodEnd && (
               <div>
-                <div className="text-xs text-ink-500 uppercase tracking-wide">Renews</div>
+                <div className="text-secondary text-ink-500 uppercase tracking-wide">Renews</div>
                 <div className="text-lg mt-1 tabular-nums text-ink-100">{periodEnd}</div>
               </div>
             )}
@@ -106,7 +106,7 @@ export default async function BillingPage() {
           {sub.hasStripeCustomer && (
             <div className="pt-4 border-t border-ink-700">
               <PortalButton jwt={session.access_token} />
-              <p className="text-xs text-ink-500 mt-2">
+              <p className="text-secondary text-ink-500 mt-2">
                 Open the Stripe portal to update your card, view invoices, or cancel.
               </p>
             </div>
@@ -119,12 +119,12 @@ export default async function BillingPage() {
             <div className="flex items-start gap-3">
               <div className="text-2xl shrink-0" aria-hidden="true">👥</div>
               <div className="flex-1">
-                <h2 className="text-sm font-medium text-ink-50 mb-1">Running agents with a team?</h2>
-                <p className="text-xs text-ink-200 leading-relaxed mb-3">
+                <h2 className="text-ui font-medium text-ink-50 mb-1">Running agents with a team?</h2>
+                <p className="text-reading text-ink-200 mb-3">
                   Team adds a shared agent library (build once, the whole team runs it), everyone&apos;s
                   runs and results in one place, and roles. $20 per seat / month. Your solo use stays free.
                 </p>
-                <Link href="/pricing" className="btn-primary inline-flex items-center justify-center text-sm py-1.5 px-4">
+                <Link href="/pricing" className="btn-primary inline-flex items-center justify-center text-secondary py-1.5 px-4">
                   See plans →
                 </Link>
               </div>

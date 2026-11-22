@@ -48,7 +48,7 @@ export default function MarkDoneButton({ runId }: { runId: string }) {
       onClick={markDone}
       disabled={busy}
       title="You've already used this output (or done the manual step) — close the run, no re-run."
-      className="btn-success text-sm px-4 py-2 disabled:opacity-50"
+      className="btn-success text-ui px-4 py-2 disabled:opacity-50"
     >
       {busy ? 'Marking done…' : '✓ Mark as done'}
     </button>

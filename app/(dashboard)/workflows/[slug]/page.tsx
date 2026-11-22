@@ -104,7 +104,7 @@ export default async function WorkflowDetailPage({
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
   const trainingTest=preparedTrainingTestQuery(searchParams.trainingPreparationId,searchParams.trainingPreparationDigest);
-  if(trainingTest.state==='invalid')return <main className="mx-auto max-w-3xl px-6 py-10"><h1 className="text-xl font-medium">Training test unavailable</h1><p role="alert" className="mt-3">This test link is incomplete. Return to Training and prepare the current private update again. Nothing has started.</p><Link href={`/training/${encodeURIComponent(params.slug)}`} className="mt-4 inline-block underline">Return to Training</Link></main>;
+  if(trainingTest.state==='invalid')return <main className="mx-auto max-w-3xl px-6 py-10"><h1 className="text-xl font-medium">Training test unavailable</h1><p role="alert" className="text-reading mt-3">This test link is incomplete. Return to Training and prepare the current private update again. Nothing has started.</p><Link href={`/training/${encodeURIComponent(params.slug)}`} className="mt-4 inline-block underline">Return to Training</Link></main>;
   const profile = await readUserProfile(supabase
     .from('users').select('id, organization_id').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
@@ -135,11 +135,11 @@ export default async function WorkflowDetailPage({
       <main className="app-page agent-resume-page">
         <div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4">
           <h1 className="text-lg font-semibold text-ink-50">Agent status unavailable</h1>
-          <p role="alert" className="mt-2 text-sm text-state-needs">
+          <p role="alert" className="mt-2 text-reading text-state-needs">
             We could not load <code className="font-mono">{params.slug}</code> right now. This does not mean the agent
             is gone — the read failed. Reload to try again.
           </p>
-          <p className="mt-3 text-sm"><BackLink fallback="/workflows" label="Back to your agents" /></p>
+          <p className="mt-3 text-reading"><BackLink fallback="/workflows" label="Back to your agents" /></p>
         </div>
       </main>
     );
@@ -168,11 +168,11 @@ export default async function WorkflowDetailPage({
     return (
       <main className="app-page agent-resume-page">
         <div className="app-content">
-          <nav className="text-sm text-ink-500 mb-6"><BackLink fallback="/workflows" label="Back" /></nav>
+          <nav className="text-secondary text-ink-500 mb-6"><BackLink fallback="/workflows" label="Back" /></nav>
           <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0">
               <h1 className="text-2xl font-semibold tracking-tight text-ink-50">{niceName}</h1>
-              <code className="text-xs text-ink-500 font-mono block mt-2">{params.slug}</code>
+              <code className="text-micro text-ink-500 font-mono block mt-2">{params.slug}</code>
             </div>
             {pausable && (
               <AgentPauseToggle routineId={pausable.id} initialStatus={pausable.status} />
@@ -180,13 +180,13 @@ export default async function WorkflowDetailPage({
           </header>
 
           <div className="card mb-6">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-3">Schedule</h2>
-            <ul className="space-y-3 text-sm">
+            <h2 className="text-ui font-medium uppercase tracking-wide text-ink-500 mb-3">Schedule</h2>
+            <ul className="space-y-3 text-secondary">
               {sched.map((r) => (
                 <li key={r.id}>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-ink-200">{r.schedule_nl}</span>
-                    <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
+                    <span className={`text-secondary font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
                       r.status === 'active'
                         ? 'bg-emerald-500/15 text-state-ok'
                         : r.status === 'paused'
@@ -194,7 +194,7 @@ export default async function WorkflowDetailPage({
                           : 'bg-rose-500/15 text-state-fail'
                     }`}>{r.status}</span>
                   </div>
-                  <div className="text-xs text-ink-400 mt-0.5">
+                  <div className="text-secondary text-ink-400 mt-0.5">
                     {r.run_count} run{r.run_count === 1 ? '' : 's'} · last {rel(r.last_run_at)}
                   </div>
                 </li>
@@ -202,9 +202,9 @@ export default async function WorkflowDetailPage({
             </ul>
           </div>
 
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-3">Runs</h2>
+          <h2 className="text-ui font-medium uppercase tracking-wide text-ink-500 mb-3">Runs</h2>
           {skillRuns.length === 0 ? (
-            <p className="text-sm text-ink-500 italic">No runs yet.</p>
+            <p className="text-reading text-ink-500 italic">No runs yet.</p>
           ) : (
             <InboxList initialItems={skillRuns} basePath={`/workflows/${params.slug}`} heading={null} />
           )}
@@ -329,14 +329,14 @@ export default async function WorkflowDetailPage({
   const setupHref=`/workflows/${encodeURIComponent(workflow.slug)}?${new URLSearchParams({...(searchParams.source?{source:searchParams.source}:{}),tab:'setup'})}`;
 
   const hasTrackRecord=!!grade&&grade.runs>0||Number(workflow.build_evidence?.provenSteps)>0||Number(workflow.build_evidence?.verifiedSteps)>0;
-  const trustDetails=<>      <details className="proof-disclosure mb-6"><summary><span>Run history and checks</span><span className="ml-3 inline-flex flex-wrap items-center gap-2 text-xs font-normal text-ink-300">{grade && <span>Delivered {Math.round(grade.rate * 100)}% across {grade.runs} real run{grade.runs === 1 ? '' : 's'}</span>}<RemoteSafetyBadge safety={safety} size="xs" /></span></summary><div className="mt-5">
+  const trustDetails=<>      <details className="proof-disclosure mb-6"><summary><span>Run history and checks</span><span className="ml-3 inline-flex flex-wrap items-center gap-2 text-secondary font-normal text-ink-300">{grade && <span>Delivered {Math.round(grade.rate * 100)}% across {grade.runs} real run{grade.runs === 1 ? '' : 's'}</span>}<RemoteSafetyBadge safety={safety} size="xs" /></span></summary><div className="mt-5">
       {/* Build evidence — whether this agent was assembled from parts that
           have actually delivered in real runs, not merely from semantic matches. */}
       {workflow.build_evidence && workflow.build_evidence.status !== 'pending' && (
         <div className="card mb-6">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-1">Build evidence</h2>
+          <h2 className="text-ui font-medium uppercase tracking-wide text-ink-500 mb-1">Build evidence</h2>
           {Number(workflow.build_evidence.provenSteps || 0) > 0 ? (
-            <p className="text-sm text-ink-200">
+            <p className="text-reading text-ink-200">
               Real-run evidence on <span className="font-semibold text-ink-50">{workflow.build_evidence.provenSteps}</span> step{workflow.build_evidence.provenSteps === 1 ? '' : 's'}
               {Number(workflow.build_evidence.verifiedSteps || 0) > 0 ? (
                 <> · <span className="text-state-ok">{workflow.build_evidence.verifiedSteps} verified</span></>
@@ -347,7 +347,7 @@ export default async function WorkflowDetailPage({
               <span className="text-ink-500">. Unproven matches can still inspire steps, but they do not count as proof.</span>
             </p>
           ) : (
-            <p className="text-sm text-ink-400">
+            <p className="text-reading text-ink-400">
               New agent — no proven run history yet. Tukido will learn from verified runs and feedback after this runs.
             </p>
           )}
@@ -358,8 +358,8 @@ export default async function WorkflowDetailPage({
       {grade && (
         <div className="card mb-6 flex items-center justify-between gap-3 flex-wrap">
           <div className="min-w-0">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-1">Track record</h2>
-            <p className="text-sm text-ink-200">
+            <h2 className="text-ui font-medium uppercase tracking-wide text-ink-500 mb-1">Track record</h2>
+            <p className="text-reading text-ink-200">
               Delivered <span className="font-semibold text-ink-50">{Math.round(grade.rate * 100)}%</span> across {grade.runs} real run{grade.runs === 1 ? '' : 's'}.
               <span className="text-ink-500"> Graded on what actually happened, not a benchmark.</span>
             </p>
@@ -371,12 +371,12 @@ export default async function WorkflowDetailPage({
       {/* Remote verdict explainer */}
       <div className="card mb-6">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Where this can run</h2>
+          <h2 className="text-ui font-medium uppercase tracking-wide text-ink-500">Where this can run</h2>
           <RemoteSafetyBadge safety={safety} size="xs" />
         </div>
-        <p className="text-sm text-ink-200">{safety.reason}</p>
+        <p className="text-reading text-ink-200">{safety.reason}</p>
         {safety.estimated && (
-          <p className="text-xs text-ink-500 mt-2">
+          <p className="text-reading text-ink-500 mt-2">
             Estimated from the step chain. The authoritative verdict comes from the watchdog once this agent runs on a schedule.
           </p>
         )}
@@ -389,8 +389,8 @@ export default async function WorkflowDetailPage({
     steps={workflow.steps.length?<>      {/* Steps */}
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">How it works</h2>
-          <span className="text-xs text-ink-500">
+          <h2 className="text-ui font-medium uppercase tracking-wide text-ink-500">How it works</h2>
+          <span className="text-secondary text-ink-500">
             {workflow.steps.length} steps
             {boundCount > 0 && (
               <span className="text-state-ok">
@@ -402,7 +402,7 @@ export default async function WorkflowDetailPage({
           </span>
         </div>
         {workflow.steps.length === 0 ? (
-          <p className="text-sm text-ink-500 italic">No steps recorded.</p>
+          <p className="text-reading text-ink-500 italic">No steps recorded.</p>
         ) : (
           <ul className="divide-y divide-ink-800">
             {workflow.steps.map((s) => (
@@ -431,9 +431,9 @@ export default async function WorkflowDetailPage({
       {workflow.versions.length > 0 && (
         <div id="agent-history" className="card mb-6">
           <div className="flex items-center gap-2 mb-3 flex-wrap">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Version history</h2>
+            <h2 className="text-ui font-medium uppercase tracking-wide text-ink-500">Version history</h2>
             {workflow.proposed_count > 0 && (
-              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/40 text-state-needs">
+              <span className="text-secondary uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/40 text-state-needs">
                 {workflow.proposed_count} proposed
               </span>
             )}
@@ -441,14 +441,14 @@ export default async function WorkflowDetailPage({
               <ProposedAgentUpdateGate key={`${workflow.slug}:${workflow.workflow_version_id}`} slug={workflow.slug} baseVersionId={workflow.workflow_version_id} />
             )}
           </div>
-          <details><summary className="cursor-pointer text-sm text-ink-400">Version history</summary>
-          <ol className="space-y-2 text-sm">
+          <details><summary className="cursor-pointer text-ui text-ink-400">Version history</summary>
+          <ol className="space-y-2 text-secondary">
             {workflow.versions.map((v) => (
               <li key={v.version} className="flex items-start gap-2">
-                <span className="text-xs font-medium text-ink-300 tabular-nums flex-none">v{v.version}</span>
+                <span className="text-micro font-medium text-ink-300 tabular-nums flex-none">v{v.version}</span>
                 <div className="min-w-0">
-                  <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">{v.source}</span>
-                  {v.summary && <p className="text-xs text-ink-400 mt-0.5">{v.summary}</p>}
+                  <span className="text-secondary uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">{v.source}</span>
+                  {v.summary && <p className="text-secondary text-ink-400 mt-0.5">{v.summary}</p>}
                 </div>
               </li>
             ))}
@@ -460,11 +460,11 @@ export default async function WorkflowDetailPage({
       {/* Sources */}
       {workflow.sources.length > 0 && (
         <div className="card">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-3">Built from</h2>
+          <h2 className="text-ui font-medium uppercase tracking-wide text-ink-500 mb-3">Built from</h2>
           <ul className="space-y-2">
             {workflow.sources.map((src) => (
               <li key={src}>
-                <a href={src} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-action-accent hover:underline break-all">
+                <a href={src} target="_blank" rel="noopener noreferrer nofollow" className="text-secondary text-action-accent hover:underline break-all">
                   {src}
                 </a>
               </li>
@@ -479,7 +479,7 @@ export default async function WorkflowDetailPage({
     // empty. The old empty state ("No runs yet") is a factual claim.
     <div role="status" className="card p-6 text-center">
       <p className="text-ink-100 font-medium">Run history unavailable</p>
-      <p className="text-ink-400 text-sm mt-1">
+      <p className="text-ink-400 text-reading mt-1">
         We could not load this agent’s runs. This is not the same as having none — reload to try again.
       </p>
     </div>
@@ -487,7 +487,7 @@ export default async function WorkflowDetailPage({
     <div className="card p-6 text-center">
       <div className="text-2xl mb-2" aria-hidden="true">✓</div>
       <p className="text-ink-100 font-medium">No runs yet.</p>
-      <p className="text-ink-400 text-sm mt-1">
+      <p className="text-ink-400 text-reading mt-1">
         Use Run now above, or put it on a schedule. Its output shows up here, newest first.
       </p>
     </div>
@@ -508,14 +508,14 @@ export default async function WorkflowDetailPage({
 
       </div>
 
-      {!!workflow.input_contract?.fields.length&&<section className="card mb-6"><h2 className="mb-3">Each run</h2><p className="text-sm text-ink-400 mb-4">You provide these when you choose Run.</p><AgentInputSummary inputs={workflow.input_contract.fields}/></section>}
+      {!!workflow.input_contract?.fields.length&&<section className="card mb-6"><h2 className="mb-3">Each run</h2><p className="text-reading text-ink-400 mb-4">You provide these when you choose Run.</p><AgentInputSummary inputs={workflow.input_contract.fields}/></section>}
 
       {/* Schedule — edit / pause / make-on-demand inline, no navigating away. */}
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Schedule</h2>
+          <h2 className="text-ui font-medium uppercase tracking-wide text-ink-500">Schedule</h2>
           {scheduleRoutine && (
-            <span className="text-xs text-ink-400">
+            <span className="text-secondary text-ink-400">
               {scheduleRoutine.run_count} run{scheduleRoutine.run_count === 1 ? '' : 's'} · last {rel(scheduleRoutine.last_run_at)}
             </span>
           )}
@@ -525,7 +525,7 @@ export default async function WorkflowDetailPage({
           // routine on save, so offering the editor over an unread schedule
           // list invites the user to overwrite a cadence we failed to show
           // them. Say so and withhold the control instead.
-          <p role="status" className="text-sm text-ink-300">
+          <p role="status" className="text-reading text-ink-300">
             Schedule unavailable — we could not read whether this agent runs on a clock, so editing is disabled to
             avoid replacing a schedule you cannot see. Reload to try again.
           </p>
@@ -566,11 +566,11 @@ export default async function WorkflowDetailPage({
   return (
     <main className="app-page agent-resume-page">
       <div className="app-content">
-        <nav className="text-sm text-ink-500 mb-6">
+        <nav className="text-secondary text-ink-500 mb-6">
           <BackLink fallback="/workflows" label="Back" />
         </nav>
 
-        {workflow.publisher_text_guidance_required&&<p className="mb-4 rounded-lg border border-amber-500/30 p-3 text-sm text-state-needs">The latest released training requires Codex and Implexa Desktop 0.4.160 or newer. Check this before installing or adopting it; Claude execution is not supported for this text guidance yet.</p>}
+        {workflow.publisher_text_guidance_required&&<p className="mb-4 rounded-lg border border-amber-500/30 p-3 text-reading text-state-needs">The latest released training requires Codex and Implexa Desktop 0.4.160 or newer. Check this before installing or adopting it; Claude execution is not supported for this text guidance yet.</p>}
 
         <AgentPageHeader
           title={<AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={true}/>}
@@ -586,7 +586,7 @@ export default async function WorkflowDetailPage({
                   ships; web actions above remain the fallback). */}
               {desktopAppLive() && (
                 <NotInApp>
-                  <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-action-accent hover:underline">
+                  <a href={appActivateUrl(workflow.slug)} className="text-secondary text-action-accent hover:underline">
                     Open in the Tukido app ↗
                   </a>
                 </NotInApp>
@@ -613,8 +613,8 @@ export default async function WorkflowDetailPage({
          * passed one. */}
         {(actionsBlocked || judgeUnavailable || gradeUnavailable || runsUnavailable || schedulesUnavailable) && (
           <div role="status" className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.06] px-4 py-3">
-            <div className="text-sm font-semibold text-ink-100">Some status could not be loaded</div>
-            <ul className="mt-1 space-y-0.5 text-sm text-ink-300">
+            <div className="text-secondary font-semibold text-ink-100">Some status could not be loaded</div>
+            <ul className="mt-1 space-y-0.5 text-secondary text-ink-300">
               {activationUnavailable && (
                 <li>Setup and readiness status unavailable — we could not check what this agent still needs.</li>
               )}
@@ -629,7 +629,7 @@ export default async function WorkflowDetailPage({
               {runsUnavailable && <li>Run history unavailable — the Runs tab is not showing an empty history, it is showing none.</li>}
               {schedulesUnavailable && <li>Schedule unavailable — we could not read whether this agent runs on a clock.</li>}
             </ul>
-            <p className="mt-2 text-xs text-ink-400">
+            <p className="mt-2 text-secondary text-ink-400">
               {actionsBlocked
                 ? 'Running is paused until this loads, because starting a run depends on it. Reload to try again.'
                 : 'Reload to try again.'}
@@ -644,9 +644,9 @@ export default async function WorkflowDetailPage({
           panel={activeTab === 'runs' ? runsPanel() : activeTab === 'setup' ? setupPanel() : overviewPanel()}
         />
         <div className="agent-action-bar" aria-label="Agent actions">
-          <div className="min-w-0"><p className="truncate text-sm font-medium text-ink-100">{actionsBlocked?'Setup status unavailable':blockingQuestions>0||missingServices.length?'Finish the required setup':isActive?'Ready for your next run':'Finish the required setup'}</p>{typeof workflow.version==='number'&&<p className="text-xs text-ink-400">Version {workflow.version}{canTrain?' · built by you':''}</p>}</div>
+          <div className="min-w-0"><p className="truncate text-reading font-medium text-ink-100">{actionsBlocked?'Setup status unavailable':blockingQuestions>0||missingServices.length?'Finish the required setup':isActive?'Ready for your next run':'Finish the required setup'}</p>{typeof workflow.version==='number'&&<p className="text-secondary text-ink-400">Version {workflow.version}{canTrain?' · built by you':''}</p>}</div>
           <div className="flex flex-wrap items-center justify-end gap-3">
-              <Link href={setupHref} className="btn-outline px-4 py-2 text-sm">Setup</Link>
+              <Link href={setupHref} className="btn-outline px-4 py-2 text-secondary">Setup</Link>
               {marketplaceAgent&&marketplaceAgent.readiness.state!=='Ready'?<AgentResume agent={marketplaceAgent} surface="action"/>:<AgentActions
                 runLabel="Run" presentation="dock"
                 openOnArrival={searchParams.run==='1'}

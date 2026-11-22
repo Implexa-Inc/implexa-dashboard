@@ -333,7 +333,7 @@ export default function ReviewSpatialOverlay(props: {
                 width: `${at.widthPct}%`, height: `${at.heightPct}%`,
               }}
             >
-              <span className="absolute -left-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-sky-400 text-[11px] font-semibold text-ink-950">
+              <span className="absolute -left-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-sky-400 text-secondary font-semibold text-ink-950">
                 {pin.ordinal}
               </span>
             </button>
@@ -348,7 +348,7 @@ export default function ReviewSpatialOverlay(props: {
             title={pin.title}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onOpenIssue(pin.issueId); }}
-            className={`absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[11px] font-semibold text-ink-950 ${pin.highlighted ? 'bg-sky-300 ring-2 ring-sky-200' : 'bg-sky-400'}`}
+            className={`absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-ui font-semibold text-ink-950 ${pin.highlighted ? 'bg-sky-300 ring-2 ring-sky-200' : 'bg-sky-400'}`}
             style={{ left: `${at.leftPct}%`, top: `${at.topPct}%` }}
           >
             {pin.ordinal}
@@ -389,7 +389,7 @@ export default function ReviewSpatialOverlay(props: {
           moment the pointer leaves visual content. */}
       {cue && enabled && !marquee && content && (
         <span
-          className="pointer-events-none absolute z-10 -translate-y-6 translate-x-2 whitespace-nowrap rounded bg-ink-950/90 px-1.5 py-0.5 text-[11px] text-ink-200"
+          className="pointer-events-none absolute z-10 -translate-y-6 translate-x-2 whitespace-nowrap rounded bg-ink-950/90 px-1.5 py-0.5 text-secondary text-ink-200"
           style={{ left: cue.x, top: cue.y }}
         >
           {ADD_FEEDBACK_CUE}

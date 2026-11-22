@@ -81,8 +81,8 @@ export default function RunChainSuggestions({ slug }: { slug: string }) {
 
   return (
     <section className="mt-6">
-      <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider mb-1">Chain this agent</h2>
-      <p className="text-xs text-ink-500 mb-3">This agent&apos;s output feeds naturally into one of your others. One tap builds the pipeline.</p>
+      <h2 className="text-ui font-medium text-ink-300 uppercase tracking-wider mb-1">Chain this agent</h2>
+      <p className="text-secondary text-ink-500 mb-3">This agent&apos;s output feeds naturally into one of your others. One tap builds the pipeline.</p>
       <div className="grid sm:grid-cols-2 gap-3">
         {suggestions.map((s) => {
           const key = `${s.fromSlug}>${s.toSlug}`;
@@ -93,13 +93,13 @@ export default function RunChainSuggestions({ slug }: { slug: string }) {
             : <><span className="font-medium">{s.fromName}</span><span className="text-action-accent mx-1" aria-hidden>→</span><span className="font-medium">This agent</span></>;
           return (
             <div key={key} className="card p-4 flex flex-col">
-              <div className="text-sm text-ink-100 flex items-center flex-wrap">{lead}</div>
-              {s.rationale && <p className="text-xs text-ink-400 mt-1.5 leading-relaxed flex-1">{s.rationale}</p>}
+              <div className="text-secondary text-ink-100 flex items-center flex-wrap">{lead}</div>
+              {s.rationale && <p className="text-secondary text-ink-400 mt-1.5 leading-relaxed flex-1">{s.rationale}</p>}
               <div className="mt-3">
                 {existing ? (
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-state-ok">✓ Saved</span>
-                    <a href={`/workflows/${existing}`} className="text-xs font-medium text-action-accent hover:underline">
+                    <span className="text-secondary text-state-ok">✓ Saved</span>
+                    <a href={`/workflows/${existing}`} className="text-secondary font-medium text-action-accent hover:underline">
                       Open it — run or schedule →
                     </a>
                   </div>
@@ -108,7 +108,7 @@ export default function RunChainSuggestions({ slug }: { slug: string }) {
                     type="button"
                     onClick={() => createChain(s)}
                     disabled={!!busy}
-                    className="btn-success text-xs px-3 py-1.5 disabled:opacity-60"
+                    className="btn-success text-ui px-3 py-1.5 disabled:opacity-60"
                   >
                     {busy === key ? 'Building…' : 'Create chain'}
                   </button>
@@ -118,7 +118,7 @@ export default function RunChainSuggestions({ slug }: { slug: string }) {
           );
         })}
       </div>
-      {err && <p className="text-xs text-state-fail mt-2">{err}</p>}
+      {err && <p className="text-secondary text-state-fail mt-2">{err}</p>}
     </section>
   );
 }

@@ -18,4 +18,4 @@ export default function AgentOverview({inputs,output,signals=[],steps,needs,trus
 }
 
 /** The same declared inputs on Overview and Setup, without opening a run form. */
-export function AgentInputSummary({inputs}:{inputs:Array<{key:string;label:string;required:boolean;description?:string|null}>}){return <ul className="agent-input-summary">{inputs.map(field=><li key={field.key}><p>{field.label}<small>{field.required?'Required':'Optional'}</small></p>{field.description&&<details><summary>About this input</summary><p>{field.description}</p></details>}</li>)}</ul>;}
+export function AgentInputSummary({inputs}:{inputs:Array<{key:string;label:string;required:boolean;description?:string|null}>}){return <ul className="agent-input-summary">{inputs.map(field=><li key={field.key}><p>{field.label}<small>{field.required?'Required':'Optional'}</small></p>{field.description&&<details><summary>About this input</summary><p className="text-reading">{field.description}</p></details>}</li>)}</ul>;}

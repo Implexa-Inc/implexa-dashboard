@@ -122,22 +122,22 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
     <main className="min-h-screen bg-ink-950 text-ink-100 px-6 py-12 sm:py-16">
       <div className="mx-auto max-w-xl">
         <div className="mb-8">
-          <span className="text-sm font-semibold tracking-tight text-action-accent">Tukido</span>
+          <span className="text-secondary font-semibold tracking-tight text-action-accent">Tukido</span>
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-semibold text-ink-50 leading-tight">
           {firstName ? `${firstName}, get the app to start` : 'Get the app to start'}
         </h1>
-        <p className="mt-3 text-ink-400 leading-relaxed">
+        <p className="text-reading mt-3 text-ink-400 leading-relaxed">
           Tukido runs your agents inside your own Claude or Codex, on your machine — so the desktop app
           is where everything happens. {isMac ? 'Your download is starting now.' : ''}
         </p>
 
         {intent && (
           <div className="mt-5 rounded-lg border border-brand-500/30 bg-brand-500/5 px-4 py-3">
-            <p className="text-xs uppercase tracking-wide text-action-accent font-semibold">Waiting to build</p>
-            <p className="mt-1 text-sm text-ink-200">&ldquo;{intent.length > 160 ? intent.slice(0, 160) + '…' : intent}&rdquo;</p>
-            <p className="mt-1 text-xs text-ink-500">It&apos;s saved to your account — the app picks it up the moment you open it.</p>
+            <p className="text-secondary uppercase tracking-wide text-action-accent font-semibold">Waiting to build</p>
+            <p className="mt-1 text-reading text-ink-200">&ldquo;{intent.length > 160 ? intent.slice(0, 160) + '…' : intent}&rdquo;</p>
+            <p className="mt-1 text-secondary text-ink-500">It&apos;s saved to your account — the app picks it up the moment you open it.</p>
           </div>
         )}
 
@@ -152,7 +152,7 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor"><path d="M12 3v10.55M12 13.55 8.5 10M12 13.55 15.5 10M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 {downloaded ? 'Download again' : 'Download for macOS'}
               </a>
-              <p className="mt-2 text-xs text-ink-500">Free · macOS 12+ · signed &amp; notarized by Apple</p>
+              <p className="mt-2 text-secondary text-ink-500">Free · macOS 12+ · signed &amp; notarized by Apple</p>
             </div>
 
             <ol className="mt-8 space-y-4">
@@ -162,10 +162,10 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
                 ['You’re in', 'The app connects your Claude or Codex and picks up where you left off — this page jumps you to your dashboard automatically.'],
               ].map(([t, d], i) => (
                 <li key={i} className="flex gap-3.5">
-                  <span className="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-ink-800 text-ink-300 text-xs font-semibold flex items-center justify-center">{i + 1}</span>
+                  <span className="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-ink-800 text-ink-300 text-secondary font-semibold flex items-center justify-center">{i + 1}</span>
                   <div>
-                    <p className="text-sm font-medium text-ink-100">{t}</p>
-                    <p className="text-sm text-ink-500">{d}</p>
+                    <p className="text-reading font-medium text-ink-100">{t}</p>
+                    <p className="text-reading text-ink-500">{d}</p>
                   </div>
                 </li>
               ))}
@@ -173,23 +173,23 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
 
             <div className="mt-9 flex items-center gap-2.5 rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-3">
               <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-brand-500/25 border-t-brand-500 animate-spin" aria-hidden="true" />
-              <p className="text-sm text-ink-400">Waiting for you to open the app — this unlocks the moment it connects.</p>
+              <p className="text-reading text-ink-400">Waiting for you to open the app — this unlocks the moment it connects.</p>
             </div>
           </>
         ) : (
           <div className="mt-7 rounded-lg border border-ink-800 bg-ink-900/40 px-5 py-5">
-            <p className="text-sm text-ink-200 font-medium">The desktop app is macOS-only right now.</p>
-            <p className="mt-1.5 text-sm text-ink-400">
+            <p className="text-reading text-ink-200 font-medium">The desktop app is macOS-only right now.</p>
+            <p className="mt-1.5 text-reading text-ink-400">
               On Windows or Linux you can still connect your Claude or Codex with one command — paste this into your terminal:
             </p>
             <button
               type="button"
               onClick={copyCurl}
-              className="mt-3 w-full text-left rounded-md bg-ink-950 border border-ink-700 px-3 py-2.5 font-mono text-xs text-ink-100 hover:border-ink-600 transition-colors"
+              className="mt-3 w-full text-left rounded-md bg-ink-950 border border-ink-700 px-3 py-2.5 font-mono text-ui text-ink-100 hover:border-ink-600 transition-colors"
             >
               {copied ? '✓ Copied' : CONNECT_CURL}
             </button>
-            <p className="mt-3 text-xs text-ink-500">
+            <p className="mt-3 text-secondary text-ink-500">
               Want the Mac app the day it ships for your platform?{' '}
               <a href="mailto:hello@implexa.ai?subject=Desktop%20app%20waitlist" className="text-action-accent hover:underline">Join the waitlist</a>.
             </p>
@@ -198,19 +198,19 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
 
         {/* Escape hatch for power users / Codex / CLI — never the headline. */}
         <details className="mt-8 group">
-          <summary className="cursor-pointer text-sm text-ink-500 hover:text-ink-300 select-none">
+          <summary className="cursor-pointer text-ui text-ink-500 hover:text-ink-300 select-none">
             Prefer to connect via the terminal instead?
           </summary>
           <div className="mt-3 rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-3">
-            <p className="text-sm text-ink-400">One command connects Tukido to your existing Claude Code or Codex:</p>
+            <p className="text-reading text-ink-400">One command connects Tukido to your existing Claude Code or Codex:</p>
             <button
               type="button"
               onClick={copyCurl}
-              className="mt-2 w-full text-left rounded-md bg-ink-950 border border-ink-700 px-3 py-2.5 font-mono text-xs text-ink-100 hover:border-ink-600 transition-colors"
+              className="mt-2 w-full text-left rounded-md bg-ink-950 border border-ink-700 px-3 py-2.5 font-mono text-ui text-ink-100 hover:border-ink-600 transition-colors"
             >
               {copied ? '✓ Copied' : CONNECT_CURL}
             </button>
-            <p className="mt-2 text-xs text-ink-500">Full options on the <a href="/install" className="text-action-accent hover:underline">install page</a>.</p>
+            <p className="mt-2 text-secondary text-ink-500">Full options on the <a href="/install" className="text-action-accent hover:underline">install page</a>.</p>
           </div>
         </details>
       </div>

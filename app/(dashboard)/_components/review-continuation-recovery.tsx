@@ -250,21 +250,21 @@ export default function ReviewContinuationRecovery({
 
   return (
     <div className={`mt-3 rounded-lg border p-4 ${tone}`} data-recovery-state={resolved}>
-      <div className="text-sm font-semibold text-ink-100">{headline}</div>
+      <div className="text-secondary font-semibold text-ink-100">{headline}</div>
       {['running', 'queued', 'retryable', 'settling'].includes(resolved) && (
         <button type="button" onClick={() => void load()} disabled={busy}
-          className="btn-outline mt-2 text-xs px-3 py-1.5">Refresh attempt details</button>
+          className="btn-outline mt-2 text-ui px-3 py-1.5">Refresh attempt details</button>
       )}
       {detail?.executorDiagnostic?.source === 'executor_message'
         && typeof detail.executorDiagnostic.finalMessage === 'string'
         && ['retryable', 'settling', 'cancelled', 'unverifiable'].includes(resolved) && (
         <div className="mt-3 rounded border border-ink-700 p-3" aria-label="Executor message">
-          <p className="text-xs font-semibold text-ink-200">Message from the previous executor</p>
-          <blockquote className="mt-2 whitespace-pre-wrap break-words text-sm text-ink-200">
+          <p className="text-secondary font-semibold text-ink-200">Message from the previous executor</p>
+          <blockquote className="mt-2 whitespace-pre-wrap break-words text-reading text-ink-200">
             {Array.from(detail.executorDiagnostic.finalMessage).slice(0, 4000).join('')}
           </blockquote>
-          {detail.executorDiagnostic.truncated && <p className="mt-1 text-xs text-ink-400">Message shortened.</p>}
-          <p className="mt-2 text-xs text-ink-400">
+          {detail.executorDiagnostic.truncated && <p className="mt-1 text-secondary text-ink-400">Message shortened.</p>}
+          <p className="mt-2 text-reading text-ink-400">
             This message does not verify that the requested edits were completed.
             If it asks a question, answer in a new feedback draft. Your previous submission stays unchanged.
           </p>
@@ -274,12 +274,12 @@ export default function ReviewContinuationRecovery({
             setAnswerBusy(true);
             try { await onAnswer(); } finally { answerFlightRef.current = false; setAnswerBusy(false); }
           }} disabled={busy || answerBusy}
-            className="btn-outline mt-2 text-xs px-3 py-1.5">{answerBusy ? 'Opening Review…' : 'Answer in Review'}</button>}
+            className="btn-outline mt-2 text-ui px-3 py-1.5">{answerBusy ? 'Opening Review…' : 'Answer in Review'}</button>}
         </div>
       )}
 
       {resolved === 'running' && (
-        <p className="mt-1 text-xs leading-relaxed text-ink-400">
+        <p className="mt-1 text-secondary leading-relaxed text-ink-400">
           {launchWindowOpen
             ? 'Tukido is confirming whether the previous revision started. Nothing new was queued. Retry will become available automatically when this safety window closes.'
             : 'A revision process is working on this feedback right now. Nothing new was queued. Refresh attempt details to check for its result or latest message.'}
@@ -288,10 +288,10 @@ export default function ReviewContinuationRecovery({
 
       {resolved === 'unverifiable' && (
         <>
-          <p className="mt-1 text-xs leading-relaxed text-ink-400">
+          <p className="mt-1 text-secondary leading-relaxed text-ink-400">
             If the revisions were not applied in the previous run, you can retry this revision.
           </p>
-          <ol className="mt-3 space-y-1.5 text-xs text-ink-300">
+          <ol className="mt-3 space-y-1.5 text-secondary text-ink-300">
             <li>
               <span className="text-ink-500 mr-1.5">1.</span>
               Fully quit <span className="text-ink-100">{executorLabel}</span> and open it again.
@@ -308,7 +308,7 @@ export default function ReviewContinuationRecovery({
               type="button"
               onClick={retry}
               disabled={busy}
-              className="btn-success text-xs px-3 py-1.5 disabled:opacity-50"
+              className="btn-success text-ui px-3 py-1.5 disabled:opacity-50"
             >
               {busy ? 'Checking…' : 'Retry revision'}
             </button>
@@ -316,7 +316,7 @@ export default function ReviewContinuationRecovery({
               type="button"
               onClick={load}
               disabled={busy}
-              className="btn-outline text-xs px-3 py-1.5 disabled:opacity-50"
+              className="btn-outline text-ui px-3 py-1.5 disabled:opacity-50"
             >
               Check again
             </button>
@@ -326,7 +326,7 @@ export default function ReviewContinuationRecovery({
 
       {resolved === 'retryable' && (
         <>
-          <p className="mt-1 text-xs leading-relaxed text-ink-400">
+          <p className="mt-1 text-reading text-ink-400">
             The previous attempt is confirmed finished
             {detail?.attempt?.consequentialWorkStarted === false ? ' and made no edits' : ''}.
             Retrying reuses your original review exactly — same feedback, same marked-up frames.
@@ -335,7 +335,7 @@ export default function ReviewContinuationRecovery({
             type="button"
             onClick={retry}
             disabled={busy}
-            className="btn-success mt-3 text-xs px-3 py-1.5 disabled:opacity-50"
+            className="btn-success mt-3 text-ui px-3 py-1.5 disabled:opacity-50"
           >
             {busy ? 'Queuing…' : 'Retry revision'}
           </button>
@@ -344,11 +344,11 @@ export default function ReviewContinuationRecovery({
 
       {resolved === 'settling' && (
         <>
-          <p className="mt-1 text-xs leading-relaxed text-ink-400">
+          <p className="mt-1 text-reading text-ink-400">
             Tukido has not confirmed a validated revised result.
             This does not mean your feedback was applied. No new attempt has been queued.
           </p>
-          <button type="button" onClick={load} disabled={busy} className="btn-outline mt-3 text-xs px-3 py-1.5">
+          <button type="button" onClick={load} disabled={busy} className="btn-outline mt-3 text-ui px-3 py-1.5">
             Check again
           </button>
         </>
@@ -356,14 +356,14 @@ export default function ReviewContinuationRecovery({
 
       {resolved === 'completed' && (
         <>
-          <p className="mt-1 text-xs leading-relaxed text-ink-400">
+          <p className="mt-1 text-reading text-ink-400">
             A validated revised result is available. Open it to inspect the corrections;
             Judge and Manager proof are reported separately.
           </p>
           {detail?.runId ? (
             <a
               href={`/review/${encodeURIComponent(detail.runId)}`}
-              className="btn-success mt-3 inline-block text-xs px-3 py-1.5"
+              className="btn-success mt-3 inline-block text-secondary px-3 py-1.5"
             >
               Open the revised result
             </a>
@@ -373,7 +373,7 @@ export default function ReviewContinuationRecovery({
 
       {resolved === 'cancelled' && (
         <>
-          <p className="mt-1 text-xs leading-relaxed text-ink-400">
+          <p className="mt-1 text-reading text-ink-400">
             This attempt is closed. You can carry its submitted feedback into a new draft.
             Sending that draft starts a new revision.
           </p>
@@ -385,14 +385,14 @@ export default function ReviewContinuationRecovery({
               try { await onAmendCancelled(); }
               catch { setError('Could not open the draft. Your submitted feedback is unchanged.'); }
               finally { amendmentFlight.current = false; setBusy(false); }
-            }} className="btn-outline mt-3 text-xs px-3 py-1.5">
+            }} className="btn-outline mt-3 text-ui px-3 py-1.5">
             {busy ? 'Opening draft…' : 'Open a new draft with this feedback'}
           </button>}
         </>
       )}
 
       {resolved === 'queued' && (
-        <p className="mt-1 text-xs leading-relaxed text-ink-400">
+        <p className="mt-1 text-secondary leading-relaxed text-ink-400">
           Queued with your original review submission. The updated result lands in your inbox.
         </p>
       )}
@@ -401,7 +401,7 @@ export default function ReviewContinuationRecovery({
           the newest thing we know, so the panel never silently replaces a
           specific answer with a general one. */}
       {(error || (refusal && resolved !== 'queued' && resolved !== 'completed' && !error)) && (
-        <p className="mt-3 text-xs text-state-fail">{error || refusal?.message}</p>
+        <p className="mt-3 text-secondary text-state-fail">{error || refusal?.message}</p>
       )}
     </div>
   );

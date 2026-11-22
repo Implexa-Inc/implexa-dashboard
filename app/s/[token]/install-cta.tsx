@@ -106,7 +106,7 @@ export default function InstallCta({ token, isAuthed, gate }: Props) {
     return (
       <div className="flex flex-col items-end gap-3 max-w-md">
         <div className="text-right">
-          <div className="text-sm font-medium text-action-accent">✓ Installed</div>
+          <div className="text-secondary font-medium text-action-accent">✓ Installed</div>
           {/* Jump straight to the forked skill's detail page (NOT the
             * library index). Lands the user on the actual skill they just
             * installed — they don't need to scroll-find it under "Your skills".
@@ -114,7 +114,7 @@ export default function InstallCta({ token, isAuthed, gate }: Props) {
             * on the library with no clue where to look. */}
           <button
             onClick={() => router.push(`/skills/${installed.slug}`)}
-            className="mt-1 text-xs text-ink-200 hover:underline"
+            className="mt-1 text-ui text-ink-200 hover:underline"
           >
             Open &quot;{installed.name}&quot; →
           </button>
@@ -133,7 +133,7 @@ export default function InstallCta({ token, isAuthed, gate }: Props) {
       <button onClick={handleInstall} disabled={loading} className="btn-primary whitespace-nowrap">
         {loading ? 'Installing…' : 'Install in 1 click'}
       </button>
-      {error && <p className="text-xs text-state-fail mt-2 max-w-xs">{error}</p>}
+      {error && <p className="text-secondary text-state-fail mt-2 max-w-xs">{error}</p>}
     </div>
   );
 }
@@ -171,19 +171,19 @@ function TryItCard({
 
   return (
     <div className="w-full rounded-lg border border-success-400/40 bg-gradient-to-br from-success-400/8 to-brand-500/5 p-3">
-      <div className="text-xs uppercase tracking-wider text-success-700 dark:text-success-400 font-bold mb-1.5">
+      <div className="text-secondary uppercase tracking-wider text-success-700 dark:text-success-400 font-bold mb-1.5">
         🚀 Try it now in Claude
       </div>
-      <p className="text-xs text-ink-200 mb-2 leading-relaxed">
+      <p className="text-secondary text-ink-200 mb-2 leading-relaxed">
         Open any Claude surface (Code, Cowork, Desktop) and paste:
       </p>
       <div className="relative">
-        <pre className="bg-ink-950 border border-ink-700 rounded px-2.5 py-2 text-xs font-mono text-ink-100 whitespace-pre-wrap break-words pr-12">
+        <pre className="bg-ink-950 border border-ink-700 rounded px-2.5 py-2 text-micro font-mono text-ink-100 whitespace-pre-wrap break-words pr-12">
           {prompt}
         </pre>
         <button
           onClick={copy}
-          className={`absolute top-1.5 right-1.5 text-[10px] uppercase tracking-wider font-medium rounded px-1.5 py-0.5 transition-colors ${
+          className={`absolute top-1.5 right-1.5 text-ui uppercase tracking-wider font-medium rounded px-1.5 py-0.5 transition-colors ${
             copied
               ? 'bg-success-400/20 text-success-700 dark:text-success-400'
               : 'bg-ink-800 text-ink-300 hover:bg-ink-700 hover:text-ink-100'
@@ -192,8 +192,8 @@ function TryItCard({
           {copied ? '✓ Copied' : 'Copy'}
         </button>
       </div>
-      <p className="text-[10px] text-ink-400 mt-2 leading-relaxed">
-        Claude will call <code className="text-[10px] bg-ink-800 px-1 rounded">apply_org_skill</code> and run <em>{skillName}</em> against your data.
+      <p className="text-reading text-ink-400 mt-2 ">
+        Claude will call <code className="text-secondary bg-ink-800 px-1 rounded">apply_org_skill</code> and run <em>{skillName}</em> against your data.
       </p>
     </div>
   );

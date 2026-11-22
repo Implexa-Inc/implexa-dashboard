@@ -62,28 +62,28 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
     finally{inFlight.current=false;setApproving(false);}
   }
   return <>
-    <button className="btn-outline px-4 py-2 text-sm" type="button" onClick={() => setOpen(true)}>Inspect Preview</button>
+    <button className="btn-outline px-4 py-2 text-ui" type="button" onClick={() => setOpen(true)}>Inspect Preview</button>
     <Modal open={open} onClose={close} title="Preview evidence" maxWidth="max-w-5xl"
       subtitle="Preserved Preview evidence. Owner approval is a separate action below; this is not delivered video.">
-      <p className="mb-4 text-sm text-ink-300">{summary.reviewState === 'incomplete'
+      <p className="mb-4 text-reading text-ink-300">{summary.reviewState === 'incomplete'
         ? 'This review is incomplete; completed batches are evidence, not an overall verdict.'
         : summary.reviewState === 'fail' ? 'Preview failed. When the retained scene and correction allowance are verified, you can send these findings back to Compose below. Master is not available from this review.'
         : `Visual Judge result: ${summary.reviewState}. ${['passed','not_applicable'].includes(view?.temporalQa?.status || '')
           ? 'The exact owner decision is still required before Master.'
           : 'All-eight temporal QA and the exact owner decision are still required before Master.'}`}</p>
-      {!view && <p role="status" className="text-sm text-ink-300">{message}</p>}
-      {!view && <a className="mt-3 inline-flex text-sm underline" href={desktopReviewHref(summary.runId) || undefined}>Open this run in Implexa Desktop</a>}
+      {!view && <p role="status" className="text-reading text-ink-300">{message}</p>}
+      {!view && <a className="mt-3 inline-flex text-secondary underline" href={desktopReviewHref(summary.runId) || undefined}>Open this run in Implexa Desktop</a>}
       {view && <>
-        {view.temporalQa && <section className="mb-4 text-sm text-ink-300" aria-label="Temporal QA">
+        {view.temporalQa && <section className="mb-4 text-secondary text-ink-300" aria-label="Temporal QA">
           {['unavailable','not_applicable'].includes(view.temporalQa.status)
             ? <p>{view.temporalQa.status === 'unavailable' ? 'Temporal QA is unavailable; no measured pass is claimed.'
               : 'Provider-slot temporal QA is not applicable; there are no provider slots.'}</p>
             : <>
-              <p>Temporal QA passed for {view.temporalQa.passedSlotCount}/{view.temporalQa.slotCount} slots;
+              <p className="text-reading">Temporal QA passed for {view.temporalQa.passedSlotCount}/{view.temporalQa.slotCount} slots;
                 {' '}offset index proven on {view.temporalQa.offsetIndexProvenSlotCount}/{view.temporalQa.slotCount};
                 {' '}{view.temporalQa.notVisuallyResolvableSlotCount}/{view.temporalQa.slotCount} not visually resolvable.</p>
-              {view.temporalQa.status === 'failed' && <p>Rendered provider frames or narration did not correspond to the sealed sources within the frozen tolerance. This is a renderer/runtime/source issue, not a Compose creative finding. Master is not available; no automatic retry or new media spending is authorized.</p>}
-              {view.temporalQa.status === 'not_assessable' && <p>Temporal correspondence could not be assessed: insufficient provider visibility or an audio window too short for the fixed measurement. This is not a Compose semantic finding. Master is not available; no automatic retry or new media spending is authorized.</p>}
+              {view.temporalQa.status === 'failed' && <p className="text-reading">Rendered provider frames or narration did not correspond to the sealed sources within the frozen tolerance. This is a renderer/runtime/source issue, not a Compose creative finding. Master is not available; no automatic retry or new media spending is authorized.</p>}
+              {view.temporalQa.status === 'not_assessable' && <p className="text-reading">Temporal correspondence could not be assessed: insufficient provider visibility or an audio window too short for the fixed measurement. This is not a Compose semantic finding. Master is not available; no automatic retry or new media spending is authorized.</p>}
               {view.temporalQa.slots.map(s => <p key={`${s.sceneId}:${s.slotId}`}>
                 {s.sceneId} / {s.slotId}: {s.verdict}; {s.offsetEvidence === 'not_visually_resolvable'
                   ? 'offset not visually resolvable within ±2 source frames'
@@ -92,8 +92,8 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
               </p>)}
             </>}
         </section>}
-        {mediaFailure && <p role="alert" className="mb-3 text-sm text-state-needs">A Preview file could not be verified for display. Close and reopen this view to check the retained evidence again; this does not mean its files are gone.</p>}
-        {view.criteria.map(c => <section key={c.id} className="mb-3 text-sm">
+        {mediaFailure && <p role="alert" className="mb-3 text-reading text-state-needs">A Preview file could not be verified for display. Close and reopen this view to check the retained evidence again; this does not mean its files are gone.</p>}
+        {view.criteria.map(c => <section key={c.id} className="mb-3 text-secondary">
           <h3 className="font-semibold text-ink-100">{c.statement}</h3>
           {view.judgments.filter(j => j.criterionId === c.id).map((j, i) => <p key={i} className="text-ink-300">
             {j.verdict === 'not_applicable' ? j.reason : `${j.verdict}: ${j.reason}`} {j.frameIds.length > 0 && `Frames: ${j.frameIds.join(', ')}`}
@@ -105,26 +105,26 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
             // These are Desktop-only token URLs, not remote Next/Image sources.
             // eslint-disable-next-line @next/next/no-img-element
             : <img src={item.url} alt={`Preview ${item.id}`} onError={() => setMediaFailure(true)} className="w-full" loading="lazy" />}
-          <figcaption className="mt-1 text-xs text-ink-400">{item.kind}: {item.id}</figcaption>
+          <figcaption className="mt-1 text-secondary text-ink-400">{item.kind}: {item.id}</figcaption>
         </figure>)}</div>
-        {view.items.length === 0 && <p className="text-sm text-ink-300">No rendered media was retained for this incomplete review.</p>}
+        {view.items.length === 0 && <p className="text-reading text-ink-300">No rendered media was retained for this incomplete review.</p>}
         {view.ownerRecoveryDecisionDigest&&<section className="mt-5 border-t border-ink-700 pt-4">
-          <p className="mb-2 text-sm text-ink-300">Resume the interrupted Compose correction using its preserved inputs and remaining allowance. The previous launch was not acknowledged; its expired server lease will be retired. Compose and Preview still require fresh reviews. This does not approve Master or new media spending.</p>
-          <p className="mb-3 text-xs text-ink-400">{view.ownerRecoveryDisclosure}</p>
-          <button type="button" className="btn-primary px-4 py-2 text-sm" disabled={approving||mediaFailure} onClick={()=>void approve(false,true)}>
+          <p className="mb-2 text-reading text-ink-300">Resume the interrupted Compose correction using its preserved inputs and remaining allowance. The previous launch was not acknowledged; its expired server lease will be retired. Compose and Preview still require fresh reviews. This does not approve Master or new media spending.</p>
+          <p className="mb-3 text-secondary text-ink-400">{view.ownerRecoveryDisclosure}</p>
+          <button type="button" className="btn-primary px-4 py-2 text-ui" disabled={approving||mediaFailure} onClick={()=>void approve(false,true)}>
             {approving?'Checking preserved correction…':'Resume correction'}</button>
         </section>}
         {view.reviewState==='fail'&&summary.ownerHoldReady&&view.revisionDecisionDigest&&!continuationId&&<section className="mt-5 border-t border-ink-700 pt-4">
-          <p className="mb-3 text-sm text-ink-300">Return the exact preserved scene and these visual findings to Compose. Stages 1–3 stay unchanged. This uses one shared continuation slot and requires fresh Compose and Preview reviews. It does not approve Master or new media purchases.</p>
-          <button type="button" className="btn-primary px-4 py-2 text-sm" disabled={approving||mediaFailure} onClick={()=>void approve(true)}>
+          <p className="mb-3 text-reading text-ink-300">Return the exact preserved scene and these visual findings to Compose. Stages 1–3 stay unchanged. This uses one shared continuation slot and requires fresh Compose and Preview reviews. It does not approve Master or new media purchases.</p>
+          <button type="button" className="btn-primary px-4 py-2 text-ui" disabled={approving||mediaFailure} onClick={()=>void approve(true)}>
             {approving?'Rechecking revision…':'Send findings back to Compose'}</button>
         </section>}
         {view.reviewState==='pass'&&summary.ownerHoldReady&&view.decisionDigest&&!continuationId&&<section className="mt-5 border-t border-ink-700 pt-4">
-          <p className="mb-3 text-sm text-ink-300">Approve only the Preview shown here, including its temporal uncertainty above. Master must reverify the same sources and renderer. No new media purchase is authorized.</p>
-          <button type="button" className="btn-primary px-4 py-2 text-sm" disabled={approving||mediaFailure} onClick={()=>void approve()}>
+          <p className="mb-3 text-reading text-ink-300">Approve only the Preview shown here, including its temporal uncertainty above. Master must reverify the same sources and renderer. No new media purchase is authorized.</p>
+          <button type="button" className="btn-primary px-4 py-2 text-ui" disabled={approving||mediaFailure} onClick={()=>void approve()}>
             {approving?'Rechecking and approving…':'Approve this Preview and continue to Master'}</button>
         </section>}
-        {decisionMessage&&<p role="status" className="mt-3 text-sm text-ink-300">{decisionMessage}</p>}
+        {decisionMessage&&<p role="status" className="mt-3 text-reading text-ink-300">{decisionMessage}</p>}
       </>}
     </Modal>
   </>;

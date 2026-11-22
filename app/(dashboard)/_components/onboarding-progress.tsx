@@ -28,9 +28,9 @@ export default function OnboardingProgress({ steps }: { steps: OnboardingStep[] 
     <section className="mb-6 rounded-lg border border-brand-500/30 bg-gradient-to-r from-brand-500/10 to-transparent p-4">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-ink-50">
+          <p className="text-reading font-semibold text-ink-50">
             Onboarding unfinished
-            <span className="ml-2 text-xs font-normal text-ink-400">{done} of {total} steps completed</span>
+            <span className="ml-2 text-secondary font-normal text-ink-400">{done} of {total} steps completed</span>
           </p>
           <div className="mt-2 h-1.5 w-48 max-w-full rounded-full bg-ink-800 overflow-hidden">
             <div className="h-full bg-brand-500 transition-all" style={{ width: `${pct}%` }} />
@@ -39,7 +39,7 @@ export default function OnboardingProgress({ steps }: { steps: OnboardingStep[] 
         {next && (
           <Link
             href={next.href}
-            className="rounded-lg bg-brand-500 text-ink-950 px-4 py-2 text-sm font-medium hover:bg-brand-400 whitespace-nowrap transition-colors"
+            className="rounded-lg bg-brand-500 text-ink-950 px-4 py-2 text-secondary font-medium hover:bg-brand-400 whitespace-nowrap transition-colors"
           >
             Resume setup
           </Link>
@@ -48,12 +48,12 @@ export default function OnboardingProgress({ steps }: { steps: OnboardingStep[] 
 
       <ol className="mt-3 space-y-1.5">
         {steps.map((s) => (
-          <li key={s.href} className="flex items-center gap-2 text-sm">
+          <li key={s.href} className="flex items-center gap-2 text-secondary">
             <span
-              className={`flex-none inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] ${
+              className={`flex-none inline-flex items-center justify-center w-4 h-4 rounded-full text-secondary ${
                 s.done
                   ? 'bg-success-400/20 text-success-600 dark:text-success-400'
-                  : 'border border-ink-600 text-ink-600'
+                  : 'border border-ink-600 text-ink-500'
               }`}
               aria-hidden="true"
             >

@@ -36,12 +36,12 @@ export function OpenInAppBanner({ path, verb = 'activate' }: { path: string; ver
 
   return (
     <div className="mb-5 rounded-lg border border-brand-500/30 bg-brand-500/10 px-4 py-3 flex items-center justify-between gap-3">
-      <p className="text-sm text-ink-200">
+      <p className="text-reading text-ink-200">
         Agents {verb} in the <span className="font-medium">Tukido app</span> (that&rsquo;s where they run on your computer).
       </p>
       <div className="flex items-center gap-3 flex-none">
-        <button type="button" onClick={() => openInApp(path)} className="btn-success text-xs px-3 py-1.5">Open app</button>
-        <span className="text-xs text-ink-500">No app? Use the steps below.</span>
+        <button type="button" onClick={() => openInApp(path)} className="btn-success text-ui px-3 py-1.5">Open app</button>
+        <span className="text-secondary text-ink-500">No app? Use the steps below.</span>
       </div>
     </div>
   );

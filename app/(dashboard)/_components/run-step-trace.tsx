@@ -46,9 +46,9 @@ export default function RunStepTrace({
     <div className={compact ? '' : 'mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4'}>
       {heading !== null && (
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-semibold text-ink-300">{heading}</span>
+          <span className="text-secondary font-semibold text-ink-300">{heading}</span>
           {live && (
-            <span className="text-[10px] uppercase tracking-wide font-semibold text-state-running bg-sky-500/15 rounded px-1.5 py-0.5">live</span>
+            <span className="text-secondary uppercase tracking-wide font-semibold text-state-running bg-sky-500/15 rounded px-1.5 py-0.5">live</span>
           )}
           {action}
         </div>
@@ -62,19 +62,19 @@ export default function RunStepTrace({
               ? 'bg-sky-500 dark:bg-sky-400'
               : 'bg-ink-600';
           return (
-            <li key={`${e.at}:${i}`} className={`flex items-start gap-2.5 ${compact ? 'text-xs' : 'text-sm'}`}>
+            <li key={`${e.at}:${i}`} className={`flex items-start gap-2.5 ${compact ? 'text-secondary' : 'text-secondary'}`}>
               <span className={`mt-[7px] h-1.5 w-1.5 rounded-full shrink-0 ${dot}`} aria-hidden="true" />
               <div className="min-w-0 flex-1">
-                {e.step && <span className="font-mono text-xs text-ink-500 mr-1.5">{e.step}</span>}
+                {e.step && <span className="font-mono text-micro text-ink-500 mr-1.5">{e.step}</span>}
                 <span className="text-ink-200">{e.note || 'progress'}</span>
-                <span className="text-ink-600 text-xs ml-2">{rel(e.at)}</span>
+                <span className="text-ink-500 text-secondary ml-2">{rel(e.at)}</span>
               </div>
             </li>
           );
         })}
       </ol>
       {stalled && (
-        <p className="text-xs text-state-needs mt-3 leading-relaxed">
+        <p className="text-secondary text-state-needs mt-3 leading-relaxed">
           Stuck here. This is the last step it reported before it stopped making progress.
         </p>
       )}

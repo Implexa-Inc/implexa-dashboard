@@ -223,16 +223,16 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
         {!compact&&<h1 className="text-2xl font-semibold tracking-tight text-ink-50">
           {hasAgents ? 'Build an agent' : 'Build your first agent'}
         </h1>}
-        <p className="text-sm text-ink-400 mt-1.5 mb-2">
+        <p className="text-reading text-ink-400 mt-1.5 mb-2">
           {compact ? 'Tell Tukido what you want it to do.' : guided
             ? 'Just tell us a job you do over and over, in plain words. We build the agent and walk you through turning it on. No setup knowledge needed.'
             : 'Describe a recurring job in a sentence. Tukido builds the agent; it runs in your Claude or Codex, on a schedule, as you.'}
         </p>
-        {!compact && <p className="text-xs text-ink-500 mb-5">
+        {!compact && <p className="text-reading text-ink-500 mb-5">
           Claude Code runs in the background, so you don&apos;t work there. Build, run, and approve every agent right here in Tukido.
         </p>}
         <div className={compact ? "mt-5 flex flex-col gap-3" : "flex gap-2.5"}>
-          {compact ? <textarea id="talk" aria-label="Describe your agent" rows={6} value={intent} onChange={e=>setIntent(e.target.value)} onPaste={onPaste} onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();submit();}}} placeholder="What would you like your agent to do?" disabled={busy} className="w-full resize-y rounded-lg border border-ink-700 bg-ink-950 px-4 py-3 text-sm text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-brand-500"/> : <input
+          {compact ? <textarea id="talk" aria-label="Describe your agent" rows={6} value={intent} onChange={e=>setIntent(e.target.value)} onPaste={onPaste} onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();submit();}}} placeholder="What would you like your agent to do?" disabled={busy} className="w-full resize-y rounded-lg border border-ink-700 bg-ink-950 px-4 py-3 text-ui text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-brand-500"/> : <input
             id="talk"
             aria-label="Describe your agent"
             value={intent}
@@ -241,7 +241,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
             onPaste={onPaste}
             placeholder="e.g. every morning, send me my key numbers"
             disabled={busy}
-            className="flex-1 rounded-lg bg-ink-900 border border-ink-700 px-4 py-3 text-[15px] text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-ink-500 disabled:opacity-60"
+            className="flex-1 rounded-lg bg-ink-900 border border-ink-700 px-4 py-3 text-ui text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-ink-500 disabled:opacity-60"
           />}
           {/* Legacy inline image picker — only when pickFile is absent (no any-file
               bridge). When pickFile exists, the shared <AttachFiles> below handles
@@ -262,7 +262,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
                 disabled={busy || images.length >= MAX_IMAGES}
                 title="Attach an image (or paste one into the box)"
                 aria-label="Attach an image"
-                className="rounded-lg border border-ink-700 text-ink-300 px-3 py-3 text-sm hover:border-ink-500 hover:text-ink-100 transition-colors disabled:opacity-40"
+                className="rounded-lg border border-ink-700 text-ink-300 px-3 py-3 text-ui hover:border-ink-500 hover:text-ink-100 transition-colors disabled:opacity-40"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 15l-5-5L5 21M3 16V5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
@@ -274,7 +274,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
           <button
             onClick={submit}
             disabled={busy || !intent.trim()}
-            className="rounded-lg bg-brand-500 text-ink-950 px-6 py-3 text-sm font-medium hover:bg-brand-400 whitespace-nowrap transition-colors disabled:opacity-50"
+            className="rounded-lg bg-brand-500 text-ink-950 px-6 py-3 text-ui font-medium hover:bg-brand-400 whitespace-nowrap transition-colors disabled:opacity-50"
           >
             {label}
           </button>
@@ -311,7 +311,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
                   type="button"
                   onClick={() => removeImage(i)}
                   aria-label={`Remove ${im.name}`}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-ink-950 border border-ink-600 text-ink-300 text-xs flex items-center justify-center hover:text-state-fail hover:border-rose-400"
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-ink-950 border border-ink-600 text-ink-300 text-ui flex items-center justify-center hover:text-state-fail hover:border-rose-400"
                 >
                   ×
                 </button>
@@ -320,14 +320,14 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
           </div>
         )}
         {hasBridge && !canAttach && images.length === 0 && (
-          <p className="text-[11px] text-ink-500 mt-2">Tip: paste or attach a file — a screenshot, a doc, a spec — and your agent can use it.</p>
+          <p className="text-reading text-ink-500 mt-2">Tip: paste or attach a file — a screenshot, a doc, a spec — and your agent can use it.</p>
         )}
 
         {/* Suggested for you — one-tap idea chips. An idea fills the box; an
             existing agent jumps to its page. Right where you'd start typing. */}
         {chips.length > 0 && (
           <div className="mt-4 flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] text-ink-500 mr-0.5">Suggested:</span>
+            <span className="text-secondary text-ink-500 mr-0.5">Suggested:</span>
             {chips.map((s, i) => {
               // What it actually does — the run-driven idea carries the full build
               // prompt (suggested_intent); a popular workflow just gets added. Show
@@ -342,7 +342,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
                   <button
                     type="button"
                     onClick={() => pickSuggestion(s)}
-                    className="text-xs rounded-full border border-ink-700 px-3 py-1 text-ink-300 hover:border-ink-500 hover:text-ink-100 transition-colors"
+                    className="text-ui rounded-full border border-ink-700 px-3 py-1 text-ink-300 hover:border-ink-500 hover:text-ink-100 transition-colors"
                   >
                     {s.workflow_slug && !s.suggested_intent ? '▶ ' : '+ '}{s.title}
                   </button>
@@ -350,14 +350,14 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
                     role="tooltip"
                     className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 hidden w-72 max-w-[80vw] rounded-lg border border-ink-700 bg-ink-950 p-3 text-left shadow-xl group-hover:block group-focus-within:block"
                   >
-                    <span className="block text-xs font-medium text-ink-100">{s.title}</span>
+                    <span className="block text-secondary font-medium text-ink-100">{s.title}</span>
                     {s.reason && (
-                      <span className="mt-1 block text-[11px] italic text-ink-400">{s.reason}</span>
+                      <span className="mt-1 block text-secondary italic text-ink-400">{s.reason}</span>
                     )}
                     {what && (
-                      <span className="mt-1.5 block text-[11px] leading-relaxed text-ink-300">{what}</span>
+                      <span className="mt-1.5 block text-secondary leading-relaxed text-ink-300">{what}</span>
                     )}
-                    <span className="mt-2 block text-[10px] text-ink-500">
+                    <span className="mt-2 block text-secondary text-ink-500">
                       {s.suggested_intent ? 'Tap to drop this into the box →' : 'Tap to add this agent →'}
                     </span>
                   </span>
@@ -368,7 +368,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
         )}
 
         {msg && (
-          <p className={`text-xs mt-3 ${state === 'error' ? 'text-state-fail' : 'text-ink-300'}`}>{msg}</p>
+          <p className={`text-secondary mt-3 ${state === 'error' ? 'text-state-fail' : 'text-ink-300'}`}>{msg}</p>
         )}
 
         {/* Secondary opt-in for power users: shape the queued build interactively
@@ -377,7 +377,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
           <button
             type="button"
             onClick={shapeInClaude}
-            className="text-[11px] text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline mt-1.5"
+            className="text-ui text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline mt-1.5"
           >
             …or shape it in Claude ↗
           </button>
@@ -404,14 +404,14 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
               ×
             </button>
             <h2 className="text-lg font-semibold text-ink-50 mb-2">Your agent is saved. One step to build it.</h2>
-            <p className="text-sm text-ink-300 leading-relaxed mb-4">
+            <p className="text-reading text-ink-300 mb-4">
               We recommend installing the Implexa desktop app, the control plane for your agents. It installs the Implexa plugin into your own Claude or Codex, then helps you build and run your agents there, as you, free. Your agent stays queued until you connect.
             </p>
             <div className="flex flex-wrap items-center gap-3">
-              <a href={macDownloadUrl()} className="btn-success text-sm px-5 py-2.5 inline-flex items-center gap-2">
+              <a href={macDownloadUrl()} className="btn-success text-secondary px-5 py-2.5 inline-flex items-center gap-2">
                 ↓ Download Implexa for Mac
               </a>
-              <a href="/install" className="text-xs text-ink-400 hover:text-ink-200">
+              <a href="/install" className="text-secondary text-ink-400 hover:text-ink-200">
                 Prefer the terminal? Connect with one command →
               </a>
             </div>

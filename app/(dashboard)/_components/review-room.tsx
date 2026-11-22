@@ -1339,10 +1339,10 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             <h2 id="post-acceptance-cleanup-title" className="text-lg font-semibold text-ink-100">
               Free up local storage?
             </h2>
-            <p className="mt-2 text-sm leading-relaxed text-ink-300">
+            <p className="mt-2 text-reading text-ink-300">
               Tukido can remove redundant review copies and rejected render intermediates that are no longer referenced.
             </p>
-            <p className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-state-ok">
+            <p className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-secondary leading-relaxed text-state-ok">
               Your accepted final, editable project, learned decision traces, and original source stay protected.
             </p>
             <div className="mt-4 flex flex-wrap justify-end gap-2">
@@ -1351,7 +1351,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 type="button"
                 disabled={cleanupBusy}
                 onClick={() => setCleanupPrompt(false)}
-                className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-300 disabled:opacity-40"
+                className="rounded-md border border-ink-700 px-3 py-2 text-ui text-ink-300 disabled:opacity-40"
               >
                 Keep for now
               </button>
@@ -1359,7 +1359,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 type="button"
                 disabled={cleanupBusy}
                 onClick={() => void openPostAcceptanceCleanup()}
-                className="rounded-md bg-action-strong px-3 py-2 text-sm font-medium text-[var(--on-action-strong)] disabled:opacity-40"
+                className="rounded-md bg-action-strong px-3 py-2 text-ui font-medium text-[var(--on-action-strong)] disabled:opacity-40"
               >
                 {cleanupBusy ? 'Opening cleanup…' : 'Review cleanup'}
               </button>
@@ -1390,7 +1390,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           {notice&&<p role="status">{notice}</p>}
           {accepted?<p className="text-state-ok">You accepted this result.</p>:canAccept?<button type="button" className="btn-primary" disabled={busy} onClick={()=>void onPrimary()}>{busy?'Accepting…':'Accept'}</button>:<p role="status">{historicalProvenanceUnavailable||issuesUnavailable||resolutionsUnavailable?'Review details could not be verified. Open the review before accepting.':proxyPreview?'The final result is not ready for acceptance.':'Open the review to check what is needed before accepting.'}</p>}
           {confirmDiscard&&<p role="alert">Your saved notes are unchanged. Open the review to decide what to keep before accepting.</p>}
-          <div className="finished-changes">{canRequestChanges?view.changes:<p className="text-sm text-ink-400">Open the Review Room to keep your saved notes together and continue this review.</p>}</div>
+          <div className="finished-changes">{canRequestChanges?view.changes:<p className="text-reading text-ink-400">Open the Review Room to keep your saved notes together and continue this review.</p>}</div>
           <a className="finished-markup" href={view.reviewHref}><strong>{canRequestChanges?'Mark up the result instead':'Continue reviewing this result'}</strong><span>{!canRequestChanges&&activeIssues.length?`${activeIssues.length} saved ${activeIssues.length===1?'note stays':'notes stay'} together in the Review Room →`:'Pin notes to exact moments in the Review Room →'}</span></a>
         </section>
         {view.checks}
@@ -1403,7 +1403,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
   const resultIdentity=<>
         {artifact && (
-          <div className="mt-3 text-xs text-ink-500">
+          <div className="mt-3 text-secondary text-ink-500">
             <p className="truncate">
               {proxyPreview && <span className="mr-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-state-running">Review proxy</span>}
               {artifact.relativePath}
@@ -1422,29 +1422,29 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   </>;
   const resultDetails=<>
         <details open={!latestFinalOutput||latestFinalOutput.id!==selectedId} className="mb-3">
-          <summary className="cursor-pointer text-xs text-ink-500">Result details</summary>
+          <summary className="cursor-pointer text-ui text-ink-500">Result details</summary>
         <div className="mb-3 rounded-md border border-ink-800 bg-ink-950/50 px-3 py-2.5" aria-label="Review version identity">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-xs font-medium text-ink-200">
+              <p className="text-secondary font-medium text-ink-200">
                 Reviewing {currentVersion?.label || props.currentVersionLabel || 'version unavailable'}
               </p>
-              <p className="mt-1 text-[11px] text-ink-500">
+              <p className="mt-1 text-secondary text-ink-500">
                 Started {reviewTimestamp(currentVersion?.startedAt)} · run {runId.slice(0, 12)}…
               </p>
               {latestFinalOutput ? (
-                <p className="mt-1 truncate text-[11px] text-state-ok" title={latestFinalOutput.relativePath}>
+                <p className="mt-1 truncate text-secondary text-state-ok" title={latestFinalOutput.relativePath}>
                   Latest validated final output: {latestFinalOutput.relativePath.split('/').at(-1)} · verified {reviewTimestamp(latestFinalOutput.validatedAt)} · sha256 {latestFinalOutput.sha256?.slice(0, 12)}…
                 </p>
               ) : (
-                <p className="mt-1 text-[11px] text-state-needs">A latest validated final output could not be identified for this revision.</p>
+                <p className="mt-1 text-reading text-state-needs">A latest validated final output could not be identified for this revision.</p>
               )}
             </div>
             {latestFinalOutput && latestFinalOutput.id !== selectedId && (
               <button
                 type="button"
                 onClick={() => setSelectedId(latestFinalOutput.id)}
-                className="shrink-0 rounded border border-emerald-500/40 px-2.5 py-1 text-xs text-state-ok hover:bg-emerald-500/10"
+                className="shrink-0 rounded border border-emerald-500/40 px-2.5 py-1 text-ui text-state-ok hover:bg-emerald-500/10"
               >
                 Review latest final
               </button>
@@ -1454,12 +1454,12 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
         <div className="mb-3 flex items-end gap-2">
           {validated.length > 0 && (
-            <label className="min-w-0 flex-1 text-xs text-ink-400">
+            <label className="min-w-0 flex-1 text-ui text-ink-400">
               File
               <select
                 value={selectedId ?? ''}
                 onChange={(e) => setSelectedId(e.target.value)}
-                className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-sm text-ink-100"
+                className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-ui text-ink-100"
               >
                 {validated.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -1473,7 +1473,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             type="button"
             disabled={!canAttachReviewFiles || artifactPicker !== null}
             onClick={() => void pickReviewArtifact('review_target', 'file')}
-            className="shrink-0 rounded border border-ink-700 px-3 py-1.5 text-sm text-state-running hover:border-sky-500 disabled:cursor-not-allowed disabled:opacity-40"
+            className="shrink-0 rounded border border-ink-700 px-3 py-1.5 text-ui text-state-running hover:border-sky-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {artifactPicker === 'review_target' ? 'Freezing file…' : 'Open other file'}
           </button>
@@ -1502,14 +1502,14 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           <div className="mb-4 border-b border-ink-800 pb-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h2 className="text-sm font-medium text-ink-100">Segment review</h2>
-                <p className="mt-0.5 text-xs text-ink-500">Professional preview pass</p>
+                <h2 className="text-ui font-medium text-ink-100">Segment review</h2>
+                <p className="mt-0.5 text-secondary text-ink-500">Professional preview pass</p>
               </div>
               <button
                 type="button"
                 disabled
                 title={renderControl.reason ?? 'Final assembly is not enabled in this first slice.'}
-                className="rounded-md border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-300 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md border border-ink-700 px-3 py-1.5 text-ui font-medium text-ink-300 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Final render
               </button>
@@ -1534,23 +1534,23 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                     aria-pressed={selected}
                     className={`min-w-0 rounded border px-2 py-2 text-left ${tone} ${selected ? 'bg-ink-800' : 'bg-ink-950'} disabled:cursor-not-allowed`}
                   >
-                    <span className="block truncate text-xs font-medium">{segment.ordinal + 1}. {segment.label}</span>
-                    <span className="mt-0.5 block truncate text-[11px]">{segment.state.replace('_', ' ')}</span>
+                    <span className="block truncate text-secondary font-medium">{segment.ordinal + 1}. {segment.label}</span>
+                    <span className="mt-0.5 block truncate text-secondary">{segment.state.replace('_', ' ')}</span>
                   </button>
                 );
               })}
             </div>
             {!renderControl.enabled && renderControl.reason && (
-              <p className="mt-2 text-xs text-ink-500">Final render unavailable: {renderControl.reason}</p>
+              <p className="mt-2 text-secondary text-ink-500">Final render unavailable: {renderControl.reason}</p>
             )}
           </div>
         )}
 
-        {props.trainingMode&&!latestFinalOutput&&<p role="status" className="mb-3 text-sm text-state-needs">The latest result could not be verified. Open Result details to choose a file.</p>}
+        {props.trainingMode&&!latestFinalOutput&&<p role="status" className="mb-3 text-reading text-state-needs">The latest result could not be verified. Open Result details to choose a file.</p>}
 
         {!props.trainingMode&&resultDetails}
         {sources.review_artifacts !== 'ready' && (
-          <p role="status" className="mb-3 text-xs text-state-needs">
+          <p role="status" className="mb-3 text-secondary text-state-needs">
             Other review files are unavailable right now. Reload before attaching or sending them.
           </p>
         )}
@@ -1572,7 +1572,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               // The EXACT position, for anyone who needs it. The label shows the second
               // because that is the number on the player next to it.
               title={playheadMs === null ? undefined : `Exact position ${formatMs(playheadMs)}`}
-              className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-200 hover:border-ink-500"
+              className="rounded-md border border-ink-700 px-3 py-1.5 text-ui text-ink-200 hover:border-ink-500"
             >
               {pointCommentLabel({ playheadMs, existingCount: hereIssues.length })}
             </button>
@@ -1581,7 +1581,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               <button
                 type="button"
                 onClick={startRange}
-                className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-200 hover:border-ink-500"
+                className="rounded-md border border-ink-700 px-3 py-1.5 text-ui text-ink-200 hover:border-ink-500"
               >
                 {SELECT_RANGE_LABEL}
               </button>
@@ -1590,7 +1590,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             {/* Something is ALREADY here. Never merged into it, never overwritten — the
                 count is stated and each one can be reopened. */}
             {hereIssues.length > 0 && (
-              <span className="flex flex-wrap items-center gap-1 text-xs text-ink-400">
+              <span className="flex flex-wrap items-center gap-1 text-secondary text-ink-400">
                 <span>{feedbackHereLabel(hereIssues.length)}</span>
                 {hereIssues.map((i, n) => (
                   <span key={i.id} className="flex items-center gap-1">
@@ -1607,7 +1607,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               </span>
             )}
 
-            {rangeError && <span role="alert" className="text-xs text-state-needs">{rangeError}</span>}
+            {rangeError && <span role="alert" className="text-secondary text-state-needs">{rangeError}</span>}
           </div>
         )}
 
@@ -1617,7 +1617,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             take it or you cancel. Nothing here is written until "Set end". */}
         {pendingRange && !frozen && !accepted && (
           <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-sky-500/40 bg-sky-500/10 p-3">
-            <span className="font-mono text-sm text-state-running">{rangeStartLabel(pendingRange)}</span>
+            <span className="font-mono text-micro text-state-running">{rangeStartLabel(pendingRange)}</span>
             <span aria-hidden="true" className="text-state-running">→</span>
             <button
               type="button"
@@ -1625,18 +1625,18 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               // disabled on an invalid end: a silently dead button teaches nothing,
               // and completeRange refuses in words without touching anything.
               onClick={finishRange}
-              className="rounded-md bg-action-strong px-3 py-1.5 font-mono text-sm font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover"
+              className="rounded-md bg-action-strong px-3 py-1.5 font-mono text-ui font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover"
             >
               {rangeEndButtonLabel(playheadMs)}
             </button>
             <button
               type="button"
               onClick={cancelRange}
-              className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-300 hover:border-ink-500"
+              className="rounded-md border border-ink-700 px-3 py-1.5 text-ui text-ink-300 hover:border-ink-500"
             >
               {CANCEL_RANGE_LABEL}
             </button>
-            <span className="w-full text-xs text-state-running">
+            <span className="w-full text-secondary text-state-running">
               Scrub to where this should end, then take it. The start stays where you set it.
             </span>
           </div>
@@ -1644,7 +1644,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
         {draft && !frozen && !accepted && (
           <div ref={teachingNoteRef} className={props.trainingMode?'recording-note result-note':'mt-3 rounded-md border border-ink-700 bg-ink-950 p-3'} data-floating={props.trainingMode&&!!teachingNotePosition} style={props.trainingMode&&teachingNotePosition?teachingNotePosition:undefined}>
-            <div className="mb-2 flex items-center gap-2 text-xs text-ink-400">
+            <div className="mb-2 flex items-center gap-2 text-secondary text-ink-400">
               {/* The FROZEN position. It does not move while the clip keeps playing. */}
               <span title={draft.anchorMs === null ? undefined : `Exact position ${formatMs(draft.anchorMs)}`}>
                 {composerHeaderLabel(draft)}
@@ -1652,7 +1652,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               <select
                 value={draft.kind}
                 onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
-                className="ml-auto rounded border border-ink-700 bg-ink-900 px-1.5 py-0.5 text-xs text-ink-200"
+                className="ml-auto rounded border border-ink-700 bg-ink-900 px-1.5 py-0.5 text-ui text-ink-200"
                 aria-label="Issue type"
               >
                 {ISSUE_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
@@ -1663,7 +1663,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 is selected now. With several artifacts in a review, a timestamp alone
                 does not say what the comment is about. A spatial reference draft
                 states BOTH roles: where the mark sits and what the change applies to. */}
-            <p className="mb-2 truncate text-xs text-ink-400" title={draft.target.relativePath ?? undefined}>
+            <p className="mb-2 truncate text-secondary text-ink-400" title={draft.target.relativePath ?? undefined}>
               {draft.spatial ? spatialReferenceLine(draft) : targetLine(draft.target)}
             </p>
 
@@ -1672,7 +1672,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 the marked file IS the file to change. Geometry always belongs to the
                 marked (observed) file either way. */}
             {draft.spatial && validated.some((a) => a.id !== draft.target.artifactId && a.sha256) && (
-              <label className="mb-2 block text-xs text-ink-400">
+              <label className="mb-2 block text-ui text-ink-400">
                 This mark asks for a change to
                 <select
                   aria-label="File this annotation applies to"
@@ -1687,7 +1687,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                       referenceTarget: { artifactId: t.id, sha256: t.sha256, relativePath: t.relativePath },
                     });
                   }}
-                  className="mt-1 block w-full rounded border border-ink-700 bg-ink-900 px-1.5 py-1 text-xs text-ink-200"
+                  className="mt-1 block w-full rounded border border-ink-700 bg-ink-900 px-1.5 py-1 text-ui text-ink-200"
                 >
                   <option value="">{`${draft.target.relativePath || 'this file'} — the marked file itself`}</option>
                   {validated.filter((a) => a.id !== draft.target.artifactId && a.sha256).map((a) => (
@@ -1708,7 +1708,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 is unsafe while the brief names only the session's artifact: it would
                 arrive under a heading naming a different file, reading as precise. */}
             {targetGuidance(draft.target) && (
-              <p className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs leading-snug text-state-needs">
+              <p className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-secondary leading-snug text-state-needs">
                 {targetGuidance(draft.target)}
               </p>
             )}
@@ -1734,7 +1734,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               onChange={(e) => setDraft({ ...draft, body: e.target.value })}
               rows={3}
               placeholder="What should change here?"
-              className="w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm text-ink-100"
+              className="w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-ui text-ink-100"
             />
             {props.trainingMode && (()=>{const generation=draftGeneration.current,identity=draft;const insert=(text:string)=>{
               setDraft(current => current && current.target.artifactId===identity.target.artifactId && current.anchorMs===identity.anchorMs
@@ -1745,7 +1745,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             </div><div className="mt-2 flex gap-2">
               <button
                 type="button" disabled={busy||voiceDirty} onClick={submitIssue}
-                className="rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950 disabled:opacity-50"
+                className="rounded-md bg-ink-100 px-3 py-1.5 text-ui font-medium text-ink-950 disabled:opacity-50"
               >
                 {saveDraftLabel(draft)}
               </button>
@@ -1754,7 +1754,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 // Cancelling clears the frozen anchor with the draft. Leaving it behind
                 // would silently anchor the NEXT comment to the abandoned moment.
                 disabled={voiceDirty} onClick={() => { setDraft(null); setRangeAttempt(null); }}
-                className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-300"
+                className="rounded-md border border-ink-700 px-3 py-1.5 text-ui text-ink-300"
               >
                 Cancel
               </button>
@@ -1775,9 +1775,9 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       <aside className="flex max-h-[70vh] min-h-0 flex-col rounded-lg border border-ink-800 bg-ink-900/40 lg:max-h-none">
         <div className="shrink-0 border-b border-ink-800 px-4 py-3">
           <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-sm font-medium text-ink-200">{props.trainingMode?'Your teaching notes':'Review issues'}</h2>
+            <h2 className="text-ui font-medium text-ink-200">{props.trainingMode?'Your teaching notes':'Review issues'}</h2>
             {!issuesUnavailable && !resolutionsUnavailable && visible.length > 0 && (
-              <span className="shrink-0 text-xs tabular-nums text-ink-500">{groupCountLabel(visible.length)}</span>
+              <span className="shrink-0 text-micro tabular-nums text-ink-500">{groupCountLabel(visible.length)}</span>
             )}
           </div>
           {!issuesUnavailable && !resolutionsUnavailable && unresolvedPrior.length > 1 && (
@@ -1785,13 +1785,13 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               type="button"
               disabled={busy}
               onClick={() => void resolveIssues(unresolvedPrior.map((issue) => issue.id))}
-              className="mt-2 text-xs text-state-running hover:underline disabled:opacity-50"
+              className="mt-2 text-ui text-state-running hover:underline disabled:opacity-50"
             >
               Mark all as resolved
             </button>
           )}
           {proxyPreview && (
-            <p className="mt-2 text-xs text-state-running">
+            <p className="mt-2 text-secondary text-state-running">
               This is a validated segment proxy. Segment feedback, approval, and repair are not enabled in this first slice.
             </p>
           )}
@@ -1802,15 +1802,15 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         <div ref={railListRef} tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {issuesUnavailable ? (
           // NOT an empty rail: we could not read them.
-          <p className="text-xs text-state-needs">
+          <p className="text-secondary text-state-needs">
             We couldn&apos;t load this review&apos;s issues. This list is not empty — it&apos;s unknown.
           </p>
         ) : resolutionsUnavailable ? (
-          <p className="text-xs text-state-needs">
+          <p className="text-secondary text-state-needs">
             We couldn&apos;t verify which feedback is resolved. Refresh before resolving or sending this revision.
           </p>
         ) : visible.length === 0 ? (
-          <p className="text-xs text-ink-500">
+          <p className="text-secondary text-ink-500">
             {/* Not "pause and add feedback" any more — pausing was never the requirement,
                 and saying so is what made a stale pause position look authoritative. */}
             {proxyPreview ? 'No parent-run issues are attached to this proxy.' : 'No issues yet. Move to a moment and add feedback.'}
@@ -1829,15 +1829,15 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 // packet does not contain — there is nothing to switch to.
                 disabled={!group.artifact}
                 onClick={() => group.artifact && setSelectedId(group.artifact.id)}
-                className="truncate text-left text-xs font-medium text-ink-200 hover:text-state-running disabled:cursor-default disabled:hover:text-ink-200"
+                className="truncate text-left text-ui font-medium text-ink-200 hover:text-state-running disabled:cursor-default disabled:hover:text-ink-200"
                 title={group.displayName}
               >
                 {group.displayName}
               </button>
-              <span className="shrink-0 text-[11px] tabular-nums text-ink-500">{groupCountLabel(group.count)}</span>
+              <span className="shrink-0 text-micro tabular-nums text-ink-500">{groupCountLabel(group.count)}</span>
             </h3>
             {group.unavailable && (
-              <p className="mb-2 text-[11px] text-state-needs">
+              <p className="mb-2 text-reading text-state-needs">
                 These comments name a file this review no longer lists.
               </p>
             )}
@@ -1851,7 +1851,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               const edit = editAction(i as never, selectedId);
               return (
                 <li key={i.id} className="rounded border border-ink-800 p-2">
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-secondary">
                     <button
                       type="button"
                       onClick={() => goToIssue(i)}
@@ -1866,13 +1866,13 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                       the card no longer repeats it. What the heading cannot say is that
                       acting on this one moves the player to a different file. */}
                   {elsewhere && (
-                    <p className="mt-0.5 text-[11px] text-state-running">Opens another file</p>
+                    <p className="mt-0.5 text-reading text-state-running">Opens another file</p>
                   )}
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-ink-200">{i.body}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-reading text-ink-200">{i.body}</p>
                   {!props.trainingMode&&props.customerOwnerId&&!stale&&isSpatialAnchorV2(i.anchor as never)&&<CustomerFeedbackSharing issue={i} ownerId={props.customerOwnerId}/>}
-                  {props.trainingMode && props.onTeachIssue && group.artifact && !stale && teachingNotes.some(note=>note.issue.id===i.id) && <button type="button" disabled={busy} className="mt-3 text-xs text-action-accent hover:underline disabled:opacity-40" onClick={()=>props.onTeachIssue?.(i,group.artifact!)}>Extract training</button>}
+                  {props.trainingMode && props.onTeachIssue && group.artifact && !stale && teachingNotes.some(note=>note.issue.id===i.id) && <button type="button" disabled={busy} className="mt-3 text-ui text-action-accent hover:underline disabled:opacity-40" onClick={()=>props.onTeachIssue?.(i,group.artifact!)}>Extract training</button>}
                   {!props.trainingMode && submitView.mode === 'send_changes' && patternEligibleIssueIds.has(i.id) && (
-                    <label className="mt-2 flex items-start gap-2 rounded border border-violet-500/20 bg-violet-500/5 px-2 py-1.5 text-[11px] text-ink-300">
+                    <label className="mt-2 flex items-start gap-2 rounded border border-violet-500/20 bg-violet-500/5 px-2 py-1.5 text-ui text-ink-300">
                       <input
                         type="checkbox"
                         checked={patternSourceIssueIds.includes(i.id)}
@@ -1888,7 +1888,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                       type="button"
                       disabled={busy}
                       onClick={() => void resolveIssues([i.id])}
-                      className="mt-1 text-xs text-state-running hover:underline disabled:opacity-50"
+                      className="mt-1 text-ui text-state-running hover:underline disabled:opacity-50"
                     >
                       Mark as resolved
                     </button>
@@ -1900,10 +1900,10 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                     const chip = evidenceChip(evidenceForIssue(i));
                     if (!chip) return null;
                     const tone = chip.tone === 'ok' ? 'text-state-ok' : chip.tone === 'failed' ? 'text-state-needs' : 'text-ink-500';
-                    return <p className={`mt-1 text-[11px] ${tone}`}>{chip.label}</p>;
+                    return <p className={`mt-1 text-reading ${tone}`}>{chip.label}</p>;
                   })()}
                   {stale && (
-                    <p className="mt-1 text-xs text-state-needs">
+                    <p className="mt-1 text-secondary text-state-needs">
                       This file changed since the comment was made — the highlight may no longer match.
                     </p>
                   )}
@@ -1919,13 +1919,13 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                         type="button"
                         disabled={busy}
                         onClick={() => (edit.opensElsewhere ? goToIssue(i) : startEdit(i))}
-                        className="text-xs text-state-running hover:underline disabled:opacity-50"
+                        className="text-ui text-state-running hover:underline disabled:opacity-50"
                       >
                         {edit.label}
                       </button>
                       <button
                         type="button" disabled={busy} onClick={() => dismissIssue(i.id)}
-                        className="text-xs text-ink-500 hover:text-state-fail disabled:opacity-50"
+                        className="text-ui text-ink-500 hover:text-state-fail disabled:opacity-50"
                       >
                         Delete
                       </button>
@@ -1940,18 +1940,18 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         )}
         {!issuesUnavailable && !resolutionsUnavailable && reviewerResolved.length > 0 && (
           <details className="mt-4 border-t border-ink-800 pt-3">
-            <summary className="cursor-pointer text-xs font-medium text-ink-400">
+            <summary className="cursor-pointer text-ui font-medium text-ink-400">
               Resolved ({reviewerResolved.length})
             </summary>
             <ul className="mt-2 space-y-2">
               {reviewerResolved.map((issue) => (
                 <li key={issue.id} className="rounded border border-ink-800/70 p-2 opacity-80">
-                  <div className="flex items-center gap-2 text-xs text-ink-500">
+                  <div className="flex items-center gap-2 text-secondary text-ink-500">
                     <span className="font-mono">{anchorLabel(issue.anchor as Record<string, unknown>)}</span>
                     <span>{issue.kind}</span>
                     <span className="ml-auto">Resolved by reviewer</span>
                   </div>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-ink-300">{issue.body}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-reading text-ink-300">{issue.body}</p>
                 </li>
               ))}
             </ul>
@@ -1965,44 +1965,44 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             screens and at high zoom, where the rail itself outgrows the window and the
             page scrolls. Opaque, because the issue list slides underneath it. */}
         {props.trainingMode && <div className="shrink-0 space-y-3 border-t border-ink-800 p-4">
-          {error && <p role="alert" className="text-xs text-state-fail">{error}</p>}
-          {notice && <p role="status" className="text-xs text-ink-300">{notice}</p>}
-          {accepted && <button type="button" disabled={busy} onClick={()=>void addMoreFeedback()} className="text-sm text-action-accent">Add teaching notes</button>}
+          {error && <p role="alert" className="text-secondary text-state-fail">{error}</p>}
+          {notice && <p role="status" className="text-secondary text-ink-300">{notice}</p>}
+          {accepted && <button type="button" disabled={busy} onClick={()=>void addMoreFeedback()} className="text-ui text-action-accent">Add teaching notes</button>}
           {props.onDoneTeaching&&<button type="button" className="btn-primary" disabled={busy||!!draft||!!pendingRange||voiceDirty||!teachingNotes.length} onClick={()=>props.onDoneTeaching?.(teachingNotes)}>Done teaching</button>}
-          <p className="text-xs text-ink-500">Your saved notes become lessons you can review before applying.</p>
-          {visible.length>teachingNotes.length&&<p className="text-xs text-ink-400">{visible.length-teachingNotes.length} note(s) need a fresh visual mark before extraction.</p>}
-          <details><summary className="cursor-pointer text-xs text-ink-400">More options</summary><a href={props.trainingSlug?`${trainingReviewHref(props.trainingSlug,runId)}?mode=revise`:`/review/${encodeURIComponent(runId)}`} className="mt-3 inline-block text-xs text-ink-400 underline underline-offset-4">Revise this result →</a></details>
+          <p className="text-secondary text-ink-500">Your saved notes become lessons you can review before applying.</p>
+          {visible.length>teachingNotes.length&&<p className="text-secondary text-ink-400">{visible.length-teachingNotes.length} note(s) need a fresh visual mark before extraction.</p>}
+          <details><summary className="cursor-pointer text-ui text-ink-400">More options</summary><a href={props.trainingSlug?`${trainingReviewHref(props.trainingSlug,runId)}?mode=revise`:`/review/${encodeURIComponent(runId)}`} className="mt-3 inline-block text-secondary text-ink-400 underline underline-offset-4">Revise this result →</a></details>
         </div>}
         <div className={`${props.trainingMode?'hidden ':''}sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900 px-4 py-3`}>
-          {error && <p role="alert" className="text-xs text-state-fail">{error}</p>}
-          {notice && <p role="status" className="text-xs text-state-ok">{notice}</p>}
+          {error && <p role="alert" className="text-secondary text-state-fail">{error}</p>}
+          {notice && <p role="status" className="text-secondary text-state-ok">{notice}</p>}
 
           {resolutionsUnavailable ? (
-            <p role="alert" className="text-xs text-state-needs">
+            <p role="alert" className="text-secondary text-state-needs">
               Resolution status is unavailable. Refresh before resolving or sending feedback.
             </p>
           ) : proxyPreview ? (
-            <p className="text-xs text-ink-500">Final render remains unavailable while required segments are unresolved.</p>
+            <p className="text-secondary text-ink-500">Final render remains unavailable while required segments are unresolved.</p>
           ) : accepted ? (
-            <p className="text-xs text-state-ok">You accepted this result.</p>
+            <p className="text-secondary text-state-ok">You accepted this result.</p>
           ) : activeIssues.length === 0 && reviewerResolved.length > 0 ? (
             <div className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-2">
-              <p className="text-xs font-medium text-state-ok">Review complete</p>
-              <p className="mt-1 text-[11px] text-ink-400">All feedback is marked resolved. No revision is waiting to be sent.</p>
+              <p className="text-secondary font-medium text-state-ok">Review complete</p>
+              <p className="mt-1 text-reading text-ink-400">All feedback is marked resolved. No revision is waiting to be sent.</p>
             </div>
           ) : submitView.mode === 'queued' ? (
             // TERMINAL. Resubmission is closed here as well as at the backend, and
             // every number and identity below came back from the server — none of it
             // is inferred from local drafts or from a refreshed prop.
             <>
-              <p className="text-xs text-state-ok">
+              <p className="text-secondary text-state-ok">
                 {revisionCompleted
                   // Past tense, and about the RESULT rather than the queue. The
                   // count still comes from the server; only the tense changes.
                   ? `${submitView.statusLine} The revised result was delivered.`
                   : submitView.statusLine}
               </p>
-              <dl className="rounded border border-ink-800 bg-ink-950 px-2 py-1.5 text-[11px] text-ink-500">
+              <dl className="rounded border border-ink-800 bg-ink-950 px-2 py-1.5 text-secondary text-ink-500">
                 <div className="flex items-baseline justify-between gap-2">
                   <dt>Continuation</dt>
                   <dd className="truncate font-mono text-ink-300" title={submitView.continuationId ?? undefined}>
@@ -2043,7 +2043,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                       type="button"
                       onClick={() => void openSubmittedRevision()}
                       disabled={busy}
-                      className="rounded-md border border-ink-700 px-3 py-2 text-center text-sm text-ink-200 hover:border-ink-600 disabled:opacity-50"
+                      className="rounded-md border border-ink-700 px-3 py-2 text-center text-ui text-ink-200 hover:border-ink-600 disabled:opacity-50"
                     >
                       {/* "Attempt" is the right word while the outcome is unknown and
                           the wrong one once the work has landed. */}
@@ -2059,13 +2059,13 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             // the only place the gate is ever offered. The moment a draft exists, the
             // room owns the decision and shows the send action instead.
             <>
-              <p className="text-xs text-ink-400">
+              <p className="text-reading text-ink-400">
                 This agent is waiting for permission to continue. That&apos;s a different question from
                 accepting a finished result.
               </p>
               <a
                 href={`/runs/${runId}`}
-                className="block rounded-md bg-action-strong px-3 py-2 text-center text-sm font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover"
+                className="block rounded-md bg-action-strong px-3 py-2 text-center text-secondary font-medium text-[var(--on-action-strong)] hover:bg-action-strong-hover"
               >
                 Approve next action
               </a>
@@ -2078,7 +2078,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                   send action without permanently shrinking that chronology. */}
               {(submitView.showNote || submitView.mode === 'send_changes') && (
                 <details className="rounded border border-ink-800 bg-ink-950/60">
-                  <summary className="cursor-pointer px-2 py-1.5 text-xs text-ink-300">
+                  <summary className="cursor-pointer px-2 py-1.5 text-ui text-ink-300">
                     <span className="font-medium">Revision options</span>
                     <span className="ml-2 text-ink-500">
                       {revisionNote.trim() && supportingReviewFiles.length > 0
@@ -2095,8 +2095,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                       <div className="space-y-2 rounded border border-violet-500/30 bg-violet-500/5 p-2">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <span className="block text-xs font-medium text-state-review">Apply a repeated pattern</span>
-                            <span className="mt-0.5 block text-[11px] leading-snug text-ink-500">
+                            <span className="block text-secondary font-medium text-state-review">Apply a repeated pattern</span>
+                            <span className="mt-0.5 block text-secondary leading-snug text-ink-500">
                               Select two or more exact comments in the issue list. Tukido discloses only those comments to compile one bounded rule for this revision. Nothing becomes future training.
                             </span>
                           </div>
@@ -2105,12 +2105,12 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                             disabled={patternBusy || patternSourceIssues.length < 2 || submissionInFlight}
                             onClick={() => void onSynthesizePattern()}
                             aria-describedby="pattern-selection-status"
-                            className="shrink-0 rounded border border-violet-400/50 px-2 py-1 text-[11px] text-state-review disabled:opacity-40"
+                            className="shrink-0 rounded border border-violet-400/50 px-2 py-1 text-ui text-state-review disabled:opacity-40"
                           >
                             {patternBusy ? 'Synthesizing…' : patternCandidate ? 'Synthesize again' : 'Synthesize'}
                           </button>
                         </div>
-                        <p id="pattern-selection-status" className="text-[11px] text-ink-500">
+                        <p id="pattern-selection-status" className="text-reading text-ink-500">
                           {patternSourceIssues.length === 0
                             ? 'No pattern examples selected.'
                             : `${patternSourceIssues.length} exact ${patternSourceIssues.length === 1 ? 'comment' : 'comments'} selected.`}
@@ -2119,7 +2119,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                         {patternCandidate && (
                           <div className="space-y-2 border-t border-violet-500/20 pt-2">
                             <label className="block">
-                              <span className="text-[11px] text-ink-400">Candidate rule — edit before confirming</span>
+                              <span className="text-secondary text-ink-400">Candidate rule — edit before confirming</span>
                               <textarea
                                 value={patternCandidate.rule}
                                 maxLength={2000}
@@ -2128,11 +2128,11 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                                 onChange={(event) => setPatternCandidate((current) => current ? {
                                   ...current, rule: event.target.value, confirmedByUser: false,
                                 } : current)}
-                                className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-xs text-ink-100"
+                                className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-ui text-ink-100"
                               />
                             </label>
                             <label className="block">
-                              <span className="text-[11px] text-ink-400">Search scope</span>
+                              <span className="text-secondary text-ink-400">Search scope</span>
                               <select
                                 value={patternCandidate.scope}
                                 disabled={submissionInFlight}
@@ -2141,13 +2141,13 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                                   scope: event.target.value as ReviewPatternApplication['scope'],
                                   confirmedByUser: false,
                                 } : current)}
-                                className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-xs text-ink-100"
+                                className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-ui text-ink-100"
                               >
                                 <option value="full_artifact">Complete target artifact</option>
                                 <option value="after_last_explicit_issue">After the latest explicit comment</option>
                               </select>
                             </label>
-                            <label className="flex items-start gap-2 text-[11px] text-ink-300">
+                            <label className="flex items-start gap-2 text-ui text-ink-300">
                               <input
                                 type="checkbox"
                                 checked={patternCandidate.confirmedByUser}
@@ -2168,7 +2168,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                                 setPatternCandidate(null);
                                 setPatternCandidateEvidenceKey(null);
                               }}
-                              className="text-[11px] text-ink-500 hover:text-state-fail disabled:opacity-40"
+                              className="text-ui text-ink-500 hover:text-state-fail disabled:opacity-40"
                             >
                               Discard candidate
                             </button>
@@ -2181,7 +2181,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                         counter measures the trimmed length too. */}
                     {submitView.showNote && (
                       <label className="block">
-                        <span className="text-xs text-ink-400">Additional instructions for this revision</span>
+                        <span className="text-secondary text-ink-400">Additional instructions for this revision</span>
                         <textarea
                           value={revisionNote}
                           onChange={(e) => setRevisionNote(e.target.value)}
@@ -2189,9 +2189,9 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                           rows={2}
                           maxLength={REVISION_NOTE_MAX}
                           placeholder="Optional. Adds context to the issues above — it doesn't replace them."
-                          className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-sm text-ink-100 placeholder:text-ink-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-ui text-ink-100 placeholder:text-ink-500 disabled:cursor-not-allowed disabled:opacity-50"
                         />
-                        <span className="mt-1 block text-[11px] leading-snug text-ink-500">
+                        <span className="mt-1 block text-secondary leading-snug text-ink-500">
                           {submitView.noteHint
                             ?? `Optional. ${revisionNote.trim().length}/${REVISION_NOTE_MAX} characters.`}
                         </span>
@@ -2200,7 +2200,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
                     {submitView.mode === 'send_changes' && (
                       <div className="space-y-3">
-                        <label className="flex items-start gap-2 rounded border border-ink-800 bg-ink-950 p-2 text-xs text-ink-300">
+                        <label className="flex items-start gap-2 rounded border border-ink-800 bg-ink-950 p-2 text-ui text-ink-300">
                           <input
                             type="checkbox"
                             checked={effectiveRevisionMode === 'selected_files'}
@@ -2218,12 +2218,12 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                           </span>
                         </label>
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="mr-auto text-xs text-ink-400">Files the revision may use</span>
+                          <span className="mr-auto text-secondary text-ink-400">Files the revision may use</span>
                           <button
                             type="button"
                             disabled={!canAttachReviewFiles || artifactPicker !== null}
                             onClick={() => void pickReviewArtifact('supporting', 'file')}
-                            className="rounded border border-ink-700 px-2 py-1 text-xs text-state-running hover:border-sky-500 disabled:opacity-40"
+                            className="rounded border border-ink-700 px-2 py-1 text-ui text-state-running hover:border-sky-500 disabled:opacity-40"
                           >
                             {artifactPicker === 'supporting_file' ? 'Freezing file…' : 'Attach file'}
                           </button>
@@ -2231,17 +2231,17 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                             type="button"
                             disabled={!canAttachReviewFiles || artifactPicker !== null}
                             onClick={() => void pickReviewArtifact('supporting', 'directory')}
-                            className="rounded border border-ink-700 px-2 py-1 text-xs text-state-running hover:border-sky-500 disabled:opacity-40"
+                            className="rounded border border-ink-700 px-2 py-1 text-ui text-state-running hover:border-sky-500 disabled:opacity-40"
                           >
                             {artifactPicker === 'supporting_folder' ? 'Freezing folder…' : 'Attach folder'}
                           </button>
                         </div>
                         {supportingReviewFiles.length > 0 ? (
-                          <ul className="mt-2 space-y-1 text-xs text-ink-300">
+                          <ul className="mt-2 space-y-1 text-secondary text-ink-300">
                             {supportingReviewFiles.map((entry) => <li key={entry.artifactId}>✓ {entry.displayName}</li>)}
                           </ul>
                         ) : (
-                          <p className="mt-2 text-[11px] text-ink-500">Optional replacement images, references, or a folder frozen as ZIP.</p>
+                          <p className="mt-2 text-reading text-ink-500">Optional replacement images, references, or a folder frozen as ZIP.</p>
                         )}
                       </div>
                     )}
@@ -2251,31 +2251,31 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
               {/* THE FROZEN SNAPSHOT, visible before it is sent. */}
               {submitView.mode === 'send_changes' && (
-                <p className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1.5 text-xs text-state-running">
+                <p className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1.5 text-secondary text-state-running">
                   {revisionCompositionLabel(unresolvedPrior.length, drafts.length)}
                 </p>
               )}
               {submitView.frozenCount !== null && submitView.statusLine && (
-                <p className="rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-xs text-ink-300">
+                <p className="rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-secondary text-ink-300">
                   {submitView.statusLine}
                 </p>
               )}
               {!error && submitView.errorLine && (
-                <p role="alert" className="text-xs text-state-fail">{submitView.errorLine}</p>
+                <p role="alert" className="text-secondary text-state-fail">{submitView.errorLine}</p>
               )}
 
               {/* THE EVIDENCE GATE (Wave 2). Sending only unlocks when every spatial
                   draft holds VALIDATED evidence — the backend refuses anyway; this is
                   the honest button over that rule, with a retry for failed captures. */}
               {submitView.mode !== 'accept_result' && gate.blocked && gate.statusLine && (
-                <p role="status" className="text-xs text-state-running">{gate.statusLine}</p>
+                <p role="status" className="text-secondary text-state-running">{gate.statusLine}</p>
               )}
               {submitView.mode !== 'accept_result' && gate.reason === 'failed' && (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={retryEvidence}
-                  className="w-full rounded-md border border-amber-400/60 px-3 py-2 text-sm text-state-needs hover:border-amber-300 disabled:opacity-40"
+                  className="w-full rounded-md border border-amber-400/60 px-3 py-2 text-ui text-state-needs hover:border-amber-300 disabled:opacity-40"
                 >
                   Retry screenshot capture
                 </button>
@@ -2294,7 +2294,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                   || (submitView.mode === 'send_changes' && sources.review_artifacts !== 'ready')
                 }
                 onClick={onPrimary}
-                className="w-full rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-950 disabled:opacity-40"
+                className="w-full rounded-md bg-ink-100 px-3 py-2 text-ui font-medium text-ink-950 disabled:opacity-40"
               >
                 {submitView.mode === 'send_changes'
                   ? revisionCompositionLabel(unresolvedPrior.length, drafts.length)
@@ -2314,14 +2314,14 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                     setNotice(null);
                     railListRef.current?.focus();
                   }}
-                  className="w-full rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 disabled:opacity-40"
+                  className="w-full rounded-md border border-ink-700 px-3 py-2 text-ui text-ink-200 disabled:opacity-40"
                 >
                   {submitView.secondaryLabel}
                 </button>
               )}
 
               {submitView.mode === 'accept_result' && (
-                <p className="text-[11px] leading-snug text-ink-500">{ACCEPT_DISCLAIMER}</p>
+                <p className="text-reading text-ink-500">{ACCEPT_DISCLAIMER}</p>
               )}
 
               {/* The backend's own guard, surfaced verbatim. Accept is only offered
@@ -2330,19 +2330,19 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                   written feedback is never discarded without a confirmed answer. */}
               {confirmDiscard && (
                 <div className="rounded border border-amber-500/40 bg-amber-500/10 p-2">
-                  <p className="text-xs text-state-needs">
+                  <p className="text-secondary text-state-needs">
                     Accepting discards {drafts.length} unsent {drafts.length === 1 ? 'issue' : 'issues'}.
                   </p>
                   <div className="mt-2 flex gap-2">
                     <button
                       type="button" disabled={busy} onClick={() => onAccept(true)}
-                      className="rounded bg-amber-400 px-2 py-1 text-xs font-medium text-ink-950"
+                      className="rounded bg-amber-400 px-2 py-1 text-ui font-medium text-ink-950"
                     >
                       Accept and discard {drafts.length}
                     </button>
                     <button
                       type="button" onClick={() => setConfirmDiscard(false)}
-                      className="rounded border border-ink-700 px-2 py-1 text-xs text-ink-300"
+                      className="rounded border border-ink-700 px-2 py-1 text-ui text-ink-300"
                     >
                       Keep them
                     </button>
@@ -2356,7 +2356,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             type="button"
             disabled={busy || historicalProvenanceUnavailable}
             onClick={() => void addMoreFeedback()}
-            className="w-full rounded-md border border-sky-500/40 px-3 py-2 text-center text-sm text-state-running hover:border-sky-400 disabled:opacity-50"
+            className="w-full rounded-md border border-sky-500/40 px-3 py-2 text-center text-ui text-state-running hover:border-sky-400 disabled:opacity-50"
           >
             Add more feedback
           </button>
@@ -2414,18 +2414,18 @@ function ArtifactSurface({
   if (decision.state !== 'ready' && decision.state !== 'loading') {
     return (
       <div className="rounded border border-ink-800 bg-ink-950 p-6 text-center">
-        <p className="text-sm text-ink-200">{decision.message}</p>
+        <p className="text-reading text-ink-200">{decision.message}</p>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
           {decision.offerOpenInDesktop && desktopReviewHref(runId) && (
             <a
               href={desktopReviewHref(runId)!}
-              className="rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950"
+              className="rounded-md bg-ink-100 px-3 py-1.5 text-secondary font-medium text-ink-950"
             >
               Open in Implexa Desktop
             </a>
           )}
           {decision.state === 'update_required' && (
-            <a href="/get-app" className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-200">
+            <a href="/get-app" className="rounded-md border border-ink-700 px-3 py-1.5 text-secondary text-ink-200">
               Get the update
             </a>
           )}
@@ -2496,8 +2496,8 @@ function ArtifactSurface({
         {/* The OUTSIDE-the-player information affordance (Wave 2 discoverability):
             always visible next to the player, never floating over content. */}
         {decision.kind === 'video' && !spatial.readOnly && (
-          <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-500" data-testid="spatial-hint">
-            <span aria-hidden="true" className="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-ink-600 text-[10px]">i</span>
+          <p className="mt-2 flex items-start gap-1.5 text-secondary text-ink-500" data-testid="spatial-hint">
+            <span aria-hidden="true" className="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-ink-600 text-secondary">i</span>
             <span>{SPATIAL_HINT_COPY}</span>
           </p>
         )}
@@ -2511,7 +2511,7 @@ function ArtifactSurface({
                   type="button"
                   onClick={() => onSeek(ms)}
                   title={i.body}
-                  className="rounded bg-ink-800 px-1.5 py-0.5 font-mono text-[11px] text-ink-300 hover:bg-ink-700"
+                  className="rounded bg-ink-800 px-1.5 py-0.5 font-mono text-ui text-ink-300 hover:bg-ink-700"
                 >
                   {formatMs(ms)}
                 </button>
@@ -2548,8 +2548,8 @@ function ArtifactSurface({
             onOpenIssue={spatial.onOpenIssue}
           />}
         </div>
-        <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-500" data-testid="spatial-hint">
-          <span aria-hidden="true" className="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-ink-600 text-[10px]">i</span>
+        <p className="mt-2 flex items-start gap-1.5 text-secondary text-ink-500" data-testid="spatial-hint">
+          <span aria-hidden="true" className="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-ink-600 text-secondary">i</span>
           <span>{SPATIAL_HINT_COPY}</span>
         </p>
       </div>
@@ -2559,7 +2559,7 @@ function ArtifactSurface({
   if (decision.kind === 'text') {
     const body = (
       <pre
-        className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded bg-ink-950 p-3 text-sm text-ink-200"
+        className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded bg-ink-950 p-3 text-reading text-ink-200"
         onMouseUp={() => {
           const sel = typeof window !== 'undefined' ? window.getSelection() : null;
           const quote = sel?.toString() ?? '';
@@ -2577,7 +2577,7 @@ function ArtifactSurface({
         {body}
         {/* A clipped file must never read as a whole one — a reviewer would otherwise
             sign off on an ending they were never shown. */}
-        <p className="mt-2 text-xs text-ink-400">
+        <p className="mt-2 text-secondary text-ink-400">
           Showing the first 2 MB of this file. The rest is not displayed here.
         </p>
       </div>
@@ -2586,7 +2586,7 @@ function ArtifactSurface({
 
   // pdf and anything else that reached ready
   return (
-    <div className="rounded border border-ink-800 bg-ink-950 p-6 text-center text-sm text-ink-300">
+    <div className="rounded border border-ink-800 bg-ink-950 p-6 text-center text-secondary text-ink-300">
       This file is ready, but inline viewing isn&apos;t supported yet. Open it externally to review.
     </div>
   );

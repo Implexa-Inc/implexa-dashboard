@@ -41,10 +41,10 @@ export function JudgeReviewRetry({ runId, judgmentId, finalOutputSha256, pending
   }
   return <div className="mt-3">
     <button type="button" onClick={retry} disabled={busy || pending || queued}
-      className="btn-secondary text-xs disabled:opacity-50">
+      className="btn-secondary text-ui disabled:opacity-50">
       {busy ? 'Queuing review…' : pending || queued ? 'Review queued' : 'Retry review'}
     </button>
-    <p className="mt-1 text-xs text-ink-500">Reviews this same video using your model subscription. The agent will not run again.</p>
-    {error && <p role="alert" className="mt-2 text-xs text-state-fail">{error}</p>}
+    <p className="mt-1 text-secondary text-ink-500">Reviews this same video using your model subscription. The agent will not run again.</p>
+    {error && <p role="alert" className="mt-2 text-secondary text-state-fail">{error}</p>}
   </div>;
 }

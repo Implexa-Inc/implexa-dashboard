@@ -111,7 +111,7 @@ export default function SignupForm({
       <main className="min-h-screen flex items-center justify-center px-4">
         <div className="w-full max-w-sm card text-center">
           <h1 className="text-2xl font-semibold mb-2">Check your inbox</h1>
-          <p className="text-ink-500 text-sm">We sent a confirmation link to <strong>{email}</strong>. Click it to finish setting up your account.</p>
+          <p className="text-ink-500 text-reading">We sent a confirmation link to <strong>{email}</strong>. Click it to finish setting up your account.</p>
         </div>
       </main>
     );
@@ -122,7 +122,7 @@ export default function SignupForm({
       <div className="w-full max-w-sm">
         <div className="mb-6"><Logo height={18} /></div>
         <h1 className="text-3xl font-semibold tracking-tight mb-2 text-ink-50">Create your account</h1>
-        <p className="text-ink-300 text-sm mb-8">Free forever, unlimited agents. No credit card required.</p>
+        <p className="text-ink-300 text-reading mb-8">Free forever, unlimited agents. No credit card required.</p>
 
         <div className="card space-y-4">
           {/* GitHub goes first — Implexa's audience is developers, so GH is
@@ -152,7 +152,7 @@ export default function SignupForm({
             Sign up with Microsoft
           </button>
 
-          <div className="relative my-2 text-center text-xs text-ink-400">
+          <div className="relative my-2 text-center text-secondary text-ink-400">
             <span className="bg-ink-900 px-2 relative z-10">or with email</span>
             <div className="absolute top-1/2 left-0 right-0 h-px bg-ink-700" />
           </div>
@@ -164,13 +164,13 @@ export default function SignupForm({
                    onChange={(e) => setEmail(e.target.value)} className="input" />
             <PasswordInput aria-label="Password" required minLength={8} placeholder="password (8+ chars)" value={password}
                    onChange={(e) => setPassword(e.target.value)} className="input" />
-            {error && <p className="text-sm text-state-fail">{error}</p>}
+            {error && <p className="text-reading text-state-fail">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? 'Creating account…' : 'Create account'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-ink-500 pt-2">
+          <p className="text-center text-reading text-ink-500 pt-2">
             {/* Preserve `next` so device-auth + other deep links survive
              * the signup → login pivot. Mirrors the login → signup link. */}
             Already have an account? <Link
@@ -180,7 +180,7 @@ export default function SignupForm({
           </p>
         </div>
 
-        <p className="text-xs text-ink-300 text-center mt-6 px-4">
+        <p className="text-reading text-ink-300 text-center mt-6 px-4">
           By signing up you agree to our terms of service and privacy policy. Work email recommended — Tukido offers team-based features (skill sharing, org-shared library) that require a verified business domain.
         </p>
       </div>

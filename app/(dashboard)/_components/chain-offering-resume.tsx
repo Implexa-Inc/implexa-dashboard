@@ -23,13 +23,13 @@ function NodeEvidence({ node }: { node: ChainNode }) {
         const channel = node.evidenceChannels[key];
         return (
           <li key={key} className="rounded-md border border-ink-800 p-2.5">
-            <p className="text-xs font-medium text-ink-200">{CHANNEL_LABELS[key]}</p>
+            <p className="text-secondary font-medium text-ink-200">{CHANNEL_LABELS[key]}</p>
             {channel.status === 'unavailable' ? (
-              <p className="mt-1 text-xs text-ink-500">Sign in to see your own evidence. It stays private to your organization.</p>
+              <p className="mt-1 text-secondary text-ink-500">Sign in to see your own evidence. It stays private to your organization.</p>
             ) : (
               <dl className="mt-1 space-y-0.5">
                 {EVIDENCE_TYPE_KEYS.map((typeKey) => (
-                  <div key={typeKey} className="flex items-baseline justify-between gap-2 text-xs">
+                  <div key={typeKey} className="flex items-baseline justify-between gap-2 text-secondary">
                     <dt className="text-ink-500">{TYPE_LABELS[typeKey]}</dt>
                     <dd className="text-ink-300">{describeEvidenceType(channel.evidence[typeKey])}</dd>
                   </div>
@@ -76,71 +76,71 @@ export default function ChainOfferingResume({ offering }: { offering: ChainOffer
   const upgradeRequired = installed && offering.acquisition?.authority === 'upgrade_required';
   return (
     <main className="app-page agent-resume-page"><article className="app-content">
-      <Link href="/workflows" className="text-sm text-ink-500 hover:text-ink-200">← Agents</Link>
+      <Link href="/workflows" className="text-secondary text-ink-500 hover:text-ink-200">← Agents</Link>
       <header className="mt-6 border-b border-ink-800 pb-7">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-3xl font-semibold text-ink-50">{offering.name}</h1>
-              <span className="rounded border border-ink-700 px-2 py-0.5 text-xs text-ink-300">Agent chain</span>
-              {offering.privatePreview && <span className="rounded border border-violet-500/40 px-2 py-0.5 text-xs text-state-review">Private preview</span>}
+              <span className="rounded border border-ink-700 px-2 py-0.5 text-secondary text-ink-300">Agent chain</span>
+              {offering.privatePreview && <span className="rounded border border-violet-500/40 px-2 py-0.5 text-secondary text-state-review">Private preview</span>}
             </div>
-            <p className="mt-3 max-w-2xl text-ink-200">{offering.outcome}. You choose the outcome; the chain runs its two agents in order and hands off one typed {offering.handoffKind} between them.</p>
-            <p className="mt-2 text-xs text-ink-500">Built by {offering.builder.name} · offering v{offering.version.number} · composition {offering.version.digest.slice(0, 12)}…</p>
+            <p className="text-reading mt-3 max-w-2xl text-ink-200">{offering.outcome}. You choose the outcome; the chain runs its two agents in order and hands off one typed {offering.handoffKind} between them.</p>
+            <p className="mt-2 text-secondary text-ink-500">Built by {offering.builder.name} · offering v{offering.version.number} · composition {offering.version.digest.slice(0, 12)}…</p>
           </div>
           {acquired
-            ? <Link href="/work" className="btn-primary px-4 py-2 text-sm">Start a production</Link>
+            ? <Link href="/work" className="btn-primary px-4 py-2 text-secondary">Start a production</Link>
             : upgradeRequired
-              ? <span className="rounded border border-amber-500/40 px-4 py-2 text-sm text-state-needs">Upgrade required</span>
-              : <button disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/chains/${encodeURIComponent(offering.slug)}/acquire`, { offeringVersionId: offering.version.id, offeringDigest: offering.version.digest })} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Acquiring chain…' : 'Use this chain'}</button>}
+              ? <span className="rounded border border-amber-500/40 px-4 py-2 text-secondary text-state-needs">Upgrade required</span>
+              : <button disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/chains/${encodeURIComponent(offering.slug)}/acquire`, { offeringVersionId: offering.version.id, offeringDigest: offering.version.digest })} className="btn-primary px-4 py-2 text-ui disabled:opacity-50">{busy ? 'Acquiring chain…' : 'Use this chain'}</button>}
         </div>
-        {error && <p role="alert" className="mt-3 text-sm text-state-fail">{error}</p>}
-        {upgradeRequired && <p role="status" className="mt-3 text-sm text-state-needs">Your installed chain is an older immutable version. It cannot run this newer composition until an explicit upgrade is available.</p>}
+        {error && <p role="alert" className="mt-3 text-reading text-state-fail">{error}</p>}
+        {upgradeRequired && <p role="status" className="mt-3 text-reading text-state-needs">Your installed chain is an older immutable version. It cannot run this newer composition until an explicit upgrade is available.</p>}
         {installed && (
           <div className="mt-5 border-t border-ink-800 pt-4">
-            <p className="text-xs text-ink-500">{offering.historyLanguage}</p>
+            <p className="text-secondary text-ink-500">{offering.historyLanguage}</p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-xs text-ink-400"><input aria-label="Confirm removing this chain without deleting history" type="checkbox" checked={confirmUninstall} onChange={(event) => setConfirmUninstall(event.target.checked)} />I understand this removes access, not history</label>
-              <button className="rounded border border-rose-500/40 px-3 py-1.5 text-xs text-state-fail disabled:opacity-50" disabled={busy || !confirmUninstall} onClick={() => mutate(`/api/v2/agents/discovery/chains/${encodeURIComponent(offering.slug)}/uninstall`)}>Remove chain</button>
+              <label className="flex items-center gap-2 text-ui text-ink-400"><input aria-label="Confirm removing this chain without deleting history" type="checkbox" checked={confirmUninstall} onChange={(event) => setConfirmUninstall(event.target.checked)} />I understand this removes access, not history</label>
+              <button className="rounded border border-rose-500/40 px-3 py-1.5 text-ui text-state-fail disabled:opacity-50" disabled={busy || !confirmUninstall} onClick={() => mutate(`/api/v2/agents/discovery/chains/${encodeURIComponent(offering.slug)}/uninstall`)}>Remove chain</button>
             </div>
           </div>
         )}
       </header>
 
       <section className="py-7">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">The ordered chain</h2>
-        <p className="mt-2 text-xs text-ink-500">Two exact immutable agent versions, acquired together or not at all. Step 1 plans; its {offering.handoffKind} is verified before Step 2 may start; Step 2 delivers the final {offering.finalArtifactKind.replace('_', ' ')}. If Step 1 does not succeed, Step 2 never runs and remaining reservations are released.</p>
+        <h2 className="text-ui font-semibold uppercase tracking-wide text-ink-300">The ordered chain</h2>
+        <p className="mt-2 text-reading text-ink-500">Two exact immutable agent versions, acquired together or not at all. Step 1 plans; its {offering.handoffKind} is verified before Step 2 may start; Step 2 delivers the final {offering.finalArtifactKind.replace('_', ' ')}. If Step 1 does not succeed, Step 2 never runs and remaining reservations are released.</p>
         <ol className="mt-4 space-y-4">
           {offering.orderedChain.map((node) => (
             <li key={node.ordinal} className="rounded-lg border border-ink-800 p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded bg-ink-800 px-2 py-0.5 text-xs text-ink-300">Step {node.ordinal + 1}</span>
-                <p className="text-sm font-medium text-ink-100">{node.name}</p>
-                <span className="text-xs text-ink-500">{node.role === 'generator' ? `prepares the ${offering.handoffKind}` : `delivers the ${offering.finalArtifactKind.replace('_', ' ')}`}</span>
+                <span className="rounded bg-ink-800 px-2 py-0.5 text-secondary text-ink-300">Step {node.ordinal + 1}</span>
+                <p className="text-reading font-medium text-ink-100">{node.name}</p>
+                <span className="text-secondary text-ink-500">{node.role === 'generator' ? `prepares the ${offering.handoffKind}` : `delivers the ${offering.finalArtifactKind.replace('_', ' ')}`}</span>
               </div>
-              <p className="mt-2 text-xs text-ink-400">{node.limitations}</p>
-              <p className="mt-1 text-xs text-ink-500">Exact version {node.version.number || node.version.id.slice(0, 8)} · authority {node.version.authorityDigest.slice(0, 12)}… · engines: {node.supportedEngines.join(', ') || 'not established'}</p>
+              <p className="mt-2 text-secondary text-ink-400">{node.limitations}</p>
+              <p className="mt-1 text-secondary text-ink-500">Exact version {node.version.number || node.version.id.slice(0, 8)} · authority {node.version.authorityDigest.slice(0, 12)}… · engines: {node.supportedEngines.join(', ') || 'not established'}</p>
               <NodeEvidence node={node} />
             </li>
           ))}
         </ol>
-        <p className="mt-3 text-xs text-ink-500">Evidence is counted separately per component and per source. Tukido does not combine them into a score, rating, or rank.</p>
+        <p className="mt-3 text-reading text-ink-500">Evidence is counted separately per component and per source. Tukido does not combine them into a score, rating, or rank.</p>
       </section>
 
       <div className="grid gap-8 border-t border-ink-800 py-7 md:grid-cols-2">
         <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Required before starting</h2>
-          <p className="mt-3 text-sm text-ink-300">{offering.requiredInput.label} · required</p>
-          <p className="mt-1 text-xs text-state-needs">{offering.requiredInput.disclosure}</p>
-          <p className="mt-3 text-xs text-ink-500">Quality modes: {offering.qualityModes.join(', ')}.</p>
+          <h2 className="text-ui font-semibold uppercase tracking-wide text-ink-300">Required before starting</h2>
+          <p className="mt-3 text-reading text-ink-300">{offering.requiredInput.label} · required</p>
+          <p className="mt-1 text-secondary text-state-needs">{offering.requiredInput.disclosure}</p>
+          <p className="mt-3 text-secondary text-ink-500">Quality modes: {offering.qualityModes.join(', ')}.</p>
         </section>
         <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Budget and provider use</h2>
-          <p className="mt-3 text-sm text-ink-300">Up to {offering.creditPolicy.maxTotalCredits} credits per production; Step 1 is allocated {offering.creditPolicy.generatorBudgetSharePercent}% of the ceiling. Unused reservations are released when the production closes.</p>
+          <h2 className="text-ui font-semibold uppercase tracking-wide text-ink-300">Budget and provider use</h2>
+          <p className="mt-3 text-reading text-ink-300">Up to {offering.creditPolicy.maxTotalCredits} credits per production; Step 1 is allocated {offering.creditPolicy.generatorBudgetSharePercent}% of the ceiling. Unused reservations are released when the production closes.</p>
           {offering.consequentialCeiling.zeroDefault
-            ? <p className="mt-2 text-xs text-state-ok">Zero provider calls and zero provider spend by default. This chain uses your supplied footage and local Remotion assets only.</p>
-            : <p className="mt-2 text-xs text-state-needs">Provider ceilings: {offering.consequentialCeiling.maxProviderCalls} calls, {offering.consequentialCeiling.maxSpendMinor} {offering.consequentialCeiling.currency} minor units. Runs use your own connected provider accounts.</p>}
-          <p className="mt-2 text-xs text-ink-500">Everything runs with your organization&apos;s own connections and credentials. Nothing of the builder&apos;s crosses the boundary.</p>
+            ? <p className="mt-2 text-reading text-state-ok">Zero provider calls and zero provider spend by default. This chain uses your supplied footage and local Remotion assets only.</p>
+            : <p className="mt-2 text-secondary text-state-needs">Provider ceilings: {offering.consequentialCeiling.maxProviderCalls} calls, {offering.consequentialCeiling.maxSpendMinor} {offering.consequentialCeiling.currency} minor units. Runs use your own connected provider accounts.</p>}
+          <p className="mt-2 text-reading text-ink-500">Everything runs with your organization&apos;s own connections and credentials. Nothing of the builder&apos;s crosses the boundary.</p>
         </section>
       </div>
     </article></main>

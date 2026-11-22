@@ -266,7 +266,7 @@ export function AttachFiles({
           onClick={onAttach}
           disabled={!canAttach || files.length >= MAX_RUN_FILES}
           title={canAttach ? 'Attach a screenshot or file for this run' : 'Attach files in the Implexa desktop app'}
-          className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 text-ink-300 px-2.5 py-1.5 text-xs hover:border-ink-500 hover:text-ink-100 transition-colors disabled:opacity-40 disabled:hover:border-ink-700 disabled:hover:text-ink-300"
+          className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 text-ink-300 px-2.5 py-1.5 text-ui hover:border-ink-500 hover:text-ink-100 transition-colors disabled:opacity-40 disabled:hover:border-ink-700 disabled:hover:text-ink-300"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3 3 0 014.24 4.24l-9.2 9.19a1 1 0 01-1.41-1.41l8.49-8.49" />
@@ -278,17 +278,17 @@ export function AttachFiles({
           onClick={onAttachFolder}
           disabled={files.length >= MAX_RUN_FILES}
           title="Attach a folder for this run"
-          className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 text-ink-300 px-2.5 py-1.5 text-xs hover:border-ink-500 hover:text-ink-100 transition-colors disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 text-ink-300 px-2.5 py-1.5 text-ui hover:border-ink-500 hover:text-ink-100 transition-colors disabled:opacity-40"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
           </svg>
           Attach folder
         </button>}
-        {(canAttach || canAttachFolder) && <span className="text-[11px] text-ink-500">{hint}</span>}
+        {(canAttach || canAttachFolder) && <span className="text-secondary text-ink-500">{hint}</span>}
       </div>
 
-      {error && <p role="alert" className="mt-1.5 text-[11px] text-state-fail">{error}</p>}
+      {error && <p role="alert" className="mt-1.5 text-reading text-state-fail">{error}</p>}
 
       {files.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
@@ -296,7 +296,7 @@ export function AttachFiles({
             <span
               key={p}
               title={p}
-              className="inline-flex items-center gap-1.5 max-w-[220px] rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-xs text-ink-200"
+              className="inline-flex items-center gap-1.5 max-w-[220px] rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-secondary text-ink-200"
             >
               <svg className="w-3.5 h-3.5 shrink-0 text-ink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9l-7-7z" />

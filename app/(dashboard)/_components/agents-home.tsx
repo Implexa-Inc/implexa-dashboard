@@ -32,10 +32,10 @@ function NeedsRow({ a }: { a: MyAgent }) {
   return (
     <li className="flex items-center justify-between gap-3 py-3 px-1">
       <div className="min-w-0">
-        <span className="text-sm font-medium text-ink-100 truncate">{a.name}</span>
-        <p className="text-xs text-ink-500 mt-0.5">{a.stepsLeft} step{a.stepsLeft === 1 ? '' : 's'} left</p>
+        <span className="text-secondary font-medium text-ink-100 truncate">{a.name}</span>
+        <p className="text-secondary text-ink-500 mt-0.5">{a.stepsLeft} step{a.stepsLeft === 1 ? '' : 's'} left</p>
       </div>
-      <Link href={`/workflows/${a.slug}`} className="flex-none btn-success text-xs px-3 py-1.5">Review</Link>
+      <Link href={`/workflows/${a.slug}`} className="flex-none btn-success text-secondary px-3 py-1.5">Review</Link>
     </li>
   );
 }
@@ -50,14 +50,14 @@ function ActiveRow({ a }: { a: MyAgent }) {
         <div className="min-w-0 flex items-center gap-2.5">
           <span className="inline-block w-1.5 h-1.5 rounded-full flex-none bg-amber-500" aria-hidden />
           <div className="min-w-0">
-            <span className="text-sm font-medium text-ink-100 truncate">{a.name}</span>
-            <p className="text-xs mt-0.5">
+            <span className="text-secondary font-medium text-ink-100 truncate">{a.name}</span>
+            <p className="text-secondary mt-0.5">
               <span className="text-state-needs">Needs you</span>
               <span className="text-ink-500"> · {a.interventionReason || 'one quick step'}</span>
             </p>
           </div>
         </div>
-        <Link href={`/workflows/${a.slug}/activate`} className="flex-none btn-success text-xs px-3 py-1.5">Fix</Link>
+        <Link href={`/workflows/${a.slug}/activate`} className="flex-none btn-success text-secondary px-3 py-1.5">Fix</Link>
       </li>
     );
   }
@@ -68,15 +68,15 @@ function ActiveRow({ a }: { a: MyAgent }) {
       <div className="min-w-0 flex items-center gap-2.5">
         <span className={`inline-block w-1.5 h-1.5 rounded-full flex-none ${DOT[s.tone]}`} aria-hidden />
         <div className="min-w-0">
-          <span className="text-sm font-medium text-ink-100 truncate">{a.name}</span>
-          <p className="text-xs text-ink-500 mt-0.5 flex items-center gap-2 flex-wrap">
+          <span className="text-secondary font-medium text-ink-100 truncate">{a.name}</span>
+          <p className="text-secondary text-ink-500 mt-0.5 flex items-center gap-2 flex-wrap">
             <span>{a.mode === 'on_demand' ? 'On-demand' : (a.scheduleNl || 'scheduled')} · <span className={TONE[s.tone]}>{s.label}</span></span>
             {engine && <span className="text-state-running" title={`Last run used ${engine}`}>{engine}</span>}
             <GradeBadge grade={a.grade} />
           </p>
         </div>
       </div>
-      <Link href={s.href} className="flex-none btn-outline text-xs px-3 py-1.5">{s.cta}</Link>
+      <Link href={s.href} className="flex-none btn-outline text-secondary px-3 py-1.5">{s.cta}</Link>
     </li>
   );
 }
@@ -99,7 +99,7 @@ export async function AgentsHome() {
     <div className="mb-10 space-y-7">
       {needsActivation.length > 0 && (
         <section>
-          <h2 className="text-xs uppercase tracking-wider text-ink-400 mb-2">Needs activation ({needsActivation.length})</h2>
+          <h2 className="text-ui uppercase tracking-wider text-ink-400 mb-2">Needs activation ({needsActivation.length})</h2>
           <ul className="card !py-1 divide-y divide-ink-800">
             {needsActivation.map((a) => <NeedsRow key={a.slug} a={a} />)}
           </ul>
@@ -107,7 +107,7 @@ export async function AgentsHome() {
       )}
       {onDemand.length > 0 && (
         <section>
-          <h2 className="text-xs uppercase tracking-wider text-ink-400 mb-2">On-demand ({onDemand.length})</h2>
+          <h2 className="text-ui uppercase tracking-wider text-ink-400 mb-2">On-demand ({onDemand.length})</h2>
           <ul className="card !py-1 divide-y divide-ink-800">
             {onDemand.map((a) => <ActiveRow key={a.slug} a={a} />)}
           </ul>
@@ -115,7 +115,7 @@ export async function AgentsHome() {
       )}
       {scheduled.length > 0 && (
         <section>
-          <h2 className="text-xs uppercase tracking-wider text-ink-400 mb-2">Scheduled ({scheduled.length})</h2>
+          <h2 className="text-ui uppercase tracking-wider text-ink-400 mb-2">Scheduled ({scheduled.length})</h2>
           <ul className="card !py-1 divide-y divide-ink-800">
             {scheduled.map((a) => <ActiveRow key={a.slug} a={a} />)}
           </ul>

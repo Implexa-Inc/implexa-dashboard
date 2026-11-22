@@ -23,15 +23,15 @@ export default function AgentEditButton({ slug, statusUnavailable = false, revis
         onClick={() => setOpen(true)}
         disabled={statusUnavailable || revisePending}
         title={statusUnavailable ? 'Edit status is unavailable. Reload before queueing another edit.' : revisePending ? 'An edit is already queued.' : undefined}
-        className={className||`text-xs underline underline-offset-2 ${statusUnavailable || revisePending
-          ? 'text-ink-600 cursor-not-allowed'
+        className={className||`text-ui underline underline-offset-2 ${statusUnavailable || revisePending
+          ? 'text-ink-500 cursor-not-allowed'
           : 'text-ink-400 hover:text-ink-200'}`}
       >
         {statusUnavailable ? 'Edit status unavailable' : revisePending ? 'Edit queued' : label}
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title="Edit this agent" maxWidth="max-w-md">
         <ImproveAgent slug={slug} bare statusUnavailable={statusUnavailable} revisePending={revisePending} />
-        {chainEditor&&<section className="mt-6 border-t border-ink-800 pt-5"><h2 className="mb-3 text-sm">Add an agent to this chain</h2>{chainEditor}</section>}
+        {chainEditor&&<section className="mt-6 border-t border-ink-800 pt-5"><h2 className="mb-3 text-ui">Add an agent to this chain</h2>{chainEditor}</section>}
       </Modal>
     </>
   );

@@ -131,9 +131,9 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
   const blocking = blockingItems(current);
   const optional = current.items.filter((item) => !item.required);
   return (
-    <div className="text-sm" data-testid="setup-required-card">
+    <div className="text-secondary" data-testid="setup-required-card">
       <p className="text-ink-100">{setupReasonCopy(current)}</p>
-      <p className="mt-2 text-xs text-ink-400" data-testid="setup-required-machine">Checking: <span className="text-ink-200">{machineCopy(current)}</span></p>
+      <p className="mt-2 text-secondary text-ink-400" data-testid="setup-required-machine">Checking: <span className="text-ink-200">{machineCopy(current)}</span></p>
       <ul className="mt-3 flex flex-col gap-1.5" data-testid="setup-required-items">
         {current.items.map((item) => {
           const ready = item.state === 'ready';
@@ -141,11 +141,11 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
           return (
             <li key={item.id} className="flex items-start justify-between gap-3 rounded-md border border-ink-800 px-3 py-2">
               <div className="min-w-0">
-                <div className="text-ink-100">{item.label}{item.required ? '' : <span className="ml-1 text-[11px] text-ink-500">optional</span>}</div>
-                {!ready && !fallback && item.setupTitle ? <div className="text-[11px] text-ink-500">{item.setupTitle}</div> : null}
-                {fallback && item.fallback ? <div className="text-[11px] text-ink-500">Will use: {item.fallback} (reduced output)</div> : null}
+                <div className="text-ink-100">{item.label}{item.required ? '' : <span className="ml-1 text-secondary text-ink-500">optional</span>}</div>
+                {!ready && !fallback && item.setupTitle ? <div className="text-secondary text-ink-500">{item.setupTitle}</div> : null}
+                {fallback && item.fallback ? <div className="text-secondary text-ink-500">Will use: {item.fallback} (reduced output)</div> : null}
               </div>
-              <div className={`flex-none text-xs ${ready ? 'text-success-600 dark:text-success-400' : fallback ? 'text-ink-400' : 'text-state-fail'}`}>
+              <div className={`flex-none text-secondary ${ready ? 'text-success-600 dark:text-success-400' : fallback ? 'text-ink-400' : 'text-state-fail'}`}>
                 {item.label} — {item.stateLabel}
               </div>
             </li>
@@ -153,17 +153,17 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
         })}
       </ul>
       {blocking.length === 0 && optional.length ? (
-        <p className="mt-2 text-xs text-ink-500">Only optional items are limited; they use their declared fallback.</p>
+        <p className="mt-2 text-secondary text-ink-500">Only optional items are limited; they use their declared fallback.</p>
       ) : null}
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <button type="button" className="btn-success text-xs px-3 py-1.5" onClick={openSetup}>Open setup in Tukido</button>
-        <button type="button" disabled={checking} className="btn-outline text-xs px-3 py-1.5 disabled:opacity-60" onClick={recheck}>
+        <button type="button" className="btn-success text-ui px-3 py-1.5" onClick={openSetup}>Open setup in Tukido</button>
+        <button type="button" disabled={checking} className="btn-outline text-ui px-3 py-1.5 disabled:opacity-60" onClick={recheck}>
           {checking ? 'Rechecking…' : 'Recheck'}
         </button>
-        <button type="button" disabled={checking} className="text-xs text-ink-500 hover:underline disabled:opacity-60" onClick={onCancel}>Cancel</button>
+        <button type="button" disabled={checking} className="text-ui text-ink-500 hover:underline disabled:opacity-60" onClick={onCancel}>Cancel</button>
       </div>
-      <p className="mt-3 text-[11px] text-ink-500">Nothing was queued. Installation and sign-in happen only when you choose them in Tukido; Tukido never installs software or captures credentials on its own.</p>
-      {note ? <p className="mt-2 text-xs text-state-fail">{note}</p> : null}
+      <p className="mt-3 text-reading text-ink-500">Nothing was queued. Installation and sign-in happen only when you choose them in Tukido; Tukido never installs software or captures credentials on its own.</p>
+      {note ? <p className="mt-2 text-secondary text-state-fail">{note}</p> : null}
     </div>
   );
 }

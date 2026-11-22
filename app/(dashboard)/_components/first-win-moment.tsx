@@ -59,14 +59,14 @@ export default function FirstWinMoment({
       </button>
       <div className="text-2xl mb-1" aria-hidden>🎉</div>
       <h2 className="text-lg font-semibold text-ink-50">Your first agent is live and just ran.</h2>
-      <p className="text-sm text-ink-300 mt-1 leading-relaxed">
+      <p className="text-reading text-ink-300 mt-1 ">
         That&apos;s the whole loop: describe it, it runs in your own Claude, the result comes home. Most people stop doing one more thing by hand right here, want a second?
       </p>
       <div className="mt-4 flex items-center gap-3 flex-wrap">
-        <button type="button" onClick={buildNext} className="btn-success text-sm px-4 py-2">
+        <button type="button" onClick={buildNext} className="btn-success text-ui px-4 py-2">
           {nextTitle ? `Build “${nextTitle}” next` : 'Build another agent'}
         </button>
-        <button type="button" onClick={close} className="text-sm text-ink-400 hover:text-ink-200">
+        <button type="button" onClick={close} className="text-ui text-ink-400 hover:text-ink-200">
           Maybe later
         </button>
       </div>

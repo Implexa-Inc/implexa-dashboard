@@ -26,9 +26,9 @@ function ExampleCard({ w }: { w: WorkflowCard }) {
   const proof = proofLine(w);
   return (
     <Link href={`/workflows/${w.slug}`} className="card p-5 hover:border-ink-600 transition-colors block">
-      <div className="text-sm font-medium text-ink-50 truncate">{w.name}</div>
-      <div className="text-xs text-ink-400 mt-1.5 line-clamp-2">{w.primary_outcome || w.description}</div>
-      <div className="text-[11px] text-ink-500 mt-3 flex items-center gap-2">
+      <div className="text-secondary font-medium text-ink-50 truncate">{w.name}</div>
+      <div className="text-secondary text-ink-400 mt-1.5 line-clamp-2">{w.primary_outcome || w.description}</div>
+      <div className="text-secondary text-ink-500 mt-3 flex items-center gap-2">
         <span className="capitalize">{w.cadence || `${w.step_count} step${w.step_count === 1 ? '' : 's'}`}</span>
         {proof && (
           <>
@@ -52,8 +52,8 @@ export default function FirstRunMagic({ workflows }: { workflows: WorkflowCard[]
   return (
     <section className="mt-12">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider">Or start from an example</h2>
-        <Link href="/workflows" className="text-xs text-ink-400 hover:text-ink-200">all agents</Link>
+        <h2 className="text-ui font-medium text-ink-300 uppercase tracking-wider">Or start from an example</h2>
+        <Link href="/workflows" className="text-secondary text-ink-400 hover:text-ink-200">all agents</Link>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {featured.map((w) => (

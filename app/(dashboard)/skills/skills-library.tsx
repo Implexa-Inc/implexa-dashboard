@@ -412,7 +412,7 @@ export default function SkillsLibrary({
         <button
           type="button"
           onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-          className="w-full flex items-center justify-between px-3 py-2 rounded-md border border-ink-700 bg-ink-900 text-sm text-ink-200"
+          className="w-full flex items-center justify-between px-3 py-2 rounded-md border border-ink-700 bg-ink-900 text-ui text-ink-200"
         >
           <span>
             Filters {activeTag && <span className="text-action-accent">· {labelFor(activeTag)}</span>}
@@ -430,20 +430,20 @@ export default function SkillsLibrary({
         >
           {tagCounts.length > 0 ? (
             <>
-              <div className="text-[10px] uppercase tracking-wider text-ink-500 font-medium mb-2 px-2">Filters</div>
+              <div className="text-secondary uppercase tracking-wider text-ink-500 font-medium mb-2 px-2">Filters</div>
               <ul className="space-y-0.5">
                 <li>
                   <button
                     type="button"
                     onClick={() => { setActiveTag(null); setMobileFiltersOpen(false); }}
-                    className={`w-full text-left text-sm px-2.5 py-1.5 rounded transition-colors flex items-center justify-between ${
+                    className={`w-full text-left text-ui px-2.5 py-1.5 rounded transition-colors flex items-center justify-between ${
                       !activeTag
                         ? 'bg-brand-500/15 text-action-accent font-medium'
                         : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'
                     }`}
                   >
                     <span>All</span>
-                    <span className="text-xs text-ink-400">{tagCounts.reduce((s, [, c]) => s + c, 0)}</span>
+                    <span className="text-secondary text-ink-400">{tagCounts.reduce((s, [, c]) => s + c, 0)}</span>
                   </button>
                 </li>
                 {tagCounts.map(([tag, count]) => (
@@ -451,14 +451,14 @@ export default function SkillsLibrary({
                     <button
                       type="button"
                       onClick={() => { setActiveTag(activeTag === tag ? null : tag); setMobileFiltersOpen(false); }}
-                      className={`w-full text-left text-sm px-2.5 py-1.5 rounded transition-colors flex items-center justify-between ${
+                      className={`w-full text-left text-ui px-2.5 py-1.5 rounded transition-colors flex items-center justify-between ${
                         activeTag === tag
                           ? 'bg-brand-500/15 text-action-accent font-medium'
                           : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'
                       }`}
                     >
                       <span className="truncate">{labelFor(tag)}</span>
-                      <span className="text-xs text-ink-400 ml-2 shrink-0">{count}</span>
+                      <span className="text-secondary text-ink-400 ml-2 shrink-0">{count}</span>
                     </button>
                   </li>
                 ))}
@@ -466,14 +466,14 @@ export default function SkillsLibrary({
               {hasActiveFilter && (
                 <button
                   onClick={() => { setQuery(''); setActiveTag(null); }}
-                  className="mt-3 text-xs text-action-accent hover:underline px-2.5"
+                  className="mt-3 text-ui text-action-accent hover:underline px-2.5"
                 >
                   Clear filters
                 </button>
               )}
             </>
           ) : (
-            <div className="text-xs text-ink-500 px-2">No filter categories yet. Tags appear here as you save skills.</div>
+            <div className="text-secondary text-ink-500 px-2">No filter categories yet. Tags appear here as you save skills.</div>
           )}
         </aside>
 
@@ -495,14 +495,14 @@ export default function SkillsLibrary({
                     role="tab"
                     aria-selected={isActive}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`relative px-3 md:px-4 py-2.5 text-sm transition-colors whitespace-nowrap border-b-2 -mb-px ${
+                    className={`relative px-3 md:px-4 py-2.5 text-ui transition-colors whitespace-nowrap border-b-2 -mb-px ${
                       isActive
                         ? 'border-brand-500 text-ink-50 font-medium'
                         : 'border-transparent text-ink-400 hover:text-ink-200'
                     }`}
                   >
                     {tab.label}{' '}
-                    <span className={`ml-1 inline-flex items-center justify-center min-w-[1.5rem] h-5 rounded text-xs px-1.5 ${
+                    <span className={`ml-1 inline-flex items-center justify-center min-w-[1.5rem] h-5 rounded text-secondary px-1.5 ${
                       isActive
                         ? 'bg-brand-500/20 text-action-accent font-semibold'
                         : 'bg-ink-800 text-ink-400'
@@ -516,7 +516,7 @@ export default function SkillsLibrary({
           </div>
 
           {/* ─── Active tab description ───────────────────────────── */}
-          <p className="text-sm text-ink-300 mb-5 leading-relaxed">
+          <p className="text-reading text-ink-300 mb-5 ">
             {activeTabDef.description}
           </p>
 
@@ -591,7 +591,7 @@ function EmptyState({
     if (otherTabsWithMatches.length === 0) {
       // No matches anywhere — filter is too narrow for any tab
       return (
-        <div className="card text-sm text-ink-400">
+        <div className="card text-secondary text-ink-400">
           No matches for {activeTagLabel ? <strong className="text-ink-200">{activeTagLabel}</strong> : 'your filter'} in any tab.{' '}
           <button onClick={onClearFilters} className="text-action-accent hover:underline">Clear filters</button> to see everything.
         </div>
@@ -600,7 +600,7 @@ function EmptyState({
 
     // Found matches in other tabs — render as actionable suggestion
     return (
-      <div className="card text-sm text-ink-300 space-y-3">
+      <div className="card text-secondary text-ink-300 space-y-3">
         <div>
           No matches in <strong className="text-ink-200">{TABS.find(t => t.id === tabId)?.label}</strong> for{' '}
           {activeTagLabel ? <strong className="text-ink-200">{activeTagLabel}</strong> : 'your filter'}.
@@ -616,12 +616,12 @@ function EmptyState({
               >
                 <span aria-hidden="true">→</span>
                 {tab.label}
-                <span className="text-xs px-1.5 py-0.5 rounded bg-brand-500/15 text-action-accent">{count}</span>
+                <span className="text-secondary px-1.5 py-0.5 rounded bg-brand-500/15 text-action-accent">{count}</span>
               </button>
             </li>
           ))}
         </ul>
-        <div className="text-xs text-ink-500 pt-1 border-t border-ink-700">
+        <div className="text-secondary text-ink-500 pt-1 border-t border-ink-700">
           Or <button onClick={onClearFilters} className="text-action-accent hover:underline">clear filters</button> to see all skills.
         </div>
       </div>
@@ -654,12 +654,12 @@ function EmptyState({
     base: (
       <>
         Base Playbooks aren&apos;t seeded yet. If you&apos;re running self-hosted, run migrations{' '}
-        <code className="text-xs">0006</code> and <code className="text-xs">0007</code> in Supabase Studio.
+        <code className="text-secondary">0006</code> and <code className="text-secondary">0007</code> in Supabase Studio.
       </>
     ),
   };
 
-  return <div className="card text-sm text-ink-400">{messages[tabId]}</div>;
+  return <div className="card text-secondary text-ink-400">{messages[tabId]}</div>;
 }
 
 // ─── Skill row — same component used across all tabs ────────────────────
@@ -691,7 +691,7 @@ function SkillRow({
       <Link href={`/skills/${skill.slug}`} className="card flex items-center gap-4 py-4 hover:shadow-glow hover:border-brand-500/60 transition-all cursor-pointer">
         {rank !== undefined && (
           <div
-            className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${rankBadgeClass}`}
+            className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-secondary font-bold ${rankBadgeClass}`}
             aria-label={`Rank ${rank}`}
           >
             {rank}
@@ -700,30 +700,30 @@ function SkillRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 flex-wrap">
             <div className="font-medium text-ink-50">{skill.name}</div>
-            {skill.status === 'draft' && <span className="text-xs px-1.5 py-0.5 rounded bg-accent-400/20 text-accent-700 dark:text-accent-400">draft</span>}
+            {skill.status === 'draft' && <span className="text-secondary px-1.5 py-0.5 rounded bg-accent-400/20 text-accent-700 dark:text-accent-400">draft</span>}
             {skill._source === 'installed' && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/15 text-action-accent uppercase tracking-wide font-medium">
+              <span className="text-secondary px-1.5 py-0.5 rounded bg-brand-500/15 text-action-accent uppercase tracking-wide font-medium">
                 Installed
               </span>
             )}
-            <code className="text-xs text-ink-400 font-mono">{skill.slug}</code>
+            <code className="text-micro text-ink-400 font-mono">{skill.slug}</code>
             {visibleTags.length > 0 && (
               <span className="flex gap-1 ml-1">
                 {visibleTags.map(t => (
-                  <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-ink-800 text-ink-400 uppercase tracking-wide">{labelFor(t)}</span>
+                  <span key={t} className="text-secondary px-1.5 py-0.5 rounded bg-ink-800 text-ink-400 uppercase tracking-wide">{labelFor(t)}</span>
                 ))}
               </span>
             )}
           </div>
-          <div className="text-sm text-ink-300 mt-1 line-clamp-2">{skill.description}</div>
+          <div className="text-secondary text-ink-300 mt-1 line-clamp-2">{skill.description}</div>
           {showCreator && creatorName && (
-            <div className="text-[11px] text-ink-400 mt-1.5">
+            <div className="text-secondary text-ink-400 mt-1.5">
               Shared by <span className="text-ink-300 font-medium">{creatorName}</span>
             </div>
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <div className="text-xs whitespace-nowrap text-right">
+          <div className="text-secondary whitespace-nowrap text-right">
             {(skill.usage_count || 0) > 0 && <div className="text-ink-300">{skill.usage_count} run{skill.usage_count === 1 ? '' : 's'}</div>}
             {(stats.attributedOutcomes || 0) > 0 && <div className="text-success-600 dark:text-success-400 font-semibold mt-0.5">{stats.attributedOutcomes} outcome{stats.attributedOutcomes === 1 ? '' : 's'}</div>}
           </div>

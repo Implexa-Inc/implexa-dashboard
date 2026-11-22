@@ -555,7 +555,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismiss(c.runId!); }}
                   title="Dismiss from alerts"
                   aria-label="Dismiss this run from alerts"
-                  className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
+                  className="shrink-0 text-ink-500 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-ui leading-none px-1"
                 >
                   ✕
                 </button>
@@ -569,7 +569,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismissHeld(c.runId!); }}
                   title="Dismiss this alert"
                   aria-label="Dismiss this alert"
-                  className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
+                  className="shrink-0 text-ink-500 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-ui leading-none px-1"
                 >
                   ✕
                 </button>
@@ -582,7 +582,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancelKey(c.continuityKey); }}
                   title="Cancel this request"
                   aria-label="Cancel this request"
-                  className="shrink-0 text-[11px] font-medium text-state-fail hover:text-state-fail px-2 py-1 rounded border border-rose-500/30"
+                  className="shrink-0 text-ui font-medium text-state-fail hover:text-state-fail px-2 py-1 rounded border border-rose-500/30"
                 >
                   Cancel request
                 </button>
@@ -595,7 +595,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancelKey(c.continuityKey); }}
                   title="Stop this run"
                   aria-label="Stop this run"
-                  className="shrink-0 text-[11px] font-medium text-state-fail hover:text-state-fail px-2 py-1 rounded border border-rose-500/30"
+                  className="shrink-0 text-ui font-medium text-state-fail hover:text-state-fail px-2 py-1 rounded border border-rose-500/30"
                 >
                   Stop run
                 </button>
@@ -615,13 +615,13 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     the state is unmissable even while it's a static "Running" with
                     no per-step detail yet. */}
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="text-sm text-ink-100 truncate">{compact ? humanize(c.skillSlug) || 'Agent' : c.headline || humanize(c.skillSlug)}</div>
-                  <span className={`shrink-0 text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded border ${s.chipCls}`}>
+                  <div className="text-secondary text-ink-100 truncate">{compact ? humanize(c.skillSlug) || 'Agent' : c.headline || humanize(c.skillSlug)}</div>
+                  <span className={`shrink-0 text-secondary font-medium uppercase tracking-wide px-1.5 py-0.5 rounded border ${s.chipCls}`}>
                     {s.chip}
                   </span>
                 </div>
-                {compact&&c.headline&&<div className="text-[11px] text-ink-500 truncate">{c.headline}</div>}
-                <div className="text-[11px] text-ink-500 truncate">
+                {compact&&c.headline&&<div className="text-secondary text-ink-500 truncate">{c.headline}</div>}
+                <div className="text-secondary text-ink-500 truncate">
                   {!compact && c.headline ? `${humanize(c.skillSlug)} · ` : ''}
                   {/* HONEST ABOUT WHAT WE ACTUALLY KNOW. A card being held across
                       a lifecycle handoff, or through a read we couldn't make,
@@ -648,23 +648,23 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     flight RIGHT NOW. Only for a running chain that reports it —
                     a plain run (no step state) shows just "Running" as before. */}
                 {c.status === 'running' && c.totalSteps ? (
-                  <div className="text-[11px] font-medium text-state-ok truncate mt-0.5">
+                  <div className="text-secondary font-medium text-state-ok truncate mt-0.5">
                     Step {Math.min(c.currentStepIndex || 1, c.totalSteps)}/{c.totalSteps}
                     {c.currentStepLabel ? ` · ${c.currentStepLabel}` : ''}
                   </div>
                 ) : null}
                 {c.status === 'preparing_inputs' && c.totalBytes && c.totalBytes > 0 ? (
-                  <div className="text-[11px] font-medium text-state-needs mt-0.5">
+                  <div className="text-secondary font-medium text-state-needs mt-0.5">
                     {Math.min(100, Math.floor((Number(c.bytesRead || 0) / c.totalBytes) * 100))}% verified
                   </div>
                 ) : null}
                 {(['failed', 'start_failed', 'claim_expired'] as LiveStatus[]).includes(c.status) && c.failureReason ? (
-                  <div className="mt-1 text-[11px] text-state-fail leading-snug line-clamp-2">
+                  <div className="mt-1 text-secondary text-state-fail leading-snug line-clamp-2">
                     {visibleFailure(c.failureReason)}
                   </div>
                 ) : null}
                 {(['switching', 'resuming', 'fallback_blocked'] as LiveStatus[]).includes(c.status) && c.fallbackReason ? (
-                  <div className="mt-1 text-[11px] text-state-needs leading-snug line-clamp-2">
+                  <div className="mt-1 text-secondary text-state-needs leading-snug line-clamp-2">
                     {c.fallbackReason}{c.status === 'resuming' && c.resumeStep != null ? ` · Resuming from step ${c.resumeStep}` : ''}
                   </div>
                 ) : null}
@@ -749,7 +749,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                 <div className="mt-1.5 ml-7">
                   <Link
                     href={`/workflows/${encodeURIComponent(c.skillSlug!)}?tab=runs&retryRequest=${encodeURIComponent(c.requestId || '')}`}
-                    className="inline-block text-[11px] font-medium text-state-running hover:text-state-running px-2 py-1 rounded border border-sky-500/30"
+                    className="inline-block text-secondary font-medium text-state-running hover:text-state-running px-2 py-1 rounded border border-sky-500/30"
                   >
                     Retry from agent
                   </Link>
@@ -758,7 +758,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               {showPreparationRetry && (
                 <div className="mt-1.5 ml-7">
                   <Link href={`/workflows/${encodeURIComponent(c.skillSlug)}`}
-                    className="inline-block text-[11px] font-medium text-state-running hover:text-state-running px-2 py-1 rounded border border-sky-500/30">
+                    className="inline-block text-secondary font-medium text-state-running hover:text-state-running px-2 py-1 rounded border border-sky-500/30">
                     Select file and try again
                   </Link>
                 </div>
@@ -788,20 +788,20 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                           rather than reverting to a guess. */}
                       {c.attention?.summary ? (
                         <>
-                          <p className="text-[11px] font-medium text-state-needs leading-snug">
+                          <p className="text-reading font-medium text-state-needs ">
                             {c.attention.summary}
                           </p>
                           {c.attention.blockerMessage && (
-                            <p className="mt-1 text-[11px] text-state-needs leading-snug">
+                            <p className="mt-1 text-reading text-state-needs ">
                               Needs you: {c.attention.blockerMessage}
                             </p>
                           )}
                           {c.attention.nextAction && (
-                            <p className="mt-1 text-[11px] text-ink-500 leading-snug">{c.attention.nextAction}</p>
+                            <p className="mt-1 text-reading text-ink-500 ">{c.attention.nextAction}</p>
                           )}
                         </>
                       ) : (
-                        <p className="text-[11px] text-state-needs leading-snug">
+                        <p className="text-reading text-state-needs ">
                           This run stopped and needs you. Open it to see what Tukido found and what it needs —
                           the reason is on the run itself.
                         </p>
@@ -809,7 +809,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                       {c.runId && (
                         <Link
                           href={`/runs/${c.runId}`}
-                          className="mt-2 inline-block rounded-md border border-amber-500/40 px-3 py-1.5 text-[11px] font-medium text-state-needs hover:bg-amber-500/10 text-state-needs"
+                          className="mt-2 inline-block rounded-md border border-amber-500/40 px-3 py-1.5 text-secondary font-medium text-state-needs hover:bg-amber-500/10 text-state-needs"
                         >
                           {c.attention?.summary ? 'Open the run' : 'See what it needs'}
                         </Link>
@@ -817,7 +817,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     </>
                   ) : (
                     <>
-                      <p className="text-[11px] text-state-needs leading-snug">
+                      <p className="text-reading text-state-needs ">
                         On the same step a while — if it’s waiting on a permission to continue, you can approve it now.
                       </p>
                       <StuckRunButton
@@ -835,16 +835,16 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               )}
               {queuedWait && (
                 <div className="mt-1.5 ml-7 rounded-md border border-sky-500/25 bg-sky-500/[0.06] px-3 py-2.5">
-                  <p className="text-[11px] font-medium text-state-running leading-snug">
+                  <p className="text-reading font-medium text-state-running ">
                     {queuedWait.headline}
                   </p>
                   {/* Only ever the backend's own declared block — never a guessed cause. */}
                   {queuedWait.block && (
-                    <p className="mt-1 text-[11px] text-state-running leading-snug">
+                    <p className="mt-1 text-reading text-state-running ">
                       Blocked: {queuedWait.block}
                     </p>
                   )}
-                  <p className="mt-1 text-[11px] text-ink-500 leading-snug">{queuedWait.detail}</p>
+                  <p className="mt-1 text-reading text-ink-500 ">{queuedWait.detail}</p>
                 </div>
               )}
           </>);
@@ -879,7 +879,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           one answer. Standalone callers keep their own heading. */}
       {!bare && (
         <div className="flex items-baseline gap-2 mb-3">
-          <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Alerts' : 'Active Agents'} ({list.length})</h2>
+          <h2 className="text-ui font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Alerts' : 'Active Agents'} ({list.length})</h2>
         </div>
       )}
       {renderList ? renderList(renderedRows, liveStatus) : <div className="space-y-2">
@@ -889,7 +889,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
         <button
           type="button"
           onClick={() => setShowAll((v) => !v)}
-          className="text-xs text-ink-500 hover:text-ink-300 mt-2"
+          className="text-ui text-ink-500 hover:text-ink-300 mt-2"
         >
           {showAll ? 'Show less' : compact ? `More (${list.length - visibleLimit}) ↓` : `Load more (${list.length - 5})`}
         </button>
@@ -909,21 +909,21 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
             nothing and said nothing. Say what is actually true, and disable the
             action rather than letting it silently no-op. */}
         {confirmHeld ? (
-          <p className="text-sm text-ink-200 leading-relaxed">
+          <p className="text-reading text-ink-200 ">
             We&apos;ve lost sight of{' '}
             <span className="font-medium text-ink-50">{confirmCancel ? humanize(confirmCancel.skillSlug) : 'this run'}</span>{' '}
             for a moment and are re-checking its status. We won&apos;t stop a run whose
             current state we can&apos;t confirm — give it a few seconds and try again.
           </p>
         ) : isRunningCancel(confirmCancel) ? (
-          <p className="text-sm text-ink-200 leading-relaxed">
+          <p className="text-reading text-ink-200 ">
             This will stop{' '}
             <span className="font-medium text-ink-50">{confirmCancel ? humanize(confirmCancel.skillSlug) : 'this run'}</span>{' '}
             while it&apos;s running — your Claude wraps up at its next step instead of finishing.
             Work already done (and any credits already spent) can&apos;t be undone. You can run it again anytime.
           </p>
         ) : (
-          <p className="text-sm text-ink-200 leading-relaxed">
+          <p className="text-reading text-ink-200 ">
             This will cancel{' '}
             <span className="font-medium text-ink-50">{confirmCancel ? humanize(confirmCancel.skillSlug) : 'this run'}</span>{' '}
             before an executor begins work. If it was already claimed, this closes that claim without inventing a run. You can run it again anytime.
@@ -934,7 +934,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
             type="button"
             onClick={() => setConfirmCancelKey(null)}
             disabled={cancelBusy}
-            className="btn-outline text-sm px-4 py-2 disabled:opacity-50"
+            className="btn-outline text-ui px-4 py-2 disabled:opacity-50"
           >
             {confirmHeld ? 'Close' : 'Keep it'}
           </button>
@@ -943,7 +943,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               type="button"
               onClick={() => confirmCancel && doCancel(confirmCancel)}
               disabled={cancelBusy}
-              className="text-sm px-4 py-2 rounded-lg bg-action-danger text-[var(--on-action-danger)] hover:bg-action-danger-hover font-medium disabled:opacity-50"
+              className="text-ui px-4 py-2 rounded-lg bg-action-danger text-[var(--on-action-danger)] hover:bg-action-danger-hover font-medium disabled:opacity-50"
             >
               {cancelBusy ? (isRunningCancel(confirmCancel) ? 'Stopping…' : 'Cancelling…') : (isRunningCancel(confirmCancel) ? 'Stop run' : 'Cancel run')}
             </button>

@@ -36,7 +36,7 @@ export default async function ProficiencyPage({ searchParams }: { searchParams?:
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">
             How comfortable are you with Claude Code or Codex?
           </h1>
-          <p className="text-ink-300 text-sm mt-3 max-w-xl mx-auto">
+          <p className="text-ink-300 text-reading mt-3 max-w-xl mx-auto">
             No wrong answer. It just tells us how much to do for you versus get
             out of your way.
           </p>

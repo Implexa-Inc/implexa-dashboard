@@ -57,7 +57,7 @@ function formatRelative(iso: string | null): string {
 }
 
 function statusBadge(status: ScheduledSkill['status']) {
-  const base = 'inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded';
+  const base = 'inline-block text-micro font-semibold uppercase tracking-wider px-2 py-0.5 rounded';
   if (status === 'active') return <span className={`${base} bg-emerald-500/15 text-state-ok`}>active</span>;
   if (status === 'paused') return <span className={`${base} bg-amber-500/15  text-state-needs`}>paused</span>;
   return <span className={`${base} bg-rose-500/15 text-state-fail`}>failed</span>;
@@ -66,7 +66,7 @@ function statusBadge(status: ScheduledSkill['status']) {
 function overdueBadge() {
   return (
     <span
-      className="inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 text-state-needs"
+      className="inline-block text-secondary font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 text-state-needs"
       title="This routine has not run as expected. A local routine only fires while your machine is awake; consider a remote routine."
     >
       overdue
@@ -77,7 +77,7 @@ function overdueBadge() {
 // Loop-powered routines (watch/until) fire reactively in a /loop session, not
 // on a clock. They get a "live" badge instead of overdue tracking.
 function liveBadge(kind: 'watch' | 'until') {
-  const base = 'inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-violet-500/15 text-state-review';
+  const base = 'inline-block text-micro font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-violet-500/15 text-state-review';
   return (
     <span className={base} title={kind === 'watch' ? 'Reactive: runs when its event fires, via a Claude /loop session.' : 'Converging: re-runs until its condition is met, via a Claude /loop session.'}>
       ⚡ live · {kind}
@@ -138,7 +138,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
       <div className="flex items-start gap-4 flex-wrap">
         <div className="flex-1 min-w-[200px]">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="font-mono text-sm text-ink-100">{schedule.skill_slug}</span>
+            <span className="font-mono text-micro text-ink-100">{schedule.skill_slug}</span>
             {statusBadge(status)}
             {(schedule.trigger_type === 'watch' || schedule.trigger_type === 'until')
               ? liveBadge(schedule.trigger_type)
@@ -146,7 +146,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
             {workflow && <RemoteSafetyBadge safety={workflow.safety} size="xs" />}
           </div>
           {workflow && (
-            <div className="text-xs text-action-accent mt-1">
+            <div className="text-secondary text-action-accent mt-1">
               <Link
                 href={`/workflows/${encodeURIComponent(schedule.skill_slug)}?source=${encodeURIComponent(workflow.source)}`}
                 className="hover:underline"
@@ -155,25 +155,25 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
               </Link>
             </div>
           )}
-          <div className="text-sm text-ink-300 mt-1">
+          <div className="text-secondary text-ink-300 mt-1">
             {(schedule.trigger_type === 'watch' || schedule.trigger_type === 'until') ? (
               <>
                 {schedule.trigger_type === 'watch' ? 'Watches for: ' : 'Runs until: '}
                 <span className="text-ink-200">{schedule.watch_condition?.watch || schedule.watch_condition?.until || 'its condition'}</span>
                 <span className="text-ink-500"> · </span>
-                <span className="text-xs text-ink-500">fires in a Claude /loop session</span>
+                <span className="text-secondary text-ink-500">fires in a Claude /loop session</span>
               </>
             ) : (
               <>
                 {schedule.schedule_nl}
                 <span className="text-ink-500"> · </span>
-                <span className="text-xs font-mono text-ink-500">{schedule.cron_expression}</span>
+                <span className="text-micro font-mono text-ink-500">{schedule.cron_expression}</span>
                 <span className="text-ink-500"> · </span>
-                <span className="text-xs text-ink-500">{schedule.timezone}</span>
+                <span className="text-secondary text-ink-500">{schedule.timezone}</span>
               </>
             )}
           </div>
-          <div className="text-xs text-ink-400 mt-1">
+          <div className="text-secondary text-ink-400 mt-1">
             {destinationLabel(schedule.destination)}
             <span className="text-ink-500"> · </span>
             {schedule.run_count} run{schedule.run_count === 1 ? '' : 's'}
@@ -181,7 +181,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
             last: {formatRelative(schedule.last_run_at)}
           </div>
           {schedule.post_run_action?.type === 'publish-content' && (
-            <div className="text-xs text-action-accent mt-1" title={schedule.post_run_action.repo}>
+            <div className="text-secondary text-action-accent mt-1" title={schedule.post_run_action.repo}>
               ↳ publishes to{' '}
               <code className="bg-ink-900 px-1 py-0.5 rounded">
                 {(schedule.post_run_action.repo || '').split('/').filter(Boolean).pop() || 'repo'}
@@ -189,7 +189,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
             </div>
           )}
           {error && (
-            <div className="text-xs text-state-fail mt-2">Action failed: {error}</div>
+            <div className="text-secondary text-state-fail mt-2">Action failed: {error}</div>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -197,7 +197,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
             <button
               onClick={() => patch('paused')}
               disabled={pending !== null}
-              className="text-xs px-3 py-1.5 rounded border border-ink-700 text-ink-200 hover:bg-ink-800 disabled:opacity-50"
+              className="text-ui px-3 py-1.5 rounded border border-ink-700 text-ink-200 hover:bg-ink-800 disabled:opacity-50"
             >
               {pending === 'pause' ? 'Pausing…' : 'Pause'}
             </button>
@@ -206,7 +206,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
             <button
               onClick={() => patch('active')}
               disabled={pending !== null}
-              className="text-xs px-3 py-1.5 rounded border border-emerald-500/40 text-state-ok hover:bg-emerald-500/10 disabled:opacity-50"
+              className="text-ui px-3 py-1.5 rounded border border-emerald-500/40 text-state-ok hover:bg-emerald-500/10 disabled:opacity-50"
             >
               {pending === 'resume' ? 'Resuming…' : 'Resume'}
             </button>
@@ -214,7 +214,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
           <button
             onClick={del}
             disabled={pending !== null}
-            className="text-xs px-3 py-1.5 rounded border border-rose-500/40 text-state-fail hover:bg-rose-500/10 disabled:opacity-50"
+            className="text-ui px-3 py-1.5 rounded border border-rose-500/40 text-state-fail hover:bg-rose-500/10 disabled:opacity-50"
           >
             {pending === 'delete' ? 'Deleting…' : 'Delete'}
           </button>

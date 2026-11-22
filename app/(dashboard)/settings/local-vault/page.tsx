@@ -35,7 +35,7 @@ export default async function LocalVaultPage() {
           {/* Trust-true for v1: a granted agent process CAN use the key locally.
               Never claim agents structurally cannot see keys — that is the v2
               capability proxy, which does not exist yet. */}
-          <p className="app-page-description">
+          <p className="text-reading app-page-description">
             Your keys are encrypted on this Mac. Tukido doesn&apos;t upload them.
             Agents you approve can use them locally to call the provider.
           </p>
