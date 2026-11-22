@@ -20,7 +20,7 @@ function AgentRows({agents,recordingId,summary}:{agents:OwnedCoachAgent[];record
    {!recordingId&&facts&&<>
     <div className="coach-row-decisions">{facts.decisions.length===0&&facts.decisionsComplete?<span className="text-ink-400">Nothing waiting</span>:<span className="coach-decision-pill"><b>{coachingCount(facts.decisions.length,facts.decisionsComplete)}</b> to decide</span>}</div>
     <div className="coach-row-learnings" title={facts.liveLessons===null?'Live training unavailable':`${facts.liveLessons} live lessons`}><span><b>{facts.liveLessons===null?'?':facts.liveLessons}</b>{facts.lastTaughtAt?<> · taught <LocalTime iso={facts.lastTaughtAt}/></>:facts.liveLessons===null?' · Unknown':facts.liveLessons===0?' · Not taught yet':''}</span></div>
-    <div className="coach-row-marketplace"><span className={`coach-listing-pill ${facts.listing==='listed'?'listed':'idle'}`}>{({listed:'Listed',draft:'Draft listing',submitted:'In review',not_listed:'Not listed',unknown:'Unknown'})[facts.listing]}</span></div>
+    <div className="coach-row-marketplace"><span className={`coach-listing-pill ${facts.listing==='listed'?'listed':'idle'}`}>{({listed:'Listed',draft:'Draft listing',submitted:'In review',not_listed:'Not listed',public_not_submitted:'Public, not yet submitted for review',unknown:'Unknown'})[facts.listing]}</span></div>
    </>}
    <Link href={href} prefetch={false} className="btn-outline">{recordingId?'Choose agent':facts?.decisions.length?`Review ${coachingCount(facts.decisions.length,facts.decisionsComplete)}`:'Train'}</Link>
   </li>;

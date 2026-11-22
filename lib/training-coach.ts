@@ -1,6 +1,6 @@
 /** Display-only decision identities; existing action writers recheck authority. */
 export type CoachDecision={summary?:string;id:string;kind:'lesson'|'feedback'|'question'|'customer'|'agent_change';source:'record'|'review_issue'|'question'|'contribution'|'intake_plan'|'annotation_gap'|'recording_agent';sessionId:string|null;versionId:string;digest:string;createdAt:string};
-export type CoachAgent={id:string;slug:string;name:string;description:string|null;versionId:string|null;decisions:CoachDecision[];decisionsComplete:boolean;liveLessons:number|null;lastTaughtAt:string|null;listing:'listed'|'draft'|'submitted'|'not_listed'|'unknown'};
+export type CoachAgent={id:string;slug:string;name:string;description:string|null;versionId:string|null;decisions:CoachDecision[];decisionsComplete:boolean;liveLessons:number|null;lastTaughtAt:string|null;listing:'listed'|'draft'|'submitted'|'not_listed'|'public_not_submitted'|'unknown'};
 export type CoachPage={ok:true;contractVersion:'training-coach-decisions.v1';agents:CoachAgent[];complete:boolean};
 export type CoachRead={status:'ready';page:CoachPage}|{status:'unavailable'};
 const uuid=(v:unknown)=>typeof v==='string'&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v);
@@ -16,7 +16,7 @@ export function coachPage(value:unknown):CoachPage|null{
    ||typeof a.decisionsComplete!=='boolean'||a.liveLessons!==null&&(!Number.isSafeInteger(a.liveLessons)||a.liveLessons<0||a.liveLessons>200)
    ||(a.liveLessons===null||a.liveLessons===0)&&a.lastTaughtAt!==null
    ||a.lastTaughtAt!==null&&(typeof a.lastTaughtAt!=='string'||!Number.isFinite(Date.parse(a.lastTaughtAt)))
-   ||!['listed','draft','submitted','not_listed','unknown'].includes(a.listing)||!Array.isArray(a.decisions)||a.decisions.length>200)return null;
+   ||!['listed','draft','submitted','not_listed','public_not_submitted','unknown'].includes(a.listing)||!Array.isArray(a.decisions)||a.decisions.length>200)return null;
   seen.add(a.id);const ids=new Set();
   for(const d of a.decisions){
    const sources:Record<string,string[]>={lesson:['record'],feedback:['review_issue'],question:['question'],customer:['contribution'],agent_change:['intake_plan','annotation_gap','recording_agent']};

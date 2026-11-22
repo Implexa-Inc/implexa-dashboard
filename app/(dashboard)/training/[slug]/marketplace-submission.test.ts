@@ -32,12 +32,12 @@ test('included tool calculator shows 100 credits plus 20 percent as 1.20, separa
  assert.match(r.text(),/\$1\.20/);assert.match(r.text(),/Funding setup required/);await r.click(r.getByText('Preview listing'));assert.match(r.text(),/\$50\.00/);assert.match(r.text(),/\$1\.20 per run/);
  assert.equal(calls.some(c=>c.init.method==='POST'),false);
 });
-test('sample consent gates a single version-pinned review submission, not publication',async t=>{
+test('sample consent and explicit confirmation gate one version-pinned listing action',async t=>{
  const {r,calls}=await setup(t);
  const checks=Array.from(r.document.querySelectorAll('input[type="checkbox"]'));await r.click(checks[0]);await r.click(checks.at(-1)!);
- await r.click(r.getByText('Submit for review'));const posts=calls.filter(c=>c.init.method==='POST');assert.equal(posts.length,1);
+ await r.click(r.getByText('Submit for review'));assert.equal(calls.some(c=>c.init.method==='POST'),false);await r.click(r.getByText('Make public & submit'));const posts=calls.filter(c=>c.init.method==='POST');assert.equal(posts.length,1);
  const b=JSON.parse(posts[0].init.body);assert.equal(b.action,'submit');assert.equal(b.expectedRevision,0);assert.equal(b.bindingDigest,'b'.repeat(64));assert.equal(b.listing.sampleReleaseConsent,true);
- assert.match(r.text(),/Publication is a separate step/);assert.equal(calls.some(c=>/publication|sponsored|generate|credential/.test(c.url)),false);
+ assert.equal(b.makeListed,true);assert.match(r.text(),/agent is public and your listing is submitted/);assert.equal(calls.some(c=>/publication|sponsored|generate|credential/.test(c.url)),false);
 });
 test('an untested version can save a draft but cannot submit',async t=>{
  const {r,calls}=await setup(t,{canSubmit:false});assert.match(r.text(),/Test and publish this version/);
@@ -81,11 +81,11 @@ test('listing metadata works in the web app without a local recording bridge or 
  assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'Video studio');
 });
 
-test('owner can retract the approved beta listing without changing publication, training or sample consent',async()=>{
+test('owner takes down an approved listing through the single retract-and-private action',async()=>{
  const c:any=fixture();c.submission={id:'submission',revision:5};c.submissionReview={status:'ready',decision:'approved'};c.review={status:'ready',id:'review',submissionId:'submission',decision:'approved',visibility:'visible'};
  const calls:any[]=[];const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{fetch:(async(url:string,init:any={})=>{calls.push({url,init});return {ok:true,json:async()=>init.method==='POST'?{ok:true,reviewId:'retracted',decision:'owner_retracted'}:c};}) as typeof fetch});
- try{assert.match(r.text(),/approved for the beta marketplace/);await r.click(r.getByText('Remove beta listing'));
-  const posts=calls.filter(x=>x.init.method==='POST');assert.equal(posts.length,1);assert.deepEqual(JSON.parse(posts[0].init.body),{action:'retract',submissionId:'submission',expectedReviewId:'review'});assert.match(r.text(),/Removed from the beta marketplace/);assert.equal(calls.some(x=>/publication|generate|training-changes/.test(x.url)),false);
+ try{assert.match(r.text(),/approved for the beta marketplace/);await r.click(r.getByText('Take down listing'));await r.click(r.getByText('Take down'));
+  const posts=calls.filter(x=>x.init.method==='POST');assert.equal(posts.length,1);assert.deepEqual(JSON.parse(posts[0].init.body),{action:'retract',makePrivate:true,submissionId:'submission',expectedReviewId:'review'});assert.match(r.text(),/agent and samples are no longer listed/);assert.equal(calls.some(x=>/publication|generate|training-changes/.test(x.url)),false);
  }finally{r.cleanup();}
 });
 
@@ -105,7 +105,7 @@ test('owner may remove an earlier approved listing while a newer proposal is rej
  c.review={status:'ready',id:'approval',submissionId:'old',decision:'approved',visibility:'visible'};const posts:any[]=[];
  const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{fetch:(async(url:string,init:any={})=>{if(init.method==='POST')posts.push(JSON.parse(init.body));return {ok:true,json:async()=>init.method==='POST'?{ok:true,reviewId:'retraction',decision:'owner_retracted'}:c};}) as typeof fetch});t.after(()=>r.cleanup());
  assert.match(r.text(),/Revision 6 is kept off/);assert.match(r.text(),/earlier approved listing remains visible/);
- await r.click(r.getByText('Remove beta listing'));assert.equal(posts[0].submissionId,'old');assert.equal(posts[0].expectedReviewId,'approval');
+ await r.click(r.getByText('Take down listing'));await r.click(r.getByText('Take down'));assert.equal(posts[0].submissionId,'old');assert.equal(posts[0].expectedReviewId,'approval');
 });
 
 test('the Coach entry opens the listing page without loading private draft data',async t=>{
@@ -126,4 +126,23 @@ test('an unreadable initial draft has an explicit read-only retry',async t=>{
 test('the Coach entry preserves the trainer’s expected version in its link',async t=>{
  const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{exportName:'MarketplaceSubmissionEntry'});t.after(()=>r.cleanup());
  assert.equal(r.getByText('Prepare marketplace listing').getAttribute('href'),`/training/studio/listing?versionId=${V}`);
+});
+
+test('uploaded examples are explicitly labelled and cover order is the exact saved sample order',async t=>{
+ const c:any=fixture();c.tools=[];c.defaults.tools=[];c.samples=[1,2].map(n=>({id:`sample-${n}`,kind:'uploaded',name:`Example ${n}.mp4`,mediaType:'video/mp4',provenance:'trainer_uploaded',sha256:'a'.repeat(64),posterSha256:'b'.repeat(64),date:'2026-11-21'}));
+ const posts:any[]=[];const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{fetch:(async(_url:string,init:any={})=>{if(init.method==='POST')posts.push(JSON.parse(init.body));return {ok:true,json:async()=>init.method==='POST'?{ok:true,submission:{revision:1}}:c};}) as typeof fetch});t.after(()=>r.cleanup());
+ assert.match(r.text(),/Uploaded examples do not count as agent test proof/);assert.match(r.text(),/Trainer-provided example/);
+ const checks=r.document.querySelectorAll('input[type="checkbox"]');await r.click(checks[0]);await r.click(checks[1]);
+ const earlier=r.document.querySelector('[aria-label="Move Example 2.mp4 earlier"]')!;await r.click(earlier);
+ assert.match(r.document.querySelector('#listing-preview img')!.getAttribute('src')!,/id=sample-2/);
+ await r.click(r.getByText('Save draft'));assert.deepEqual(posts[0].listing.sampleIds,['sample-2','sample-1']);
+ assert.equal(posts[0].listing.sampleReleaseConsent,false);
+});
+
+test('removing an uploaded sample refreshes custody without discarding unsaved service edits',async t=>{
+ const c:any=fixture();const id='12000000-0000-4000-8000-000000000099';c.uploads=[{id,name:'Example.mp4',kind:'uploaded',state:'ready'}];c.samples=[{...c.uploads[0],sha256:'a'.repeat(64),posterSha256:'b'.repeat(64)}];c.defaults.sampleIds=[id];
+ let removed=false;const posts:any[]=[];const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{fetch:(async(url:string,init:any={})=>{if(init.method==='POST'){posts.push({url,body:JSON.parse(init.body)});if(url.includes('action=remove')){removed=true;return {ok:true,json:async()=>({ok:true})};}return {ok:true,json:async()=>({ok:true,submission:{revision:1}})};}return {ok:true,json:async()=>removed?{...c,samples:[],uploads:[],bindingDigest:'c'.repeat(64)}:c};}) as typeof fetch});t.after(()=>r.cleanup());
+ r.window.confirm=()=>true;await input(r,r.document.querySelector('input') as HTMLInputElement,'My unsaved service');await r.click(r.getByText('Remove stored upload'));
+ assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'My unsaved service');assert.equal(r.document.querySelector('#listing-preview img'),null);
+ await r.click(r.getByText('Save draft'));const saved=posts.find(x=>x.body.action==='save').body;assert.equal(saved.bindingDigest,'c'.repeat(64));assert.equal(saved.listing.name,'My unsaved service');assert.deepEqual(saved.listing.sampleIds,[]);assert.equal(saved.listing.sampleReleaseConsent,false);
 });

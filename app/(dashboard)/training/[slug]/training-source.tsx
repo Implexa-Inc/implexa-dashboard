@@ -269,9 +269,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const intakeReadEpoch=useRef(0);
   const [homeCheck,setHomeCheck]=useState<'pending'|'complete'|'unavailable'|'stale'|'idle'>('pending');
   function invalidateTrainingContinuity(){trainingAuthorityEpoch.current++;setActiveTraining(null);}
-  const [publication,setPublication]=useState<{versionId:string;shared:boolean;publicUrl:string}|null>(null);
-  const [publishConfirmed,setPublishConfirmed]=useState(false);
-  useEffect(()=>{setPublication(null);setPublishConfirmed(false);},[slug,currentVersion]);
+
   const [transitionConfirmed, setTransitionConfirmed] = useState(false);
   const [versionTransition, setVersionTransition] = useState<VersionTransition | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
@@ -677,24 +675,6 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     catch (caught) {
       if (!(caught instanceof TrainingError && caught.reason === 'selection_cancelled')) setError(caught instanceof Error ? caught.message : 'Training is unavailable.');
     } finally { busyRef.current = false; setBusy(''); }
-  }
-
-  async function changePublication(publish=false,makePrivate=false) {
-    if(publish&&(!publishConfirmed||!publication||publication.versionId!==currentVersion))return;
-    if(makePrivate&&(!publication||publication.versionId!==currentVersion))return;
-    const write=publish||makePrivate;
-    await work(publish?'Publishing the agent definition':makePrivate?'Making the agent private':'Checking public visibility',async()=>{
-      const response=await fetch(`/api/agent-training/publication?slug=${encodeURIComponent(slug)}`,{
-        method:write?'POST':'GET',cache:'no-store',...(write?{headers:{'Content-Type':'application/json'},
-          body:JSON.stringify(makePrivate?{expectedVersionId:publication!.versionId,makePrivate:true}:{expectedVersionId:publication!.versionId,definitionOnlyConfirmed:true})}:{})});
-      const result=await response.json();
-      if(!response.ok||result.ok!==true)throw new Error(result.error||reasonLabel(result.reason||'agent_publication_unavailable'));
-      if(write){setPublication(prior=>prior?{...prior,shared:publish}:prior);setPublishConfirmed(false);return;}
-      const p=result.publication;
-      if(!p||p.versionId!==currentVersion||typeof p.shared!=='boolean'||typeof p.publicUrl!=='string'
-        ||!p.publicUrl.startsWith('https://'))throw new Error('Publication status does not match the current agent version.');
-      setPublication({versionId:p.versionId,shared:p.shared,publicUrl:p.publicUrl});setPublishConfirmed(false);
-    });
   }
 
   function rememberList(result: Result) {
@@ -2237,18 +2217,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     <div hidden={!installationId&&view!=='settings'} className={`space-y-6 ${legacyControls}`}>
     <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be stopped for new runs or have permission withdrawn.</p>
     {!installationId&&changes?.publication.canPrepare&&<button type="button" className="btn-primary" disabled={!!busy||changesBusy||versionChanged} onClick={()=>setPublicationReviewOpen(true)}>Review public version</button>}
-    {!installationId && !changes?.publication.canPrepare&&<section className="rounded border border-ink-700 p-4 space-y-3" aria-label="Public agent definition">
-      <h2 className="font-semibold">Public agent definition</h2>
-      <p>Let other people use this agent’s steps and input requirements. It will appear on Tukido’s public site and in community search. Your recordings, run outputs, feedback and private teachings are not published by this action. Sharing selected teachings requires a separate release.</p>
-      <button disabled={!!busy||!currentVersion} onClick={()=>changePublication()}>Check public visibility</button>
-      {publication&&<><p>{publication.shared?'This agent definition is public.':'This agent definition is private.'}</p>
-        {publication.shared?<><a href={publication.publicUrl} target="_blank" rel="noreferrer">Open public agent</a>
-          <button disabled={!!busy||publication.versionId!==currentVersion} onClick={()=>changePublication(false,true)}>Make agent private</button></>:<>
-          <label className="flex gap-3"><input type="checkbox" checked={publishConfirmed} disabled={!!busy} onChange={event=>setPublishConfirmed(event.target.checked)}/>Publish this agent definition for other people to use. I have reviewed its steps and inputs for private information.</label>
-          <button disabled={!!busy||!publishConfirmed||publication.versionId!==currentVersion} onClick={()=>changePublication(true)}>Make agent public</button>
-        </>}
-      </>}
-    </section>}
+    {!installationId&&<Link className="btn-outline" href={`/training/${encodeURIComponent(slug)}/listing${currentVersion?`?versionId=${encodeURIComponent(currentVersion)}`:''}`}>Manage marketplace listing and visibility</Link>}
     {installationId && <p>Only your installation can select these preferences. The trainer’s agent and teachings stay unchanged. Images remain on this Mac. Review suggested wording before admitting it; keep your exact feedback separately and label any agent-written options.</p>}
     {suggestionNote && <p role="status">{suggestionNote}</p>}
     {!installationId && (changes?.publication.canPrepare?<TrainingDetails title="Advanced image custody and fork permissions" open={!!forkPermission}><PublisherTeachingRelease slug={slug} versionId={currentVersion} forkPermission={forkPermission}/></TrainingDetails>:<PublisherTeachingRelease slug={slug} versionId={currentVersion} forkPermission={forkPermission}/>)}

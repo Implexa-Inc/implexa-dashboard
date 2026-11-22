@@ -628,3 +628,12 @@ html, body {
 .training-learned{padding-top:24px;border-top:1px solid var(--border-subtle)}.training-learned-row{display:flex;align-items:center;gap:16px;padding:16px 0;border-bottom:1px solid var(--border-subtle);font-size:13px;line-height:1.7}.training-learned-row>div{flex:1;min-width:0}.training-learned-row>button{font-size:11px;text-decoration:underline;color:var(--text-muted)}
 
 .training-chat-starters{display:flex;align-items:flex-start;flex-direction:column;gap:10px}.training-chat-starters>p{margin-bottom:4px;color:var(--text-muted)}.training-chat-starters>button{padding:9px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-surface);text-align:left;font-size:12px;line-height:1.6;color:var(--text-body)}.training-chat-starters>button:hover{border-color:var(--border-control)}
+
+/* Listing replaces the old unstructured submission form; shared modal owns interruptions. */
+.listing-layout { grid-template-columns:minmax(0,1fr) 340px;gap:28px; }
+.listing-layout fieldset {min-width:0;}
+.listing-layout .card>h2 {display:flex;align-items:center;gap:12px;margin-bottom:20px;}
+.listing-save-bar {position:sticky;bottom:0;z-index:5;background:var(--bg-surface);padding:16px 0;}
+@media(max-width:1100px){.listing-layout{grid-template-columns:minmax(0,1fr);}.listing-save-bar{position:static;}}
+
+.listing-step-number{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:28px;border:1px solid var(--border-subtle);border-radius:50%;font-size:14px;color:var(--text-muted);}.listing-step-number.complete{background:var(--state-ok-bg);color:var(--state-ok-fg);border-color:var(--state-ok-dot);}
