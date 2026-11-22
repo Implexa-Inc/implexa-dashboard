@@ -11,7 +11,7 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
   mediaRef: RefObject<HTMLMediaElement>;
   mediaKey: string;
   variant?: 'teaching'|'finished';
-  timeline?: ReactNode;
+  timeline?: ReactNode|((clock:{durationMs:number;playheadMs:number})=>ReactNode);
   trailingAction?: ReactNode;
   onSeek: (ms: number) => void;
   children: ReactNode | ((revealOutside: (action: () => void) => void) => ReactNode);
@@ -128,7 +128,7 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
     >
       {typeof children === 'function' ? children(revealOutside) : children}
       <div data-testid="playback-controls" role="group" aria-label="Playback controls" className="playback-deck space-y-3 rounded-b border border-ink-700 bg-ink-900 p-4">
-        {timeline}
+        {typeof timeline==='function'?timeline({durationMs:Math.round(state.duration*1000),playheadMs:Math.round(state.time*1000)}):timeline}
         <input
           type="range" aria-label="Seek video" min={0} max={state.duration || 0} step="any"
           value={Math.min(state.time, state.duration)} disabled={!state.duration}

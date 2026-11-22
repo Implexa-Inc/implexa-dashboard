@@ -1,8 +1,9 @@
 import {createClient} from '@/lib/supabase/server';
 import {redirect} from 'next/navigation';
-import TrainingSource from './training-source';
+import {TrainingRouteConfig} from './training-route-host';
 import {getAgentDetail,agentActionContext} from '@/lib/agent-detail';
 import {getReviewPacket} from '@/lib/review';
+import {trainingAnnotationHref} from '@/lib/training-annotation-routing';
 import type {TrainingRun} from './training-workspace';
 export default async function Page({params,searchParams}:{params:{slug:string};searchParams?:{installationId?:string;forkId?:string;forkParentVersionId?:string;recordingId?:string;momentId?:string;annotateRecording?:string;chat?:string}}) {
  const supabase=createClient();
@@ -16,6 +17,8 @@ export default async function Page({params,searchParams}:{params:{slug:string};s
  if((forkId!==undefined||parentVersionId!==undefined)&&(!uuid(forkId)||!uuid(parentVersionId)||installationId!==undefined))return <main>Fork permission review unavailable.</main>;
  if((recordingId!==undefined||momentId!==undefined)&&(!uuid(recordingId)||(momentId!==undefined&&!uuid(momentId))||installationId!==undefined))return <main>Recording selection unavailable.</main>;
  if(annotateRecording!==undefined&&!uuid(annotateRecording))return <main>Recording unavailable.</main>;
+ if(annotateRecording)redirect(trainingAnnotationHref(params.slug,{kind:'recording',recordingId:annotateRecording}));
+ if(recordingId)redirect(trainingAnnotationHref(params.slug,{kind:'recording',recordingId,...(momentId?{momentId}:{})}));
  const forkPermission=forkId&&parentVersionId?{lineageId:forkId,parentVersionId}:undefined;
  if(installationId!==undefined&&!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(installationId))return <main>Private preferences unavailable.</main>;
  // Reuse the existing owner-scoped agent/read and Review Room artifact contracts.
@@ -27,5 +30,5 @@ export default async function Page({params,searchParams}:{params:{slug:string};s
   const artifact=packet.live&&packet.run?.id===run.id&&packet.run.slug===params.slug?packet.artifacts.find(a=>a.runId===run.id&&a.role==='final_output'&&a.status==='validated'&&a.sha256&&/\.(mp4|png|jpe?g|webp)$/i.test(a.relativePath))||null:null;
   return {id:run.id,date:run.ran_at,status:run.state.label,artifact};
  }));
- return <TrainingSource key={`${params.slug}:${installationId||'owner'}:${user.id}`} slug={params.slug} familyId={detail?.status==='ready'?detail.detail.workflow.id:undefined} ownerId={user.id} runContext={installationId?undefined:agentActionContext(detail||{status:'unavailable'})} initialRecordingId={annotateRecording} initialChat={searchParams?.chat==='edit'} lastRunId={recentRuns[0]?.id} recentRuns={recentRuns} runsUnavailable={runsUnavailable} recordingSelection={recordingId?{recordingId,momentId:momentId||null}:undefined} installationId={installationId} forkPermission={forkPermission}/>;
+ return <TrainingRouteConfig value={{slug:params.slug,familyId:detail?.status==='ready'?detail.detail.workflow.id:undefined,ownerId:user.id,runContext:installationId?undefined:agentActionContext(detail||{status:'unavailable'}),initialRecordingId:annotateRecording,initialChat:searchParams?.chat==='edit',lastRunId:recentRuns[0]?.id,recentRuns,runsUnavailable,installationId,forkPermission}}/>;
 }

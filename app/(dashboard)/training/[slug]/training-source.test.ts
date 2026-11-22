@@ -3,11 +3,64 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
+import {extractionProgressFor,checkpointExtraction,saveFeedbackAnnotation} from '../../../../lib/training-feedback-extraction.ts';
 import { guidedTrainingChanges } from '../../../../lib/guided-training-changes.ts';
-import { render, type Rendered } from '../../../../lib/test/render.ts';
+import { render as renderBase, type Rendered } from '../../../../lib/test/render.ts';
 import { isTrainingEvidenceStorage, deriveTrainingStages, formatTrainingTime, isManagerTrainingCoverage, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_PROPERTY_CODES, TRAINING_RELATIONS, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
 import {toolSuggestionFrame,TOOL_FRAME_RECIPE_DIGEST} from '../../../../lib/training-teaching-draft.ts';
 import { questionsPage, questionOutcomeLabel, questionExcerpt, validAnswerBody, answerReceipt } from '../../../../lib/trainer-questions.ts';
+
+const sourceProps=new WeakMap<Rendered,Record<string,any>>();
+/** The real shared layout retains this controller when a child annotation route changes. */
+async function render(...args:Parameters<typeof renderBase>):Promise<Rendered>{
+ if(args[0]==='../training/[slug]/training-source.tsx'&&args[1].initialRecordingId&&!args[1].annotationTarget)args[1]={...args[1],annotationTarget:{kind:'recording',recordingId:args[1].initialRecordingId}};
+ const r=await renderBase(...args);r.window.cancelAnimationFrame=id=>r.window.clearTimeout(id);if(args[0]!=='../training/[slug]/training-source.tsx')return r;
+ let props=args[1];sourceProps.set(r,props);const click=r.click,rerender=r.rerender;
+ r.rerender=async next=>{props=next;sourceProps.set(r,props);await rerender(next);};
+ r.click=async element=>{
+  const before=r.calls.push.length;const anchor=element.closest('a[href]') as HTMLAnchorElement|null;await click(element);if(anchor&&r.calls.push.length===before&&!r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'))r.calls.push.push(anchor.getAttribute('href')!);
+  const href=r.calls.push.length>before?r.calls.push.at(-1):null;if(!href)return;
+  const url=new URL(href,'https://dashboard.test'),parts=url.pathname.split('/').filter(Boolean);
+  if(parts[0]!=='training'||parts[1]!==props.slug)return;
+  let annotationTarget:any;
+  if(parts[2]==='review')annotationTarget={kind:'result',...(parts[3]==='issues'?{issueId:parts[4]}:{runId:parts[3]}),...(url.searchParams.get('artifact')?{artifactId:url.searchParams.get('artifact')}:{})};
+  else if(parts[2]==='annotate')annotationTarget=parts[3]==='feedback'?{kind:'feedback',annotationId:parts[4],annotationDigest:url.searchParams.get('digest'),sessionId:url.searchParams.get('sessionId')}:parts[3]==='recordings'?{kind:'recording',recordingId:parts[4],...(url.searchParams.get('sessionId')?{sessionId:url.searchParams.get('sessionId'),sourceId:url.searchParams.get('sourceId')}:{}) ,analyze:url.searchParams.get('analyze')==='1'}:{kind:'image',sourceId:parts[3],sessionId:url.searchParams.get('sessionId'),...(url.searchParams.get('feedback')?{feedback:url.searchParams.get('feedback')}:{}) ,details:url.searchParams.get('details')==='1'};
+  else if(parts.length!==2)return;
+  await r.rerender({...props,annotationTarget});
+ };
+ return r;
+}
+
+/** A negotiated producer capability, independent of any teaching authority. */
+async function enableQueueReadiness(r:Rendered,queued?:any[]){
+ const props=sourceProps.get(r)!;const family=props.familyId||RECORD,prior=r.window.fetch;
+ r.window.fetch=(async(url:any,init:any={})=>{
+  if(String(url).includes('/agent-training/coach?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v2',savedFeedbackReady:true,complete:true,agents:[{id:family,slug:props.slug,name:'Video craft',description:null,versionId:VERSION_A,decisionsComplete:true,liveLessons:0,lastTaughtAt:null,listing:'not_listed',decisions:[]}]})};
+  if(String(url).includes('/teaching-suggestion?')&&init.method==='POST'){
+   const body=JSON.parse(init.body);if(body.action==='queue'){queued?.push(body);return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-queue.v1',annotationId:body.annotationId,annotationDigest:body.annotationDigest,eventId:QUESTION})};}
+  }
+  return prior(url,init);
+ }) as typeof fetch;
+ await r.rerender({...props,familyId:family});await r.act(()=>new Promise(resolve=>setTimeout(resolve,25)));
+}
+/** Open the canonical receipt returned by the save writer, as the authenticated
+ * full-page route does. Provider fakes never answer this separate owner read. */
+async function reopenCanonicalFeedback(r:Rendered){
+ let progress:any;
+ for(let i=0;i<r.window.localStorage.length;i++){const key=r.window.localStorage.key(i)!;if(key.startsWith('implexa:training-extraction:v1:')){const candidate=JSON.parse(r.window.localStorage.getItem(key)!).progress;if(candidate.annotation&&!candidate.linked)progress=candidate;}}
+ assert.ok(progress?.annotation,'a canonical note must have been saved before extraction');const a=progress.annotation;
+ const prior=r.window.fetch;r.window.fetch=(async(url:any,init:any={})=>{
+  if(String(url).includes('/teaching-suggestion?')&&String(url).includes('operation=annotation')&&init.method!=='POST')return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:a.annotationId,annotationDigest:a.annotationDigest,annotation:{contractVersion:'training-demo-annotation.v1',sourceId:a.sourceId,sourceSha256:a.sourceSha256,timeMs:a.timeMs,frameSha256:a.frameSha256,rawAnnotation:a.rawAnnotation,targetVersionId:a.expectedActiveVersionId}})};
+  return prior(url,init);
+ }) as typeof fetch;
+ await r.rerender({...sourceProps.get(r),annotationTarget:{kind:'feedback',annotationId:a.annotationId,annotationDigest:a.annotationDigest,sessionId:SESSION}});
+ await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));
+}
+async function beginSavedFeedbackExtraction(r:Rendered){
+ const done=[...r.document.querySelectorAll('button')].find(button=>button.textContent==='Done teaching');
+ if(done){await enableQueueReadiness(r);await r.click([...r.document.querySelectorAll('button')].find(button=>button.textContent==='Done teaching')!);await reopenCanonicalFeedback(r);}
+ await r.click(r.getByText('Extract training'));const consent=r.document.querySelector('[role="dialog"][aria-label="Find training and agent improvements?"]')!;assert.ok(consent);await r.click(consent.querySelector('button.btn-primary')!);
+}
 
 test('Training chat enters the existing recording flow only after its separate consent, never auto-edits or admits',async()=>{
  const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal,requests:any[]=[];
@@ -33,14 +86,14 @@ test('Training chat enters the existing recording flow only after its separate c
  }) as typeof r.window.fetch;
  const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
  try{
-  await r.click(r.getByText('Annotate source')); // Conversation is now embedded and already open.
-  const area=r.getByText('Message AI').closest('label')!.querySelector('textarea')!;await setTextarea(r,area,'Please analyze this tool method.');
+  await r.click(r.getByText('Annotate source'));await r.click(r.getByText('← Train'));await flush();
+  const area=r.document.querySelector('#training-chat-message')!;await setTextarea(r,area,'Please analyze this tool method.');
   await r.click(Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Send')!);await flush();
   const action=()=>Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Analyze the recording’s tool method')!;
   await r.click(action());await flush();assert.equal(recordings,0);assert.equal(requests.length,1);
   assert.match(r.text(),/Chat has not sent the recording or started analysis/);
   await r.click(r.getByText(/Separately analyze tool use/).closest('label')!.querySelector('input')!);
-  await r.click(action());await flush();assert.equal(recordings,1);
+  await r.click(r.getByText('Suggest tool and method update'));await flush();assert.equal(recordings,1);
   assert.equal(requests.filter(x=>x.b.mode==='recording-agent-locate').length,1);
   assert.equal(requests.some(x=>String(x.url).includes('operation=agent-change')),false);
   assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
@@ -430,7 +483,7 @@ test('an answered question becomes an actual evidence draft link, not automatic 
     await rendered.click(rendered.getByText('Review before accepting'));
     await rendered.click(rendered.getByText(/I reviewed this exact frame and decision/).closest('label')!.querySelector('input')!);
     await rendered.click(rendered.getByText('Accept this exact decision'));
-    assert.match(rendered.text(), /Taught — currently eligible, not proof of selection or application/);
+    assert.equal(calls.filter(c=>c.operation==='accept').length,1); // Review history is on Train, not duplicated inside annotation.
   } finally { rendered.cleanup(); }
 });
 
@@ -442,10 +495,8 @@ test('failed answer linking retries the saved teaching identity without another 
     await rendered.click(rendered.getByText('Preview this exact frame')); await fillManualTeaching(rendered); await rendered.click(rendered.getByText('Save decision draft'));
     assert.match(rendered.text(), /evidence draft is preserved/i);
     rendered.window.requestAnimationFrame=callback=>rendered.window.setTimeout(()=>callback(0),0);rendered.window.Element.prototype.scrollIntoView=()=>{};
-    await rendered.click(rendered.getByText('Review saved work →'));
-    await rendered.act(()=>new Promise(resolve=>setTimeout(resolve,20)));
-    assert.equal(rendered.getByText('Retry answer links').closest('[hidden]'),null);
-    await rendered.click(rendered.getByText('Retry answer links'));
+    assert.equal(rendered.getByText('Retry saving this answer').closest('[hidden]'),null);
+    await rendered.click(rendered.getByText('Retry saving this answer'));
     const posts = requests.filter(r => r.body); assert.equal(posts.length, 2);
     assert.deepEqual(posts[0].body, posts[1].body); assert.equal(posts[0].key, posts[1].key);
     assert.equal(calls.filter(c => c.operation === 'annotate').length, 1);
@@ -602,11 +653,11 @@ test('source and session identities, exact time input and accessible range value
     assert.match(rendered.text(), /Active version: 11111111 · Session version: 11111111/);
     assert.match(rendered.text(), /approved-edit.mp4Video · 11:50.667Annotate sourceSource details1920×1080 · SHA-256 bbbbbbbb/);
     await rendered.click(rendered.getByText('Annotate source'));
-    const range = rendered.document.querySelector('input[type="range"]')!;
+    const range = rendered.document.querySelector('input[type="range"][aria-valuetext]')!;
     assert.equal(range.getAttribute('aria-valuetext'), '00:00.000');
     const exact = rendered.document.querySelector('input[type="number"]')!;
     await setInput(rendered, exact, '83125');
-    assert.equal(rendered.document.querySelector('input[type="range"]')!.getAttribute('aria-valuetext'), '01:23.125');
+    assert.equal(rendered.document.querySelector('input[type="range"][aria-valuetext]')!.getAttribute('aria-valuetext'), '01:23.125');
     assert.match(rendered.text(), /Selected time 01:23.125 of 11:50.667/);
   } finally { rendered.cleanup(); }
 });
@@ -615,12 +666,12 @@ test('active-version drift is detected before evidence access and blocks the old
   const { rendered, calls, setCurrentVersion } = await renderedWith();
   try {
     await rendered.click(rendered.getByText('Annotate source'));
-    setCurrentVersion(VERSION_B);
+    const before=calls.filter(call=>call.operation==='preview').length;setCurrentVersion(VERSION_B);
     await rendered.click(rendered.getByText('Preview this exact frame'));
     assert.match(rendered.text(), /active agent version changed/i);
     assert.match(rendered.text(), /Your saved training is preserved/);
-    assert.equal(calls.some((call) => call.operation === 'preview'), false, 'no local frame is disclosed after version drift');
-    assert.equal((rendered.getByText('Add training source') as HTMLButtonElement).disabled, true);
+    assert.equal(calls.filter(call=>call.operation==='preview').length,before,'no further local frame is disclosed after version drift');
+    assert.equal((rendered.getByText('Save decision draft') as HTMLButtonElement).disabled,true);
   } finally { rendered.cleanup(); }
 });
 
@@ -1636,28 +1687,7 @@ test('server image custody uses an explicit separate consent and shows withdrawa
  }finally{r.cleanup();}
 });
 
-test('saved recording handoff preserves raw moment notes, previews the exact frame and never auto-admits',async()=>{
- const h=harness();const notes=JSON.stringify({recordingId:RECORD,moment:{card:{whatToDo:' Keep\nthis ',why:'why',insteadOf:'instead',howToCheck:'check',whenNot:'never'}}});
- const calls:Call[]=[];
- const b={...h.bridge,trainingRecordingLibraryContractVersion:'1',trainingLocal:async(operation:string,args:unknown)=>{
-  if(operation==='selectRecording'){calls.push({operation,args:args as Record<string,unknown>});return {ok:true,sourceId:SOURCE_ID,token:TOKEN,recordingDraft:{recordingId:RECORD,momentId:RECORD,timeMs:100,rawAnnotation:notes}};}
-  return h.bridge.trainingLocal(operation,args);
- }};
- const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:VERSION_A,recordingSelection:{recordingId:RECORD,momentId:RECORD}},{bridge:b});
- try{
-  await r.act(()=>{});await r.click(r.getByText(/I created this source and consent/).closest('label')!.querySelector('input')!);
-  await r.click(r.getByText('Use selected recording'));
-  assert.equal(calls.length,1);assert.equal(calls[0].args.expectedOwnerId,VERSION_A);
-  assert.equal(calls[0].args.recordingId,RECORD);assert.equal(Object.hasOwn(calls[0].args,'selectedPath'),false);
-  const annotation=[...r.document.querySelectorAll('textarea')].find(value=>value.value===notes);assert.ok(annotation,'all original fields and whitespace survive as raw annotation');
-  assert.deepEqual(h.calls.filter(c=>c.operation==='preview').map(c=>JSON.parse(JSON.stringify(c.args))),[{token:TOKEN,timeMs:100}]);
-  assert.equal(h.calls.some(c=>['annotate','accept','recording'].includes(c.operation)),false,'preview does not infer or admit');
-  assert.match(r.text(),/Preview this exact frame/);
- }finally{r.cleanup();}
-});
 
-// Behavior change: owner Training starts with a progressive workspace; the
-// original save/admission tests above still exercise the existing handlers.
 test('a newly created agent can explicitly open private chat without adding a source or calling analysis',async()=>{
  const h=harness({successorParentSessionId:null}),base=h.bridge.trainingLocal;
  h.bridge.trainingLocal=async(operation,args)=>{
@@ -1742,7 +1772,7 @@ test('choosing a source from history returns to teaching without changing the sa
   await r.click(r.getByText('Annotate source'));
   assert.equal(r.document.getElementById('recording-analysis')!.closest('[hidden]'),null);
   const wording=r.getByText('Advanced manual teaching').closest('details')!;assert.equal(wording.open,false,'empty structured wording is not imposed on the normal annotation path');
-  assert.equal(r.getByText('Manage marketplace listing and visibility').closest('[hidden]')!==null,true);
+  assert.equal(r.queryByText('Manage marketplace listing and visibility'),null);assert.equal(r.document.querySelector('#training-companion'),null);
   assert.equal(h.calls.some(c=>['annotate','accept','recording'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
@@ -1790,17 +1820,17 @@ test('earlier learning versions are read-only and never replace the active editi
 });
 
 
-test('direct upload opens its exact initial frame inline after per-source consent, without analysis',async()=>{
+test('direct upload opens the full-page annotation route after source consent, without analysis',async()=>{
  const h=await renderedWith(),r=h.rendered;
  try{
   await chooseDirectUpload(r);
   assert.ok(r.document.querySelector('#recording-analysis'));
-  assert.ok(r.document.querySelector('#recording-analysis')!.closest('[hidden]'),'legacy decision form is hidden behind the shared annotation player');
+  assert.ok(r.document.querySelector('#recording-analysis')!.closest('details'),'manual fields are tucked into More options');
   assert.ok(r.document.querySelector('[aria-label="Teach from an image"]'));
   assert.equal(h.calls.filter(c=>c.operation==='select').length,1);
   assert.deepEqual(JSON.parse(JSON.stringify(h.calls.filter(c=>c.operation==='preview').map(c=>c.args))),[{token:TOKEN,timeMs:0}]);
-  assert.equal(h.calls.some(c=>['recording','annotate','accept'].includes(c.operation)),false);assert.equal(r.calls.push.length,0);
-  assert.equal(r.document.querySelector('[alt="Training source frame at 00:00.000"]')?.getAttribute('src'),PNG);
+  assert.equal(h.calls.some(c=>['recording','annotate','accept'].includes(c.operation)),false);assert.equal(r.calls.push.at(-1),`/training/video-craft/annotate/${SOURCE_ID}?sessionId=${SESSION}`);
+  assert.equal(r.document.querySelector('[alt="Your training example"]')?.getAttribute('src'),PNG);
  }finally{r.cleanup();}
 });
 
@@ -1879,11 +1909,6 @@ test('cancelling direct upload stays in Training and never previews or calls ana
 });
 
 
-test('Upload on a recording handoff still opens a fresh file, not the old recording',async()=>{
- const h=harness();
- const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,recordingSelection:{recordingId:SOURCE_ID,momentId:null}},{bridge:h.bridge});
- try{await chooseDirectUpload(r);assert.equal(h.calls.filter(c=>c.operation==='select').length,1);assert.equal(h.calls.some(c=>c.operation==='selectRecording'),false);assert.equal(r.calls.push.length,0);}finally{r.cleanup();}
-});
 
 test('cancelled or rejected upload preserves a draft even after confirming discard',async()=>{
  for(const reason of ['selection_cancelled','training_source_unavailable']){
@@ -1894,43 +1919,24 @@ test('cancelled or rejected upload preserves a draft even after confirming disca
    await r.click(r.getByText('Annotate source'));await fillManualTeaching(r);
    const annotation=r.getByText('What should this demonstration teach?').closest('label')!.querySelector('textarea')!;
    await setTextarea(r,annotation,'Keep this unfinished annotation.');
-   await r.click(r.getByText('↑ Upload'));
+   await r.click(r.getByText('← Train'));await r.click(r.document.querySelector('button.btn-danger')!);await r.click(r.getByText('↑ Upload'));
    const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;
    for(const checkbox of Array.from(dialog.querySelectorAll('input[type=checkbox]')))await r.click(checkbox);
    await r.click(r.getByText('Open as reference'));
-   assert.equal(annotation.value,'Keep this unfinished annotation.');
+   await r.click(r.getByText('Annotate source'));assert.equal((r.getByText('What should this demonstration teach?').closest('label')!.querySelector('textarea') as HTMLTextAreaElement).value,'Keep this unfinished annotation.');
    assert.equal((r.getByText('Example details').closest('label')!.querySelector('textarea') as HTMLTextAreaElement).value,'Spatial illustration');
-   assert.equal(r.calls.push.length,0);assert.equal(h.calls.some(c=>c.operation==='preview'),false);
+   assert.ok(r.calls.push.at(-1)?.includes('/annotate/'));assert.equal(h.calls.filter(c=>c.operation==='preview').length,1,'reopening the same unmodified frame does not replace the draft');
   }finally{r.cleanup();}
  }
 });
 
-test('recording handoff cannot overwrite the current source draft when source switching is blocked',async()=>{
- const h=harness(),original=h.bridge.trainingLocal,other={...source(),sourceId:RECORD,token:RECORD};
- Object.assign(h.bridge,{trainingRecordingLibraryContractVersion:'1'});
- h.bridge.trainingLocal=async(op,args)=>{
-  if(op==='selectRecording')return {ok:true,sourceId:RECORD,token:RECORD,recordingDraft:{recordingId:RECORD,momentId:null,timeMs:2500,rawAnnotation:'Notes for the other recording.'}};
-  const result=await original(op,args);if(op==='list')result.sources=[...(result.sources||[]),other];return result;
- };
- const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,recordingSelection:{recordingId:RECORD,momentId:null}},{bridge:h.bridge});
- try{
-  await r.click(Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Annotate source')!);await fillManualTeaching(r);
-  const annotation=r.getByText('What should this demonstration teach?').closest('label')!.querySelector('textarea')!;
-  await setTextarea(r,annotation,'Source A draft.');
-  const panel=r.document.querySelector('#training-demonstration')!;
-  await r.click(panel.querySelector('input[type=checkbox]')!);await r.click(r.getByText('Use selected recording'));
-  assert.match(r.text(),/Save or discard your current annotation/);assert.equal(annotation.value,'Source A draft.');
-  await r.click(r.getByText('Preview this exact frame'));
-  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.filter(c=>c.operation==='preview').map(c=>c.args))),[{token:TOKEN,timeMs:0}]);
- }finally{r.cleanup();}
-});
 
 test('a confirmed source replacement clears its old draft but preserves the recorded question answer',async()=>{
  const h=await renderedWith(),r=h.rendered;
  try{
   const requests=questionTransport(r,h.calls);await prepareAnswer(r);
   await r.click(r.getByText('Annotate source'));await fillManualTeaching(r);
-  await r.click(r.getByText('↑ Upload'));
+  await r.click(r.getByText('← Train'));await r.click(r.document.querySelector('button.btn-danger')!);await r.click(r.getByText('↑ Upload'));
   const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;
   for(const checkbox of Array.from(dialog.querySelectorAll('input[type=checkbox]')))await r.click(checkbox);
   await r.click(r.getByText('Choose video or image'));
@@ -2082,7 +2088,7 @@ test('inline recording analysis waits for explicit consent, uses committed sourc
   }
   assert.equal(registrations,1);assert.equal(h.calls.find(c=>c.operation==='selectRecording')!.args.momentId,null);
   assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
-  assert.match(r.text(),/Explain why you prefer this visual/);assert.equal(r.document.querySelector('#recording-analysis')?.hasAttribute('hidden'),true);
+  assert.match(r.text(),/Explain why you prefer this visual/);assert.equal(r.document.querySelector('#recording-analysis'),null,'the inline source editor is not mounted on a recording route');
  }finally{r.cleanup();}
 });
 
@@ -2129,8 +2135,8 @@ for(const initialDraft of ['suggested','insufficient','error','chat','no_tool_ca
   if(initialDraft==='chat'){
    await r.click(r.getByText('Find learnings in my narration'));await r.click(r.getByText('Analyze narration'));await flush();
    // The first analysis commits this recording's source without granting tool-analysis consent.
-   await r.click(r.document.getElementById('training-chat-toggle')!);await flush();
-   const area=r.getByText('Message AI').closest('label')!.querySelector('textarea')!;await setTextarea(r,area,'Analyze the tool in this recording.');
+   await r.click(r.getByText('← Train'));await flush();
+   const area=r.document.querySelector('#training-chat-message')!;await setTextarea(r,area,'Analyze the tool in this recording.');
    await r.click(Array.from(r.document.querySelectorAll('button')).find(button=>button.textContent==='Send')!);await flush();
    await r.click(r.getByText('Analyze the recording’s tool method'));await flush();
   }else await r.click(r.getByText('Teach a tool or method'));
@@ -2311,7 +2317,7 @@ test('judgment, applicability and example details stay distinct through review a
   } finally { r.cleanup(); }
 });
 
-test('recent results open inline only after selection and source changes never start analysis',async()=>{
+test('recent results navigate to full-page annotation only after selection without analysis',async()=>{
  const h=harness(),requests:any[]=[];
  const runs=[{id:QUESTION,date:'2026-11-11T12:00:00Z',status:'Done',artifact:null},{id:RECORD,date:'2026-11-10T12:00:00Z',status:'Done',artifact:null}];
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',recentRuns:runs},{bridge:h.bridge});
@@ -2320,11 +2326,11 @@ test('recent results open inline only after selection and source changes never s
  try{
   assert.equal(r.document.querySelector('#training-run-player'),null);assert.equal(requests.length,0);
   await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);await flush();
-  assert.ok(r.document.querySelector('#training-run-player'));assert.equal(r.calls.push.length,0);
+  assert.ok(r.document.querySelector('#training-run-player'));assert.equal(r.calls.push.at(-1),`/training/video-craft/review/${QUESTION}`);
   assert.equal(requests.filter(x=>String(x.url).includes('/run-review?')).length,1);
   assert.match(requests.find(x=>String(x.url).includes('/run-review?')).url,new RegExp(`runId=${QUESTION}`));
   assert.match(r.text(),/saved feedback is unchanged/);
-  assert.ok(r.document.querySelector('#training-recent-results')); await r.click(r.document.querySelector('button[aria-label="Teach from result 2"]')!);await flush();
+  assert.equal(r.document.querySelector('#training-recent-results'),null);await r.click(r.getByText('← Train'));await r.click(r.document.querySelector('button[aria-label="Teach from result 2"]')!);await flush();
   assert.equal(requests.filter(x=>String(x.url).includes('/run-review?')).length,2);
   assert.match(requests.filter(x=>String(x.url).includes('/run-review?'))[1].url,new RegExp(`runId=${RECORD}`));
   assert.equal(requests.some(x=>x.init.method==='POST'),false);
@@ -2332,7 +2338,7 @@ test('recent results open inline only after selection and source changes never s
  }finally{r.cleanup();}
 });
 
-test('an unsaved teaching blocks inline result replacement and preserves the exact draft without retrieval',async()=>{
+test('an unsaved teaching blocks leaving annotation and preserves the exact draft without retrieval',async()=>{
  const h=harness(),requests:any[]=[];
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',recentRuns:[{id:QUESTION,date:'2026-11-11T12:00:00Z',status:'Done',artifact:null}]},{bridge:h.bridge});
  const prior=r.window.fetch;r.window.fetch=(async(url:string,init:RequestInit={})=>{requests.push({url,init});return prior(url,init);}) as typeof fetch;
@@ -2340,14 +2346,14 @@ test('an unsaved teaching blocks inline result replacement and preserves the exa
   await r.click(r.getByText('Annotate source'));await fillManualTeaching(r);
   const before=r.getByText('Example details').closest('label')!.querySelector('textarea') as HTMLTextAreaElement;
   assert.equal(before.value,'Spatial illustration');
-  await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);
-  assert.equal(r.document.querySelector('#training-run-player'),null);assert.match(r.text(),/Save or cancel your current note or teaching draft/);
+  assert.equal(r.document.querySelector('button[aria-label="Teach from latest result"]'),null);await r.click(r.getByText('← Train'));assert.ok(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'));await r.click(r.getByText('Keep editing'));
+  assert.equal(r.document.querySelector('#training-run-player'),null);
   assert.equal(before.value,'Spatial illustration');assert.equal(requests.some(x=>String(x.url).includes('/run-review?')),false);
-  assert.equal(requests.some(x=>x.init.method==='POST'),false);assert.equal(r.calls.push.length,0);
+  assert.equal(requests.some(x=>x.init.method==='POST'),false);assert.equal(r.calls.push.length,1);
  }finally{r.cleanup();}
 });
 
-test('Done teaching saves exact commentary before scoped extraction and prepares a linked draft without admission',async()=>{
+test('Done teaching saves exact commentary to the canonical Coach queue without analysis or admission',async()=>{
  const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
  const moment={momentId:QUESTION,startMs:1000,endMs:3500,region:{x:100000,y:200000,width:300000,height:200000},card:{whatToDo:'Keep one clear comparison, with the presenter smaller.',why:'Earlier explanation stays raw.',insteadOf:'',howToCheck:'',whenNot:''},createdAt:'2026-11-11T12:00:00.000Z'};
  const summary={recordingId:RECORD,title:'My demonstration',origin:'recorded',state:'ready',failureReason:null,createdAt:moment.createdAt,durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:1};
@@ -2366,17 +2372,41 @@ test('Done teaching saves exact commentary before scoped extraction and prepares
  }) as typeof fetch;
  const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,40));});
  try{
-  await flush();assert.equal(requests.length,0);await r.click(r.getByText('Done teaching'));assert.equal(requests.length,0,'the extraction consent is separate from saving marks');
-  assert.ok(r.document.querySelector('[role="dialog"][aria-label="Find the lessons in your feedback?"]'));
-  await r.click(r.getByText('Extract training'));await flush();
+  await enableQueueReadiness(r,requests);await flush();assert.equal(requests.length,0);await r.click(r.getByText('Done teaching'));assert.equal(requests.length,0,'saving source notes has its own disclosure');
+  assert.ok(r.document.querySelector('[role="dialog"][aria-label="Save your teaching notes?"]'));assert.match(r.text(),/note.*time ranges and file hashes.*server/);assert.match(r.text(),/No AI analysis runs now/);
+  await r.click(r.getByText('Save feedback and return'));await flush();
   assert.deepEqual(JSON.parse(raw),{role:'trainer_commentary',recordingId:RECORD,moment});
-  assert.deepEqual(requests.map(b=>b.action||b.mode),['save','demonstration','link']);
-  assert.equal(requests[1].includeScope,true);assert.equal(requests[1].timeMs,1000);assert.equal(requests[1].sourceSha256,SOURCE_DIGEST);assert.equal(requests[1].expectedActiveVersionId,VERSION_A);
-  const draft=h.calls.find(c=>c.operation==='annotate')!;assert.ok(draft);assert.deepEqual(JSON.parse(JSON.stringify(draft.args.decision)),SUGGESTION_FIELDS);
-  assert.equal((draft.args.content as any).relation,'accepted');assert.deepEqual(JSON.parse(JSON.stringify((draft.args.content as any).properties)),['layout_variety']);
-  assert.equal(h.calls.some(c=>['accept','recording'].includes(c.operation)),false,'source narration was not analyzed and the suggestion was not admitted');
-  assert.match(r.text(),/1 draft ready to review/);assert.match(r.text(),/Nothing is live yet/);assert.equal(r.calls.push.length,0);
-  assert.ok(r.getByText('← Ways to train'));await r.click(r.getByText('← Ways to train'));await flush();assert.ok(r.getByText('Show it'));
+  assert.deepEqual(requests.map(b=>b.action||b.mode),['save','queue']);
+  assert.equal(h.calls.some(c=>['annotate','accept'].includes(c.operation)),false);
+  assert.equal(r.calls.push.at(-1),'/training/video-craft');assert.equal(r.document.querySelector('[aria-label="Your teaching note"]'),null);
+ }finally{r.cleanup();}
+});
+
+test('a partial recording handoff shows exact progress and retries the same notes without duplicate saves',async()=>{
+ const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
+ const moment={momentId:QUESTION,startMs:1000,endMs:3500,region:{x:100000,y:200000,width:300000,height:200000},card:{whatToDo:'Keep one clear comparison, with the presenter smaller.',why:'Earlier explanation stays raw.',insteadOf:'',howToCheck:'',whenNot:''},createdAt:'2026-11-11T12:00:00.000Z'};
+ const second={...moment,momentId:NEW_SESSION,startMs:3600,endMs:4500,card:{...moment.card,whatToDo:'Show the second point.'}};
+ const summary={recordingId:RECORD,title:'My demonstration',origin:'recorded',state:'ready',failureReason:null,createdAt:moment.createdAt,durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:2};
+ Object.assign(h.bridge,{reviewRecorderContractVersion:'2',trainingRecordingLibraryContractVersion:'1',reviewRecorder:async(op:string)=>op==='get'?{ok:true,recording:{...summary,pointerTrack:null,moments:[moment,second]}}:op==='list'?{ok:true,recordings:[summary],library:{usedBytes:50000,limitBytes:10000000000}}:op==='status'?{ok:true,active:null}:op==='preview'?{ok:true,mime:'video/mp4',url:'implexa-artifact://preview/abcdefghijklmnop0123456789',token:'abcdefghijklmnop0123456789'}:{ok:true},revokeArtifactPreview:async()=>({ok:true})});
+ h.bridge.trainingLocal=async(op,args)=>op==='selectRecording'?{ok:true,sourceId:SOURCE_ID,token:TOKEN}:original(op,args);
+ const requests:any[]=[],r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,initialRecordingId:RECORD},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ const prior=r.window.fetch;let queues=0;const annotations=new Map<string,any>();const queueKeys:string[]=[];
+ r.window.fetch=(async(url:string,init:RequestInit={})=>{
+  if(String(url).includes('/coach?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v2',savedFeedbackReady:true,complete:true,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:null,versionId:VERSION_A,decisionsComplete:true,liveLessons:0,lastTaughtAt:null,listing:'not_listed',decisions:[]}]})};
+  if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+  const body=JSON.parse(String(init.body));requests.push(body);
+  if(body.action==='save'){assert.equal(annotations.has(body.rawAnnotation),false,'a confirmed note is never saved twice');const {action,expectedActiveVersionId,...annotation}=body;const receipt={ok:true,contractVersion:'training-demo-annotation.v1',annotationId:annotations.size?NEW_SESSION:QUESTION,annotationDigest:DIGEST,annotation:{contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId}};annotations.set(body.rawAnnotation,receipt);return {ok:true,json:async()=>receipt};}
+  assert.equal(body.action,'queue');queueKeys.push((init.headers as any)['Idempotency-Key']);
+  return {ok:true,json:async()=>++queues===2?{ok:false,reason:'training_local_unavailable'}:{ok:true,contractVersion:'training-demo-queue.v1',annotationId:body.annotationId,annotationDigest:body.annotationDigest,eventId:SOURCE_ID}};
+ }) as typeof fetch;
+ const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,40));});
+ try{
+  await r.rerender({...sourceProps.get(r),familyId:RECORD});await flush();await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Save feedback and return'));await flush();
+  assert.match(r.text(),/1 of 2 notes confirmed in Coach/);assert.equal(r.calls.push.includes('/training/video-craft'),false,'partial success stays on annotation');
+  assert.equal(annotations.size,2);assert.equal(queues,2);await r.click(r.getByText('Save feedback and return'));await flush();
+  assert.equal(annotations.size,2);assert.equal(queues,4);assert.equal(queueKeys[1],queueKeys[3],'the unconfirmed queue write uses the same retry identity');
+  assert.equal(r.calls.push.at(-1),'/training/video-craft');assert.equal(h.calls.some(c=>['annotate','accept'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
 
@@ -2395,14 +2425,12 @@ test('an uninserted voice transcript blocks source replacement just like typed u
  try{
   await r.click(r.document.querySelector('.recording-moment-select')!);assert.ok(r.document.querySelector('.recording-moment.is-selected'));await r.click(r.document.querySelector('button[aria-label="Add a voice note"]')!);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
   assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');
-  const sameTranscript=r.document.querySelector('[aria-label="Voice note transcript"]');await r.click(r.getByText('Questions & history'));await r.click(r.getByText('Questions & history'));assert.ok(r.document.querySelector('[aria-label="Voice note transcript"]')===sameTranscript,'step navigation does not remount pending voice feedback');
-  assert.ok(r.document.querySelector('#training-recent-results')); await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);
-  assert.ok(r.document.querySelector('#training-run-player')===null,'voice commentary awaiting insertion is unsaved work');
+  const sameTranscript=r.document.querySelector('[aria-label="Voice note transcript"]');await r.click(r.getByText('← Train'));await r.click(r.getByText('Keep editing'));assert.ok(r.document.querySelector('[aria-label="Voice note transcript"]')===sameTranscript,'step navigation does not remount pending voice feedback');
+  assert.equal(r.document.querySelector('#training-recent-results'),null);assert.equal(r.document.querySelector('#training-companion'),null);
   assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');
   assert.equal(requests.some(x=>String(x.url).includes('/run-review?')),false);assert.equal(nativeCalls.filter(c=>c.op==='transcribeVoiceNote').length,1);
-  await r.click(r.getByText('↑ Upload'));const blocked=r.document.querySelector('[role="dialog"][aria-label="Finish your current note"]')!;assert.ok(blocked);assert.ok(blocked.closest('[hidden]')===null);assert.match(blocked.textContent||'',/Save or cancel your note before uploading/);assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');const nativeWritesBefore=h.calls.filter(call=>['select','create'].includes(call.operation)).length;
-  r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);await r.click(r.getByText('Return to note'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,15));});assert.ok(r.document.querySelector('[role="dialog"][aria-label="Finish your current note"]')===null);const field=r.document.querySelector('#recording-annotation textarea');assert.ok(r.document.activeElement===field,'return focuses the existing note after the modal closes');assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');assert.equal(h.calls.filter(call=>['select','create'].includes(call.operation)).length,nativeWritesBefore,'the guarded upload starts no native selection or session creation');
-  await r.click(r.getByText('Dismiss voice note'));await r.click(r.getByText('↑ Upload'));const upload=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;assert.ok(upload);assert.ok(upload.closest('[hidden]')===null);assert.equal(h.calls.filter(call=>['select','create'].includes(call.operation)).length,nativeWritesBefore,'normal cancellation opens only the existing consent, not the picker');assert.equal(nativeCalls.filter(c=>c.op==='startVoiceNote').length,1);
+  assert.equal((r.getByText('Done teaching') as HTMLButtonElement).disabled,true,'pending voice cannot be lost through Done');
+  await r.click(r.getByText('Dismiss voice note'));assert.equal(nativeCalls.filter(c=>c.op==='startVoiceNote').length,1);
  }finally{r.cleanup();}
 });
 
@@ -2416,7 +2444,7 @@ test('image voice commentary can be inserted while its own pending state guards 
  }});
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
  try{
-  await chooseDirectUpload(r);await r.click(r.getByText('Add a voice note'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
+  await chooseDirectUpload(r);await r.click(r.document.querySelector('button[aria-label="Add a voice note"]')!);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
   const slider=r.document.querySelector('[aria-label="Training video frame"]') as HTMLInputElement,openFrame=r.getByText('Open this frame') as HTMLButtonElement;assert.ok(slider);assert.equal(slider.disabled,true,'the selected frame cannot unmount pending voice feedback');assert.equal(openFrame.disabled,true);const previews=h.calls.filter(call=>call.operation==='preview').length;await r.click(openFrame);assert.equal(h.calls.filter(call=>call.operation==='preview').length,previews);assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement).value,'Show the relationship clearly.');
   const insert=[...r.document.querySelectorAll('button')].find(button=>button.textContent==='Add to this note')!;assert.ok(insert);assert.equal(insert.disabled,false,'voice pending guards navigation, not its own insertion');
   await r.click(insert);assert.equal((r.document.querySelector('[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'Show the relationship clearly.');
@@ -2459,11 +2487,11 @@ test('video upload requests owner-bound playback only with the advertised contra
    assert.equal(selected.args.expectedOwnerId,contract==='1'?RECORD:undefined);assert.equal(Object.hasOwn(selected.args,'expectedOwnerId'),contract==='1');
    assert.equal(selected.args.selectionToken,pickFirst?TOKEN:undefined);
    if(pickFirst)assert.deepEqual(h.calls.filter(c=>['pickUpload','scope','select'].includes(c.operation)).map(c=>c.operation),
-    ['pickUpload','scope','select','scope'],'start the native picker before the first backend check');
+    ['pickUpload','scope','select','scope','scope'],'start the native picker before the first backend check');
    assert.equal(Boolean(r.document.querySelector('#recording-annotation')),contract==='1','the returned recording opens the existing RecordingPlayer only in playback mode');
    if(contract==='1'){assert.ok(r.document.querySelector('#recording-annotation video'));assert.match(r.text(),/This is my narrated demonstration/);assert.equal(h.calls.some(c=>c.operation==='preview'),false,'no separate still-frame path runs after a verified playback import');}
    else assert.ok(r.document.querySelector('[aria-label="Teach from an image"]'),'older Desktop retains the explicit frame fallback');
-   assert.equal(h.calls.some(c=>['recording','annotate','accept','selectRecording'].includes(c.operation)),false);assert.equal(r.calls.push.length,0);
+   assert.equal(h.calls.some(c=>['recording','annotate','accept','selectRecording'].includes(c.operation)),false);assert.ok(r.calls.push.at(-1)?.startsWith('/training/video-craft/annotate/'));
   }finally{r.cleanup();}
  }
 });
@@ -2575,7 +2603,7 @@ test('upload analysis shows progress, falls back to screenshots, and keeps learn
     assert.equal(h.calls.filter(call=>call.operation==='accept').length,1);
     assert.equal(h.calls.some(call=>call.operation==='list'),false);
    }else{
-    await r.click(r.getByText('← Ways to train'));
+    await r.click(r.getByText('Close evidence review'));
     const media=r.document.querySelector('[aria-label="Screenshots from your recording"]')!;
     assert.equal(media.querySelectorAll('img').length,3);
     await r.click(media.querySelector('button')!);
@@ -2591,7 +2619,7 @@ test('contextual review preserves draft selection and requires final Apply confi
  try{assert.equal(r.document.querySelector('[aria-label="Training steps"]'),null);assert.ok(r.getByText('Show it'));const playing=r.document.createElement('video');let paused=0;Object.defineProperty(playing,'paused',{get:()=>false});playing.pause=()=>{paused++;};r.document.querySelector('#main-content')!.append(playing);assert.ok(r.getByText('Review training →').closest('.training-recovery-details'),'the prior batch-review path remains in saved work');await r.click(r.getByText('Review training →'));assert.equal(paused,1,'leaving Teach pauses hidden playback without touching native voice capture');playing.remove();const review=r.document.querySelector('[aria-label="Review proposed visual training"]')!;assert.ok(review.closest('[hidden]')===null);const boxes=[...review.querySelectorAll('input[type=checkbox]')] as HTMLInputElement[];assert.equal(boxes.length,2);await r.click(boxes[1]);await r.click(r.getByText('Continue to Apply & Test'));assert.ok(review.closest('[hidden]'));const apply=r.document.querySelector('[aria-label="Selected training to apply"]')!;assert.ok(apply.closest('[hidden]')===null);assert.match(apply.textContent||'',/1 visual lesson selected/);await r.click([...apply.querySelectorAll('button')].find(button=>button.textContent==='Apply selected lesson')!);const modal=r.document.querySelector('[role="dialog"][aria-label="Apply these lessons?"]')!;assert.ok(modal);assert.ok(modal.closest('[hidden]')===null);assert.equal(modal.querySelectorAll('li').length,1);assert.doesNotMatch(modal.textContent||'',/second precise/);await r.click(r.getByText('Keep reviewing'));await r.click(r.getByText('Review selection'));assert.equal(boxes[1].checked,false);assert.equal(h.calls.some(call=>call.operation==='accept'),false);}finally{r.cleanup();}
 });
 
-test('Upload refuses an open marked-result proposal before file selection and returns to its mounted review',async()=>{
+test('marked-result proposals stay on the full-page annotation and guard return until closed',async()=>{
  const h=harness({previewImage:VALID_FRAME}),original=h.bridge.trainingLocal,frameSha=createHash('sha256').update(Buffer.from(VALID_FRAME.split(',')[1],'base64')).digest('hex');
  const artifact={id:TOKEN,runId:QUESTION,relativePath:'out/final.mp4',role:'final_output',status:'validated',sha256:SOURCE_DIGEST,sizeBytes:100,mtime:null,validatedAt:null};
  const issue={id:RECORD,sessionId:NEW_SESSION,runId:QUESTION,artifactId:TOKEN,kind:'visual',anchor:{version:2,type:'visual_spatial',observedArtifactId:TOKEN,observedArtifactSha256:SOURCE_DIGEST,intent:{mode:'change_observed_artifact'},temporal:{startMs:1000,endMs:null},geometry:{kind:'point',coordinateSpace:'normalized_visual_content_v1',x:.2,y:.2,width:null,height:null},sourceFrame:{visualWidth:1,visualHeight:1}},anchorDigest:DIGEST,body:'Make the relationship clearer.',status:'draft',purpose:'training',submittedRequestId:null,createdAt:'2026-11-11T12:00:00Z',updatedAt:null};
@@ -2600,7 +2628,16 @@ test('Upload refuses an open marked-result proposal before file selection and re
  const requests:any[]=[],r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,recentRuns:[{id:QUESTION,date:'2026-11-11T12:00:00Z',status:'Done',artifact:null}]},{bridge:h.bridge});Object.assign(r.window,{TextEncoder});r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);r.window.Element.prototype.scrollIntoView=()=>{};
  const prior=r.window.fetch;r.window.fetch=(async(url:string,init:RequestInit={})=>{requests.push({url,init});if(String(url).includes('/run-review?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-run-review.v1',review:{runId:QUESTION,trainingSlug:'video-craft',agentName:'Video craft',artifacts:[artifact],production:null,issues:[issue],session:{id:NEW_SESSION,runId:QUESTION,selectedArtifactId:TOKEN,state:'draft',submittedRequestId:null,submittedIssueIds:null,compiledBrief:null,acceptedAt:null},reviewArtifacts:[],sources:{issues:'ready',artifacts:'ready',session:'ready',evidence:'ready',reviewer_resolutions:'ready',review_artifacts:'ready'},isApprovalHold:false}})};if(String(url).includes('review-mark?'))return {ok:true,json:async()=>({ok:true,sourceId:SOURCE_ID})};if(String(url).includes('teaching-suggestion?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-teaching-suggestion.v7',model:'claude-haiku-5-5',binding,status:'insufficient',fields:null,reason:'Explain which relationship should be emphasized.',scopeSuggestion:null,sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};return prior(url,init);}) as typeof fetch;
  const flush=()=>r.act(()=>new Promise(resolve=>setTimeout(resolve,20)));
- try{await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);await flush();await r.click(r.getByText('Done teaching'));await flush();const initial=r.document.querySelector('[role="dialog"][aria-label="Extract training from this note?"]')!;assert.ok(initial);await r.click([...initial.querySelectorAll('button')].find(button=>button.textContent==='Extract training')!);await flush();assert.ok(r.queryByText('Close proposals'));if(r.queryByText('← Ways to train'))await r.click(r.getByText('← Ways to train'));const writes=h.calls.filter(call=>['select','create'].includes(call.operation)).length;await r.click(r.getByText('↑ Upload'));const blocked=r.document.querySelector('[role="dialog"][aria-label="Finish your proposed training"]')!;assert.ok(blocked);assert.ok(blocked.closest('[hidden]')===null);assert.match(blocked.textContent||'',/Close your current proposals/);assert.equal(h.calls.filter(call=>['select','create'].includes(call.operation)).length,writes);assert.ok(r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')===null);await r.click(r.getByText('Return to proposals'));await flush();assert.ok(r.getByText('← Ways to train'));assert.equal(r.document.activeElement?.textContent,'Close proposals');assert.match(r.text(),/Make the relationship clearer/);assert.equal(h.calls.filter(call=>['select','create'].includes(call.operation)).length,writes);}finally{r.cleanup();}
+ try{
+  await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);await flush();
+  await r.click(r.getByText('Extract training'));await flush();
+  const initial=r.document.querySelector('[role="dialog"][aria-label="Extract training from this note?"]')!;assert.ok(initial);
+  await r.click([...initial.querySelectorAll('button')].find(button=>button.textContent==='Extract training')!);await flush();
+  assert.ok(r.queryByText('Close proposals'));const writes=h.calls.filter(call=>['select','create'].includes(call.operation)).length;
+  assert.equal(r.queryByText('↑ Upload'),null);await r.click(r.getByText('← Train'));assert.ok(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'));await r.click(r.getByText('Keep editing'));
+  assert.match(r.text(),/Make the relationship clearer/);assert.equal(h.calls.filter(call=>['select','create'].includes(call.operation)).length,writes);
+  await r.click(r.getByText('Close proposals'));await r.click(r.getByText('← Train'));assert.equal(r.calls.push.at(-1),'/training/video-craft');
+ }finally{r.cleanup();}
 });
 
 test('saved sources and earlier-version recreation stay out of Teach and open only in History with closed details',async()=>{
@@ -2721,7 +2758,7 @@ test('version changes clear open answer state and do not rekey old wording into 
    await setTextarea(r,r.document.getElementById(`question-answer-${QUESTION}`)!,'This is wording for the old version.');
    if(prepared)await r.click(r.getByText('Use this answer'));
    h.setCurrentVersion(VERSION_B);page.activeVersionId=VERSION_B;
-   await r.click(r.getByText('Annotate source'));await r.click(r.getByText('Preview this exact frame'));
+   await r.click(r.getByText('Annotate source'));assert.match(r.text(),/active agent version changed|agent.*changed/i);await r.click(r.getByText('← Train'));
    assert.equal(r.document.getElementById(`question-answer-${QUESTION}`),null);
    assert.equal(r.queryByText('Cancel lesson draft'),null);
    await r.click(r.getByText('Load recorded questions'));
@@ -3023,22 +3060,20 @@ test('an interrupted uploaded-note analysis reconciles the durable result and re
   await chooseDirectUpload(r);await flush();
   let note=r.document.querySelector('[aria-label="Teach from an image"] textarea')!;assert.ok(note);
   await setTextarea(r,note,'Let the image explain the actual relationship.');
-  await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await flush();assert.equal(drafts,1);
+  await beginSavedFeedbackExtraction(r);await flush();assert.equal(drafts,1);
   await r.rerender({slug:'video-craft',ownerId:RECORD,key:'fresh-training-page'});await flush();
-  assert.equal(drafts,1,'remount never repeats the model request');assert.ok(r.queryByText('Continue saved feedback'));
-  await r.click(r.getByText('Continue saved feedback'));await flush();
+  assert.equal(drafts,1,'remount never repeats the model request');await reopenCanonicalFeedback(r);await flush();
   note=r.document.querySelector('[aria-label="Teach from an image"] textarea')!;
   assert.equal((note as HTMLTextAreaElement).value,'Let the image explain the actual relationship.');
   assert.equal(drafts,1);assert.equal(requests.filter(b=>b.action==='save').length,1,'reopening restores the original note without another annotation writer');
 
   const retry=()=>Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Review or retry analysis')!;
   assert.ok(retry());assert.equal(retry().closest('[hidden]'),null);
-  await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await flush();assert.equal(drafts,2,'ordinary extraction reconciles the same durable request without a retry predecessor');
+  await beginSavedFeedbackExtraction(r);await flush();assert.equal(drafts,2,'ordinary extraction reconciles the same durable request without a retry predecessor');
   await r.click(retry());const dialog=r.document.querySelector('[role="dialog"][aria-label="Review or retry analysis?"]')!;
   assert.ok(dialog);assert.equal(dialog.closest('[hidden]'),null);assert.match(dialog.textContent||'',/first checks the saved analysis/);assert.equal(drafts,2,'opening confirmation sends nothing');
   const confirm=Array.from(dialog.querySelectorAll('button')).find(b=>b.textContent==='Review or retry analysis')!;
-  await setTextarea(r,note,'A different note must not reuse confirmation.');assert.equal((confirm as HTMLButtonElement).disabled,true);
-  await setTextarea(r,note,'Let the image explain the actual relationship.');assert.equal((confirm as HTMLButtonElement).disabled,false);
+  assert.equal((note as HTMLTextAreaElement).readOnly,true,'a canonical original cannot be silently rewritten during retry');assert.equal((confirm as HTMLButtonElement).disabled,false);
   await r.act(()=>{(confirm as HTMLButtonElement).click();(confirm as HTMLButtonElement).click();});await flush();
   assert.equal(drafts,3);assert.equal(requests.filter(b=>b.action==='save').length,1,'reuse original annotation');
   assert.equal(h.calls.filter(c=>c.operation==='annotate').length,0,'model output remains editable before the immutable save');
@@ -3116,10 +3151,10 @@ test('a failed automatic analysis card reopens its exact saved annotation withou
  try{
   await chooseDirectUpload(r);await flush();const note=r.document.querySelector('[aria-label="Teach from an image"] textarea')!;
   await setTextarea(r,note,'Show what the scene explains, rather than repeating its words.');
-  await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await flush();
+  await beginSavedFeedbackExtraction(r);await flush();
   const card=r.document.querySelector('[aria-label="Suggested agent improvements"]')!;assert.ok(card);assert.match(card.textContent||'',/Agent setup needs another look/);
-  const resume=Array.from(card.querySelectorAll('button')).find(b=>b.textContent==='Continue saved feedback')!;assert.ok(resume);assert.equal(resume.disabled,false);
-  await r.click(resume);await flush();assert.equal(analyses,1);assert.equal((r.document.querySelector('[aria-label="Teach from an image"] textarea') as HTMLTextAreaElement).value,'Show what the scene explains, rather than repeating its words.');
+  const resume=Array.from(card.querySelectorAll('button')).find(b=>b.textContent==='Continue saved feedback')!;assert.ok(resume);await r.click(resume);assert.equal(analyses,1,'reopening saved feedback never starts analysis; use its explicit retry action');
+  await flush();assert.equal(analyses,1);assert.equal((r.document.querySelector('[aria-label="Teach from an image"] textarea') as HTMLTextAreaElement).value,'Show what the scene explains, rather than repeating its words.');
   assert.ok(r.queryByText('Review or retry analysis'));assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
  }finally{r.cleanup();}
 });
@@ -3142,7 +3177,7 @@ test('ordinary feedback can produce only an operating result without falsely ask
   try{
    await chooseDirectUpload(r);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
    const input=r.document.querySelector('[aria-label="Teach from an image"] textarea')!;await setTextarea(r,input,'Create the scene prompts inside the agent rather than asking for another file.');
-   await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
+   await beginSavedFeedbackExtraction(r);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
    assert.equal(modelRequests,1);assert.doesNotMatch(r.text(),/This lesson needs clarification/);assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
    if(state==='suggested'){assert.match(r.text(),/Your feedback suggests an agent setup change/);assert.ok(r.queryByText('Review agent update'));}
    else{assert.match(r.text(),/This method is already in the agent/);assert.equal(r.queryByText('Review agent update'),null);}
@@ -3184,7 +3219,7 @@ for(const creativeDirections of [[],['Cinematic B-roll-heavy']] as const)test(`d
  try{
   await chooseDirectUpload(r);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
   await setTextarea(r,r.document.querySelector('[aria-label="Teach from an image"] textarea')!,'For cinematic B-roll-heavy videos, explain the place with relevant imagery.');
-  await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
+  await beginSavedFeedbackExtraction(r);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
   const review=r.document.querySelector('[aria-label="Review example type"]');assert.ok(review);assert.match(review.textContent||'',creativeDirections.length?/Applies to: Cinematic B-roll-heavy runs/:/Applies to: every creative direction/);
   assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false,'scope is visible before the immutable writer');
  }finally{r.cleanup();}
@@ -3398,7 +3433,7 @@ test('a background check superseded by teaching cannot raise a failure or replac
    await r.act(async()=>{finish(value);await new Promise(resolve=>setTimeout(resolve,20));});
    assert.ok(r.document.querySelector('#recording-analysis'));
    assert.doesNotMatch(r.text(),/Checking saved training…|Saved training couldn’t be checked|Check training setup/);
-   assert.ok(r.getByText('Check saved training'));
+   assert.equal(r.queryByText('Check saved training'),null,'optional Train history is not mounted in annotation');
    assert.equal(h.calls.some(call=>['accept','delivery','annotate'].includes(call.operation)),false);
   }finally{r.cleanup();}
  }
@@ -3494,7 +3529,7 @@ test('one training workspace reads only its verified family and rejects a differ
   return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
  }) as typeof fetch});
  try{
-  assert.equal(calls.length,1);assert.equal(calls[0].url,`/api/agent-training/coach?familyId=${RECORD}`);
+  assert.equal(calls.length,1);assert.equal(calls[0].url,`/api/agent-training/coach?familyId=${RECORD}&contractVersion=training-coach-decisions.v2`);
   assert.doesNotMatch(r.text(),/Suggestions couldn’t load/);
   wrong=true;await r.rerender({...props,ownerId:NEW_SESSION});
   assert.equal(calls.length,2);assert.equal(calls[0].signal.aborted,true,'old account read is cancelled');
@@ -3509,5 +3544,147 @@ test('an unknown family never falls back to the expensive whole Coach roster',as
   assert.equal(calls.some(url=>url.includes('/agent-training/coach')),false);
   assert.match(r.text(),/Suggestions couldn’t load/);
   assert.equal((r.getByText('↑ Upload') as HTMLButtonElement).disabled,false,'independent teaching remains usable');
+ }finally{r.cleanup();}
+});
+
+
+test('image Done saves to Coach, reloads exact feedback, gates AI separately and dismisses without admitting',async()=>{
+ const h=harness({previewImage:VALID_FRAME}),requests:any[]=[];let saved:any=null,dismissed=false;
+ const fetcher=(async(url:any,init:any={})=>{
+  const path=String(url);if(path.includes('/coach?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v2',savedFeedbackReady:true,complete:true,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:null,versionId:VERSION_A,decisionsComplete:true,liveLessons:0,lastTaughtAt:null,listing:'not_listed',decisions:saved&&!dismissed?[{id:QUESTION,kind:'feedback',source:'demo_annotation',sessionId:SESSION,versionId:VERSION_A,digest:DIGEST,createdAt:'2026-11-21T12:00:00Z',summary:'Keep the route visible.'}]:[]}]})};
+  if(path.includes('/teaching-suggestion?')){
+   requests.push({url:path,init});
+   if(init.method!=='POST')return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:saved})};
+   const body=JSON.parse(init.body);
+   if(body.action==='save'){const {action,expectedActiveVersionId,...annotation}=body;saved={contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId};return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:saved})};}
+   if(body.action==='queue')return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-queue.v1',annotationId:QUESTION,annotationDigest:DIGEST,eventId:SOURCE_ID})};
+   if(body.action==='dismiss'){dismissed=true;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-dismissal.v1',annotationId:QUESTION,annotationDigest:DIGEST,eventId:SOURCE_ID})};}
+   return {ok:false,json:async()=>({ok:false,reason:'teaching_suggestion_provider_unavailable'})};
+  }
+  return {ok:true,json:async()=>({ok:false})};
+ }) as typeof fetch;
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,familyId:RECORD},{bridge:h.bridge,fetch:fetcher});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,30));});
+ try{
+  await chooseDirectUpload(r);assert.ok(r.calls.push.at(-1)?.startsWith('/training/video-craft/annotate/'));assert.equal(r.document.querySelector('#training-companion'),null);
+  await setTextarea(r,r.document.querySelector('[aria-label="Your feedback on this image"]')!,'Keep the route visible.');
+  await r.click(r.getByText('Done teaching'));await flush();assert.equal(r.calls.push.at(-1),'/training/video-craft',r.text());
+  assert.deepEqual(requests.map(x=>x.init.method==='POST'?JSON.parse(x.init.body).action:'read'),['save','queue']);
+  assert.match(r.text(),/waiting for extraction/);const card=r.document.querySelector('.training-decision-card')!;assert.ok(card);await r.click(card.querySelector('button')!);await flush();
+  assert.ok(r.calls.push.at(-1)?.includes('/annotate/feedback/'));assert.equal(requests.length,3);assert.match(r.text(),/This is your saved feedback/);
+  assert.equal((r.document.querySelector('[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).readOnly,true);
+  await r.click(r.getByText('Extract training'));assert.equal(requests.length,3,'opening the AI disclosure does not analyze');
+  const dialog=r.document.querySelector('[role="dialog"]')!;await r.click(dialog.querySelector('button.btn-primary')!);await flush();
+  assert.equal(requests.length,4);assert.match(r.text(),/original feedback.*preserved/);assert.ok(r.document.querySelector('[aria-label="Saved teaching feedback"]'));
+  await r.click(r.getByText('Dismiss feedback'));assert.equal(dismissed,false,'opening confirmation is not dismissal');assert.match(r.text(),/This cannot be undone/);await r.click(r.getByText('Keep feedback'));assert.equal(dismissed,false);await r.click(r.getByText('Dismiss feedback'));await r.click(r.getByText('Permanently dismiss feedback'));await flush();assert.equal(dismissed,true);assert.equal(r.calls.push.at(-1),'/training/video-craft');assert.equal(r.document.querySelector('.training-decision-card'),null);
+  const initialStorage=Object.fromEntries(Array.from({length:r.window.localStorage.length},(_,i)=>{const key=r.window.localStorage.key(i)!;return [key,r.window.localStorage.getItem(key)!];})),requestsBeforeReload=requests.length;
+  const reload=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,familyId:RECORD},{bridge:h.bridge,initialStorage,webCrypto:globalThis.crypto,fetch:fetcher});
+  try{await reload.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.equal(reload.queryByText('Continue your saved feedback'),null,'confirmed dismissal retires the recovery shortcut after reload');assert.equal(requests.length,requestsBeforeReload,'retirement never resends, extracts or dismisses automatically');}finally{reload.cleanup();}
+  assert.equal(h.calls.some(c=>['annotate','accept','activate'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
+
+test('legacy or unavailable Coach keeps image notes editable but prevents an unconfirmed queue handoff',async()=>{
+ for(const state of ['legacy','not-ready','unavailable']){
+  const h=harness({previewImage:VALID_FRAME}),writes:any[]=[];
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,familyId:RECORD},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
+   if(String(url).includes('/coach?'))return {ok:state!=='unavailable',json:async()=>({ok:true,contractVersion:state==='legacy'?'training-coach-decisions.v1':'training-coach-decisions.v2',...(state==='legacy'?{}:{savedFeedbackReady:false}),complete:true,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:null,versionId:VERSION_A,decisionsComplete:true,liveLessons:0,lastTaughtAt:null,listing:'not_listed',decisions:[]}]})};
+   if(init.method==='POST')writes.push({url,init});return {ok:true,json:async()=>({ok:false})};
+  }) as typeof fetch});
+  try{await chooseDirectUpload(r);await setTextarea(r,r.document.querySelector('[aria-label="Your feedback on this image"]')!,'Keep this exact note.');
+   assert.equal((r.getByText('Done teaching') as HTMLButtonElement).disabled,true);assert.match(r.text(),/Saving notes to Coach is not ready/);assert.equal(writes.length,0);assert.equal((r.document.querySelector('[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'Keep this exact note.');
+  }finally{r.cleanup();}
+ }
+});
+
+test('a reopened mark-only image explains the empty note and permits only explicit extraction',async()=>{
+ for(const marked of [true,false]){
+  let done=0;const spatial=marked?{geometry:{kind:'rect',x:.1,y:.2,width:.4,height:.3},sourceFrame:{visualWidth:320,visualHeight:180}}:null;
+  const r=await render('../training/[slug]/training-image-player.tsx',{ownerId:RECORD,sourceId:SOURCE_ID,image:VALID_FRAME,timeMs:0,text:'',disabled:false,readOnly:true,initialSpatial:spatial,onChange:()=>assert.fail('a canonical note is immutable'),onDone:()=>{done++;}});
+  try{const textarea=r.document.querySelector('textarea')!;assert.equal(textarea.readOnly,true);assert.equal(textarea.value,'');const button=r.getByText('Extract training') as HTMLButtonElement;
+   assert.equal(button.disabled,!marked);assert.equal(done,0);if(marked){assert.match(r.text(),/marked region and no written note/);await r.click(button);assert.equal(done,1);}
+  }finally{r.cleanup();}
+ }
+});
+
+
+async function recoveryFixture(kind:'image'|'recording'){
+ const metadata=source().metadata,frameTime=kind==='image'?0:1000;
+ const moment={momentId:NEW_SESSION,startMs:1000,endMs:3500,region:{x:100000,y:200000,width:400000,height:300000},card:{whatToDo:'Keep the route visible.',why:'Show the actual geography.',insteadOf:'',howToCheck:'',whenNot:''},createdAt:'2026-11-22T12:00:00.000Z'};
+ const rawAnnotation=JSON.stringify(kind==='image'?{role:'trainer_commentary',sourceKind:'upload',sourceId:SOURCE_ID,timeMs:frameTime,spatial:{geometry:{kind:'rect',x:.1,y:.2,width:.4,height:.3},sourceFrame:{visualWidth:1920,visualHeight:1080}},feedback:'Keep the route visible.'}:{role:'trainer_commentary',recordingId:RECORD,moment});
+ const fingerprint=createHash('sha256').update(JSON.stringify(kind==='image'?{id:SESSION,version:VERSION_A,sourceId:SOURCE_ID,sourceSha256:metadata.sha256,rawAnnotation,frameTime}:{sessionId:SESSION,version:VERSION_A,sourceSha256:metadata.sha256,rawAnnotation})).digest('hex');
+ const values:Record<string,string>={},storage={getItem:(key:string)=>values[key]||null,setItem:(key:string,value:string)=>{values[key]=value;}};
+ const progress=extractionProgressFor(storage,`${RECORD}:${SESSION}:${VERSION_A}`,fingerprint);let saveKey='';let canonical:any;
+ await saveFeedbackAnnotation({source:{sourceId:SOURCE_ID,token:TOKEN,metadata},timeMs:frameTime,rawAnnotation,versionId:VERSION_A,progress,
+  check:async()=>{},checkpoint:()=>checkpointExtraction(storage,`${RECORD}:${SESSION}:${VERSION_A}`,progress),call:async()=>({ok:true,image:VALID_FRAME}),
+  send:async(op,body:any,key)=>{assert.equal(op,'annotation');assert.equal(body.action,'save');saveKey=key!;const {action,expectedActiveVersionId,...annotation}=body;canonical={contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId};return {ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:canonical};}});
+ return {values,canonical,progress,saveKey,moment};
+}
+function recoveryCoach(complete=false){return {ok:true,contractVersion:'training-coach-decisions.v2',savedFeedbackReady:true,complete,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:null,versionId:VERSION_A,decisionsComplete:complete,liveLessons:0,lastTaughtAt:null,listing:'not_listed',decisions:[]}]};}
+
+test('legacy image and recording feedback remains discoverable, opens full-page and queues only on an explicit action',async()=>{
+ for(const kind of ['image','recording'] as const){
+  const f=await recoveryFixture(kind),h=harness({previewImage:VALID_FRAME}),posts:any[]=[],reads:string[]=[];
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,familyId:RECORD},{bridge:h.bridge,initialStorage:f.values,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+   if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};
+   if(String(url).includes('/teaching-suggestion?')){
+    if(init.method!=='POST'){reads.push(String(url));return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:f.canonical})};}
+    const body=JSON.parse(init.body);posts.push({body,key:init.headers['Idempotency-Key']});assert.equal(body.action,'queue','the existing canonical note is not saved or analyzed again');return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-queue.v1',annotationId:QUESTION,annotationDigest:DIGEST,eventId:SOURCE_ID})};
+   }return {ok:true,json:async()=>({ok:false})};
+  }) as typeof fetch});
+  try{
+   await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.ok(r.queryByText('Continue your saved feedback'));assert.equal(posts.length,0);assert.equal(reads.length,0);assert.equal(r.document.querySelectorAll('.training-decision-card').length,0,'recovery entries do not inflate Coach decisions');
+   await r.click(r.getByText('Continue saved feedback'));await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.match(r.calls.push.at(-1)!,/annotate\/feedback\//);assert.equal(reads.length,1);assert.equal(posts.length,0);assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).readOnly,true);
+   if(kind==='recording')assert.match(r.text(),/Marked range: 00:01.000 – 00:03.500/);
+   await r.click(r.getByText('Send saved feedback to Coach'));await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.equal(posts.length,1);assert.equal(posts[0].key,`workspace-queue:${QUESTION}`);assert.equal(posts[0].body.annotationDigest,DIGEST);assert.equal(r.calls.push.at(-1),'/training/video-craft');
+   assert.ok(r.queryByText('Continue your saved feedback'),'absence from an incomplete Coach response cannot retire recovery history');assert.equal(h.calls.some(c=>['annotate','accept','activate'].includes(c.operation)),false);
+  }finally{r.cleanup();}
+ }
+});
+
+test('an uncertain accepted queue handoff survives leaving and a fresh mount, then retries the same annotation/key without AI',async()=>{
+ const f=await recoveryFixture('image'),posts:any[]=[];let first=true,stored=f.values;
+ for(let attempt=0;attempt<2;attempt++){
+  const h=harness({previewImage:VALID_FRAME}),r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,familyId:RECORD},{bridge:h.bridge,initialStorage:stored,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+   if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};
+   if(String(url).includes('/teaching-suggestion?')){if(init.method!=='POST')return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:f.canonical})};
+    const body=JSON.parse(init.body);assert.equal(body.action,'queue');posts.push({body,key:init.headers['Idempotency-Key']});const uncertain=first;first=false;return {ok:!uncertain,json:async()=>uncertain?{ok:false,reason:'training_local_unavailable'}:{ok:true,contractVersion:'training-demo-queue.v1',annotationId:QUESTION,annotationDigest:DIGEST,eventId:SOURCE_ID,idempotent:true}};
+   }return {ok:true,json:async()=>({ok:false})};
+  }) as typeof fetch});
+  try{await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));await r.click(r.getByText('Continue saved feedback'));await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));await r.click(r.getByText('Send saved feedback to Coach'));await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));
+   if(!attempt){assert.match(r.text(),/handoff to Coach is unconfirmed/);await r.click(r.getByText('← Train'));assert.ok(r.queryByText('Continue your saved feedback'));stored=Object.fromEntries(Array.from({length:r.window.localStorage.length},(_,i)=>{const key=r.window.localStorage.key(i)!;return [key,r.window.localStorage.getItem(key)!];}));}
+   else assert.equal(r.calls.push.at(-1),'/training/video-craft');
+   assert.equal(h.calls.some(c=>['annotate','accept'].includes(c.operation)),false);
+  }finally{r.cleanup();}
+ }
+ assert.equal(posts.length,2);assert.deepEqual(posts[0],posts[1]);assert.equal(posts[0].key,`workspace-queue:${QUESTION}`);assert.ok(f.saveKey.startsWith('workspace-note:'));
+});
+
+test('recovery refuses stale or wrong canonical bindings and preserves missing-media history without pending counts',async()=>{
+ const f=await recoveryFixture('image');
+ for(const problem of ['owner','session','version','digest','source','media']){
+  const h=harness({previewImage:VALID_FRAME,...(problem==='media'?{localToken:null}:{})}),posts:any[]=[];
+  const ownerId=problem==='owner'?NEW_SESSION:RECORD,target=problem==='session'?NEW_SESSION:SESSION;
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId,familyId:RECORD,...(['owner','media'].includes(problem)?{}:{annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:target}})},{bridge:h.bridge,initialStorage:f.values,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+   if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};if(init.method==='POST'){posts.push(init);return {ok:false,json:async()=>({ok:false})};}
+   if(String(url).includes('/teaching-suggestion?'))return {ok:problem!=='session',json:async()=>({ok:problem!=='session',contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:problem==='digest'?SOURCE_DIGEST:DIGEST,annotation:{...f.canonical,...(problem==='version'?{targetVersionId:VERSION_B}:{}),...(problem==='source'?{sourceSha256:DIGEST}:{})}})};return {ok:true,json:async()=>({ok:false})};
+  }) as typeof fetch});
+  try{await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.equal(posts.length,0);assert.equal(r.document.querySelectorAll('.training-decision-card').length,0);assert.equal(r.queryByText('Send saved feedback to Coach'),null);
+   if(problem==='owner')assert.equal(r.queryByText('Continue your saved feedback'),null);else if(problem==='media')assert.match(r.text(),/needs its original file|Some saved feedback/);else assert.match(r.text(),/saved feedback is unavailable|computer where you created/);
+  }finally{r.cleanup();}
+ }
+});
+
+test('an older saved-feedback URL redirects to the canonical reader before reopening or sending',async()=>{
+ const f=await recoveryFixture('image'),h=harness({previewImage:VALID_FRAME});let reads=0,writes=0;
+ const props={slug:'video-craft',ownerId:RECORD,familyId:RECORD,annotationTarget:{kind:'image',sourceId:SOURCE_ID,sessionId:SESSION,feedback:f.progress.fingerprint}};
+ const r=await render('../training/[slug]/training-source.tsx',props,{bridge:h.bridge,initialStorage:f.values,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+  if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};if(init.method==='POST'){writes++;return {ok:false,json:async()=>({ok:false})};}
+  if(String(url).includes('/teaching-suggestion?')){reads++;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:f.canonical})};}return {ok:true,json:async()=>({ok:false})};
+ }) as typeof fetch});
+ try{await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.match(r.calls.push.at(-1)!,/annotate\/feedback\//);assert.equal(writes,0);
+  await r.rerender({...props,annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:SESSION}});await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.equal(reads,1);assert.equal(writes,0);assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).readOnly,true);
  }finally{r.cleanup();}
 });

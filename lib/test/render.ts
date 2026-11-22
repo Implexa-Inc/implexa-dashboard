@@ -97,6 +97,9 @@ export async function render(component: string, props: Record<string, unknown>, 
   bridge?: Record<string, unknown> | null;
   backend?: (path: string, init: unknown) => unknown;
   fetch?: typeof globalThis.fetch;
+  /** Same browser profile after a remount/reload; synthetic recovery journals only. */
+  initialStorage?: Record<string,string>;
+  webCrypto?: typeof globalThis.crypto;
   /** Explicit synthetic auth for owner-sensitive flows; never real credentials. */
   auth?: Record<string, unknown>;
 } = {}): Promise<Rendered> {
@@ -147,6 +150,8 @@ export async function render(component: string, props: Record<string, unknown>, 
     url: 'https://dashboard.test/agents/test-agent',
   });
   const { window } = dom;
+  if(options.webCrypto){Object.defineProperty(window,'crypto',{value:options.webCrypto,configurable:true});Object.assign(window,{TextEncoder:globalThis.TextEncoder});}
+  for(const [key,value] of Object.entries(options.initialStorage||{}))window.localStorage.setItem(key,value);
   const calls: RenderCalls = { push: [], replace: [], backend: [] };
   (window as unknown as Record<string, unknown>).__implexaCalls = calls;
   if (options.backend) (window as unknown as Record<string, unknown>).__implexaBackend = options.backend;

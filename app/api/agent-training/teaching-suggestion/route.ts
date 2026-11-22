@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     if(operation==='review-mark'&&body?.mode!=='review-mark')return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
     if(operation!=='review-mark'&&body?.mode==='review-mark')return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
     const key = request.headers.get('Idempotency-Key');
-    if (!['suggest','agent-change','method-draft','review-mark'].includes(operation) && (!(operation === 'annotation' ? ['save','link'] : ['manifest','link']).includes(body?.action) || !key || key.length<8 || key.length>180))
+    if (!['suggest','agent-change','method-draft','review-mark'].includes(operation) && (!(operation === 'annotation' ? ['save','link','queue','dismiss'] : ['manifest','link']).includes(body?.action) || !key || key.length<8 || key.length>180))
       return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
     phase = 'backend';
     const response = await fetch(`${BACKEND}/api/v2/agent-training/sessions/${sessionId}/${operation === 'annotation' ? 'demo-annotation' : operation === 'recording' ? 'recording' : operation==='agent-change'?'recording-agent-change':operation==='method-draft'?'recording-method-draft':'teaching-suggestion'}`, {
@@ -45,6 +45,14 @@ export async function POST(request: Request) {
 export async function GET(request:Request){
  const {data:{session}}=await createClient().auth.getSession();
  if(!session?.access_token)return NextResponse.json({ok:false,reason:'unauthorized'},{status:401});
+ const annotationQuery=new URL(request.url).searchParams;
+ if(annotationQuery.get('operation')==='annotation'){
+  const names=['operation','sessionId','expectedActiveVersionId','annotationId','annotationDigest'];
+  if(names.some(key=>annotationQuery.getAll(key).length!==1)||[...annotationQuery.keys()].some(key=>!names.includes(key))||!['sessionId','expectedActiveVersionId','annotationId'].every(key=>UUID.test(annotationQuery.get(key)||''))||!/^[a-f0-9]{64}$/.test(annotationQuery.get('annotationDigest')||''))return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
+  const target=new URL(`${BACKEND}/api/v2/agent-training/sessions/${annotationQuery.get('sessionId')}/demo-annotation`);
+  for(const key of ['expectedActiveVersionId','annotationId','annotationDigest'])target.searchParams.set(key,annotationQuery.get(key)!);
+  try{const response=await fetch(target.toString(),{headers:{authorization:`Bearer ${session.access_token}`},cache:'no-store',signal:AbortSignal.any([request.signal,AbortSignal.timeout(8000)])});return NextResponse.json(await response.json(),{status:response.status,headers:{'Cache-Control':'no-store'}});}catch{return NextResponse.json({ok:false,reason:'demo_annotation_unavailable'},{status:503,headers:{'Cache-Control':'no-store'}});}
+ }
  const q=new URL(request.url).searchParams,keys=['operation','sessionId','expectedActiveVersionId','suggestionId','suggestionDigest'];
  if([...q.keys()].some(k=>!keys.includes(k))||keys.some(k=>q.getAll(k).length!==1)||q.get('operation')!=='agent-change'
   ||!['sessionId','expectedActiveVersionId','suggestionId'].every(k=>UUID.test(q.get(k)||''))||!/^[a-f0-9]{64}$/.test(q.get('suggestionDigest')||''))return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});

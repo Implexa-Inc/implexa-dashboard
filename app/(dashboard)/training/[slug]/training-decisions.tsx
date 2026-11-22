@@ -11,7 +11,7 @@ export function decisionPresentation(item:CoachDecision,changes:GuidedTrainingCh
  const lesson=changes?.records.find(r=>r.recordId===item.id&&r.recordDigest===item.digest);
  const question=questions?.items.find(q=>q.id===item.id&&q.receiptDigest===item.digest);
  return item.kind==='lesson'?{source:'From your teaching',title:lesson?teachingCaption(lesson.summary):'Review a saved learning',reason:'Choose whether this lesson should guide your next run.'}:
- item.kind==='feedback'?{source:'From your result',title:item.summary||'Turn your marked feedback into a lesson',reason:'You marked this feedback for training.'}:
+ item.kind==='feedback'?{source:item.source==='demo_annotation'?'From your saved feedback':'From your result',title:item.summary||'Turn your marked feedback into a lesson',reason:item.source==='demo_annotation'?'Saved note · waiting for extraction. Nothing is applied yet.':'You marked this feedback for training.'}:
  item.kind==='question'?{source:'From the agent',title:question?trainingPropertyLabel(question.property):'An approach needs your guidance',reason:'Choose how your agent should handle this decision.'}:
  item.kind==='customer'?{source:'From a customer',title:'A suggestion for future runs',reason:'Review general guidance. Customer material stays private.'}:
  {source:'Proposed agent change',title:item.summary||'Review a change to steps or tools',reason:'An agent change needs your approval.'};

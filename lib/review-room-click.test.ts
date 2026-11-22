@@ -27,6 +27,7 @@ import { resolveReviewAction, REVISION_NOTE_MAX } from './review-actions.ts';
 register(new URL('../scripts/dom-test-loader.mjs', import.meta.url), {
   data: {
     stubs: {
+      'next/link': ['lib','test','stubs','next-link.tsx'],
       '@/lib/supabase/client': ['scripts', 'stubs', 'supabase-client.mjs'],
       '@/lib/api': ['scripts', 'stubs', 'backend-api.mjs'],
     },
@@ -581,6 +582,9 @@ test('an unavailable durable review-artifact source disables every local picker'
   }
   assert.deepEqual(pickerCalls, []);
   assert.match(text(), /Other review files are unavailable right now/);
+  const details=[...container.querySelectorAll('details')].find(el=>el.querySelector('summary')?.textContent==='Result details')!;
+  const notice=[...container.querySelectorAll('p')].find(el=>el.textContent?.includes('Other review files are unavailable'))!;
+  assert.ok(details.compareDocumentPosition(notice)&dom.window.Node.DOCUMENT_POSITION_FOLLOWING,'ordinary review keeps the unavailable notice below Result details');
   root.unmount();
 });
 

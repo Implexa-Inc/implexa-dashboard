@@ -1,6 +1,8 @@
 'use client';
 
 import TrainingDecisions from './training-decisions';
+import AnnotationLeaveGuard from '../../_components/annotation-leave-guard';
+import {trainingAnnotationHref,trainingAnnotationReturn,type TrainingAnnotationTarget} from '@/lib/training-annotation-routing';
 import SavedIntakeDecision from './saved-intake-decision';
 import {coachPage,type CoachAgent,type CoachDecision} from '@/lib/training-coach';
 import PageHeader from '@/components/page-header';
@@ -29,7 +31,7 @@ import TrainingImagePlayer from './training-image-player';
 import TrainingDraftBundle,{visualTeachingSelectable} from './training-draft-bundle';
 import RecordingLearningReview from './recording-learning-review';
 import TrainingIntakePlan,{INTAKE_CONTRACT,METHOD_CONTRACT,readIntakePlan,type IntakePlan} from './training-intake-plan';
-import {extractFeedbackTeaching,savedDirectFeedback,savedFeedbackMatches,type SavedDirectFeedback,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
+import {readSavedFeedback,retireFeedbackRecovery,queueFeedbackAnnotation,extractFeedbackTeaching,savedDirectFeedback,type SavedDirectFeedback,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
 import type {ReviewArtifact,ReviewIssue} from '@/lib/review';
 import type {Moment,RecordingDetail} from '@/lib/review-recorder';
 import {TrainingDialog as Modal} from './training-workspace';
@@ -186,10 +188,12 @@ function resolveBridge() {
   return candidate;
 }
 
-export default function TrainingSource({ slug, familyId, installationId, forkPermission,ownerId,recordingSelection,lastRunId,recentRuns=[],runsUnavailable=false,runContext,initialRecordingId,initialChat=false }: {initialChat?:boolean;initialRecordingId?:string; slug: string;familyId?:string;runContext?:AgentActionContext;recentRuns?:TrainingRun[];runsUnavailable?:boolean;lastRunId?:string|null; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
+export default function TrainingSource({ slug, familyId, installationId, forkPermission,ownerId,lastRunId,recentRuns=[],runsUnavailable=false,runContext,initialRecordingId,initialChat=false,annotationTarget }: {annotationTarget?:TrainingAnnotationTarget;initialChat?:boolean;initialRecordingId?:string; slug: string;familyId?:string;runContext?:AgentActionContext;recentRuns?:TrainingRun[];runsUnavailable?:boolean;lastRunId?:string|null; ownerId?:string;installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
   const router=useRouter();
+  function finishAnnotation(){setRecording(null);setPendingNarration(null);setPendingFeedback(null);setBatchFeedbackRequest(null);setFeedbackInput(null);setReviewed(null);setDemoText('');setDirectNote('');setChosen('');setWhy('');setProcess('');setBehavior('');setRunFeedbackRequest(null);setCoachRefresh(n=>n+1);void loadChanges();router.push(trainingAnnotationReturn(slug));router.refresh();}
+  function openSourceAnnotation(source:Source){if(installationId){chooseSource(source);return;}if(busy||runDirty||recordingDirty||directVoiceDirty||pendingDemoLink||pendingRecordingLink||suggesting||selected&&selected.sourceId!==source.sourceId&&[demoText,chosen,why,process,behavior].some(value=>value.trim())){setError('Save or cancel your current note before opening another example.');return;}if(annotationTarget?.kind==='image'&&annotationTarget.sourceId===source.sourceId){setDirectSource(false);chooseSource(source);return;}if(session)router.push(trainingAnnotationHref(slug,{kind:'image',sourceId:source.sourceId,sessionId:session}));}
   const [retention] = useState(() => { const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCMilliseconds(0); return d.toISOString(); });
-  const [view,setView]=useState<TrainingView>(recordingSelection?'teach':forkPermission?'settings':'start');
+  const [view,setView]=useState<TrainingView>(forkPermission?'settings':'start');
   const [trainingStep,setTrainingStep]=useState<TrainingStep>(1),[applyContainer,setApplyContainer]=useState<HTMLDivElement|null>(null);
   const [runPending,setRunPending]=useState({identity:'',count:0});
   function selectTrainingStep(step:TrainingStep){if(step!==trainingStep){document.querySelectorAll<HTMLMediaElement>('#main-content video, #main-content audio').forEach(media=>{if(!media.paused)try{media.pause();}catch{}});window.requestAnimationFrame?.(()=>document.getElementById('training-workspace')?.scrollIntoView?.({block:'nearest',behavior:'smooth'}));}setTrainingStep(step);}
@@ -197,20 +201,21 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
   const [uploadNoteBlocked,setUploadNoteBlocked]=useState(false);
   function returnToCurrentNote(){setUploadNoteBlocked(false);if(runFeedbackRequest){selectTrainingStep(2);window.requestAnimationFrame?.(()=>{const proposals=document.querySelector('[aria-label="Lessons from your marked result"]');proposals?.scrollIntoView?.({block:'nearest',behavior:'smooth'});const close=[...proposals?.querySelectorAll('button')||[]].find(button=>button.textContent==='Close proposals');close?.focus();});return;}selectTrainingStep(1);window.requestAnimationFrame?.(()=>{const player=document.querySelector('#training-run-player, #recording-annotation, [aria-label="Teach from an image"]');player?.scrollIntoView?.({block:'nearest',behavior:'smooth'});const field=player?.querySelector('textarea');if(field instanceof HTMLElement)field.focus();else if(player instanceof HTMLElement)player.focus();});}
   function requestTrainingUpload(){if(runFeedbackRequest||recordingDirty||runDirty||directVoiceDirty){setUploadNoteBlocked(true);return;}selectTrainingStep(1);currentTraining();setConsent(false);setDiscardDraftConfirmed(false);setUploadOpen(true);}
+  const [coachFeedbackReady,setCoachFeedbackReady]=useState(false);
   const [coachAgent,setCoachAgent]=useState<CoachAgent|null>(null),[coachBusy,setCoachBusy]=useState(true),[coachError,setCoachError]=useState(false),[coachRefresh,setCoachRefresh]=useState(0);
   const [reviewingQueue,setReviewingQueue]=useState(false);
   const [decisionSelection,setDecisionSelection]=useState<CoachDecision|null>(null),[decisionReviewBusy,setDecisionReviewBusy]=useState(false),[decisionReviewError,setDecisionReviewError]=useState(''),[decisionChildBlocked,setDecisionChildBlocked]=useState(false),[decisionCloseNotice,setDecisionCloseNotice]=useState('');
   const [decisionImage,setDecisionImage]=useState<{id:string;digest:string;image:string}|null>(null);
   const decisionReviewEpoch=useRef(0);
   const coachIdentity=`${ownerId}:${slug}:${familyId}`,coachCurrent=useRef(coachIdentity);coachCurrent.current=coachIdentity;
-  useEffect(()=>{if(installationId)return;const controller=new AbortController(),identity=coachIdentity;setCoachBusy(true);setCoachError(false);setCoachAgent(null);
+  useEffect(()=>{if(installationId)return;const controller=new AbortController(),identity=coachIdentity;setCoachBusy(true);setCoachError(false);setCoachAgent(null);setCoachFeedbackReady(false);
    if(!familyId||!UUID.test(familyId)){setCoachError(true);setCoachBusy(false);return;}
-   void fetch(`/api/agent-training/coach?familyId=${encodeURIComponent(familyId)}`,{cache:'no-store',signal:controller.signal}).then(async response=>{const page=coachPage(await response.json());const agent=page?.agents.find(a=>a.slug===slug);if(!response.ok||!page||!agent||agent.id!==familyId)throw Error();if(!controller.signal.aborted&&coachCurrent.current===identity)setCoachAgent(agent);}).catch(()=>{if(!controller.signal.aborted&&coachCurrent.current===identity)setCoachError(true);}).finally(()=>{if(!controller.signal.aborted&&coachCurrent.current===identity)setCoachBusy(false);});return()=>controller.abort();
+   void fetch(`/api/agent-training/coach?familyId=${encodeURIComponent(familyId)}&contractVersion=training-coach-decisions.v2`,{cache:'no-store',signal:controller.signal}).then(async response=>{const page=coachPage(await response.json());const agent=page?.agents.find(a=>a.slug===slug);if(!response.ok||!page||!agent||agent.id!==familyId)throw Error();if(!controller.signal.aborted&&coachCurrent.current===identity){setCoachAgent(agent);setCoachFeedbackReady(page.contractVersion==='training-coach-decisions.v2'&&page.savedFeedbackReady);}}).catch(()=>{if(!controller.signal.aborted&&coachCurrent.current===identity)setCoachError(true);}).finally(()=>{if(!controller.signal.aborted&&coachCurrent.current===identity)setCoachBusy(false);});return()=>controller.abort();
   },[coachIdentity,coachRefresh,installationId,familyId]);
-  const [activeRunId,setActiveRunId]=useState<string|null>(null),[runDirty,setRunDirty]=useState(false);
+  const [activeRunId,setActiveRunId]=useState<string|null>(annotationTarget?.kind==='result'?annotationTarget.runId||null:null),[runDirty,setRunDirty]=useState(false);
   const activeRunRef=useRef(activeRunId);activeRunRef.current=activeRunId;
   function setRunSource(id:string|null){activeRunRef.current=id;setActiveRunId(id);}
-  const [activeRecordingId,setActiveRecordingId]=useState<string|null>(initialRecordingId||null),[recordingDirty,setRecordingDirty]=useState(false),[pendingRecordingId,setPendingRecordingId]=useState<string|null>(null),[replaceRecordingOpen,setReplaceRecordingOpen]=useState(false);
+  const [activeRecordingId,setActiveRecordingId]=useState<string|null>(annotationTarget?.kind==='recording'?annotationTarget.recordingId:initialRecordingId||null),[recordingDirty,setRecordingDirty]=useState(false),[pendingRecordingId,setPendingRecordingId]=useState<string|null>(null),[replaceRecordingOpen,setReplaceRecordingOpen]=useState(false);
   const activeRecordingRef=useRef(activeRecordingId);activeRecordingRef.current=activeRecordingId;
   const [activeRecordingDetail,setActiveRecordingDetail]=useState<RecordingDetail|null>(null);
   const [trainerNarration,setTrainerNarration]=useState(false);
@@ -222,6 +227,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
   function openRecording(id:string){
     if(runDirty){setError('Save or cancel your current note before opening another example.');return;}
     if(recordingDraftBlocked()){setPendingRecordingId(id);setError('Finish your current teaching draft first. Your recording is saved and ready.');return;}
+    if(!annotationTarget){router.push(trainingAnnotationHref(slug,{kind:'recording',recordingId:id}));return;}
     if(activeRecordingId===id)return;
     if(activeRecordingId&&activeRecordingId!==id&&recordingDirty){setPendingRecordingId(id);return;}
     setRunSource(null);setTrainerNarration(false);setPendingNarration(null);setPendingFeedback(null);setPendingRecordingId(null);setActiveRecordingId(id);setActiveRecordingDetail(null);setRecordingDirty(false);
@@ -231,6 +237,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     if(busy){setError('Finish the current teaching action before choosing another result.');return;}
     if(run.id===activeRunId)return;
     if(recordingDirty||runDirty||recordingDraftBlocked()){setError('Save or cancel your current note or teaching draft before choosing another example.');return;}
+    if(!annotationTarget){router.push(trainingAnnotationHref(slug,{kind:'result',runId:run.id}));return;}
     currentTraining();setActiveRecordingId(null);setActiveRecordingDetail(null);setPendingNarration(null);setPendingFeedback(null);setRunDirty(false);setRunSource(run.id);setError('');
   }
   const [runFeedbackRequest,setRunFeedbackRequest]=useState<Array<{issue:ReviewIssue;artifact:ReviewArtifact}>|null>(null);
@@ -494,6 +501,9 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
   const [consent, setConsent] = useState(false);
   const [directSource,setDirectSource]=useState(false),[uploadOpen,setUploadOpen]=useState(false),[discardDraftConfirmed,setDiscardDraftConfirmed]=useState(false);
   const [directVoiceDirty,setDirectVoiceDirty]=useState(false);
+  const [queuedAuthorized,setQueuedAuthorized]=useState(false),[dismissFeedbackOpen,setDismissFeedbackOpen]=useState(false);
+  useEffect(()=>setDismissFeedbackOpen(false),[ownerId,currentVersion,annotationTarget?.kind==='feedback'?`${annotationTarget.sessionId}:${annotationTarget.annotationId}:${annotationTarget.annotationDigest}`:null]);
+  const [queuedFeedback,setQueuedFeedback]=useState<Awaited<ReturnType<typeof readSavedFeedback>>|null>(null);
   const [directNote,setDirectNote]=useState(''),[directExtractionRequested,setDirectExtractionRequested]=useState(false);
   const [playbackFallback,setPlaybackFallback]=useState('');
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -748,7 +758,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       setPendingAnswerLinks(remaining.length ? { ...pending, answer: { ...pending.answer, questions: remaining } } : null);
     }
     for(const q of pending.answer.questions)questionDrafts.current.delete(`${ownerId}:${slug}:${pending.answer.expectedActiveVersionId}:${q.id}`);
-    setQuestionAnswer(null); setRawAnswer(''); setQuestionIds([]); setAnsweringQuestionId(null); await loadQuestions();
+    setQuestionAnswer(null); setRawAnswer(''); setQuestionIds([]); setAnsweringQuestionId(null); setSuggestionNote(note=>[note,'Prepared — review and accept the evidence draft separately.'].filter(Boolean).join(' '));await loadQuestions();
   }
 
   async function linkExistingTeaching() {
@@ -882,6 +892,57 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
         if(!isolated&&currentHome())throw caught;
       }
     }
+    const target=annotationTarget;
+    if(target?.kind==='feedback'){
+      setQueuedFeedback(null);setQueuedAuthorized(false);setDirectSource(false);setPreview(null);
+      void work('Opening your saved feedback',async()=>{
+        const scoped=await requireCurrentScope(target.sessionId);if(!live)return;
+        const version=scoped.agent.currentVersionId!;
+        const q=new URLSearchParams({operation:'annotation',sessionId:target.sessionId,expectedActiveVersionId:version,annotationId:target.annotationId,annotationDigest:target.annotationDigest});
+        const response=await fetch(`/api/agent-training/teaching-suggestion?${q}`,{cache:'no-store'}),value=await response.json();if(!live)return;
+        if(!response.ok||!value.ok||value.annotationId!==target.annotationId||value.annotationDigest!==target.annotationDigest||value.annotation?.targetVersionId!==version)throw Error('This saved feedback is unavailable for this agent version. Refresh Coach.');
+        setQueuedAuthorized(true);setSession(target.sessionId);setSessionVersion(version);
+        const saved=await load(target.sessionId);if(!live)return;
+        const source=saved.sources?.find(source=>source.sourceId===value.annotation.sourceId&&source.metadata.sha256===value.annotation.sourceSha256);
+        if(!source)throw Error('Open this saved example on the computer where you created it. Your feedback is still saved.');
+        const note=await readSavedFeedback(value,{...target,versionId:version},source.metadata);if(!live)return;
+        setQueuedFeedback(note);setDirectNote(note.feedback);setDemoText(note.annotation.rawAnnotation);
+        if(!source.token)throw Error('Open this saved example on the computer where you created it. Your feedback is still saved.');
+        if(!chooseSource(source,false,true))return;
+        const frame=await call('preview',{token:source.token,timeMs:note.annotation.timeMs});if(!live)return;
+        if(typeof frame.image!=='string'||await teachingDigest(teachingFrame(frame.image))!==note.annotation.frameSha256)throw Error('The exact saved frame could not be verified. Your note is preserved.');
+        const scope=`${ownerId}:${target.sessionId}:${version}`,progress=extractionProgressFor(window.localStorage,scope,note.fingerprint);
+        if(progress.annotation&&(progress.annotation.annotationId!==note.annotation.annotationId||progress.annotation.annotationDigest!==note.annotation.annotationDigest))throw Error('This saved note has conflicting recovery state.');
+        progress.annotation=note.annotation;checkpointExtraction(window.localStorage,scope,progress);extractionProgress.current.set(note.fingerprint,progress);
+        if(progress.suggestionStarted&&!progress.suggestion&&!progress.record&&!progress.linked)setDirectDraftRetry({fingerprint:note.fingerprint,sessionId:target.sessionId,versionId:version,sourceId:source.sourceId,timeMs:note.annotation.timeMs,rawAnnotation:note.annotation.rawAnnotation,request:retryFeedbackDraft(progress,note.fingerprint)});else setDirectDraftRetry(null);
+        setQueuedFeedback(note);setDirectNote(note.feedback);setDemoText(note.annotation.rawAnnotation);setRunSource(null);setActiveRecordingId(null);setDirectSource(true);setTime(note.annotation.timeMs);setPreview({token:source.token,timeMs:note.annotation.timeMs,image:frame.image});setHomeCheck('complete');
+      });return()=>{live=false;};
+    }
+    if(target&&(target.kind==='image'||target.kind==='recording'&&target.sessionId&&target.sourceId)){
+      const sessionId=target.sessionId!;
+      void work('Opening your saved example',async()=>{
+        const scope=await requireCurrentScope(sessionId);if(!live)return;
+        setSession(sessionId);setSessionVersion(scope.agent.currentVersionId!);
+        const cached=session===sessionId&&sessionVersion===scope.agent.currentVersionId?sources.find(source=>source.sourceId===target.sourceId&&!!source.token):undefined;
+        const saved=cached?null:await load(sessionId);if(!live)return;
+        const source=cached||saved?.sources?.find(source=>source.sourceId===target.sourceId&&!!source.token);
+        if(!source?.token)throw Error('This saved example is unavailable on this computer. Your teaching is preserved.');
+        const same=selected?.sourceId===source.sourceId;
+        if(!same&&!chooseSource(source,false,target.kind==='recording'))return;
+        if(target.kind==='recording'){
+          recordingSources.current.set(`${sessionId}:${scope.agent.currentVersionId}:${target.recordingId}`,{sourceId:source.sourceId,token:source.token,version:scope.agent.currentVersionId!,sessionId});
+          setActiveRecordingId(target.recordingId);setAutomaticReview(target.analyze?{recordingId:target.recordingId,phase:'queued'}:null);
+        }else{
+          if(same&&copiedTeachingWording){setDirectSource(false);setHomeCheck('complete');return;}
+          if(same&&preview){setDirectSource(!questionAnswer&&!target.details);setHomeCheck('complete');return;}
+          setDirectSource(!questionAnswer&&!target.details);const frame=await call('preview',{token:source.token,timeMs:0});if(!live)return;
+          if(!frame.image)throw Error('The saved example could not be opened.');
+          setPreview({token:source.token,timeMs:0,image:frame.image});
+        }
+        setHomeCheck('complete');
+      });
+      return()=>{live=false;};
+    }
     if(isolated){
       // Current-session editing/applying must not await optional historical
       // evidence discovery. This read has no carry or admission side effects.
@@ -897,8 +958,15 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     return () => { live = false; };
     // The slug is the route identity. A new slug remounts the authoritative scope.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug,installationId,trainingStatusRefresh]);
+  }, [slug,installationId,trainingStatusRefresh,JSON.stringify(annotationTarget)]);
 
+  const previousAnnotation=useRef(annotationTarget);
+  useEffect(()=>{
+    if(annotationTarget?.kind==='result'){setRunSource(annotationTarget.runId||null);setActiveRecordingId(null);setDirectSource(false);}
+    else if(annotationTarget?.kind==='recording'){setRunSource(null);setActiveRecordingId(annotationTarget.recordingId);setDirectSource(false);}
+    else if(!annotationTarget&&previousAnnotation.current){setQueuedFeedback(null);setRunSource(null);setActiveRecordingId(null);setDirectSource(false);setRunFeedbackRequest(null);}
+    previousAnnotation.current=annotationTarget;
+  },[JSON.stringify(annotationTarget)]);
   useEffect(() => { if (reviewed) reviewHeadingRef.current?.focus(); }, [reviewed]);
   useEffect(()=>{if(!installationId&&view==='teach')document.getElementById(questionAnswer&&selected?'recording-analysis':directSource?'recording-analysis':'training-demonstration')?.scrollIntoView?.({block:'nearest',behavior:'smooth'});},[view,installationId,directSource,selected?.sourceId,!!questionAnswer]);
 
@@ -981,6 +1049,71 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       setPendingFeedback({recordingId:requested.recordingId,sourceId:source.sourceId,sessionId:id,version,timeMs:frameTime,phase:'save'});
     });
   }
+  async function saveRecordingFeedback(request:NonNullable<typeof batchFeedbackRequest>){
+    if(!currentVersion||versionChanged||activeRecordingRef.current!==request.recordingId||recordingDraftBlocked())return;
+    const version=currentVersion;if(!coachFeedbackReady){setError('Saving notes to Coach is not ready yet. Your local notes are preserved. Refresh after the update finishes.');return;}
+    await work('Saving your teaching notes',async()=>{
+      const {id,source}=await registeredRecordingSource(request.recordingId,version);
+      if(!source.token)throw Error('This source is unavailable on this Mac.');
+      let confirmed=0;
+      try{for(const moment of request.moments){
+        setExtractionNote(`Sending note ${confirmed+1} of ${request.moments.length} to Coach…`);
+        const rawAnnotation=JSON.stringify({role:'trainer_commentary',recordingId:request.recordingId,moment});
+        const fingerprint=await teachingDigest(new TextEncoder().encode(JSON.stringify({sessionId:id,version,sourceSha256:source.metadata.sha256,rawAnnotation})));
+        const progress=extractionProgress.current.get(fingerprint)||extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,fingerprint);
+        extractionProgress.current.set(fingerprint,progress);
+        await queueFeedbackAnnotation({source:{...source,token:source.token},timeMs:moment.startMs,rawAnnotation,versionId:version,progress,
+          checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress),call:async(op,args)=>call(op,args),
+          check:async()=>{if(activeRecordingRef.current!==request.recordingId)throw Error('The recording changed. Your notes are preserved.');const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Your notes are preserved.');},
+          send:async(op,body,key)=>{const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:id,operation:'annotation'})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':key!},body:JSON.stringify(body)});return response.json();}});
+        confirmed++;
+      }}catch(error){
+        setExtractionNote(`${confirmed} of ${request.moments.length} notes confirmed in Coach. Your remaining notes are preserved; retry sends the same notes without duplicates.`);
+        setCoachRefresh(n=>n+1);throw error;
+      }
+      setExtractionNote(`${confirmed} note${confirmed===1?'':'s'} sent to Coach. Extract training when you are ready.`);
+      finishAnnotation();
+    });
+  }
+  async function sendSavedFeedbackToCoach(){
+    if(annotationTarget?.kind!=='feedback'||!ownerId||!queuedFeedback||!selected?.token||!session||annotationTarget.sessionId!==session||annotationTarget.annotationId!==queuedFeedback.annotation.annotationId||annotationTarget.annotationDigest!==queuedFeedback.annotation.annotationDigest||!currentVersion||versionChanged||!coachFeedbackReady)return;
+    const id=session,version=currentVersion,note=queuedFeedback,source={...selected,token:selected.token};
+    await work('Sending your saved feedback to Coach',async()=>{
+      const progress=extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,note.fingerprint);
+      if(progress.annotation&&(progress.annotation.annotationId!==note.annotation.annotationId||progress.annotation.annotationDigest!==note.annotation.annotationDigest))throw Error('The saved note changed. Refresh its exact server record.');
+      progress.annotation=note.annotation;checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress);extractionProgress.current.set(note.fingerprint,progress);
+      await queueFeedbackAnnotation({source,timeMs:note.annotation.timeMs,rawAnnotation:note.annotation.rawAnnotation,versionId:version,progress,
+        checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress),call:async(op,args)=>call(op,args),
+        check:async()=>{const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Your saved feedback is preserved.');},
+        send:async(op,body,key)=>{const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:id,operation:'annotation'})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':key!},body:JSON.stringify(body)});return response.json();}});
+      finishAnnotation();
+    });
+  }
+  async function dismissQueuedFeedback(){
+    if(annotationTarget?.kind!=='feedback'||!ownerId||!session||!currentVersion||versionChanged)return;
+    const target=annotationTarget,version=currentVersion;
+    await work('Dismissing saved feedback',async()=>{
+      const scoped=await requireCurrentScope(target.sessionId);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Refresh Coach.');
+      const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:target.sessionId,operation:'annotation'})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':`demo-dismiss:${target.annotationId}:${target.annotationDigest}`},body:JSON.stringify({action:'dismiss',annotationId:target.annotationId,annotationDigest:target.annotationDigest,expectedActiveVersionId:version})});
+      const value=await response.json();if(!response.ok||!value.ok||value.contractVersion!=='training-demo-dismissal.v1'||value.annotationId!==target.annotationId||value.annotationDigest!==target.annotationDigest||!UUID.test(value.eventId||''))throw Error('This feedback could not be confirmed dismissed. Refresh and retry.');
+      try{retireFeedbackRecovery(window.localStorage,{ownerId:ownerId!,sessionId:target.sessionId,versionId:version,annotationId:target.annotationId,annotationDigest:target.annotationDigest},value);}catch{throw Error('Feedback was permanently dismissed on the server, but its recovery shortcut could not be updated in this browser. Retry to finish updating local history.');}
+      setQueuedFeedback(null);setDismissFeedbackOpen(false);finishAnnotation();
+    });
+  }
+  async function saveImageFeedback(){
+    if(!selected?.token||!currentVersion||!session||!demoText.trim()||versionChanged)return;
+    const source={...selected,token:selected.token},version=currentVersion,id=session,rawAnnotation=demoText,frameTime=time;if(!coachFeedbackReady){setError('Saving notes to Coach is not ready yet. Your local note is preserved. Refresh after the update finishes.');return;}
+    await work('Saving your teaching note',async()=>{
+      const fingerprint=await teachingDigest(new TextEncoder().encode(JSON.stringify({id,version,sourceId:source.sourceId,sourceSha256:source.metadata.sha256,rawAnnotation,frameTime})));
+      const progress=extractionProgress.current.get(fingerprint)||extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,fingerprint);
+      extractionProgress.current.set(fingerprint,progress);
+      await queueFeedbackAnnotation({source,timeMs:frameTime,rawAnnotation,versionId:version,progress,
+        checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress),call:async(op,args)=>call(op,args),
+        check:async()=>{const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Your note is preserved.');},
+        send:async(op,body,key)=>{const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:id,operation:'annotation'})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':key!},body:JSON.stringify(body)});return response.json();}});
+      finishAnnotation();
+    });
+  }
   async function extractRecordingFeedback(request:NonNullable<typeof batchFeedbackRequest>){
     if(!currentVersion||versionChanged||activeRecordingRef.current!==request.recordingId||recordingDraftBlocked())return;
     const version=currentVersion;setBatchFeedbackRequest(null);setLastFeedbackBatch(request);extractionCancel.current=false;
@@ -1007,9 +1140,10 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
         }catch(caught){await load(id);await loadChanges();setExtractionNote(`${completed} draft${completed===1?'':'s'} ready; ${held} need clarification. Remaining notes are saved. Retry resumes the same drafts.`);throw caught;}
       }
       setExtractionNote(`${completed} draft${completed===1?'':'s'} ready to review${held?`; ${held} need clarification`:''}. Nothing is live yet.`);setLastFeedbackBatch(null);if(completed)selectTrainingStep(2);
+      if(annotationTarget&&completed&&!held)finishAnnotation();
     });
   }
-  const [savedFeedback,setSavedFeedback]=useState<SavedDirectFeedback[]>([]),[savedFeedbackUnreadable,setSavedFeedbackUnreadable]=useState(0),[reopenedFeedback,setReopenedFeedback]=useState<SavedDirectFeedback|null>(null);
+  const [savedFeedback,setSavedFeedback]=useState<SavedDirectFeedback[]>([]),[savedFeedbackUnreadable,setSavedFeedbackUnreadable]=useState(0);
   useEffect(()=>{
     let live=true;
     if(!ownerId||!session||!currentVersion||sessionVersion!==currentVersion||installationId){setSavedFeedback([]);setSavedFeedbackUnreadable(0);return;}
@@ -1017,30 +1151,29 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       .then(value=>{if(live){setSavedFeedback(value.notes);setSavedFeedbackUnreadable(value.unreadableCount);}}).catch(()=>{if(live){setSavedFeedback([]);setSavedFeedbackUnreadable(1);}});
     return()=>{live=false;};
   },[ownerId,session,currentVersion,sessionVersion,sources,installationId,busy]);
-  const reopenedFeedbackIsCurrent=savedFeedbackMatches(reopenedFeedback,selected,time,currentVersion);
+  // A fresh positive exact Coach row can remove a duplicate recovery entry.
+  // Absence from its bounded list never establishes a note's server state.
+  const recoverableFeedback=savedFeedback.filter(note=>!coachAgent?.decisions.some(item=>item.source==='demo_annotation'&&item.id===note.annotation.annotationId&&item.digest===note.annotation.annotationDigest&&item.sessionId===session&&item.versionId===currentVersion));
+  const initialFeedbackOpened=useRef('');
+  useEffect(()=>{
+    if(annotationTarget?.kind!=='image'||!annotationTarget.feedback||!session||!currentVersion)return;
+    const identity=`${ownerId}:${session}:${currentVersion}:${annotationTarget.feedback}`;
+    if(initialFeedbackOpened.current===identity)return;
+    const note=savedFeedback.find(note=>note.fingerprint===annotationTarget.feedback);
+    if(note){initialFeedbackOpened.current=identity;void reopenSavedFeedback(note);}
+  },[savedFeedback,session,currentVersion,ownerId,JSON.stringify(annotationTarget)]);
   async function reopenSavedFeedback(note:SavedDirectFeedback){
-    if(!ownerId||!session||!currentVersion||versionChanged||directNote.trim()||directVoiceDirty||runDirty||recordingDirty||runFeedbackRequest)return;
-    const id=session,version=currentVersion,source=sources.find(source=>source.sourceId===note.annotation.sourceId&&!!source.token);
-    if(!source?.token)return;
-    await work('Opening your saved feedback',async()=>{
-      const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Your saved note is preserved.');
-      const notes=await savedDirectFeedback(window.localStorage,{ownerId,sessionId:id,versionId:version,sources:[{...source,token:source.token!}]});
-      const saved=notes.notes.find(candidate=>candidate.fingerprint===note.fingerprint&&candidate.annotation.annotationId===note.annotation.annotationId&&candidate.annotation.annotationDigest===note.annotation.annotationDigest);
-      if(!saved)throw Error('This saved note changed. Reopen its current training history.');
-      const frame=await call('preview',{token:source.token,timeMs:saved.annotation.timeMs});
-      if(typeof frame.image!=='string'||await teachingDigest(teachingFrame(frame.image))!==saved.annotation.frameSha256)throw Error('The saved frame could not be verified. Your note is preserved.');
-      if(!chooseSource(source))return;
-      setRunSource(null);setActiveRecordingId(null);setDirectSource(true);setTime(saved.annotation.timeMs);
-      setPreview({token:source.token!,timeMs:saved.annotation.timeMs,image:frame.image});setDirectNote(saved.feedback);setDemoText(saved.annotation.rawAnnotation);setReopenedFeedback(saved);
-      const progress=extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,saved.fingerprint);
-      extractionProgress.current.set(saved.fingerprint,progress);
-      if(progress.suggestionStarted&&progress.annotation&&!progress.suggestion&&!progress.record&&!progress.linked)setDirectDraftRetry({fingerprint:saved.fingerprint,sessionId:id,versionId:version,sourceId:source.sourceId,timeMs:saved.annotation.timeMs,rawAnnotation:saved.annotation.rawAnnotation,request:retryFeedbackDraft(progress,saved.fingerprint)});
-      else setDirectDraftRetry(null);
-    });
+    if(!ownerId||!session||!currentVersion||versionChanged)return;
+    if(directNote.trim()&&demoText!==note.annotation.rawAnnotation||directVoiceDirty||runDirty||recordingDirty||runFeedbackRequest){setError('Finish or discard your current note before reopening saved feedback.');return;}
+    const target={kind:'feedback' as const,annotationId:note.annotation.annotationId,annotationDigest:note.annotation.annotationDigest,sessionId:session};
+    // Local journal data is only a pointer. The full-page reader checks the
+    // canonical owner/version/source/digest before displaying or acting on it.
+    if(annotationTarget?.kind==='feedback'&&annotationTarget.annotationId===target.annotationId&&annotationTarget.annotationDigest===target.annotationDigest&&annotationTarget.sessionId===target.sessionId)setTrainingStatusRefresh(n=>n+1);
+    else router.push(trainingAnnotationHref(slug,target));
   }
   async function resumeOperatingAnalysis(analysis:AnnotationGapAnalysis){
     if(!ownerId||!session||!currentVersion||versionChanged||analysis.retry.state==='none')return;
-    const note=savedFeedback.find(note=>note.annotation.annotationId===analysis.annotation.annotationId&&note.annotation.annotationDigest===analysis.annotation.annotationDigest);
+    const note=savedFeedback.find(note=>note.annotation.annotationId===analysis.annotation.annotationId&&note.annotation.annotationDigest===analysis.annotation.annotationDigest)||(queuedFeedback?.annotation.annotationId===analysis.annotation.annotationId&&queuedFeedback.annotation.annotationDigest===analysis.annotation.annotationDigest?queuedFeedback:null);
     if(!note){setExtractionNote('Open the original saved feedback on the Mac where you created it to continue this analysis.');return;}
     if(directNote.trim()&&demoText!==note.annotation.rawAnnotation||directVoiceDirty||runDirty||recordingDirty||runFeedbackRequest){setExtractionNote('Finish or discard the current note before opening this saved feedback.');return;}
     const progress=extractionProgressFor(window.localStorage,`${ownerId}:${session}:${currentVersion}`,note.fingerprint);
@@ -1059,7 +1192,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     const source={...selected,token:selected.token},version=currentVersion,id=session,rawAnnotation=demoText,frameTime=time;
     setDirectExtractionRequested(false);
     await work('Finding the lesson in your example',async()=>{
-      const fingerprint=await teachingDigest(new TextEncoder().encode(JSON.stringify({id,version,sourceId:source.sourceId,sourceSha256:source.metadata.sha256,rawAnnotation,frameTime})));
+      const fingerprint=queuedFeedback?.annotation.rawAnnotation===rawAnnotation&&queuedFeedback.annotation.sourceId===source.sourceId?queuedFeedback.fingerprint:await teachingDigest(new TextEncoder().encode(JSON.stringify({id,version,sourceId:source.sourceId,sourceSha256:source.metadata.sha256,rawAnnotation,frameTime})));
       let progress=extractionProgress.current.get(fingerprint);if(!progress){progress=extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,fingerprint);extractionProgress.current.set(fingerprint,progress);}
       if(newDraftRequest&&(newDraftRequest.fingerprint!==fingerprint||!directDraftRetryIsCurrent))throw Error('The note changed. Review the current example before retrying.');
       if(relationChoice!==undefined&&(!directScopeReviewIsCurrent||directScopeReview?.fingerprint!==fingerprint))throw Error('The example changed. Review its current suggestion before saving.');
@@ -1081,8 +1214,9 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       if(result.status==='held'){
         if(operating){setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setExtractionNote(operating.status==='suggested'?'Your feedback suggests an agent setup change. Review the suggestion above.':operating.status==='present'?'This method is already in the agent. Your feedback is saved.':'Your feedback is saved. Tool or setup support needs review.');}
         else{setHeldExtractions(previous=>[...previous.filter(item=>item.key!==fingerprint),{key:fingerprint,text:directNote,reason:result.reason}]);setExtractionNote('This lesson needs clarification. Your original feedback is saved.');}
-      }else{setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setDemoText('');setDirectNote('');setReopenedFeedback(null);setExtractionNote(operating?.status==='suggested'?'Your lesson and agent update are ready to review. Nothing is live yet.':operating?.status==='present'?'Your proposed lesson is ready. The requested method is already available.':'Your proposed lesson is ready to review. Nothing is live yet.');selectTrainingStep(2);}
+      }else{setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setDemoText('');setDirectNote('');setExtractionNote(operating?.status==='suggested'?'Your lesson and agent update are ready to review. Nothing is live yet.':operating?.status==='present'?'Your proposed lesson is ready. The requested method is already available.':'Your proposed lesson is ready to review. Nothing is live yet.');selectTrainingStep(2);}
       await load(id);await loadChanges();
+      if(annotationTarget&&result.status!=='held')finishAnnotation();
     });
   }
   async function prepareRunTeaching(notes:Array<{issue:ReviewIssue;artifact:ReviewArtifact}>){
@@ -1144,10 +1278,9 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
 
   async function add(directUpload=false,analyzeVideo=false) {
     if(!consent)return;
-    const fromSavedRecording=Boolean(recordingSelection&&!directUpload&&!questionAnswer);
     const desktop=bridge();
     const playbackAvailable=desktop?.trainingUploadPlaybackContractVersion==='1';
-    const pickFirst=!installationId&&!!ownerId&&!fromSavedRecording&&desktop?.trainingUploadPickerContractVersion==='1';
+    const pickFirst=!installationId&&!!ownerId&&desktop?.trainingUploadPickerContractVersion==='1';
     await work(pickFirst?UPLOAD_PICKING:UPLOAD_LEGACY, async () => {
       let selectionToken:string|undefined;
       if(pickFirst){
@@ -1174,19 +1307,6 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
         version=after.agent.currentVersionId;
       } else version=(await requireCurrentScope(id)).agent.currentVersionId;
       const consents={localCustody:true,boundedEvidence:true,futureSelection:true};
-      if(recordingSelection&&!directUpload&&!questionAnswer){
-        if(bridge()?.trainingRecordingLibraryContractVersion!=='1'||!ownerId)throw new TrainingError('training_desktop_update_required','Update Desktop to use this saved recording.');
-        const result=await call('selectRecording',{sessionId:id,...recordingSelection,expectedOwnerId:ownerId,consent:consents}) as Result & {sourceId:string;token:string;recordingDraft:{recordingId:string;momentId:string|null;timeMs:number;rawAnnotation:string}};
-        const note=result.recordingDraft;
-        if(!note||note.recordingId!==recordingSelection.recordingId||note.momentId!==recordingSelection.momentId
-          || !Number.isSafeInteger(note.timeMs)||note.timeMs<0||typeof note.rawAnnotation!=='string'||note.rawAnnotation.length>2000)
-          throw new TrainingError('training_source_scope_mismatch','The saved recording handoff could not be verified.');
-        await requireCurrentScope(id);const listed=await load(id);
-        const source=listed.sources?.find(value=>value.sourceId===result.sourceId&&value.token===result.token);
-        if(!source)throw new TrainingError('training_source_scope_mismatch');
-        if(!chooseSource(source))return;setDirectSource(false);setTime(note.timeMs);setDemoText(note.rawAnnotation);const frame=await call('preview',{token:source.token,timeMs:note.timeMs});if(frame.image)setPreview({token:source.token!,timeMs:note.timeMs,image:frame.image});
-        setSuggestionNote('Saved moment notes are preserved verbatim as draft annotation. Preview this exact frame, save its annotation, then review and accept any teaching separately.');
-      }else{
         if(pickFirst)setBusy(UPLOAD_IMPORTING);
         const added=await call('select',{sessionId:id,consent:consents,...(playbackAvailable||pickFirst?{expectedOwnerId:ownerId}:{}),
           ...(selectionToken?{selectionToken}:{})}).catch(error=>{
@@ -1207,13 +1327,19 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
           evidenceRead.current++;
           setSources(previous=>previous.some(item=>item.sourceId===source.sourceId)?previous:[...previous,source]);
         }
+        if(directUpload&&!annotationTarget&&!questionAnswer){
+          router.push(trainingAnnotationHref(slug,added.recordingId&&UUID.test(added.recordingId)&&source.metadata.mediaType==='video/mp4'
+            ?{kind:'recording',recordingId:added.recordingId,sessionId:id,sourceId:source.sourceId,analyze:analyzeVideo}
+            :{kind:'image',sourceId:source.sourceId,sessionId:id}));return;
+        }
         if(!chooseSource(source,!!(directUpload||questionAnswer)&&discardDraftConfirmed))return;
         if((directUpload||questionAnswer)&&discardDraftConfirmed){setDemoText('');setChosen('');setWhy('');setProcess('');setBehavior('');}
         if(questionAnswer&&source.token){
           const frame=await call('preview',{token:source.token,timeMs:0});
           if(frame.image)setPreview({token:source.token,timeMs:0,image:frame.image});
+          if(!annotationTarget){router.push(trainingAnnotationHref(slug,{kind:'image',sourceId:source.sourceId,sessionId:id}));return;}
         }else if(directUpload&&source.token){
-          setDirectSource(true);setReopenedFeedback(null);setConsent(false);setDirectNote('');setPlaybackFallback('');
+          setDirectSource(true);setConsent(false);setDirectNote('');setPlaybackFallback('');
           if(added.recordingId&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(added.recordingId)&&source.metadata.mediaType==='video/mp4'){
             recordingSources.current.set(`${id}:${version}:${added.recordingId}`,{sourceId:source.sourceId,token:source.token,version:version!,sessionId:id});
             setAutomaticReview(analyzeVideo?{recordingId:added.recordingId,phase:'queued'}:null);
@@ -1224,7 +1350,6 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
             if(frame.image)setPreview({token:source.token,timeMs:0,image:frame.image});
           }
         }
-      }
       setConsent(false);
     });
     setConsent(false);
@@ -1237,7 +1362,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     if(!keepRecording){setRunSource(null);if(activeRecordingId&&!recordingDirty)setActiveRecordingId(null);}
     showTeaching();
     if(questionAnswer){setDirectSource(false);setActiveRunId(null);}
-    setReopenedFeedback(null);setSelected(source); setTime(0); setPreview(null); setReviewed(null); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID());
+    setSelected(source); setTime(0); setPreview(null); setReviewed(null); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID());
     setSelectionPriority('50');setSelectionConditions({taskFacts:[],exceptions:[]});return true;
   }
   function toggleStage(stage: TrainingStage) {
@@ -1258,6 +1383,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     setSelectionPriority(String(decision.content.applicability?.priority ?? 50));
     setSelectionConditions({taskFacts:[...(decision.content.applicability?.taskFacts||[])],exceptions:[...(decision.content.applicability?.exceptions||[])]});
     setStages(deriveTrainingStages(nextProperty)); setDecisionKey(crypto.randomUUID());
+    if(!annotationTarget&&session&&!installationId)router.push(trainingAnnotationHref(slug,{kind:'image',sourceId:source.sourceId,sessionId:session}));
   }
   async function preserveCompatibleTraining(historical=false,homeRead?:TrainingHomeRead){
     if(!currentVersion)throw new TrainingError('training_version_changed','Choose the current agent version before continuing.');
@@ -1324,6 +1450,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     setStages(preserved);
     setSuccessorStageExpansion({ required, missing: required.filter((stage) => !preserved.includes(stage)) });
     setDecisionKey(crypto.randomUUID());
+    if(!annotationTarget&&session&&!installationId)router.push(trainingAnnotationHref(slug,{kind:'image',sourceId:source.sourceId,sessionId:session}));
   }
   function changeTime(next: number) {
     if (directVoiceDirty || !selected || !Number.isFinite(next)) return;
@@ -1683,6 +1810,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
         await linkDemoAnnotation(demoLink);
       }
 
+
     });
   }
 
@@ -1785,6 +1913,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
   }
   async function openDecision(item:CoachDecision,all=reviewingQueue){
     if(busy||changesBusy||runDirty||recordingDirty||directVoiceDirty){setError('Finish your current note before reviewing another decision.');return;}
+    if(item.kind==='feedback'){router.push(trainingAnnotationHref(slug,item.source==='demo_annotation'&&item.sessionId?{kind:'feedback',annotationId:item.id,annotationDigest:item.digest,sessionId:item.sessionId}:{kind:'result',issueId:item.id}));return;}
     const epoch=++decisionReviewEpoch.current;setReviewingQueue(all);setDecisionSelection(item);setDecisionChildBlocked(false);setDecisionCloseNotice('');setDecisionReviewBusy(true);setDecisionReviewError('');setDecisionImage(null);
     try{
       if(currentVersion&&item.versionId!==currentVersion)throw Error('The agent changed. Refresh suggestions before reviewing.');
@@ -1947,6 +2076,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     if(action==='test_agent'&&changes){selectTrainingStep(3);currentTraining();setView('start');requestAnimationFrame(()=>document.querySelector('[aria-label="Test this update"]')?.scrollIntoView({block:'center',behavior:'smooth'}));return;}
     if(action==='analyse_tool_method'||action==='analyse_taste'){
       const agent=action==='analyse_tool_method';
+      if(!annotationTarget&&selected&&session){const registered=[...recordingSources.current.entries()].find(([,source])=>source.sourceId===binding.sourceId&&source.sessionId===session&&source.version===currentVersion);if(registered){const recordingId=registered[0].split(':').at(-1)!;setNarrationRequest({recordingId,momentId:null,purpose:agent?'agent':'taste'});router.push(trainingAnnotationHref(slug,{kind:'recording',recordingId,sessionId:session,sourceId:selected.sourceId}));return;}setSuggestionNote('Review the separate recording-analysis consent in More options, then choose its analysis action. Chat has not sent the recording or started analysis.');router.push(trainingAnnotationHref(slug,{kind:'image',sourceId:selected.sourceId,sessionId:session,details:true}));return;}
       if(!(agent?agentAnalysisConsent:recordingConsent)){
         if(activeRecordingId&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===binding.sourceId){setNarrationRequest({recordingId:activeRecordingId,momentId:null,purpose:agent?'agent':'taste'});return;}
         setSuggestionNote('Review the recording-analysis consent below, then choose its analysis action. Chat has not sent the recording or started analysis.');
@@ -1986,7 +2116,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
         <h3>Add visual context to your answer</h3>
         <blockquote className="whitespace-pre-wrap">{questionAnswer.rawAnswer}</blockquote>
         <p>Your answer will be saved with the lesson. Add an example, then review the teaching before applying it.</p><button type="button" disabled={!!busy||suggesting||!!pendingAnswerLinks} onClick={cancelQuestionAnswer}>Cancel lesson draft</button>{pendingAnswerLinks&&<div role="status" className="space-y-2"><p>{currentVersion!==pendingAnswerLinks.answer.expectedActiveVersionId?'The agent changed after this lesson draft was saved. Its answer link belongs to the earlier version and cannot be applied here.':'Your lesson draft is saved. Its answer link needs another try.'}</p><button disabled={!!busy||currentVersion!==pendingAnswerLinks.answer.expectedActiveVersionId} onClick={()=>work('Linking the preserved answer',()=>linkAnswers(pendingAnswerLinks))}>Retry saving this answer</button></div>}
-        <div className="flex flex-wrap gap-3"><button type="button" disabled={!!busy||!!pendingAnswerLinks} onClick={requestTrainingUpload}>Upload an example</button>{sources.some(source=>source.token)&&<label className="block">Choose a saved example<select aria-label="Choose a saved example" value="" disabled={!!busy||!!pendingAnswerLinks} onChange={event=>{const source=sources.find(source=>source.sourceId===event.target.value);if(source)chooseSource(source);}}><option value="">Select video or image</option>{sources.filter(source=>source.token).map((source,index)=><option key={source.sourceId} value={source.sourceId}>{source.localName||`Example ${index+1}`}</option>)}</select></label>}</div><TrainingDetails title="Use an existing lesson instead"><label>Or link an existing teaching that already expresses this answer<select value={linkRecordId} disabled={!!busy||!session||!sources.some(source=>source.decisions.some(d=>['draft','accepted'].includes(d.state)))} onChange={event => setLinkRecordId(event.target.value)}><option value="">Choose a saved draft or teaching</option>{sources.flatMap(source => source.decisions.filter(d => ['draft', 'accepted'].includes(d.state)).map(d => <option key={d.recordId} value={d.recordId}>{shortId(d.recordId)} · {d.state} · {d.content.summary.slice(0, 80)}</option>))}</select></label>
+        <div className="flex flex-wrap gap-3"><button type="button" disabled={!!busy||!!pendingAnswerLinks} onClick={requestTrainingUpload}>Upload an example</button>{sources.some(source=>source.token)&&<label className="block">Choose a saved example<select aria-label="Choose a saved example" value="" disabled={!!busy||!!pendingAnswerLinks} onChange={event=>{const source=sources.find(source=>source.sourceId===event.target.value);if(source)openSourceAnnotation(source);}}><option value="">Select video or image</option>{sources.filter(source=>source.token).map((source,index)=><option key={source.sourceId} value={source.sourceId}>{source.localName||`Example ${index+1}`}</option>)}</select></label>}</div><TrainingDetails title="Use an existing lesson instead"><label>Or link an existing teaching that already expresses this answer<select value={linkRecordId} disabled={!!busy||!session||!sources.some(source=>source.decisions.some(d=>['draft','accepted'].includes(d.state)))} onChange={event => setLinkRecordId(event.target.value)}><option value="">Choose a saved draft or teaching</option>{sources.flatMap(source => source.decisions.filter(d => ['draft', 'accepted'].includes(d.state)).map(d => <option key={d.recordId} value={d.recordId}>{shortId(d.recordId)} · {d.state} · {d.content.summary.slice(0, 80)}</option>))}</select></label>
         <p>{!session?'Add an example to start a training session first.':!sources.some(source=>source.decisions.some(d=>['draft','accepted'].includes(d.state)))?'No saved lessons are available in this training session yet.':''}</p><p>Linking preserves the existing teaching; it does not edit its text or evidence. This also resumes a draft saved before an interrupted answer link.</p>
         <button disabled={!!busy || !linkRecordId || sessionVersion !== questionAnswer.expectedActiveVersionId} onClick={linkExistingTeaching}>Link answer to selected teaching</button></TrainingDetails>
       </div>:null;
@@ -2074,220 +2204,8 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
           {agentChange&&<div role="status"><p>Edit request {shortId(agentChange.requestId)} · {agentChange.status}. The agent update is not yet verified.</p>
             {agentChange.warning&&<p>{agentChange.warning}</p>}<Link href={`/workflows/${slug}?source=generated`}>Review the agent’s edit status</Link></div>}
         </section>;
-  return <main id="main-content" tabIndex={-1} className={installationId?'mx-auto max-w-3xl px-6 py-10 space-y-6':'app-page training-agent-page'}>
-    <div className={installationId?'':'app-content'}>
-    <Link className="training-breadcrumb" href={installationId?`/workflows/${encodeURIComponent(slug)}`:"/training"}>{installationId?'Agent':'Coach'} / {agentName}</Link>
-    <PageHeader title={installationId?`Private preferences for ${agentName}`:`Train ${agentName}`} actions={!installationId?<><Link className="btn-outline" href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>View agent page</Link><AgentEditButton label="Edit steps" className="btn-outline" slug={slug} statusUnavailable={!runContext||runContext.statusUnavailable===true} revisePending={runContext?.revisePending===true}/></>:undefined}>
-      {!installationId&&<p className="app-page-description">{coachAgent?.description}{runContext?.activeVersionNumber?` · version ${runContext.activeVersionNumber}`:''}{coachAgent?.liveLessons!==null&&coachAgent?.liveLessons!==undefined?` · ${coachAgent.liveLessons} learning${coachAgent.liveLessons===1?'':'s'} for your runs`:''}{coachAgent?.lastTaughtAt&&<> · last taught <LocalTime iso={coachAgent.lastTaughtAt}/></>}</p>}
-    </PageHeader>
-    <div className={installationId?'':'training-agent-columns'}>
-    <div className={`min-w-0 space-y-7 ${installationId?legacyControls:''}`}>
-    {!installationId&&<TrainingDecisions agent={coachAgent} loading={coachBusy} error={coachError} changes={changes} questions={questions} onRetry={()=>setCoachRefresh(n=>n+1)} onReview={(item,all)=>void openDecision(item,all===true)}/>}
-    {!installationId&&(attentionCards.length>0||unappliedCount>0||session)&&<details className="training-recovery-details"><summary>Saved work and setup</summary>{unappliedCount>0&&<button type="button" className="btn-outline mt-4" onClick={()=>selectTrainingStep(2)}>Review training →</button>}<TrainingAttention key={`${ownerId}:${slug}:${currentVersion}`} cards={attentionCards}/>{session&&sessionVersion===currentVersion&&currentVersion&&<TrainingOperatingChanges key={`${ownerId}:${session}:${currentVersion}`} sessionId={session} versionId={currentVersion} slug={slug} refreshKey={operatingRefresh} onResume={analysis=>void resumeOperatingAnalysis(analysis).catch(()=>setExtractionNote('Your saved feedback could not be reopened. The original note is preserved.'))} disabled={!!busy||changesBusy||versionChanged||runContext?.revisePending===true||!runContext||runContext.statusUnavailable===true}/>}</details>}
-    {!installationId&&questionsError&&<div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-ink-400"><p>Training suggestions couldn’t load.</p><button type="button" disabled={questionsBusy||!!busy} onClick={()=>void loadQuestions()} className="underline">Retry training suggestions</button></div>}
-    {!installationId&&changes?.publication.unpublishedActiveCount!==undefined&&changes.publication.unpublishedActiveCount!==null&&changes.publication.unpublishedActiveCount>0&&<aside className="training-publication-status"><p><strong>{changes.publication.unpublishedActiveCount} learning{changes.publication.unpublishedActiveCount===1?'':'s'}</strong> {changes.publication.unpublishedActiveCount===1?'applies':'apply'} to your runs and {changes.publication.unpublishedActiveCount===1?'is':'are'} not in the published training.</p><button type="button" className="btn-outline" disabled={!!busy||changesBusy||!changes.publication.canPrepare} onClick={()=>setPublicationReviewOpen(true)}>Publish to customers</button></aside>}
-    <div id="training-workspace" className={installationId?'':'training-teaching-workspace'}>
-    {!installationId&&trainingStep!==1&&<div className="flex items-center justify-between gap-4 border-b border-ink-800 p-5"><button type="button" onClick={()=>selectTrainingStep(1)} className="text-sm text-ink-400">← Ways to train</button><span className="text-sm font-medium">{trainingStep===2?'Review training':'Apply & test'}</span></div>}
-    <div className={installationId?'':'space-y-6'}>
-    {homeCheck==='pending'&&<p role="status" className="text-sm text-ink-400">Checking saved training… You can keep teaching while this finishes.</p>}
-    {homeCheck==='idle'&&<p role="status" className="text-sm text-ink-400">Saved training check paused while you teach. <button type="button" className="underline" onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Check saved training</button></p>}
-    {installationId&&homeCheck==='unavailable'&&<p role="status">Saved training couldn’t be checked. <button type="button" className="underline" onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry training check</button></p>}
-    {intakeStatus&&<p role="status" className="text-sm text-ink-300">{intakeStatus}</p>}
-    {reviewedIntake&&!reviewedIntake.recordingId&&intakePanel}
-    {!installationId&&busy&&!analysisInProgress&&<p role="status" className="text-sm text-ink-400">{busy}…</p>}{!installationId&&error&&<p role="alert" className="text-sm text-state-needs">{reasonLabel(error)}</p>}
-    {!installationId&&trainingStep!==1&&evidenceLoading&&<p role="status" className="text-xs text-ink-400">Loading saved examples…</p>}
-    {!installationId&&!separateIntake&&evidenceError&&!analysisInProgress&&<p role="status" className="text-xs text-state-needs">Saved examples couldn’t load. <button type="button" className="underline" disabled={!!busy||evidenceLoading} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry saved examples</button></p>}
-    {!installationId&&applyNote&&<p role="status" className="text-sm text-ink-300">{applyNote}</p>}
-    {!installationId&&directApplyInFlight.current&&<p role="status" className="text-sm text-ink-300">Checking saved lessons before application…</p>}
-    {!installationId&&changesError&&trainingStep!==2&&!analysisInProgress&&(!separateIntake||trainingStep===3)&&<p role="alert" className="text-sm text-state-needs">{changesError==='training_local_unavailable'?'Saved lessons couldn’t load.':changesError.replaceAll('_',' ')} {!changes&&<button type="button" className="underline" disabled={changesBusy} onClick={()=>void loadChanges()}>Refresh training</button>}</p>}
-    {!installationId&&extractionNote&&<div role="status" className="flex flex-wrap items-center gap-3 text-sm text-ink-300"><p>{extractionNote}</p>{busy==='Finding the lessons in your feedback'?<button type="button" className="text-xs underline" onClick={()=>{extractionCancel.current=true;}}>Pause after this step</button>:lastFeedbackBatch&&<button type="button" className="text-xs underline" onClick={()=>void extractRecordingFeedback(lastFeedbackBatch)}>Resume extraction</button>}</div>}
-    <div hidden={!installationId&&trainingStep!==1} className="space-y-7">
-    {!installationId&&<>
-    <section className="training-teach-intro"><h2>Teach something new</h2><p>Show it when you need to point. Say it when a sentence is enough.</p><button id="training-chat-toggle" className="training-chat-mobile btn-outline" type="button" aria-expanded={true} aria-controls="training-companion" onClick={focusChat}>Say it in chat →</button></section></>}
-    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onSelectRun={openRun} selectedRunId={activeRunId} sourceActive={!!activeRunId||!!activeRecordingId||directSource} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={requestTrainingUpload} uploadDisabled={!!busy||changesBusy||versionChanged||(!currentVersion&&!separateIntake)} uploadStatus={[UPLOAD_PICKING,UPLOAD_CHECKING,UPLOAD_IMPORTING,UPLOAD_LEGACY].includes(busy)?busy:undefined}/>}/>}
-    {!installationId&&!directSource&&!activeRecordingId&&!activeRunId&&(savedFeedback.length>0||savedFeedbackUnreadable>0)&&<section aria-label="Saved feedback to finish" className="space-y-3 rounded-xl border border-ink-800 p-4"><h3 className="text-lg font-medium">Continue your saved feedback</h3>{savedFeedbackUnreadable>0&&<p role="status" className="text-sm text-state-needs">Some saved feedback could not be reopened. Your saved notes have not been changed.</p>}{savedFeedback.map(note=><div key={note.fingerprint} className="space-y-2"><p className="line-clamp-2 text-sm text-ink-400">{note.feedback}</p><button type="button" className="text-sm text-state-needs underline" disabled={!!busy||changesBusy||versionChanged||directVoiceDirty||runDirty||recordingDirty||!!runFeedbackRequest} onClick={()=>void reopenSavedFeedback(note)}>Continue saved feedback</button></div>)}</section>}
-    {!installationId&&pendingRecordingId&&<div role="status" className="text-sm text-ink-300">Another recording is ready. Your current feedback is preserved. <button type="button" className="underline" onClick={()=>{if(recordingDirty){setClosingRecording(false);setReplaceRecordingOpen(true);}else if(pendingRecordingId)openRecording(pendingRecordingId);}}>Annotate new recording</button></div>}
-    {!installationId&&directSource&&!activeRunId&&!activeRecordingId&&selected?.token&&previewIsCurrent&&preview?.image&&<>
-      <TrainingImagePlayer key={`${selected.sourceId}:${time}:${reopenedFeedbackIsCurrent?reopenedFeedback?.fingerprint:'new'}`} initialSpatial={reopenedFeedbackIsCurrent?reopenedFeedback?.spatial||null:null} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directNote} onVoiceDirtyChange={setDirectVoiceDirty} disabled={!!busy||changesBusy||versionChanged}
-        onChange={(text,spatial)=>{setDirectNote(text);setDemoText(text.trim()||spatial?JSON.stringify({role:'trainer_commentary',sourceKind:'upload',sourceId:selected.sourceId,timeMs:time,spatial,feedback:text}):'');}}
-        onDone={()=>setDirectExtractionRequested(true)}/>
-      {directDraftRetryIsCurrent&&<button type="button" className="text-sm text-state-needs underline" disabled={!!busy||suggesting||changesBusy||versionChanged} onClick={()=>setFeedbackRetry('direct')}>Review or retry analysis</button>}
-      {playbackFallback&&<p role="status" className="text-xs text-ink-400">{playbackFallback}</p>}
-      {selected.metadata.durationMs>0&&<details className="text-xs text-ink-400"><summary className="cursor-pointer">Choose a different frame</summary><input aria-label="Training video frame" className="mt-3 w-full" type="range" min="0" max={selected.metadata.durationMs-1} value={time} disabled={!!busy||directVoiceDirty||!!directNote.trim()} onChange={event=>changeTime(Number(event.target.value))}/><button type="button" disabled={!!busy||directVoiceDirty||!!directNote.trim()} onClick={()=>void showPreview()}>Open this frame</button></details>}
-    </>}
-    {!installationId&&activeRunId&&<TrainingRunPlayer key={activeRunId} slug={slug} runId={activeRunId} ownerId={ownerId} onTeach={(issue,artifact)=>void prepareRunTeaching([{issue,artifact}])} onDoneTeaching={notes=>void prepareRunTeaching(notes)} onDirtyChange={setRunDirty}/>}
-    {!installationId&&activeRecordingId&&<RecordingPlayer key={activeRecordingId} recordingId={activeRecordingId} ownerId={ownerId||''} trainingSlug={slug} embedded trainingReview={recordingReviewPanel} trainingFrames={activeAnalysis?.frames} trainerNarration={trainerNarration} onTrainerNarrationChange={setTrainerNarration} onDirtyChange={setRecordingDirty} onRecordingLoaded={setActiveRecordingDetail} onUseFeedback={(recordingId,moment)=>setFeedbackRequest({recordingId,moment})} onDoneTeaching={(recordingId,moments)=>setBatchFeedbackRequest({recordingId,moments})} onAnalyzeNarration={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'taste'})} onAnalyzeTool={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'agent'})} narrationUnavailable={pendingRecordingLink||pendingDemoLink||suggesting?"Finish the current teaching or pending link first.":!activeRecordingDetail?"Loading your recording…":!trainerNarration&&activeRecordingDetail.origin==='imported'?"Add voice notes, or mark this video as your narrated demonstration in More options.":!activeRecordingDetail.hasMicrophone?"This recording has no microphone narration. You can still leave feedback on the video.":!recordingSupported?"Update Desktop to find learnings in your narration.":(activeRecordingDetail.durationMs||0)>600000?"Narration analysis supports recordings up to 10 minutes. Your visual feedback is still available.":undefined} onClose={()=>{if(recordingDirty){setClosingRecording(true);setReplaceRecordingOpen(true);}else{activeRecordingRef.current=null;setAutomaticReview(null);setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(null);setActiveRecordingDetail(null);}}}/>}
-        {decisionSelection?.source!=='recording_agent'&&recordingToolPanel}
-    {!installationId&&recording?.purpose==='agent'&&!agentProposal&&selected?.sourceId===recording.excerpt.sourceId&&<section aria-label="Retained tool analysis" className="space-y-3 rounded-xl border border-ink-800 p-5">
-      <h2 className="text-lg font-medium">Tool update not ready yet</h2>
-      <p className="text-xs text-ink-400">Source: {selected?.localName} · {shortId(recording.excerpt.sourceSha256)}</p>
-      <p className="text-sm text-ink-400">Your selected excerpt and three frames are retained. Retry the draft, or discard this local draft to choose another recording. Saved evidence stays in Training history.</p>
-      <details className="text-sm"><summary>Selected narration</summary><blockquote className="mt-2 whitespace-pre-wrap">{recording.excerpt.text}</blockquote></details>
-      <button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>void retryRecordingDraft()}>Retry tool draft</button>
-      <button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>{setRecording(null);setSuggestionNote('');}}>Discard tool draft</button>
-    </section>}
-    {!installationId&&activeRecordingId&&!activeAnalysis&&recording&&recording.purpose!=='agent'&&selected&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===recording.excerpt.sourceId&&<section className="space-y-4 rounded-xl border border-ink-800 p-5" aria-label="Learning from your narration">
-      <h2 className="text-lg font-medium">Learning from your narration</h2><details className="text-sm text-ink-400"><summary>What Tukido heard</summary><blockquote className="mt-3 whitespace-pre-wrap">{recording.excerpt.text}</blockquote><p className="mt-2 text-xs">Speech recognition can make mistakes. Check the wording before saving.</p></details>
-      {!recording.suggestion&&<button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>void retryRecordingDraft()}>Retry draft from this excerpt</button>}{recording.suggestion&&<><div className="flex flex-wrap gap-5"><img src={recording.frames[recording.suggestion.frameIndex].image} alt="Frame supporting the suggested learning" className="w-64 rounded-lg object-contain"/><div className="min-w-0 flex-1 space-y-2">{TEACHING_FIELDS.map(key=><p key={key} className="text-sm text-ink-400"><strong>{TEACHING_SECTION_LABELS[key]}{key==='why'?' (inferred from narration)':''}:</strong> {recording.suggestion!.fields[key]}</p>)}</div></div>
-      <p className="text-xs text-ink-400">{relationLabel(relation)} · {property.replaceAll('_',' ')} · {stages.map(trainingStageLabel).join(', ')}</p>{learningScopeControls()}
-      <button type="button" className="btn-primary" disabled={!!busy||versionChanged||!previewIsCurrent||preview?.image!==recording.frames[recording.suggestion.frameIndex].image||!stages.length} onClick={()=>void annotate(recording.suggestion!.fields)}>Save as draft</button><p className="text-xs text-ink-500">Review and accept the draft before it becomes training. The marked region remains in your recording notes; the teaching uses the selected frame.</p></>}
-      <button type="button" disabled={!!busy||suggesting||!!pendingRecordingLink} onClick={()=>{setRecording(null);setRelation('accepted');setDecisionKey(crypto.randomUUID());setSuggestionNote('Suggestion discarded. Your private narration history remains saved.');}}>Discard narration suggestion</button>
-    </section>}
-    {!installationId&&activeRecordingId&&suggestionNote&&<p role="status" className="text-sm text-ink-400">{suggestionNote}</p>}
-    {!installationId&&feedbackInput&&feedbackInput.recordingId===activeRecordingId&&feedbackInput.sourceId===selected?.sourceId&&<section className="space-y-4 rounded-xl border border-ink-800 p-5" aria-label="Learning from your feedback"><h2 className="text-lg font-medium">Learning from your feedback</h2><p>{feedbackInput.text}</p>{feedbackInput.endFrame&&<p className="text-xs text-ink-400">This mark is at the end; the teaching frame is taken just before the recording ends.</p>}
-      {previewIsCurrent&&preview?.image&&<img src={preview.image} alt="Frame for your feedback" className="w-64 rounded-lg"/>}
-      {pendingFeedback?.phase==='suggest'&&!demoAnnotationIsCurrent&&!busy&&<button type="button" onClick={()=>void saveDemoAnnotation()}>Retry saving feedback source</button>}
-      {suggested?.value.fields&&demoAnnotationIsCurrent&&suggested.value.binding.frameSha256===demoAnnotation?.value.frameSha256&&'annotationId' in suggested.value.binding&&suggested.value.binding.annotationId===demoAnnotation?.value.annotationId&&<><div className="space-y-2">{TEACHING_FIELDS.map(key=><p key={key} className="text-sm text-ink-400"><strong>{TEACHING_SECTION_LABELS[key]}:</strong> {suggested.value.fields![key]}</p>)}</div><p className="text-xs text-ink-400">{relationLabel(relation)} · {feedbackCategoryConfirmed?`${property.replaceAll('_',' ')} · ${stages.map(trainingStageLabel).join(', ')}`:'Category not chosen'}</p>{learningScopeControls(true)}{!feedbackCategoryConfirmed&&<p className="text-xs text-ink-400">Choose its category under “Where this learning applies” before saving.</p>}<button type="button" className="btn-primary" disabled={!!busy||suggesting||versionChanged||!stages.length||!!pendingDemoLink||!feedbackCategoryConfirmed} onClick={()=>{appliedSuggestion.current=suggested.value;void annotate(suggested.value.fields!);}}>Save as draft</button></>}
-      {demoAnnotationIsCurrent&&!suggesting&&!suggested?.value.fields&&!pendingFeedback&&<button type="button" disabled={!!busy} onClick={()=>setFeedbackRetry('saved')}>Retry suggestion from saved feedback</button>}
-      <button type="button" disabled={!!busy||suggesting||!!pendingDemoLink} onClick={discardFeedbackSuggestion}>Discard this suggestion</button>
-      {pendingDemoLink&&<button type="button" disabled={!!busy} onClick={()=>work('Linking your feedback',()=>linkDemoAnnotation(pendingDemoLink))}>Retry feedback link</button>}
-    </section>}
-    <Modal open={feedbackRetry!==null} onClose={()=>setFeedbackRetry(null)} title={feedbackRetry==='direct'?'Review or retry analysis?':'Retry this teaching suggestion?'}>
-      <p>{feedbackRetry==='direct'?'Tukido first checks the saved analysis. A failed attempt, or an unresolved attempt after its waiting period, can be analyzed again. The earlier call may have consumed AI usage. Your note, frame and agent setup may be sent to Claude again; nothing is applied.':'The selected frame and your saved feedback will be sent again to Anthropic Claude Haiku 5.5.'}</p>
-      <button type="button" disabled={!!busy||suggesting||versionChanged||(feedbackRetry==='direct'?!directDraftRetryIsCurrent:!demoAnnotationIsCurrent)} onClick={()=>{
-        setFeedbackRetry(null);
-        if(feedbackRetry==='direct'){if(directDraftRetry&&directDraftRetryIsCurrent){const progress=extractionProgress.current.get(directDraftRetry.fingerprint);void extractDirectFeedback({...directDraftRetry.request,...(progress?.analysisRequest&&progress.analysisOutcome==='pending'?{acknowledgedUnknownPrior:true as const}:{})});}}
-        else{setDraftConsent(true);void suggestTeaching(true);}
-      }}>{feedbackRetry==='direct'?'Review or retry analysis':'Retry suggestion'}</button>
-    </Modal>
-    <Modal open={directExtractionRequested} onClose={()=>setDirectExtractionRequested(false)} title="Find training and agent improvements?"><p className="text-sm leading-6 text-ink-300">Tukido will use your feedback to suggest training and identify any needed step or tool changes. Review each before applying.</p><TrainingInfo label="What this analysis shares">{OWNER_SOURCE_CONSENT} Your note, region, this frame and the agent’s current steps and attached methods go to Claude Haiku 5.5 in one analysis. Your training examples remain separate from proposed setup changes. The video's narration is not used as your instruction.</TrainingInfo><button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>void extractDirectFeedback()}>Extract training</button></Modal>
-    <Modal open={!!batchFeedbackRequest} onClose={()=>setBatchFeedbackRequest(null)} title="Find the lessons in your feedback?">
-      <p className="text-sm leading-6 text-ink-300">Tukido will turn your {batchFeedbackRequest?.moments.length||0} saved note{batchFeedbackRequest?.moments.length===1?'':'s'} and their frames into proposed training. You can edit or skip each lesson.</p>
-      <TrainingInfo label="What analysis shares">{OWNER_SOURCE_CONSENT} Only your notes and the frame for each note go to Claude Haiku 5.5. The source video’s narration is not used as your instruction. Drafting does not make training live.</TrainingInfo>
-      <button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>{if(batchFeedbackRequest)void extractRecordingFeedback(batchFeedbackRequest);}}>Extract training</button>
-    </Modal>
-
-    {!installationId&&heldExtractions.length>0&&<details className="rounded-xl border border-amber-800/60 p-4 text-sm"><summary className="cursor-pointer">Needs clarification ({heldExtractions.length})</summary>{heldExtractions.map(item=><div key={item.key} className="mt-4 space-y-2"><p>{item.text}</p><p className="text-xs text-ink-400">{item.reason}</p></div>)}</details>}
-    {!installationId&&questionAnswer&&(!questionsOpen||!questions?.items.some(q=>q.id===answeringQuestionId))&&<section aria-label="Your answer in progress" className={`space-y-3 rounded-xl border border-ink-700 p-4 ${legacyControls}`}>
-      <h2 className="text-lg font-medium">Your answer in progress</h2><p className="text-sm text-ink-400">{questionExcerpt((questionAnswer.questions.find(q=>q.id===answeringQuestionId)||questionAnswer.questions[0]).question)}</p>{preparedQuestionAnswer}
-    </section>}
-    </div>
-    <div hidden={!installationId&&trainingStep!==2} className="space-y-7">
-    {!installationId&&<div><h2 className="text-2xl font-medium tracking-tight">Review training</h2><p className="mt-2 text-sm text-ink-400">Check the lessons, edit anything you’d change, then continue.</p></div>}
-    {!installationId&&directScopeReviewIsCurrent&&directScopeReview&&<section aria-label="Review example type" className="rounded-xl border border-ink-700 p-5 space-y-4">
-      <h3 className="text-lg font-medium">Review your teaching</h3>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={directScopeReview.image} alt="Example being reviewed before saving" className="w-48 rounded-lg"/>
-      <p className="text-sm leading-6">{directScopeReview.lesson}</p><TrainingDirectionLabel scope={directScopeReview.creativeDirections}/>
-      <label className="block text-sm">How should the agent use this example?
-        <select className="mt-2 block rounded-lg border border-ink-700 bg-ink-950 p-2" value={directScopeReview.relation} disabled={!!busy||versionChanged||!!extractionProgress.current.get(directScopeReview.fingerprint)?.reviewedRelation}
-          onChange={event=>setDirectScopeReview({...directScopeReview,relation:event.target.value as TrainingRelation})}>
-          {TRAINING_RELATIONS.map(value=><option key={value} value={value}>{{accepted:'Keep this approach',rejected:'Avoid this approach',contrast:'Compare these approaches',exception:'Use as an exception'}[value]}</option>)}
-        </select>
-      </label>
-      <p className="text-xs text-ink-400">This describes the example shown, not the improvement you want. Saving keeps a draft; it does not apply training.</p>
-      <button type="button" className="btn-primary" disabled={!!busy||versionChanged} onClick={()=>void extractDirectFeedback(undefined,directScopeReview.relation)}>Save teaching draft</button>
-    </section>}
-    {!installationId&&session&&currentVersion&&ownerId&&<RunMarkTraining applyContainer={applyContainer} onEligibleCountChange={reportRunPending} activeStep={trainingStep} onReviewReady={()=>selectTrainingStep(2)} sessionId={session} currentVersionId={currentVersion} ownerId={ownerId} slug={slug} requests={runFeedbackRequest} onClose={()=>setRunFeedbackRequest(null)} onScopeCheck={async()=>{const scoped=await requireCurrentScope(session);if(scoped.agent.currentVersionId!==currentVersion)throw new TrainingError('training_version_changed');}} onApplied={async()=>{await loadChanges();}}/>}
-    {!installationId&&session&&currentVersion&&<SavedReviewTeaching sessionId={session} versionId={currentVersion} target={savedReviewTarget} onClose={()=>setSavedReviewTarget(null)} onChanged={async()=>{await loadChanges();}} slug={slug}/>}
-
-    <Modal open={!!feedbackRequest} onClose={()=>setFeedbackRequest(null)} title="Turn this feedback into a learning?"><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Your exact saved mark, including earlier notes and its region, is kept as the private feedback source. This frame and the complete saved mark, including earlier notes and region coordinates, are sent to Anthropic Claude Haiku 5.5 to suggest a learning. You review it before admission.</p><button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>void beginFeedbackLearning()}>Suggest learning</button></Modal>
-    <Modal open={!!narrationRequest} onClose={()=>setNarrationRequest(null)} title={narrationRequest?.purpose==='agent'?"Teach a tool from this recording?":"Find learnings in this recording?"}><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Tukido transcribes on this Mac, then sends the transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5. Typed feedback is not included in narration analysis. The selected excerpt and three frames are used to {narrationRequest?.purpose==='agent'?'suggest a tool and method update':'suggest a learning'}. The selected excerpt and lineage are kept in your private append-only Training history. You review the suggestion before saving or accepting it.</p>{narrationRequest?.purpose==='agent'&&<label className="mt-4 block text-sm">Tool method<select className="mt-2 block w-full rounded border border-ink-700 bg-ink-900 p-2" value={agentCapability} disabled={!!busy||suggesting||!!agentChange} onChange={event=>setAgentCapability(event.target.value as typeof agentCapability)}><option value="auto">Detect from this recording</option><option value="web_reference_research">Web reference research</option><option value="presenter_background_removal">VEED presenter background</option><option value="higgsfield_image_to_video">Higgsfield image to video</option></select><span className="mt-2 block text-xs text-ink-400">You'll review the proposal before requesting an agent update. Tool access is connected separately.</span></label>}{narrationRequest?.purpose==='agent'&&!toolFramesSupported&&<p role="status" className="mt-3 text-sm">Update Desktop to analyze demonstrated tools. Taste analysis is still available.</p>}<button type="button" className="btn-primary mt-5" disabled={!!busy||versionChanged||!recordingSupported||!!agentChange||(narrationRequest?.purpose==='agent'&&!toolFramesSupported)} onClick={()=>void beginNarrationAnalysis()}>{narrationRequest?.purpose==='agent'?'Suggest tool update':'Analyze narration'}</button></Modal>
-    <Modal open={replaceRecordingOpen} onClose={()=>setReplaceRecordingOpen(false)} title="Leave without saving feedback?"><p>Your unsaved marks stay here if you keep editing.</p><div className="mt-5 flex gap-4"><button type="button" onClick={()=>setReplaceRecordingOpen(false)}>Keep editing</button><button type="button" onClick={()=>{setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(closingRecording?null:pendingRecordingId);setActiveRecordingDetail(null);setRecordingDirty(false);if(!closingRecording)setPendingRecordingId(null);setClosingRecording(false);setReplaceRecordingOpen(false);}}>Discard unsaved changes</button></div></Modal>
-    {!installationId&&(historyBusy||historyError)&&<p role="status" className="text-sm text-ink-400">{historyBusy?'Loading earlier training…':historyError}</p>}
-    {!installationId&&history&&<section aria-label="Earlier training" className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 className="text-xl font-medium">Learnings</h2>{versionPicker}</header><p className="text-xs text-ink-500">Earlier version · read-only</p>{history.sources.flatMap(source=>source.decisions.map(d=><details key={d.recordId} className="border-b border-ink-800 py-4"><summary className="cursor-pointer text-sm">{['draft','accepted'].includes(d.state)?d.decision.desiredBehavior||d.content.summary:'This teaching is no longer available for use.'}</summary><div className="space-y-3 pt-4 text-sm leading-6 text-ink-400">{source.token&&d.content.derivatives?.[0]?.sha256&&['draft','accepted'].includes(d.state)&&<TrainingImage token={source.token} recordId={d.recordId} recordDigest={d.recordDigest} frameSha256={d.content.derivatives[0].sha256} enabled={!busy} context={`${history.sessionId}:${history.versionId}`} alt="Earlier teaching example"/>}{['draft','accepted'].includes(d.state)&&<p>{d.content.summary}</p>}<p>{d.state} · {relationLabel(d.content.relation)}</p></div></details>))}{!history.sources.length&&<p className="text-sm text-ink-500">No examples were returned for this version.</p>}</section>}
-    {!installationId&&!session&&!busy&&<button type="button" className="text-sm text-ink-300 disabled:opacity-40" disabled={!currentVersion||versionChanged} onClick={()=>{focusChat();}}>Start teaching →</button>}
-    {!installationId&&session&&!history&&<TrainingDraftBundle applyContainer={applyContainer} busy={!!busy||changesBusy||versionChanged||!!pendingDemoLink||!!pendingRecordingLink||!!pendingAnswerLinks}
-      drafts={visualDraftItems.map(({source,decision})=>({id:decision.recordId,digest:decision.recordDigest,judgment:decision.decision.why||decision.decision.desiredBehavior,appliesWhen:decision.decision.process,example:decision.decision.chosen,relation:decision.content.relation,category:decision.content.properties.map(property=>trainingPropertyLabel(property)).join(', '),creativeDirections:trainingDirectionsFromTaskFacts(decision.content.applicability?.taskFacts),renderEvidence:<TrainingImage token={source.token!} recordId={decision.recordId} recordDigest={decision.recordDigest} frameSha256={decision.content.derivatives![0].sha256} enabled={!busy&&!changesBusy} context={`${session}:${currentVersion}`} alt="Proposed teaching example" expandable/>}))}
-      onExplain={id=>{const record=changes?.records.find(record=>record.recordId===id);if(record)void explainTeaching(record);}}
-      explanationFor={id=>{const record=changes?.records.find(record=>record.recordId===id);const explanation=record&&explanations[`${changesIdentity.current}:${id}:${record.recordDigest}`];return explanation?<div role="status" className="mt-3 rounded-lg bg-ink-900/50 p-3 text-xs leading-5 text-ink-300">{explanation.state==='loading'?'Explaining this lesson…':<TrainingExplanation text={explanation.text}/>}{explanation.state==='ready'&&<span className="mt-2 block text-ink-500">AI explanation · saved training unchanged</span>}</div>:null;}}
-      onApply={ids=>void applyVisualDrafts(ids)} onEdit={id=>{const source=sources.find(source=>source.decisions.some(decision=>decision.recordId===id));const decision=source?.decisions.find(decision=>decision.recordId===id);if(source&&decision)void reviewDecision(source,decision);}}/>}
-    {!installationId&&session&&!history&&<>
-      {changes?<TrainingChanges onAcceptRecord={record=>void applyOneLesson(record)} onUndoRecord={record=>void applyOneLesson(record,'remove')} applyContainer={applyContainer} hideRunPanel hiddenRecordIds={hiddenDraftIds} value={changes} versionPicker={versionPicker} renderExample={learningExample} captionFor={learningCaption} busy={!!busy||changesBusy||versionChanged}
-        onActivate={activateCandidate}
-        onWithdraw={target=>mutateChanges('withdraw',{sourceEventId:target.eventId,expectedEventDigest:target.eventDigest})}
-        onImport={(build,noteIndex)=>mutateChanges('creation-import',{buildRequestId:build.buildRequestId,replyId:build.replyId,replyDigest:build.replyDigest,noteIndex})}
-        onPolicy={(enabled,policy)=>mutateChanges('policy',{expectedActiveVersionId:currentVersion,expectedPolicyDigest:policy.policyDigest,enabled})}
-        onForce={target=>requestLearning({kind:'feedback',id:target.eventId,digest:target.eventDigest},'Please prepare a private learning from this selected feedback, preserving my meaning. If my preference is unclear, ask instead of inventing it.')}
-        onEdit={editCandidate} onApplySelected={applyTextDrafts} onExplain={record=>void explainTeaching(record)} onInspect={setIntakeLesson} explanationFor={record=>{const explanation=explanations[`${changesIdentity.current}:${record.recordId}:${record.recordDigest}`];return explanation?<div role={explanation.state==='error'?'alert':'status'} className="mt-3 rounded-lg bg-ink-900/50 p-3 text-sm leading-6 text-ink-300">{explanation.state==='loading'?'Explaining this lesson…':<TrainingExplanation text={explanation.text}/>}{explanation.state==='ready'&&<span className="mt-2 block text-xs text-ink-500">AI explanation · saved training unchanged</span>}</div>:null;}}
-        onRecord={(record,action)=>mutateChanges('records',{expectedActiveVersionId:currentVersion,recordId:record.recordId,expectedRecordDigest:record.recordDigest,expectedSnapshotDigest:changes.binding.snapshotDigest,action})}
-        onTest={digest=>prepareCandidateTest(digest)}
-        onPublish={()=>setPublicationReviewOpen(true)}/>:<p className="text-sm text-ink-500">{changesError?'Saved training changes are unavailable; existing evidence is preserved.':'Loading saved training changes…'}</p>}
-      {changesError&&<p role="status" className="text-xs text-ink-400">{changesError.replaceAll('_',' ')} <button type="button" disabled={changesBusy} onClick={()=>loadChanges()}>Refresh saved changes</button></p>}
-    </>}
-    {!installationId&&<button type="button" className="btn-primary" disabled={!!busy||changesBusy} onClick={()=>selectTrainingStep(3)}>Continue to Apply &amp; Test</button>}
-    </div>
-    <section hidden={!installationId&&trainingStep!==3} aria-label="Apply and test training" className="space-y-6">
-    <div className="flex items-center justify-between gap-3"><h2 className="text-2xl font-medium tracking-tight">Apply &amp; Test</h2><button type="button" className="text-sm text-action-accent underline underline-offset-4" onClick={()=>selectTrainingStep(2)}>Review selection</button></div><div ref={setApplyContainer} aria-label="Selected training to apply" className="space-y-4"/>
-    {!installationId&&<TrainingRunPanel value={changes} compatibleTrainingPending={continuity.state==='available'||directCarryPending===changesIdentity.current} progress={testProgress} busy={!!busy||changesBusy||versionChanged} onTest={digest=>prepareCandidateTest(digest)} onPublish={()=>setPublicationReviewOpen(true)} onActivate={activateCandidate} onApplyWithoutTest={digest=>activateCandidate(digest,null)}
-      actions={runContext?<AgentActions {...runContext} workflowVersionId={runContext.workflowVersionId} inputContract={runContext.inputContract} inputContractDigest={runContext.inputContractDigest} slug={slug} name={agentName} align="start" presentation="training" statusUnavailable={runContext.statusUnavailable||runContext.workflowVersionId!==currentVersion} runRequest={runRequest} onQueued={()=>void loadChanges()}
-        trainingChoices={{pendingUnknown:!!changesError,pending:false,canTest:!versionChanged&&!!changes?.test.canTest,delivered:!versionChanged&&changes?.test.status==='delivered'&&changes.test.snapshotDigest===changes.binding.snapshotDigest,savedAvailable:changes?.activation?.serving?.mode!=='snapshot_other_version',busy:!!busy||changesBusy,
-         onPending:()=>{if(changes)void prepareCandidateTest(changes.binding.snapshotDigest);},onSaved:()=>setRunRequest({nonce:crypto.randomUUID(),binding:null})}}/>:<p className="mt-3 text-sm text-ink-500">Run setup is unavailable. Refresh this page to try again.</p>}/>}
-    </section>
-    <Modal open={uploadNoteBlocked} onClose={()=>setUploadNoteBlocked(false)} title={runFeedbackRequest?"Finish your proposed training":"Finish your current note"}><p className="text-sm leading-6 text-ink-300">{runFeedbackRequest?"Close your current proposals before uploading another example. Your saved feedback and proposals remain available.":"Save or cancel your note before uploading another example. Your feedback stays where you left it."}</p><div className="mt-5 flex gap-4"><button type="button" className="text-sm text-ink-400" onClick={()=>setUploadNoteBlocked(false)}>Keep editing</button><button type="button" className="btn-primary" onClick={returnToCurrentNote}>{runFeedbackRequest?"Return to proposals":"Return to note"}</button></div></Modal>
-    <div hidden={!installationId&&view!=='settings'} className={`space-y-6 ${legacyControls}`}>
-    <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be stopped for new runs or have permission withdrawn.</p>
-    {!installationId&&changes?.publication.canPrepare&&<button type="button" className="btn-primary" disabled={!!busy||changesBusy||versionChanged} onClick={()=>setPublicationReviewOpen(true)}>Review public version</button>}
-    {!installationId&&<Link className="btn-outline" href={`/training/${encodeURIComponent(slug)}/listing${currentVersion?`?versionId=${encodeURIComponent(currentVersion)}`:''}`}>Manage marketplace listing and visibility</Link>}
-    {installationId && <p>Only your installation can select these preferences. The trainer’s agent and teachings stay unchanged. Images remain on this Mac. Review suggested wording before admitting it; keep your exact feedback separately and label any agent-written options.</p>}
-    {suggestionNote && <p role="status">{suggestionNote}</p>}
-    {!installationId && (changes?.publication.canPrepare?<TrainingDetails title="Advanced image custody and fork permissions" open={!!forkPermission}><PublisherTeachingRelease slug={slug} versionId={currentVersion} forkPermission={forkPermission}/></TrainingDetails>:<PublisherTeachingRelease slug={slug} versionId={currentVersion} forkPermission={forkPermission}/>)}
-    </div>
-    {suggestionNote&& !installationId&&view!=='settings'&&<p role="status" className="rounded-lg border border-ink-700 p-3 text-sm">{suggestionNote}</p>}
-    </div></div>
-    {installationId && versionChanged && <p role="alert">This preference session belongs to another installed version. Reopen your agent’s private preferences; no teaching is moved automatically.</p>}
-    {installationId && pendingDemoLink && <button disabled={!!busy} onClick={() => work("Linking the preserved preference feedback", () => linkDemoAnnotation(pendingDemoLink))}>Retry feedback link</button>}
-    {!installationId && versionChanged && <section role={activeVersionTrainingIsReady ? 'status' : 'alert'} className={`rounded-xl border p-4 space-y-3 ${legacyControls} ${activeVersionTrainingIsReady ? 'border-emerald-800' : 'border-ink-700'}`}>
-      <h2 className="font-semibold">{continuity.state==='carried'?'Earlier training carried forward':continuity.state==='available'?'Earlier training can be reused':continuity.state==='review'?'Review training for this update':'Earlier training status needs checking'}</h2>
-      {continuity.state==='carried'?<p>{continuity.count} compatible {continuity.count===1?'lesson from an earlier version is':'lessons from earlier versions are'} available to this version. You do not need to upload or approve {continuity.count===1?'it':'them'} again.</p>
-        :continuity.state==='available'?<p>{continuity.count} compatible {continuity.count===1?'lesson from an earlier version will':'lessons from earlier versions will'} carry forward when you run your agent. You do not need to recreate the examples.</p>
-        :continuity.state==='unknown'?<><p>Your saved training is preserved. We could not confirm which earlier lessons this version can use.</p><button disabled={!!busy} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Check training status</button></>
-        :null}
-      {(continuity.state==='review'||(['carried','available'].includes(continuity.state)&&!carryCoversSession))&&<><p>{continuity.state==='review'?'The update needs a training review.':'The selected older session is separate from this carry. Review its lessons if you want to reuse them here.'}</p><p>Keep your earlier examples; review what has changed before adding or changing lessons.</p><details><summary>Review earlier training</summary><p className="mt-3">Start a session for this version to add or revise the affected lessons. Existing lessons and their history stay saved.</p><label className="mt-3 flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event)=>setTransitionConfirmed(event.target.checked)}/>Start a new training session for the updated agent.</label><button disabled={!!busy||!transitionConfirmed||!currentVersion} onClick={()=>void beginVersionSuccessor()}>Start successor training session</button></details></>}
-      {carryCoversSession&&['carried','available'].includes(continuity.state)&&<button type="button" className="btn-primary" disabled={!!busy} onClick={()=>void beginVersionSuccessor(true)}>Continue training</button>}
-    </section>}
-    <div id="training-demonstration" hidden={!installationId&&(view!=='teach'||directSource)} className={`space-y-4 rounded-xl border border-ink-800 p-5 ${legacyControls}`}>
-    {!installationId&&<div><h2 className="text-lg font-medium">Your demonstration</h2><p className="mt-2 text-sm text-ink-400">Choose a recording or image, then select the moment you want to teach.</p></div>}
-    <label className="flex gap-3 text-sm leading-6"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />{installationId?"I have permission to use this output and save bounded private preference evidence for one year":OWNER_SOURCE_CONSENT}{installationId&&" The original stays on this computer. I can stop future selection or withdraw permission below."}</label>
-
-    {recordingSelection && <p>Use the selected saved recording and moment notes. Notes over the existing annotation limit must be shortened or split deliberately; the full saved moment remains on this Mac.</p>}
-    <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={()=>void add()}>{recordingSelection&&!questionAnswer?"Use selected recording":"Add training source"}</button>
-    </div>
-    {installationId&&busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{installationId&&error && <p role="alert">{reasonLabel(error)}</p>}
-    {reviewed && reviewedIsVisible && <section className={`rounded border border-brand-500 p-4 space-y-4 ${legacyControls}`} aria-labelledby="decision-review-heading"><h2 ref={reviewHeadingRef} id="decision-review-heading" tabIndex={-1}>{reviewed.image ? 'Exact saved evidence' : 'Saved teaching'}</h2>{reviewed.readOnly&&<p className="text-xs text-ink-400">Original example · read-only. Current training is unchanged.</p>}{reviewed.readOnly&&!reviewed.image&&<p role="status" className="text-sm text-ink-400">Saved frame unavailable on this computer. The original teaching text is preserved.</p>}{reviewed.image && <img src={reviewed.image} alt={`Saved evidence at ${formatTrainingTime(reviewed.decision.content.anchor.startMs)}`} className="w-full" />}<dl className="grid gap-2 text-sm"><div><dt className="font-semibold">Source</dt><dd>{reviewed.source.localName || `SHA-256 ${shortId(reviewed.source.metadata.sha256)}`}</dd></div><div><dt className="font-semibold">Timestamp</dt><dd>{formatTrainingTime(reviewed.decision.content.anchor.startMs)}</dd></div><div><dt className="font-semibold">Relation</dt><dd>{relationLabel(reviewed.decision.content.relation)}</dd></div><div><dt className="font-semibold">Visual properties</dt><dd>{reviewed.decision.content.properties.map((item) => trainingPropertyLabel(item)).join(', ')}</dd></div><div><dt className="font-semibold">Eligible stages</dt><dd>{normalizeTrainingStages(reviewed.decision.content.applicability?.stages).length ? normalizeTrainingStages(reviewed.decision.content.applicability?.stages).map(trainingStageLabel).join(', ') : 'Not recorded'}</dd></div><div><dt className="font-semibold">Decision</dt><dd>{reviewed.decision.content.summary}</dd></div><div><dt className="font-semibold">Immutable digest</dt><dd className="break-all">{reviewed.decision.recordDigest}</dd></div></dl>
-      <p><span className="font-semibold">Selection priority:</span> {reviewed.decision.content.applicability?.priority ?? 'Not recorded'}. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not guarantee selection or override checks, criteria or facts.</p>
-      {!reviewed.readOnly&&<>
-      {reviewed.decision.state === 'draft' && <><label className="flex gap-3"><input type="checkbox" checked={acceptConfirmed} disabled={!!busy} onChange={(event) => setAcceptConfirmed(event.target.checked)} />{installationId?"I reviewed this exact frame and confirm this preference wording, including any agent-suggested wording, for my future runs only.":"I reviewed this exact frame and decision and want it eligible for future Manager selection."}</label><button disabled={!!busy || !acceptConfirmed} onClick={acceptReviewed}>Accept this exact decision</button></>}
-      {reviewed.decision.state === 'accepted' && <>
-        {!installationId && <section className="rounded border border-ink-700 p-3 space-y-2" aria-labelledby="teaching-delivery-heading">
-          <h3 id="teaching-delivery-heading" className="font-semibold">When to share this teaching</h3>
-          <p>Current delivery: {reviewed.decision.deliveryMode === 'standing' ? 'At stage start' : 'On question'}.</p>
-          <p className="text-sm">Applies to new runs when this teaching is selected for an eligible stage. Up to two selected teachings can be shared at stage start, within the existing image budget; others stay available on question. This does not change selection priority, stage eligibility or quality gates. Active runs keep their frozen setting.</p>
-          <div className="flex flex-wrap gap-3">
-            <button disabled={!!busy || versionChanged || !['accepted', 'rejected'].includes(reviewed.decision.content.relation) || reviewed.decision.deliveryMode === 'standing'} onClick={() => setReviewedDelivery('standing')}>Use at stage start</button>
-            <button disabled={!!busy || versionChanged || !['accepted', 'rejected'].includes(reviewed.decision.content.relation) || (reviewed.decision.deliveryMode || 'on_question') === 'on_question'} onClick={() => setReviewedDelivery('on_question')}>Use only on question</button>
-          </div>
-          {!['accepted', 'rejected'].includes(reviewed.decision.content.relation) && <p>Stage-start delivery currently supports positive and negative full-frame image examples. This teaching keeps its existing delivery behavior.</p>}
-          {reviewed.decision.deliveryReceiptDigest && <p className="text-xs text-ink-500">Delivery receipt {shortId(reviewed.decision.deliveryReceiptDigest)}</p>}
-        </section>}
-        <label className="flex gap-3"><input type="checkbox" checked={retireConfirmed} disabled={!!busy} onChange={(event) => setRetireConfirmed(event.target.checked)} />Stop selecting this teaching for new runs. Runs already using a frozen selection keep it.</label>
-        <p className="text-sm text-ink-400">A future run may need replacement training if this teaching fulfils a required reference.</p>
-        <button disabled={!!busy || !retireConfirmed} onClick={() => reduceReviewedAuthority('retire')}>Stop using in new runs</button>
-        {!installationId && !normalizeTrainingStages(reviewed.decision.content.applicability?.stages).includes('planning') && <div className="rounded border border-amber-500 p-3 space-y-2"><p>This immutable record does not apply during planning. Start a separate planning-scoped successor using the same decision as a draft; you must preview, save, and accept it independently.</p><button disabled={!!busy || versionChanged} onClick={() => createPlanningSuccessor(reviewed.source, reviewed.decision)}>Create planning-scoped successor</button></div>}
-      </>}
-      {reviewed.decision.state === 'retired' && <p>This teaching is stopped for new runs. Existing run selections remain frozen; permission can still be withdrawn below.</p>}
-      {(reviewed.decision.state === 'accepted' || reviewed.decision.state === 'retired') && <>
-        {!installationId && serverStorageSupported && <section className="rounded border border-ink-700 p-3 space-y-3">
-          <h3 className="font-semibold">Use this teaching image on your other devices</h3>
-          <p>Only this selected image is stored privately in Tukido. Your original recording stays on this Mac. The image keeps this teaching’s existing expiry and is removed after permission withdrawal or expiry. Copies already delivered to a run cannot be recalled. This does not release the teaching to other customers.</p>
-          <button disabled={!!busy} onClick={()=>changeServerStorage('status')}>Check stored image</button>
-          {serverStorage!==undefined && <p>{serverStorage===null?'No server copy recorded.':serverStorage.deletedAt?'Server copy removed.':serverStorage.withdrawnAt?'Further server access withdrawn. Deletion is pending.':serverStorage.storedAt?'Exact image verified and stored.':'Upload not yet confirmed.'}</p>}
-          {reviewed.decision.state==='accepted' && <><label className="flex gap-3"><input type="checkbox" checked={serverConsent} disabled={!!busy} onChange={event=>setServerConsent(event.target.checked)} />Store this teaching image privately for my own future runs on other devices.</label>
-          <button disabled={!!busy || !serverConsent || !reviewed.source.token || versionChanged} onClick={()=>changeServerStorage('store')}>Save teaching image to Tukido</button></>}
-          <label className="flex gap-3"><input type="checkbox" checked={serverWithdrawal} disabled={!!busy} onChange={event=>setServerWithdrawal(event.target.checked)} />Stop server access and remove this server copy. Keep the original teaching and local source.</label>
-          <button disabled={!!busy || !serverWithdrawal} onClick={()=>changeServerStorage('withdraw')}>Remove server copy</button>
-          {serverStorageNote && <p role="status">{serverStorageNote}</p>}
-        </section>}
-        {!reviewed.image && <button disabled={!!busy || !reviewed.source.token || versionChanged} onClick={() => reviewDecision(reviewed.source, reviewed.decision)}>Preview exact saved frame</button>}
-        <label className="flex gap-3"><input type="checkbox" checked={revokeConfirmed} disabled={!!busy} onChange={(event) => setRevokeConfirmed(event.target.checked)} />Withdraw permission for further use now, including active runs. This may interrupt them; already disclosed material cannot be recalled.</label>
-        <button disabled={!!busy || !revokeConfirmed} onClick={() => reduceReviewedAuthority('revoke')}>Withdraw permission now</button>
-      </>}
-      </>}
-      <button disabled={!!busy} onClick={() => setReviewed(null)}>Close evidence review</button>
-    </section>}
-
-    <div hidden={!installationId&&view!=='teach'}>
-    {selected && <section hidden={Boolean(!installationId&&(directSource||activeRunId||activeRecordingId&&selected&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===selected.sourceId))} id="recording-analysis" className={`rounded border border-ink-700 p-4 space-y-4 ${legacyControls}`}><h2>Timestamped visual decision</h2>{successorStageExpansion && <section role="status" className="rounded border border-brand-500 p-3 space-y-2"><h3 className="font-semibold">Successor stage diff</h3><p>The predecessor stages were preserved exactly. This active Agent requires this decision at: {successorStageExpansion.required.length ? successorStageExpansion.required.map(trainingStageLabel).join(', ') : 'no additional stages'}.</p>{successorStageExpansion.missing.length > 0 ? <><p>Still missing: {successorStageExpansion.missing.map(trainingStageLabel).join(', ')}. They have not been added automatically.</p><button type="button" disabled={!!busy} onClick={addRequiredSuccessorStages}>Add required stages to this successor draft</button></> : <p>All required stages are now explicitly selected. Preview and accept the new digest separately.</p>}</section>}<fieldset disabled={!!busy || versionChanged} className="space-y-4"><legend className="sr-only">Choose and explain an exact visual decision</legend><label className="block">Frame timestamp<input className="block w-full" type="range" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} step="1" value={time} aria-valuetext={formatTrainingTime(time)} onChange={(event) => changeTime(Number(event.target.value))} /></label><div className="flex flex-wrap items-end gap-2"><label>Exact timestamp in milliseconds<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} value={time} onChange={(event) => changeTime(Number(event.target.value))} /></label>{[-1000, -100, 100, 1000].map((delta) => <button type="button" key={delta} onClick={() => changeTime(time + delta)}>{delta > 0 ? '+' : '−'}{Math.abs(delta)} ms</button>)}</div><p aria-live="polite">Selected time {formatTrainingTime(time)} of {formatTrainingTime(selected.metadata.durationMs)}</p><button type="button" onClick={showPreview}>Preview this exact frame</button>{previewIsCurrent && preview?.image && <img src={preview.image} alt={`Training source frame at ${formatTrainingTime(preview.timeMs)}`} className="w-full" />}
+  const manualEditor=<>
+    {selected && <section hidden={Boolean(!installationId&&(!annotationTarget&&directSource||activeRunId||activeRecordingId&&selected&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===selected.sourceId))} id="recording-analysis" className={`rounded border border-ink-700 p-4 space-y-4 ${legacyControls}`}><h2>Timestamped visual decision</h2>{successorStageExpansion && <section role="status" className="rounded border border-brand-500 p-3 space-y-2"><h3 className="font-semibold">Successor stage diff</h3><p>The predecessor stages were preserved exactly. This active Agent requires this decision at: {successorStageExpansion.required.length ? successorStageExpansion.required.map(trainingStageLabel).join(', ') : 'no additional stages'}.</p>{successorStageExpansion.missing.length > 0 ? <><p>Still missing: {successorStageExpansion.missing.map(trainingStageLabel).join(', ')}. They have not been added automatically.</p><button type="button" disabled={!!busy} onClick={addRequiredSuccessorStages}>Add required stages to this successor draft</button></> : <p>All required stages are now explicitly selected. Preview and accept the new digest separately.</p>}</section>}<fieldset disabled={!!busy || versionChanged} className="space-y-4"><legend className="sr-only">Choose and explain an exact visual decision</legend><label className="block">Frame timestamp<input className="block w-full" type="range" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} step="1" value={time} aria-valuetext={formatTrainingTime(time)} onChange={(event) => changeTime(Number(event.target.value))} /></label><div className="flex flex-wrap items-end gap-2"><label>Exact timestamp in milliseconds<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} value={time} onChange={(event) => changeTime(Number(event.target.value))} /></label>{[-1000, -100, 100, 1000].map((delta) => <button type="button" key={delta} onClick={() => changeTime(time + delta)}>{delta > 0 ? '+' : '−'}{Math.abs(delta)} ms</button>)}</div><p aria-live="polite">Selected time {formatTrainingTime(time)} of {formatTrainingTime(selected.metadata.durationMs)}</p><button type="button" onClick={showPreview}>Preview this exact frame</button>{previewIsCurrent && preview?.image && <img src={preview.image} alt={`Training source frame at ${formatTrainingTime(preview.timeMs)}`} className="w-full" />}
       <label className="block">Evidence relation<select value={relation} onChange={(event) => { setRelation(event.target.value as TrainingRelation); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID()); }}>{TRAINING_RELATIONS.filter(item=>!installationId||['accepted','rejected'].includes(item)).map((item) => <option key={item} value={item}>{relationLabel(item)}</option>)}</select></label><label className="block">Visual property<select value={property} onChange={(event) => { const next = event.target.value as TrainingPropertyCode; setProperty(next); setStages(deriveTrainingStages(next).filter(stage=>!installationId||['planning','build'].includes(stage))); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID()); }}>{TRAINING_PROPERTY_CODES.map((item) => <option key={item} value={item}>{trainingPropertyLabel(item)}</option>)}</select></label>
       <label className="block">Selection priority<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max="100" step="1" value={selectionPriority} aria-describedby="training-priority-help" aria-invalid={!priorityIsValid} onChange={(event) => { setSelectionPriority(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>
       <p id="training-priority-help" className="text-sm">50 is normal. Prefer this example by choosing a higher number, up to 100. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not widen eligible stages or properties, guarantee selection, or override checks, criteria or facts. Saved decisions stay immutable; changing a preference requires a new reviewed and accepted draft.</p>
@@ -2346,6 +2264,272 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       {directionScopeControls()}
       {!installationId&&![chosen,why,process,behavior].every(value=>value.trim())&&<p>Use your annotation and the suggestion above to prepare the teaching wording. Keep the judgment, its scope and example details separate. These fields are available if you prefer to draft it manually.</p>}
       {([['Example details', chosen, setChosen], ['Judgment', why, setWhy], [copiedTeachingWording?'Original context or approach':'When it applies', process, setProcess], ['How to adapt', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || !priorityIsValid || stages.length === 0 || (Boolean(installationId)&&!demoAnnotationIsCurrent) || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={()=>void annotate()}>Save decision draft</button></TrainingDetails></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
+  </>;
+  const sourceHistory=<>
+    <TrainingDetails title="Saved sources & original decisions" open={Boolean(installationId)}>
+      {separateIntake&&evidenceError&&<p role="status">Saved examples couldn’t load. <button type="button" className="underline" disabled={evidenceLoading} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry saved examples</button></p>}
+      <p className="text-ink-400">Your original examples and teaching history. Open a lesson to review its example or change how it is used.</p>
+      {sources.map((source,index)=><section key={source.sourceId} className="rounded-lg border border-ink-800 p-4 space-y-3">
+        <h2 className="font-medium">{source.localName||`Training example ${index+1}`}</h2><p className="text-xs text-ink-400">{source.metadata.mediaType.startsWith('video/')?'Video':'Image'}{source.metadata.durationMs>0?` · ${formatTrainingTime(source.metadata.durationMs)}`:''}</p>
+        <button disabled={!source.token||!!busy||versionChanged} onClick={()=>openSourceAnnotation(source)}>Annotate source</button>{!source.token&&<p className="text-sm text-ink-400">To annotate this again, open it on the original computer or add the original file.</p>}
+        <TrainingDetails title="Source details"><p>{source.metadata.width}×{source.metadata.height} · SHA-256 {shortId(source.metadata.sha256)}</p></TrainingDetails>
+        <ul className="divide-y divide-ink-800">{source.decisions.map(decision=>{
+          const decisionStages=normalizeTrainingStages(decision.content.applicability?.stages);
+          return <li key={decision.recordId} className="py-3 space-y-3">
+            <p className="text-xs text-ink-400">{formatTrainingTime(decision.content.anchor.startMs)} · {{draft:'Not applied',accepted:'Saved',retired:'Stopped',unavailable:'Unavailable',revoked:'Permission withdrawn'}[decision.state]} · {relationLabel(decision.content.relation)}</p>
+            <p className="line-clamp-3">{decision.decision.why||decision.decision.desiredBehavior||decision.content.summary}</p>
+            {(decision.state==='draft'||decision.state==='accepted')&&<button disabled={!!busy||!source.token||versionChanged} onClick={()=>reviewDecision(source,decision)}>{decision.state==='draft'?'Review before accepting':'Review accepted evidence'}</button>}{(decision.state==='accepted'||decision.state==='retired')&&<button disabled={!!busy} onClick={()=>manageDecision(source,decision)}>Manage teaching</button>}
+            {!installationId&&['draft','accepted'].includes(decision.state)&&<button disabled={!!busy||versionChanged}
+              onClick={()=>setIntakeLesson(decision)}>Check for agent changes</button>}
+            <TrainingDetails title="Full teaching & technical details"><p>{decision.content.summary}</p><p>{decision.content.properties.map(item=>item.replaceAll('_',' ')).join(', ')}</p><p>Eligible stages: {decisionStages.length?decisionStages.map(trainingStageLabel).join(', '):'Not recorded'}</p>{decision.state==='accepted'&&!decisionStages.includes('planning')&&<p>This accepted record cannot guide planning before tools or paid actions. Create a new planning-scoped decision to preserve the original record.</p>}<p>Evidence digest {shortId(decision.recordDigest)}</p></TrainingDetails>
+          </li>;
+        })}</ul>
+      </section>)}
+    </TrainingDetails>
+  </>;
+  const annotationMedia=<>    {!installationId&&directSource&&!activeRunId&&!activeRecordingId&&selected?.token&&previewIsCurrent&&preview?.image&&<>
+      <TrainingImagePlayer key={`${selected.sourceId}:${time}:${annotationTarget?.kind==='feedback'?queuedFeedback?.fingerprint||'loading':'new'}`} initialSpatial={annotationTarget?.kind==='feedback'?queuedFeedback?.spatial||null:null} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directNote} onVoiceDirtyChange={setDirectVoiceDirty} doneUnavailable={coachFeedbackReady?undefined:coachBusy?'Checking whether notes can be sent to Coach…':'Saving notes to Coach is not ready. Your draft stays here; refresh after the update.'} disabled={!!busy||changesBusy||versionChanged}
+        onChange={(text,spatial)=>{if(annotationTarget?.kind==='feedback')return;setDirectNote(text);setDemoText(text.trim()||spatial?JSON.stringify({role:'trainer_commentary',sourceKind:'upload',sourceId:selected.sourceId,timeMs:time,spatial,feedback:text}):'');}}
+        readOnly={annotationTarget?.kind==='feedback'} onDone={()=>{if(annotationTarget?.kind==='feedback')setDirectExtractionRequested(true);else void saveImageFeedback();}}/>
+      {directDraftRetryIsCurrent&&<button type="button" className="text-sm text-state-needs underline" disabled={!!busy||suggesting||changesBusy||versionChanged} onClick={()=>setFeedbackRetry('direct')}>Review or retry analysis</button>}
+      {playbackFallback&&<p role="status" className="text-xs text-ink-400">{playbackFallback}</p>}
+      {selected.metadata.durationMs>0&&<details className="text-xs text-ink-400"><summary className="cursor-pointer">Choose a different frame</summary><input aria-label="Training video frame" aria-valuetext={formatTrainingTime(time)} className="mt-3 w-full" type="range" min="0" max={selected.metadata.durationMs-1} value={time} disabled={!!busy||directVoiceDirty||!!directNote.trim()} onChange={event=>changeTime(Number(event.target.value))}/><button type="button" disabled={!!busy||directVoiceDirty||!!directNote.trim()} onClick={()=>void showPreview()}>Open this frame</button></details>}
+    </>}
+
+    {!installationId&&annotationTarget?.kind==='result'&&<TrainingRunPlayer key={annotationTarget.runId||annotationTarget.issueId} slug={slug} runId={annotationTarget.runId} issueId={annotationTarget.issueId} fullPage initialArtifactId={annotationTarget.artifactId} onLoadedRun={setRunSource} ownerId={ownerId} onTeach={(issue,artifact)=>void prepareRunTeaching([{issue,artifact}])} onDoneTeaching={()=>finishAnnotation()} onDirtyChange={setRunDirty}/>}
+    {!installationId&&activeRecordingId&&<RecordingPlayer key={activeRecordingId} recordingId={activeRecordingId} ownerId={ownerId||''} trainingSlug={slug} embedded fullPage feedbackSaveUnavailable={coachFeedbackReady?undefined:coachBusy?'Checking whether notes can be sent to Coach…':'Saving notes to Coach is not ready. Your local notes stay saved; refresh after the update.'} initialMomentId={annotationTarget?.kind==='recording'?annotationTarget.momentId:undefined} trainingReview={recordingReviewPanel} trainingFrames={activeAnalysis?.frames} trainerNarration={trainerNarration} onTrainerNarrationChange={setTrainerNarration} onDirtyChange={setRecordingDirty} onRecordingLoaded={setActiveRecordingDetail} onUseFeedback={(recordingId,moment)=>setFeedbackRequest({recordingId,moment})} onDoneTeaching={(recordingId,moments)=>setBatchFeedbackRequest({recordingId,moments})} onAnalyzeNarration={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'taste'})} onAnalyzeTool={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'agent'})} narrationUnavailable={pendingRecordingLink||pendingDemoLink||suggesting?"Finish the current teaching or pending link first.":!activeRecordingDetail?"Loading your recording…":!trainerNarration&&activeRecordingDetail.origin==='imported'?"Add voice notes, or mark this video as your narrated demonstration in More options.":!activeRecordingDetail.hasMicrophone?"This recording has no microphone narration. You can still leave feedback on the video.":!recordingSupported?"Update Desktop to find learnings in your narration.":(activeRecordingDetail.durationMs||0)>600000?"Narration analysis supports recordings up to 10 minutes. Your visual feedback is still available.":undefined} onClose={()=>{if(recordingDirty){setClosingRecording(true);setReplaceRecordingOpen(true);}else{activeRecordingRef.current=null;setAutomaticReview(null);setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(null);setActiveRecordingDetail(null);}}}/>}
+        {decisionSelection?.source!=='recording_agent'&&recordingToolPanel}
+    {!installationId&&recording?.purpose==='agent'&&!agentProposal&&selected?.sourceId===recording.excerpt.sourceId&&<section aria-label="Retained tool analysis" className="space-y-3 rounded-xl border border-ink-800 p-5">
+      <h2 className="text-lg font-medium">Tool update not ready yet</h2>
+      <p className="text-xs text-ink-400">Source: {selected?.localName} · {shortId(recording.excerpt.sourceSha256)}</p>
+      <p className="text-sm text-ink-400">Your selected excerpt and three frames are retained. Retry the draft, or discard this local draft to choose another recording. Saved evidence stays in Training history.</p>
+      <details className="text-sm"><summary>Selected narration</summary><blockquote className="mt-2 whitespace-pre-wrap">{recording.excerpt.text}</blockquote></details>
+      <button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>void retryRecordingDraft()}>Retry tool draft</button>
+      <button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>{setRecording(null);setSuggestionNote('');}}>Discard tool draft</button>
+    </section>}
+    {!installationId&&activeRecordingId&&!activeAnalysis&&recording&&recording.purpose!=='agent'&&selected&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===recording.excerpt.sourceId&&<section className="space-y-4 rounded-xl border border-ink-800 p-5" aria-label="Learning from your narration">
+      <h2 className="text-lg font-medium">Learning from your narration</h2><details className="text-sm text-ink-400"><summary>What Tukido heard</summary><blockquote className="mt-3 whitespace-pre-wrap">{recording.excerpt.text}</blockquote><p className="mt-2 text-xs">Speech recognition can make mistakes. Check the wording before saving.</p></details>
+      {!recording.suggestion&&<button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>void retryRecordingDraft()}>Retry draft from this excerpt</button>}{recording.suggestion&&<><div className="flex flex-wrap gap-5"><img src={recording.frames[recording.suggestion.frameIndex].image} alt="Frame supporting the suggested learning" className="w-64 rounded-lg object-contain"/><div className="min-w-0 flex-1 space-y-2">{TEACHING_FIELDS.map(key=><p key={key} className="text-sm text-ink-400"><strong>{TEACHING_SECTION_LABELS[key]}{key==='why'?' (inferred from narration)':''}:</strong> {recording.suggestion!.fields[key]}</p>)}</div></div>
+      <p className="text-xs text-ink-400">{relationLabel(relation)} · {property.replaceAll('_',' ')} · {stages.map(trainingStageLabel).join(', ')}</p>{learningScopeControls()}
+      <button type="button" className="btn-primary" disabled={!!busy||versionChanged||!previewIsCurrent||preview?.image!==recording.frames[recording.suggestion.frameIndex].image||!stages.length} onClick={()=>void annotate(recording.suggestion!.fields)}>Save as draft</button><p className="text-xs text-ink-500">Review and accept the draft before it becomes training. The marked region remains in your recording notes; the teaching uses the selected frame.</p></>}
+      <button type="button" disabled={!!busy||suggesting||!!pendingRecordingLink} onClick={()=>{setRecording(null);setRelation('accepted');setDecisionKey(crypto.randomUUID());setSuggestionNote('Suggestion discarded. Your private narration history remains saved.');}}>Discard narration suggestion</button>
+    </section>}
+    {!installationId&&activeRecordingId&&suggestionNote&&<p role="status" className="text-sm text-ink-400">{suggestionNote}</p>}
+    {!installationId&&feedbackInput&&feedbackInput.recordingId===activeRecordingId&&feedbackInput.sourceId===selected?.sourceId&&<section className="space-y-4 rounded-xl border border-ink-800 p-5" aria-label="Learning from your feedback"><h2 className="text-lg font-medium">Learning from your feedback</h2><p>{feedbackInput.text}</p>{feedbackInput.endFrame&&<p className="text-xs text-ink-400">This mark is at the end; the teaching frame is taken just before the recording ends.</p>}
+      {previewIsCurrent&&preview?.image&&<img src={preview.image} alt="Frame for your feedback" className="w-64 rounded-lg"/>}
+      {pendingFeedback?.phase==='suggest'&&!demoAnnotationIsCurrent&&!busy&&<button type="button" onClick={()=>void saveDemoAnnotation()}>Retry saving feedback source</button>}
+      {suggested?.value.fields&&demoAnnotationIsCurrent&&suggested.value.binding.frameSha256===demoAnnotation?.value.frameSha256&&'annotationId' in suggested.value.binding&&suggested.value.binding.annotationId===demoAnnotation?.value.annotationId&&<><div className="space-y-2">{TEACHING_FIELDS.map(key=><p key={key} className="text-sm text-ink-400"><strong>{TEACHING_SECTION_LABELS[key]}:</strong> {suggested.value.fields![key]}</p>)}</div><p className="text-xs text-ink-400">{relationLabel(relation)} · {feedbackCategoryConfirmed?`${property.replaceAll('_',' ')} · ${stages.map(trainingStageLabel).join(', ')}`:'Category not chosen'}</p>{learningScopeControls(true)}{!feedbackCategoryConfirmed&&<p className="text-xs text-ink-400">Choose its category under “Where this learning applies” before saving.</p>}<button type="button" className="btn-primary" disabled={!!busy||suggesting||versionChanged||!stages.length||!!pendingDemoLink||!feedbackCategoryConfirmed} onClick={()=>{appliedSuggestion.current=suggested.value;void annotate(suggested.value.fields!);}}>Save as draft</button></>}
+      {demoAnnotationIsCurrent&&!suggesting&&!suggested?.value.fields&&!pendingFeedback&&<button type="button" disabled={!!busy} onClick={()=>setFeedbackRetry('saved')}>Retry suggestion from saved feedback</button>}
+      <button type="button" disabled={!!busy||suggesting||!!pendingDemoLink} onClick={discardFeedbackSuggestion}>Discard this suggestion</button>
+      {pendingDemoLink&&<button type="button" disabled={!!busy} onClick={()=>work('Linking your feedback',()=>linkDemoAnnotation(pendingDemoLink))}>Retry feedback link</button>}
+    </section>}
+</>;
+  const annotationDialogs=<>    <Modal open={feedbackRetry!==null} onClose={()=>setFeedbackRetry(null)} title={feedbackRetry==='direct'?'Review or retry analysis?':'Retry this teaching suggestion?'}>
+      <p>{feedbackRetry==='direct'?'Tukido first checks the saved analysis. A failed attempt, or an unresolved attempt after its waiting period, can be analyzed again. The earlier call may have consumed AI usage. Your note, frame and agent setup may be sent to Claude again; nothing is applied.':'The selected frame and your saved feedback will be sent again to Anthropic Claude Haiku 5.5.'}</p>
+      <button type="button" disabled={!!busy||suggesting||versionChanged||(feedbackRetry==='direct'?!directDraftRetryIsCurrent:!demoAnnotationIsCurrent)} onClick={()=>{
+        setFeedbackRetry(null);
+        if(feedbackRetry==='direct'){if(directDraftRetry&&directDraftRetryIsCurrent){const progress=extractionProgress.current.get(directDraftRetry.fingerprint);void extractDirectFeedback({...directDraftRetry.request,...(progress?.analysisRequest&&progress.analysisOutcome==='pending'?{acknowledgedUnknownPrior:true as const}:{})});}}
+        else{setDraftConsent(true);void suggestTeaching(true);}
+      }}>{feedbackRetry==='direct'?'Review or retry analysis':'Retry suggestion'}</button>
+    </Modal>
+    <Modal open={directExtractionRequested} onClose={()=>setDirectExtractionRequested(false)} title="Find training and agent improvements?"><p className="text-sm leading-6 text-ink-300">Tukido will use your feedback to suggest training and identify any needed step or tool changes. Review each before applying.</p><TrainingInfo label="What this analysis shares">{OWNER_SOURCE_CONSENT} Your note, region, this frame and the agent’s current steps and attached methods go to Claude Haiku 5.5 in one analysis. Your training examples remain separate from proposed setup changes. The video's narration is not used as your instruction.</TrainingInfo><button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>void extractDirectFeedback()}>Extract training</button></Modal>
+    <Modal open={!!batchFeedbackRequest} onClose={()=>{if(!busy)setBatchFeedbackRequest(null);}} title="Save your teaching notes?">
+      <p>Tukido saves your {batchFeedbackRequest?.moments.length||0} note{batchFeedbackRequest?.moments.length===1?'':'s'}, marked regions, time ranges and file hashes to your private training history on the server. The video stays on this Mac.</p>
+      <TrainingInfo label="Source permission">{OWNER_SOURCE_CONSENT} No AI analysis runs now. Your notes will wait in Coach; choose Extract training and review its disclosure when you’re ready. Nothing becomes live training until you apply it.</TrainingInfo>
+      <button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>{if(batchFeedbackRequest)void saveRecordingFeedback(batchFeedbackRequest);}}>Save feedback and return</button>
+    </Modal>
+    <Modal open={!!feedbackRequest} onClose={()=>setFeedbackRequest(null)} title="Turn this feedback into a learning?"><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Your exact saved mark, including earlier notes and its region, is kept as the private feedback source. This frame and the complete saved mark, including earlier notes and region coordinates, are sent to Anthropic Claude Haiku 5.5 to suggest a learning. You review it before admission.</p><button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>void beginFeedbackLearning()}>Suggest learning</button></Modal>
+    <Modal open={!!narrationRequest} onClose={()=>setNarrationRequest(null)} title={narrationRequest?.purpose==='agent'?"Teach a tool from this recording?":"Find learnings in this recording?"}><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Tukido transcribes on this Mac, then sends the transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5. Typed feedback is not included in narration analysis. The selected excerpt and three frames are used to {narrationRequest?.purpose==='agent'?'suggest a tool and method update':'suggest a learning'}. The selected excerpt and lineage are kept in your private append-only Training history. You review the suggestion before saving or accepting it.</p>{narrationRequest?.purpose==='agent'&&<label className="mt-4 block text-sm">Tool method<select className="mt-2 block w-full rounded border border-ink-700 bg-ink-900 p-2" value={agentCapability} disabled={!!busy||suggesting||!!agentChange} onChange={event=>setAgentCapability(event.target.value as typeof agentCapability)}><option value="auto">Detect from this recording</option><option value="web_reference_research">Web reference research</option><option value="presenter_background_removal">VEED presenter background</option><option value="higgsfield_image_to_video">Higgsfield image to video</option></select><span className="mt-2 block text-xs text-ink-400">You'll review the proposal before requesting an agent update. Tool access is connected separately.</span></label>}{narrationRequest?.purpose==='agent'&&!toolFramesSupported&&<p role="status" className="mt-3 text-sm">Update Desktop to analyze demonstrated tools. Taste analysis is still available.</p>}<button type="button" className="btn-primary mt-5" disabled={!!busy||versionChanged||!recordingSupported||!!agentChange||(narrationRequest?.purpose==='agent'&&!toolFramesSupported)} onClick={()=>void beginNarrationAnalysis()}>{narrationRequest?.purpose==='agent'?'Suggest tool update':'Analyze narration'}</button></Modal>
+    <Modal open={replaceRecordingOpen} onClose={()=>setReplaceRecordingOpen(false)} title="Leave without saving feedback?"><p>Your unsaved marks stay here if you keep editing.</p><div className="mt-5 flex gap-4"><button type="button" onClick={()=>setReplaceRecordingOpen(false)}>Keep editing</button><button type="button" onClick={()=>{setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(closingRecording?null:pendingRecordingId);setActiveRecordingDetail(null);setRecordingDirty(false);if(!closingRecording)setPendingRecordingId(null);setClosingRecording(false);setReplaceRecordingOpen(false);}}>Discard unsaved changes</button></div></Modal>
+</>;
+  const exampleReview=<>    {!installationId&&directScopeReviewIsCurrent&&directScopeReview&&<section aria-label="Review example type" className="rounded-xl border border-ink-700 p-5 space-y-4">
+      <h3 className="text-lg font-medium">Review your teaching</h3>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={directScopeReview.image} alt="Example being reviewed before saving" className="w-48 rounded-lg"/>
+      <p className="text-sm leading-6">{directScopeReview.lesson}</p><TrainingDirectionLabel scope={directScopeReview.creativeDirections}/>
+      <label className="block text-sm">How should the agent use this example?
+        <select className="mt-2 block rounded-lg border border-ink-700 bg-ink-950 p-2" value={directScopeReview.relation} disabled={!!busy||versionChanged||!!extractionProgress.current.get(directScopeReview.fingerprint)?.reviewedRelation}
+          onChange={event=>setDirectScopeReview({...directScopeReview,relation:event.target.value as TrainingRelation})}>
+          {TRAINING_RELATIONS.map(value=><option key={value} value={value}>{{accepted:'Keep this approach',rejected:'Avoid this approach',contrast:'Compare these approaches',exception:'Use as an exception'}[value]}</option>)}
+        </select>
+      </label>
+      <p className="text-xs text-ink-400">This describes the example shown, not the improvement you want. Saving keeps a draft; it does not apply training.</p>
+      <button type="button" className="btn-primary" disabled={!!busy||versionChanged} onClick={()=>void extractDirectFeedback(undefined,directScopeReview.relation)}>Save teaching draft</button>
+    </section>}
+</>;
+  const markedResultTraining=<>    {!installationId&&session&&currentVersion&&ownerId&&<RunMarkTraining applyContainer={applyContainer} onEligibleCountChange={reportRunPending} activeStep={trainingStep} onReviewReady={()=>selectTrainingStep(2)} sessionId={session} currentVersionId={currentVersion} ownerId={ownerId} slug={slug} requests={runFeedbackRequest} onClose={()=>setRunFeedbackRequest(null)} onScopeCheck={async()=>{const scoped=await requireCurrentScope(session);if(scoped.agent.currentVersionId!==currentVersion)throw new TrainingError('training_version_changed');}} onApplied={async()=>{await loadChanges();}}/>}
+</>;
+  const operatingChanges=<>{session&&sessionVersion===currentVersion&&currentVersion&&<TrainingOperatingChanges key={`${ownerId}:${session}:${currentVersion}`} sessionId={session} versionId={currentVersion} slug={slug} refreshKey={operatingRefresh} onResume={analysis=>void resumeOperatingAnalysis(analysis).catch(()=>setExtractionNote('Your saved feedback could not be reopened. The original note is preserved.'))} disabled={!!busy||changesBusy||versionChanged||runContext?.revisePending===true||!runContext||runContext.statusUnavailable===true}/>}</>;
+  const evidenceReview=<>{reviewed && reviewedIsVisible && <section className={`rounded border border-brand-500 p-4 space-y-4 ${legacyControls}`} aria-labelledby="decision-review-heading"><h2 ref={reviewHeadingRef} id="decision-review-heading" tabIndex={-1}>{reviewed.image ? 'Exact saved evidence' : 'Saved teaching'}</h2>{reviewed.readOnly&&<p className="text-xs text-ink-400">Original example · read-only. Current training is unchanged.</p>}{reviewed.readOnly&&!reviewed.image&&<p role="status" className="text-sm text-ink-400">Saved frame unavailable on this computer. The original teaching text is preserved.</p>}{reviewed.image && <img src={reviewed.image} alt={`Saved evidence at ${formatTrainingTime(reviewed.decision.content.anchor.startMs)}`} className="w-full" />}<dl className="grid gap-2 text-sm"><div><dt className="font-semibold">Source</dt><dd>{reviewed.source.localName || `SHA-256 ${shortId(reviewed.source.metadata.sha256)}`}</dd></div><div><dt className="font-semibold">Timestamp</dt><dd>{formatTrainingTime(reviewed.decision.content.anchor.startMs)}</dd></div><div><dt className="font-semibold">Relation</dt><dd>{relationLabel(reviewed.decision.content.relation)}</dd></div><div><dt className="font-semibold">Visual properties</dt><dd>{reviewed.decision.content.properties.map((item) => trainingPropertyLabel(item)).join(', ')}</dd></div><div><dt className="font-semibold">Eligible stages</dt><dd>{normalizeTrainingStages(reviewed.decision.content.applicability?.stages).length ? normalizeTrainingStages(reviewed.decision.content.applicability?.stages).map(trainingStageLabel).join(', ') : 'Not recorded'}</dd></div><div><dt className="font-semibold">Decision</dt><dd>{reviewed.decision.content.summary}</dd></div><div><dt className="font-semibold">Immutable digest</dt><dd className="break-all">{reviewed.decision.recordDigest}</dd></div></dl>
+      <p><span className="font-semibold">Selection priority:</span> {reviewed.decision.content.applicability?.priority ?? 'Not recorded'}. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not guarantee selection or override checks, criteria or facts.</p>
+      {!reviewed.readOnly&&<>
+      {reviewed.decision.state === 'draft' && <><label className="flex gap-3"><input type="checkbox" checked={acceptConfirmed} disabled={!!busy} onChange={(event) => setAcceptConfirmed(event.target.checked)} />{installationId?"I reviewed this exact frame and confirm this preference wording, including any agent-suggested wording, for my future runs only.":"I reviewed this exact frame and decision and want it eligible for future Manager selection."}</label><button disabled={!!busy || !acceptConfirmed} onClick={acceptReviewed}>Accept this exact decision</button></>}
+      {reviewed.decision.state === 'accepted' && <>
+        {!installationId && <section className="rounded border border-ink-700 p-3 space-y-2" aria-labelledby="teaching-delivery-heading">
+          <h3 id="teaching-delivery-heading" className="font-semibold">When to share this teaching</h3>
+          <p>Current delivery: {reviewed.decision.deliveryMode === 'standing' ? 'At stage start' : 'On question'}.</p>
+          <p className="text-sm">Applies to new runs when this teaching is selected for an eligible stage. Up to two selected teachings can be shared at stage start, within the existing image budget; others stay available on question. This does not change selection priority, stage eligibility or quality gates. Active runs keep their frozen setting.</p>
+          <div className="flex flex-wrap gap-3">
+            <button disabled={!!busy || versionChanged || !['accepted', 'rejected'].includes(reviewed.decision.content.relation) || reviewed.decision.deliveryMode === 'standing'} onClick={() => setReviewedDelivery('standing')}>Use at stage start</button>
+            <button disabled={!!busy || versionChanged || !['accepted', 'rejected'].includes(reviewed.decision.content.relation) || (reviewed.decision.deliveryMode || 'on_question') === 'on_question'} onClick={() => setReviewedDelivery('on_question')}>Use only on question</button>
+          </div>
+          {!['accepted', 'rejected'].includes(reviewed.decision.content.relation) && <p>Stage-start delivery currently supports positive and negative full-frame image examples. This teaching keeps its existing delivery behavior.</p>}
+          {reviewed.decision.deliveryReceiptDigest && <p className="text-xs text-ink-500">Delivery receipt {shortId(reviewed.decision.deliveryReceiptDigest)}</p>}
+        </section>}
+        <label className="flex gap-3"><input type="checkbox" checked={retireConfirmed} disabled={!!busy} onChange={(event) => setRetireConfirmed(event.target.checked)} />Stop selecting this teaching for new runs. Runs already using a frozen selection keep it.</label>
+        <p className="text-sm text-ink-400">A future run may need replacement training if this teaching fulfils a required reference.</p>
+        <button disabled={!!busy || !retireConfirmed} onClick={() => reduceReviewedAuthority('retire')}>Stop using in new runs</button>
+        {!installationId && !normalizeTrainingStages(reviewed.decision.content.applicability?.stages).includes('planning') && <div className="rounded border border-amber-500 p-3 space-y-2"><p>This immutable record does not apply during planning. Start a separate planning-scoped successor using the same decision as a draft; you must preview, save, and accept it independently.</p><button disabled={!!busy || versionChanged} onClick={() => createPlanningSuccessor(reviewed.source, reviewed.decision)}>Create planning-scoped successor</button></div>}
+      </>}
+      {reviewed.decision.state === 'retired' && <p>This teaching is stopped for new runs. Existing run selections remain frozen; permission can still be withdrawn below.</p>}
+      {(reviewed.decision.state === 'accepted' || reviewed.decision.state === 'retired') && <>
+        {!installationId && serverStorageSupported && <section className="rounded border border-ink-700 p-3 space-y-3">
+          <h3 className="font-semibold">Use this teaching image on your other devices</h3>
+          <p>Only this selected image is stored privately in Tukido. Your original recording stays on this Mac. The image keeps this teaching’s existing expiry and is removed after permission withdrawal or expiry. Copies already delivered to a run cannot be recalled. This does not release the teaching to other customers.</p>
+          <button disabled={!!busy} onClick={()=>changeServerStorage('status')}>Check stored image</button>
+          {serverStorage!==undefined && <p>{serverStorage===null?'No server copy recorded.':serverStorage.deletedAt?'Server copy removed.':serverStorage.withdrawnAt?'Further server access withdrawn. Deletion is pending.':serverStorage.storedAt?'Exact image verified and stored.':'Upload not yet confirmed.'}</p>}
+          {reviewed.decision.state==='accepted' && <><label className="flex gap-3"><input type="checkbox" checked={serverConsent} disabled={!!busy} onChange={event=>setServerConsent(event.target.checked)} />Store this teaching image privately for my own future runs on other devices.</label>
+          <button disabled={!!busy || !serverConsent || !reviewed.source.token || versionChanged} onClick={()=>changeServerStorage('store')}>Save teaching image to Tukido</button></>}
+          <label className="flex gap-3"><input type="checkbox" checked={serverWithdrawal} disabled={!!busy} onChange={event=>setServerWithdrawal(event.target.checked)} />Stop server access and remove this server copy. Keep the original teaching and local source.</label>
+          <button disabled={!!busy || !serverWithdrawal} onClick={()=>changeServerStorage('withdraw')}>Remove server copy</button>
+          {serverStorageNote && <p role="status">{serverStorageNote}</p>}
+        </section>}
+        {!reviewed.image && <button disabled={!!busy || !reviewed.source.token || versionChanged} onClick={() => reviewDecision(reviewed.source, reviewed.decision)}>Preview exact saved frame</button>}
+        <label className="flex gap-3"><input type="checkbox" checked={revokeConfirmed} disabled={!!busy} onChange={(event) => setRevokeConfirmed(event.target.checked)} />Withdraw permission for further use now, including active runs. This may interrupt them; already disclosed material cannot be recalled.</label>
+        <button disabled={!!busy || !revokeConfirmed} onClick={() => reduceReviewedAuthority('revoke')}>Withdraw permission now</button>
+      </>}
+      </>}
+      <button disabled={!!busy} onClick={() => setReviewed(null)}>Close evidence review</button>
+    </section>}</>;
+  if(annotationTarget)return <main id="main-content" tabIndex={-1} className="app-page training-annotation-page"><div className="app-content">
+    <Link className="training-breadcrumb" href={trainingAnnotationReturn(slug)}>← Train {agentName}</Link>
+    {annotationTarget.kind!=='recording'&&<PageHeader title="Show the agent what to change"><p className="app-page-description">{agentName}</p></PageHeader>}
+    <AnnotationLeaveGuard dirty={(runDirty||recordingDirty||annotationTarget.kind!=='feedback'&&[directNote,demoText,chosen,why,process,behavior].some(value=>value.trim())||directVoiceDirty)||!!busy||suggesting||!!directScopeReview||!!runFeedbackRequest}/>
+    {busy&&<p role="status" className="mb-4 text-sm text-ink-400">{busy}…</p>}
+    {error&&<p role="alert" className="mb-4 text-sm text-state-needs">{reasonLabel(error)}</p>}
+    {suggestionNote&&<p role="status" className="mb-4 text-sm text-ink-400">{suggestionNote}</p>}
+    {versionChanged&&<p role="status">Your saved training is preserved. Return to Train to review the current agent version.</p>}
+    {extractionNote&&<p role="status" className="mb-4 text-sm text-ink-400">{extractionNote}</p>}
+    {annotationTarget.kind==='feedback'&&queuedAuthorized&&<section className="mb-5 space-y-3" aria-label="Saved teaching feedback">{!preview?.image&&<p className="whitespace-pre-wrap">{queuedFeedback?.feedback}</p>}{queuedFeedback?.moment&&<p>Marked range: {formatTrainingTime(queuedFeedback.moment.startMs)} – {formatTrainingTime(queuedFeedback.moment.endMs)}</p>}<p className="text-sm text-ink-400">This is your saved feedback. Dismissing it also makes its pending agent-setup suggestions unavailable; applied lessons are unchanged. Extract training to ask AI for suggestions; nothing is applied yet.</p><button type="button" className="btn-outline" disabled={!!busy||suggesting||versionChanged} onClick={()=>setDismissFeedbackOpen(true)}>Dismiss feedback and its pending suggestions</button></section>}
+    {annotationTarget.kind==='feedback'&&queuedFeedback&&!coachAgent?.decisions.some(item=>item.source==='demo_annotation'&&item.id===queuedFeedback.annotation.annotationId&&item.digest===queuedFeedback.annotation.annotationDigest&&item.sessionId===session&&item.versionId===currentVersion)&&<button type="button" className="btn-outline mb-5" disabled={!!busy||suggesting||versionChanged||!coachFeedbackReady||!selected?.token} onClick={()=>void sendSavedFeedbackToCoach()}>Send saved feedback to Coach</button>}
+    <Modal open={dismissFeedbackOpen&&annotationTarget.kind==='feedback'} onClose={()=>{if(!busy)setDismissFeedbackOpen(false);}} title="Permanently dismiss this feedback?">
+      <p>This cannot be undone. This feedback and its pending agent-setup suggestions will no longer be available for teaching. Applied lessons stay unchanged.</p><div className="mt-5 flex gap-3"><button type="button" className="btn-outline" disabled={!!busy} onClick={()=>setDismissFeedbackOpen(false)}>Keep feedback</button><button type="button" className="btn-danger" disabled={!!busy||suggesting||versionChanged} onClick={()=>void dismissQueuedFeedback()}>Permanently dismiss feedback</button></div>
+    </Modal>
+    {annotationMedia}{annotationDialogs}{operatingChanges}{exampleReview}{markedResultTraining}{evidenceReview}
+    {pendingDemoLink&&<section role="status"><p>Your teaching draft is saved. Its link to the original note needs another try.</p><button type="button" disabled={!!busy} onClick={()=>work('Linking your demonstration',()=>linkDemoAnnotation(pendingDemoLink))}>Retry demonstration link</button></section>}
+    {pendingAnswerLinks&&!questionAnswer&&<button type="button" disabled={!!busy} onClick={()=>work('Linking the preserved answer',()=>linkAnswers(pendingAnswerLinks))}>Retry saving this answer</button>}
+    {annotationTarget.kind==='image'&&questionAnswer&&<section className="my-5" aria-label="Your answer in progress">{preparedQuestionAnswer}</section>}
+    {annotationTarget.kind==='image'&&<details className="mt-8" open={annotationTarget.details||undefined}><summary className="cursor-pointer text-xs text-ink-400">More options</summary>{manualEditor}{sourceHistory}</details>}
+  </div></main>;
+  return <main id="main-content" tabIndex={-1} className={installationId?'mx-auto max-w-3xl px-6 py-10 space-y-6':'app-page training-agent-page'}>
+    <div className={installationId?'':'app-content'}>
+    <Link className="training-breadcrumb" href={installationId?`/workflows/${encodeURIComponent(slug)}`:"/training"}>{installationId?'Agent':'Coach'} / {agentName}</Link>
+    <PageHeader title={installationId?`Private preferences for ${agentName}`:`Train ${agentName}`} actions={!installationId?<><Link className="btn-outline" href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>View agent page</Link><AgentEditButton label="Edit steps" className="btn-outline" slug={slug} statusUnavailable={!runContext||runContext.statusUnavailable===true} revisePending={runContext?.revisePending===true}/></>:undefined}>
+      {!installationId&&<p className="app-page-description">{coachAgent?.description}{runContext?.activeVersionNumber?` · version ${runContext.activeVersionNumber}`:''}{coachAgent?.liveLessons!==null&&coachAgent?.liveLessons!==undefined?` · ${coachAgent.liveLessons} learning${coachAgent.liveLessons===1?'':'s'} for your runs`:''}{coachAgent?.lastTaughtAt&&<> · last taught <LocalTime iso={coachAgent.lastTaughtAt}/></>}</p>}
+    </PageHeader>
+    <div className={installationId?'':'training-agent-columns'}>
+    <div className={`min-w-0 space-y-7 ${installationId?legacyControls:''}`}>
+    {!installationId&&<TrainingDecisions agent={coachAgent} loading={coachBusy} error={coachError} changes={changes} questions={questions} onRetry={()=>setCoachRefresh(n=>n+1)} onReview={(item,all)=>void openDecision(item,all===true)}/>}
+    {!installationId&&(attentionCards.length>0||unappliedCount>0||session)&&<details className="training-recovery-details"><summary>Saved work and setup</summary>{unappliedCount>0&&<button type="button" className="btn-outline mt-4" onClick={()=>selectTrainingStep(2)}>Review training →</button>}<TrainingAttention key={`${ownerId}:${slug}:${currentVersion}`} cards={attentionCards}/>{operatingChanges}</details>}
+    {!installationId&&questionsError&&<div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-ink-400"><p>Training suggestions couldn’t load.</p><button type="button" disabled={questionsBusy||!!busy} onClick={()=>void loadQuestions()} className="underline">Retry training suggestions</button></div>}
+    {!installationId&&changes?.publication.unpublishedActiveCount!==undefined&&changes.publication.unpublishedActiveCount!==null&&changes.publication.unpublishedActiveCount>0&&<aside className="training-publication-status"><p><strong>{changes.publication.unpublishedActiveCount} learning{changes.publication.unpublishedActiveCount===1?'':'s'}</strong> {changes.publication.unpublishedActiveCount===1?'applies':'apply'} to your runs and {changes.publication.unpublishedActiveCount===1?'is':'are'} not in the published training.</p><button type="button" className="btn-outline" disabled={!!busy||changesBusy||!changes.publication.canPrepare} onClick={()=>setPublicationReviewOpen(true)}>Publish to customers</button></aside>}
+    <div id="training-workspace" className={installationId?'':'training-teaching-workspace'}>
+    {!installationId&&trainingStep!==1&&<div className="flex items-center justify-between gap-4 border-b border-ink-800 p-5"><button type="button" onClick={()=>selectTrainingStep(1)} className="text-sm text-ink-400">← Ways to train</button><span className="text-sm font-medium">{trainingStep===2?'Review training':'Apply & test'}</span></div>}
+    <div className={installationId?'':'space-y-6'}>
+    {homeCheck==='pending'&&<p role="status" className="text-sm text-ink-400">Checking saved training… You can keep teaching while this finishes.</p>}
+    {homeCheck==='idle'&&<p role="status" className="text-sm text-ink-400">Saved training check paused while you teach. <button type="button" className="underline" onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Check saved training</button></p>}
+    {installationId&&homeCheck==='unavailable'&&<p role="status">Saved training couldn’t be checked. <button type="button" className="underline" onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry training check</button></p>}
+    {intakeStatus&&<p role="status" className="text-sm text-ink-300">{intakeStatus}</p>}
+    {reviewedIntake&&!reviewedIntake.recordingId&&intakePanel}
+    {!installationId&&busy&&!analysisInProgress&&<p role="status" className="text-sm text-ink-400">{busy}…</p>}{!installationId&&error&&<p role="alert" className="text-sm text-state-needs">{reasonLabel(error)}</p>}
+    {!installationId&&trainingStep!==1&&evidenceLoading&&<p role="status" className="text-xs text-ink-400">Loading saved examples…</p>}
+    {!installationId&&!separateIntake&&evidenceError&&!analysisInProgress&&<p role="status" className="text-xs text-state-needs">Saved examples couldn’t load. <button type="button" className="underline" disabled={!!busy||evidenceLoading} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry saved examples</button></p>}
+    {!installationId&&applyNote&&<p role="status" className="text-sm text-ink-300">{applyNote}</p>}
+    {!installationId&&directApplyInFlight.current&&<p role="status" className="text-sm text-ink-300">Checking saved lessons before application…</p>}
+    {!installationId&&changesError&&trainingStep!==2&&!analysisInProgress&&(!separateIntake||trainingStep===3)&&<p role="alert" className="text-sm text-state-needs">{changesError==='training_local_unavailable'?'Saved lessons couldn’t load.':changesError.replaceAll('_',' ')} {!changes&&<button type="button" className="underline" disabled={changesBusy} onClick={()=>void loadChanges()}>Refresh training</button>}</p>}
+    {!installationId&&extractionNote&&<div role="status" className="flex flex-wrap items-center gap-3 text-sm text-ink-300"><p>{extractionNote}</p>{busy==='Finding the lessons in your feedback'?<button type="button" className="text-xs underline" onClick={()=>{extractionCancel.current=true;}}>Pause after this step</button>:lastFeedbackBatch&&<button type="button" className="text-xs underline" onClick={()=>void extractRecordingFeedback(lastFeedbackBatch)}>Resume extraction</button>}</div>}
+    <div hidden={!installationId&&trainingStep!==1} className="space-y-7">
+    {!installationId&&<>
+    <section className="training-teach-intro"><h2>Teach something new</h2><p>Show it when you need to point. Say it when a sentence is enough.</p><button id="training-chat-toggle" className="training-chat-mobile btn-outline" type="button" aria-expanded={true} aria-controls="training-companion" onClick={focusChat}>Say it in chat →</button></section></>}
+    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onSelectRun={openRun} selectedRunId={activeRunId} sourceActive={!!activeRunId||!!activeRecordingId||directSource} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={requestTrainingUpload} uploadDisabled={!!busy||changesBusy||versionChanged||(!currentVersion&&!separateIntake)} uploadStatus={[UPLOAD_PICKING,UPLOAD_CHECKING,UPLOAD_IMPORTING,UPLOAD_LEGACY].includes(busy)?busy:undefined}/>}/>}
+    {!installationId&&(recoverableFeedback.length>0||savedFeedbackUnreadable>0)&&<section aria-label="Saved feedback to finish" className="space-y-3 rounded-xl border border-ink-800 p-4"><h3 className="text-lg font-medium">Continue your saved feedback</h3><p className="text-sm text-ink-400">Recovery history in this browser. Open a note to check its saved copy. Nothing is applied.</p>{savedFeedbackUnreadable>0&&<p role="status" className="text-sm text-state-needs">Some saved feedback needs its original file on this Mac or could not be reopened. Your notes have not been changed.</p>}{recoverableFeedback.map(note=><div key={note.fingerprint} className="space-y-2"><p className="line-clamp-2 text-sm text-ink-400">{note.feedback||'Saved visual feedback'}</p><button type="button" className="text-sm text-state-needs underline" disabled={!!busy||changesBusy||versionChanged||directVoiceDirty||runDirty||recordingDirty||!!runFeedbackRequest} onClick={()=>void reopenSavedFeedback(note)}>Continue saved feedback</button></div>)}</section>}
+
+    {!installationId&&pendingRecordingId&&<div role="status" className="text-sm text-ink-300">Another recording is ready. Your current feedback is preserved. <button type="button" className="underline" onClick={()=>{if(recordingDirty){setClosingRecording(false);setReplaceRecordingOpen(true);}else if(pendingRecordingId)openRecording(pendingRecordingId);}}>Annotate new recording</button></div>}
+
+    {!installationId&&heldExtractions.length>0&&<details className="rounded-xl border border-amber-800/60 p-4 text-sm"><summary className="cursor-pointer">Needs clarification ({heldExtractions.length})</summary>{heldExtractions.map(item=><div key={item.key} className="mt-4 space-y-2"><p>{item.text}</p><p className="text-xs text-ink-400">{item.reason}</p></div>)}</details>}
+    {!installationId&&questionAnswer&&(!questionsOpen||!questions?.items.some(q=>q.id===answeringQuestionId))&&<section aria-label="Your answer in progress" className={`space-y-3 rounded-xl border border-ink-700 p-4 ${legacyControls}`}>
+      <h2 className="text-lg font-medium">Your answer in progress</h2><p className="text-sm text-ink-400">{questionExcerpt((questionAnswer.questions.find(q=>q.id===answeringQuestionId)||questionAnswer.questions[0]).question)}</p>{preparedQuestionAnswer}
+    </section>}
+    </div>
+    {annotationDialogs}
+    <div hidden={!installationId&&trainingStep!==2} className="space-y-7">
+    {!installationId&&<div><h2 className="text-2xl font-medium tracking-tight">Review training</h2><p className="mt-2 text-sm text-ink-400">Check the lessons, edit anything you’d change, then continue.</p></div>}
+    {exampleReview}{markedResultTraining}
+    {!installationId&&session&&currentVersion&&<SavedReviewTeaching sessionId={session} versionId={currentVersion} target={savedReviewTarget} onClose={()=>setSavedReviewTarget(null)} onChanged={async()=>{await loadChanges();}} slug={slug}/>}
+
+    {!installationId&&(historyBusy||historyError)&&<p role="status" className="text-sm text-ink-400">{historyBusy?'Loading earlier training…':historyError}</p>}
+    {!installationId&&history&&<section aria-label="Earlier training" className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 className="text-xl font-medium">Learnings</h2>{versionPicker}</header><p className="text-xs text-ink-500">Earlier version · read-only</p>{history.sources.flatMap(source=>source.decisions.map(d=><details key={d.recordId} className="border-b border-ink-800 py-4"><summary className="cursor-pointer text-sm">{['draft','accepted'].includes(d.state)?d.decision.desiredBehavior||d.content.summary:'This teaching is no longer available for use.'}</summary><div className="space-y-3 pt-4 text-sm leading-6 text-ink-400">{source.token&&d.content.derivatives?.[0]?.sha256&&['draft','accepted'].includes(d.state)&&<TrainingImage token={source.token} recordId={d.recordId} recordDigest={d.recordDigest} frameSha256={d.content.derivatives[0].sha256} enabled={!busy} context={`${history.sessionId}:${history.versionId}`} alt="Earlier teaching example"/>}{['draft','accepted'].includes(d.state)&&<p>{d.content.summary}</p>}<p>{d.state} · {relationLabel(d.content.relation)}</p></div></details>))}{!history.sources.length&&<p className="text-sm text-ink-500">No examples were returned for this version.</p>}</section>}
+    {!installationId&&!session&&!busy&&<button type="button" className="text-sm text-ink-300 disabled:opacity-40" disabled={!currentVersion||versionChanged} onClick={()=>{focusChat();}}>Start teaching →</button>}
+    {!installationId&&session&&!history&&<TrainingDraftBundle applyContainer={applyContainer} busy={!!busy||changesBusy||versionChanged||!!pendingDemoLink||!!pendingRecordingLink||!!pendingAnswerLinks}
+      drafts={visualDraftItems.map(({source,decision})=>({id:decision.recordId,digest:decision.recordDigest,judgment:decision.decision.why||decision.decision.desiredBehavior,appliesWhen:decision.decision.process,example:decision.decision.chosen,relation:decision.content.relation,category:decision.content.properties.map(property=>trainingPropertyLabel(property)).join(', '),creativeDirections:trainingDirectionsFromTaskFacts(decision.content.applicability?.taskFacts),renderEvidence:<TrainingImage token={source.token!} recordId={decision.recordId} recordDigest={decision.recordDigest} frameSha256={decision.content.derivatives![0].sha256} enabled={!busy&&!changesBusy} context={`${session}:${currentVersion}`} alt="Proposed teaching example" expandable/>}))}
+      onExplain={id=>{const record=changes?.records.find(record=>record.recordId===id);if(record)void explainTeaching(record);}}
+      explanationFor={id=>{const record=changes?.records.find(record=>record.recordId===id);const explanation=record&&explanations[`${changesIdentity.current}:${id}:${record.recordDigest}`];return explanation?<div role="status" className="mt-3 rounded-lg bg-ink-900/50 p-3 text-xs leading-5 text-ink-300">{explanation.state==='loading'?'Explaining this lesson…':<TrainingExplanation text={explanation.text}/>}{explanation.state==='ready'&&<span className="mt-2 block text-ink-500">AI explanation · saved training unchanged</span>}</div>:null;}}
+      onApply={ids=>void applyVisualDrafts(ids)} onEdit={id=>{const source=sources.find(source=>source.decisions.some(decision=>decision.recordId===id));const decision=source?.decisions.find(decision=>decision.recordId===id);if(source&&decision)void reviewDecision(source,decision);}}/>}
+    {!installationId&&session&&!history&&<>
+      {changes?<TrainingChanges onAcceptRecord={record=>void applyOneLesson(record)} onUndoRecord={record=>void applyOneLesson(record,'remove')} applyContainer={applyContainer} hideRunPanel hiddenRecordIds={hiddenDraftIds} value={changes} versionPicker={versionPicker} renderExample={learningExample} captionFor={learningCaption} busy={!!busy||changesBusy||versionChanged}
+        onActivate={activateCandidate}
+        onWithdraw={target=>mutateChanges('withdraw',{sourceEventId:target.eventId,expectedEventDigest:target.eventDigest})}
+        onImport={(build,noteIndex)=>mutateChanges('creation-import',{buildRequestId:build.buildRequestId,replyId:build.replyId,replyDigest:build.replyDigest,noteIndex})}
+        onPolicy={(enabled,policy)=>mutateChanges('policy',{expectedActiveVersionId:currentVersion,expectedPolicyDigest:policy.policyDigest,enabled})}
+        onForce={target=>requestLearning({kind:'feedback',id:target.eventId,digest:target.eventDigest},'Please prepare a private learning from this selected feedback, preserving my meaning. If my preference is unclear, ask instead of inventing it.')}
+        onEdit={editCandidate} onApplySelected={applyTextDrafts} onExplain={record=>void explainTeaching(record)} onInspect={setIntakeLesson} explanationFor={record=>{const explanation=explanations[`${changesIdentity.current}:${record.recordId}:${record.recordDigest}`];return explanation?<div role={explanation.state==='error'?'alert':'status'} className="mt-3 rounded-lg bg-ink-900/50 p-3 text-sm leading-6 text-ink-300">{explanation.state==='loading'?'Explaining this lesson…':<TrainingExplanation text={explanation.text}/>}{explanation.state==='ready'&&<span className="mt-2 block text-xs text-ink-500">AI explanation · saved training unchanged</span>}</div>:null;}}
+        onRecord={(record,action)=>mutateChanges('records',{expectedActiveVersionId:currentVersion,recordId:record.recordId,expectedRecordDigest:record.recordDigest,expectedSnapshotDigest:changes.binding.snapshotDigest,action})}
+        onTest={digest=>prepareCandidateTest(digest)}
+        onPublish={()=>setPublicationReviewOpen(true)}/>:<p className="text-sm text-ink-500">{changesError?'Saved training changes are unavailable; existing evidence is preserved.':'Loading saved training changes…'}</p>}
+      {changesError&&<p role="status" className="text-xs text-ink-400">{changesError.replaceAll('_',' ')} <button type="button" disabled={changesBusy} onClick={()=>loadChanges()}>Refresh saved changes</button></p>}
+    </>}
+    {!installationId&&<button type="button" className="btn-primary" disabled={!!busy||changesBusy} onClick={()=>selectTrainingStep(3)}>Continue to Apply &amp; Test</button>}
+    </div>
+    <section hidden={!installationId&&trainingStep!==3} aria-label="Apply and test training" className="space-y-6">
+    <div className="flex items-center justify-between gap-3"><h2 className="text-2xl font-medium tracking-tight">Apply &amp; Test</h2><button type="button" className="text-sm text-action-accent underline underline-offset-4" onClick={()=>selectTrainingStep(2)}>Review selection</button></div><div ref={setApplyContainer} aria-label="Selected training to apply" className="space-y-4"/>
+    {!installationId&&<TrainingRunPanel value={changes} compatibleTrainingPending={continuity.state==='available'||directCarryPending===changesIdentity.current} progress={testProgress} busy={!!busy||changesBusy||versionChanged} onTest={digest=>prepareCandidateTest(digest)} onPublish={()=>setPublicationReviewOpen(true)} onActivate={activateCandidate} onApplyWithoutTest={digest=>activateCandidate(digest,null)}
+      actions={runContext?<AgentActions {...runContext} workflowVersionId={runContext.workflowVersionId} inputContract={runContext.inputContract} inputContractDigest={runContext.inputContractDigest} slug={slug} name={agentName} align="start" presentation="training" statusUnavailable={runContext.statusUnavailable||runContext.workflowVersionId!==currentVersion} runRequest={runRequest} onQueued={()=>void loadChanges()}
+        trainingChoices={{pendingUnknown:!!changesError,pending:false,canTest:!versionChanged&&!!changes?.test.canTest,delivered:!versionChanged&&changes?.test.status==='delivered'&&changes.test.snapshotDigest===changes.binding.snapshotDigest,savedAvailable:changes?.activation?.serving?.mode!=='snapshot_other_version',busy:!!busy||changesBusy,
+         onPending:()=>{if(changes)void prepareCandidateTest(changes.binding.snapshotDigest);},onSaved:()=>setRunRequest({nonce:crypto.randomUUID(),binding:null})}}/>:<p className="mt-3 text-sm text-ink-500">Run setup is unavailable. Refresh this page to try again.</p>}/>}
+    </section>
+    <Modal open={uploadNoteBlocked} onClose={()=>setUploadNoteBlocked(false)} title={runFeedbackRequest?"Finish your proposed training":"Finish your current note"}><p className="text-sm leading-6 text-ink-300">{runFeedbackRequest?"Close your current proposals before uploading another example. Your saved feedback and proposals remain available.":"Save or cancel your note before uploading another example. Your feedback stays where you left it."}</p><div className="mt-5 flex gap-4"><button type="button" className="text-sm text-ink-400" onClick={()=>setUploadNoteBlocked(false)}>Keep editing</button><button type="button" className="btn-primary" onClick={returnToCurrentNote}>{runFeedbackRequest?"Return to proposals":"Return to note"}</button></div></Modal>
+    <div hidden={!installationId&&view!=='settings'} className={`space-y-6 ${legacyControls}`}>
+    <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be stopped for new runs or have permission withdrawn.</p>
+    {!installationId&&changes?.publication.canPrepare&&<button type="button" className="btn-primary" disabled={!!busy||changesBusy||versionChanged} onClick={()=>setPublicationReviewOpen(true)}>Review public version</button>}
+    {!installationId&&<Link className="btn-outline" href={`/training/${encodeURIComponent(slug)}/listing${currentVersion?`?versionId=${encodeURIComponent(currentVersion)}`:''}`}>Manage marketplace listing and visibility</Link>}
+    {installationId && <p>Only your installation can select these preferences. The trainer’s agent and teachings stay unchanged. Images remain on this Mac. Review suggested wording before admitting it; keep your exact feedback separately and label any agent-written options.</p>}
+    {suggestionNote && <p role="status">{suggestionNote}</p>}
+    {!installationId && (changes?.publication.canPrepare?<TrainingDetails title="Advanced image custody and fork permissions" open={!!forkPermission}><PublisherTeachingRelease slug={slug} versionId={currentVersion} forkPermission={forkPermission}/></TrainingDetails>:<PublisherTeachingRelease slug={slug} versionId={currentVersion} forkPermission={forkPermission}/>)}
+    </div>
+    {suggestionNote&& !installationId&&view!=='settings'&&<p role="status" className="rounded-lg border border-ink-700 p-3 text-sm">{suggestionNote}</p>}
+    </div></div>
+    {installationId && versionChanged && <p role="alert">This preference session belongs to another installed version. Reopen your agent’s private preferences; no teaching is moved automatically.</p>}
+    {installationId && pendingDemoLink && <button disabled={!!busy} onClick={() => work("Linking the preserved preference feedback", () => linkDemoAnnotation(pendingDemoLink))}>Retry feedback link</button>}
+    {!installationId && versionChanged && <section role={activeVersionTrainingIsReady ? 'status' : 'alert'} className={`rounded-xl border p-4 space-y-3 ${legacyControls} ${activeVersionTrainingIsReady ? 'border-emerald-800' : 'border-ink-700'}`}>
+      <h2 className="font-semibold">{continuity.state==='carried'?'Earlier training carried forward':continuity.state==='available'?'Earlier training can be reused':continuity.state==='review'?'Review training for this update':'Earlier training status needs checking'}</h2>
+      {continuity.state==='carried'?<p>{continuity.count} compatible {continuity.count===1?'lesson from an earlier version is':'lessons from earlier versions are'} available to this version. You do not need to upload or approve {continuity.count===1?'it':'them'} again.</p>
+        :continuity.state==='available'?<p>{continuity.count} compatible {continuity.count===1?'lesson from an earlier version will':'lessons from earlier versions will'} carry forward when you run your agent. You do not need to recreate the examples.</p>
+        :continuity.state==='unknown'?<><p>Your saved training is preserved. We could not confirm which earlier lessons this version can use.</p><button disabled={!!busy} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Check training status</button></>
+        :null}
+      {(continuity.state==='review'||(['carried','available'].includes(continuity.state)&&!carryCoversSession))&&<><p>{continuity.state==='review'?'The update needs a training review.':'The selected older session is separate from this carry. Review its lessons if you want to reuse them here.'}</p><p>Keep your earlier examples; review what has changed before adding or changing lessons.</p><details><summary>Review earlier training</summary><p className="mt-3">Start a session for this version to add or revise the affected lessons. Existing lessons and their history stay saved.</p><label className="mt-3 flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event)=>setTransitionConfirmed(event.target.checked)}/>Start a new training session for the updated agent.</label><button disabled={!!busy||!transitionConfirmed||!currentVersion} onClick={()=>void beginVersionSuccessor()}>Start successor training session</button></details></>}
+      {carryCoversSession&&['carried','available'].includes(continuity.state)&&<button type="button" className="btn-primary" disabled={!!busy} onClick={()=>void beginVersionSuccessor(true)}>Continue training</button>}
+    </section>}
+    <div id="training-demonstration" hidden={!installationId&&(view!=='teach'||directSource)} className={`space-y-4 rounded-xl border border-ink-800 p-5 ${legacyControls}`}>
+    {!installationId&&<div><h2 className="text-lg font-medium">Your demonstration</h2><p className="mt-2 text-sm text-ink-400">Choose a recording or image, then select the moment you want to teach.</p></div>}
+    <label className="flex gap-3 text-sm leading-6"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />{installationId?"I have permission to use this output and save bounded private preference evidence for one year":OWNER_SOURCE_CONSENT}{installationId&&" The original stays on this computer. I can stop future selection or withdraw permission below."}</label>
+
+    <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={()=>void add()}>Add training source</button>
+    </div>
+    {installationId&&busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{installationId&&error && <p role="alert">{reasonLabel(error)}</p>}
+    {evidenceReview}
+
+    <div hidden={!installationId&&view!=='teach'}>
+    {installationId&&manualEditor}
     </div>
     {!installationId&&<section className="training-learned" aria-labelledby="training-learned-heading"><header className="training-section-heading"><div><h2 id="training-learned-heading">Learnings</h2><p>Applies to your runs. Customers receive selected learnings when you publish.</p></div><button type="button" className="text-xs underline text-ink-400" onClick={()=>selectTrainingStep(2)}>See saved training →</button></header>
       {changes?<>{changes.records.filter(record=>changes.activation?.serving?.activeRecordIds?.includes(record.recordId)&&record.summary).slice(0,5).map(record=><article key={record.recordId} className="training-learned-row"><div><p>{teachingCaption(record.summary)}</p><p className="mt-2 text-xs text-ink-500">{record.sourceKind==='creation_notes'?'From your agent creation chat':record.sourceKind==='legacy_evidence'?'From your reviewed example':'From your feedback'}{record.createdAt?` · ${new Date(record.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}`:''}</p><TrainingDirectionLabel scope={record.creativeDirections}/></div><button type="button" disabled={!!busy||changesBusy||versionChanged} onClick={()=>void applyOneLesson(record,'remove')}>Remove</button><button type="button" disabled={!!busy||changesBusy||versionChanged} onClick={()=>editCandidate(record)}>{record.sourceKind==='legacy_evidence'?'Edit example':'Change it'}</button></article>)}{changes.activation?.serving?.activeRecordIds?.length===0&&<p className="training-empty">No learnings have been applied to your runs yet.</p>}{!changes.activation?.serving?.activeRecordIds&&<p className="training-read-note">Open saved training to check the lessons currently used by your agent.</p>}</>:<p className="training-read-note">{changesError?'Applied learnings couldn’t load. Your saved training is unchanged.':'Checking applied learnings…'}</p>}
@@ -2441,26 +2625,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     </section>)}
     {pending.map(draft=><section key={`${draft.token}:${draft.key}`} className="rounded-lg border border-ink-800 p-4 space-y-2" aria-label="Preserved decision draft"><p className="font-medium">A teaching did not finish saving</p><p className="text-sm text-ink-400">Your draft is preserved.</p>{draft.retryable?<button disabled={!!busy} onClick={()=>work('Retrying saved decision',async()=>{await requireCurrentScope();await call('retryDraft',{token:draft.token,key:draft.key});await load(session);})}>Retry saving</button>:<><p className="text-sm text-ink-400">This draft cannot be saved again as it is. Review it before starting a new teaching.</p><button disabled={!!busy} onClick={()=>discardDraft(draft)}>Remove unfinished draft</button></>}<TrainingDetails title="Technical details"><p>{reasonLabel(draft.reason)}</p></TrainingDetails></section>)}
     </div>
-    <TrainingDetails title="Saved sources & original decisions" open={Boolean(installationId)}>
-      {separateIntake&&evidenceError&&<p role="status">Saved examples couldn’t load. <button type="button" className="underline" disabled={evidenceLoading} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry saved examples</button></p>}
-      <p className="text-ink-400">Your original examples and teaching history. Open a lesson to review its example or change how it is used.</p>
-      {sources.map((source,index)=><section key={source.sourceId} className="rounded-lg border border-ink-800 p-4 space-y-3">
-        <h2 className="font-medium">{source.localName||`Training example ${index+1}`}</h2><p className="text-xs text-ink-400">{source.metadata.mediaType.startsWith('video/')?'Video':'Image'}{source.metadata.durationMs>0?` · ${formatTrainingTime(source.metadata.durationMs)}`:''}</p>
-        <button disabled={!source.token||!!busy||versionChanged} onClick={()=>chooseSource(source)}>Annotate source</button>{!source.token&&<p className="text-sm text-ink-400">To annotate this again, open it on the original computer or add the original file.</p>}
-        <TrainingDetails title="Source details"><p>{source.metadata.width}×{source.metadata.height} · SHA-256 {shortId(source.metadata.sha256)}</p></TrainingDetails>
-        <ul className="divide-y divide-ink-800">{source.decisions.map(decision=>{
-          const decisionStages=normalizeTrainingStages(decision.content.applicability?.stages);
-          return <li key={decision.recordId} className="py-3 space-y-3">
-            <p className="text-xs text-ink-400">{formatTrainingTime(decision.content.anchor.startMs)} · {{draft:'Not applied',accepted:'Saved',retired:'Stopped',unavailable:'Unavailable',revoked:'Permission withdrawn'}[decision.state]} · {relationLabel(decision.content.relation)}</p>
-            <p className="line-clamp-3">{decision.decision.why||decision.decision.desiredBehavior||decision.content.summary}</p>
-            {(decision.state==='draft'||decision.state==='accepted')&&<button disabled={!!busy||!source.token||versionChanged} onClick={()=>reviewDecision(source,decision)}>{decision.state==='draft'?'Review before accepting':'Review accepted evidence'}</button>}{(decision.state==='accepted'||decision.state==='retired')&&<button disabled={!!busy} onClick={()=>manageDecision(source,decision)}>Manage teaching</button>}
-            {!installationId&&['draft','accepted'].includes(decision.state)&&<button disabled={!!busy||versionChanged}
-              onClick={()=>setIntakeLesson(decision)}>Check for agent changes</button>}
-            <TrainingDetails title="Full teaching & technical details"><p>{decision.content.summary}</p><p>{decision.content.properties.map(item=>item.replaceAll('_',' ')).join(', ')}</p><p>Eligible stages: {decisionStages.length?decisionStages.map(trainingStageLabel).join(', '):'Not recorded'}</p>{decision.state==='accepted'&&!decisionStages.includes('planning')&&<p>This accepted record cannot guide planning before tools or paid actions. Create a new planning-scoped decision to preserve the original record.</p>}<p>Evidence digest {shortId(decision.recordDigest)}</p></TrainingDetails>
-          </li>;
-        })}</ul>
-      </section>)}
-    </TrainingDetails>
+    {sourceHistory}
     </div>
     {!installationId&&<div className="flex flex-wrap gap-x-6 gap-y-3 border-t border-ink-800 pt-5 text-xs text-ink-500"><button type="button" onClick={()=>view==='history'?setView('start'):openTrainingHistory()} aria-expanded={view==='history'}>Questions & history</button><button type="button" onClick={()=>setView(view==='settings'?'start':'settings')} aria-expanded={view==='settings'}>Sharing & settings</button><TrainingInfo label="Version details">Active version: {shortId(currentVersion)}{sessionVersion?` · Session version: ${shortId(sessionVersion)}`:''}</TrainingInfo></div>}
     </TrainingDetails>
@@ -2486,7 +2651,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
           {decisionSelection.kind==='agent_change'&&decisionSelection.source==='annotation_gap'&&decisionSelection.sessionId&&<TrainingOperatingChanges onlyId={decisionSelection.id} expectedDigest={decisionSelection.digest} sessionId={decisionSelection.sessionId} versionId={decisionSelection.versionId} slug={slug} refreshKey={operatingRefresh} disabled={!!busy||changesBusy||versionChanged||runContext?.revisePending===true||!runContext||runContext.statusUnavailable===true} onResume={analysis=>{setDecisionSelection(null);void resumeOperatingAnalysis(analysis);}}/>}
           {decisionSelection.kind==='agent_change'&&decisionSelection.source==='intake_plan'&&<SavedIntakeDecision item={decisionSelection} disabled={!!busy||changesBusy||versionChanged||runContext?.revisePending===true||!runContext||runContext.statusUnavailable===true} onClose={()=>setDecisionSelection(null)} onChanged={()=>setCoachRefresh(n=>n+1)}/>}
           {decisionSelection.kind==='agent_change'&&decisionSelection.source==='recording_agent'&&(agentProposal?.suggestionId===decisionSelection.id&&agentProposal.suggestionDigest===decisionSelection.digest?recordingToolPanel:!decisionReviewError&&<p role="status">Loading the saved tool proposal…</p>)}
-          {decisionSelection.kind==='feedback'&&<TrainingRunPlayer slug={slug} issueId={decisionSelection.id} ownerId={ownerId} onDirtyChange={setRunDirty} onTeach={(issue,artifact)=>{setRunDirty(false);setRunFeedbackRequest([{issue,artifact}]);setDecisionSelection(null);selectTrainingStep(2);}} onDoneTeaching={notes=>{setRunDirty(false);setRunFeedbackRequest(notes);setDecisionSelection(null);selectTrainingStep(2);}}/>}
+
         </>}
         {decisionCloseNotice&&<p role="status" className="text-sm text-state-needs">{decisionCloseNotice}</p>}{busy&&<p role="status" className="text-sm">{busy}…</p>}{error&&<p role="alert" className="text-sm text-state-needs">{reasonLabel(error)}</p>}{changesError&&<p role="status" className="text-sm text-state-needs">{changesError.replaceAll('_',' ')}</p>}
         <button type="button" className="text-xs text-ink-400 underline" disabled={!!busy||changesBusy||decisionReviewBusy||decisionChildBlocked||runDirty||recordingDirty||directVoiceDirty} onClick={()=>{const items=coachAgent?.decisions||[],index=items.findIndex(item=>item.id===decisionSelection.id),next=items[index+1];if(next)void openDecision(next);else setDecisionSelection(null);}}>Decide later →</button>

@@ -43,6 +43,9 @@ import {
 } from '@/lib/review-anchor';
 import ReviewSpatialOverlay, { SPATIAL_HINT_COPY, type OverlayPin } from '@/app/(dashboard)/_components/review-spatial-overlay';
 import ReviewPlaybackControls from './review-playback-controls';
+import AnnotationWorkspace from './annotation-workspace';
+import AnnotationTimeline from './annotation-timeline';
+import {useAnnotationNotePlacement} from './use-annotation-note-placement';
 import ReviewContinuationRecovery from '@/app/(dashboard)/_components/review-continuation-recovery';
 import { evidenceGate, evidenceChip, type SessionEvidenceStatus } from '@/lib/review-evidence-status';
 import {
@@ -1284,7 +1287,12 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     ? segmentPlaybackClock(production, selectedSegment, playheadMs ?? 0)
     : null;
 
+  const teachingNoteRef=useRef<HTMLDivElement>(null);
+  const pictureRef=artifact&&previewKind(artifact.relativePath)==='image'?imageRef:mediaRef;
+  const teachingNotePosition=useAnnotationNotePlacement(pictureRef,teachingNoteRef,!!props.trainingMode&&!!draft,draft?.spatial?.geometry||null,selectedId);
+
   const resultSurface = (<ArtifactSurface
+          trainingMode={props.trainingMode}
           runId={runId}
           // A decision for a DIFFERENT artifact must not be rendered over this one —
           // otherwise A's failure message shows while B is loading.
@@ -1393,70 +1401,26 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     </div>;
   }
 
-  return (
-    /* THE WORKSPACE IS VIEWPORT-BOUNDED, so feedback volume cannot push the actions
-       off screen. Every new issue used to grow the rail, which grew the page: at 100
-       issues the submission footer was several screens down.
-
-       `min-h` keeps it usable on short laptops and at high browser zoom — below that
-       the workspace stops shrinking and the PAGE scrolls instead, which is why the
-       footer is also sticky. `minmax(0,1fr)` on both axes is what actually permits the
-       children to be smaller than their content; without it a grid/flex item's
-       automatic minimum size is its content and nothing scrolls internally. */
-    <div className={props.trainingMode ? 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]' : 'grid gap-4 lg:h-[calc(100vh-13rem)] lg:min-h-[34rem] lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)]'}>
-      {/* ── artifact surface ─────────────────────────────────────────────── */}
-      <section className="min-h-0 overflow-y-auto rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-        <HistoricalReviewCandidateNotice candidate={historicalCandidate} unavailable={historicalProvenanceUnavailable}
-          carriedIssueCount={session?.carriedIssueIds?.length ?? 0} />
-        {production && (
-          <div className="mb-4 border-b border-ink-800 pb-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-medium text-ink-100">Segment review</h2>
-                <p className="mt-0.5 text-xs text-ink-500">Professional preview pass</p>
-              </div>
-              <button
-                type="button"
-                disabled
-                title={renderControl.reason ?? 'Final assembly is not enabled in this first slice.'}
-                className="rounded-md border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-300 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Final render
-              </button>
-            </div>
-            <div className="mt-3 grid grid-cols-3 gap-1 sm:grid-cols-6" aria-label="Production segments">
-              {production.segments.map((segment) => {
-                const selected = segment.artifact?.id === selectedId;
-                const ready = segment.state === 'preview_ready' && segment.artifact;
-                const tone = segment.state === 'qa_failed'
-                  ? 'border-red-500/50 text-state-fail'
-                  : segment.state === 'preview_ready'
-                    ? 'border-emerald-500/50 text-state-ok'
-                    : segment.state === 'rendering'
-                      ? 'border-sky-500/50 text-state-running'
-                      : 'border-ink-800 text-ink-500';
-                return (
-                  <button
-                    key={segment.id}
-                    type="button"
-                    disabled={!ready}
-                    onClick={() => ready && setSelectedId(segment.artifact!.id)}
-                    aria-pressed={selected}
-                    className={`min-w-0 rounded border px-2 py-2 text-left ${tone} ${selected ? 'bg-ink-800' : 'bg-ink-950'} disabled:cursor-not-allowed`}
-                  >
-                    <span className="block truncate text-xs font-medium">{segment.ordinal + 1}. {segment.label}</span>
-                    <span className="mt-0.5 block truncate text-[11px]">{segment.state.replace('_', ' ')}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {!renderControl.enabled && renderControl.reason && (
-              <p className="mt-2 text-xs text-ink-500">Final render unavailable: {renderControl.reason}</p>
+  const resultIdentity=<>
+        {artifact && (
+          <div className="mt-3 text-xs text-ink-500">
+            <p className="truncate">
+              {proxyPreview && <span className="mr-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-state-running">Review proxy</span>}
+              {artifact.relativePath}
+              {artifact.sha256 && <span className={props.trainingMode?'ml-2 select-all break-all font-mono':'ml-2 font-mono'}>sha256 {props.trainingMode?artifact.sha256:`${artifact.sha256.slice(0,12)}…`}</span>}
+            </p>
+            {playbackClock && (
+              <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-ink-400">
+                <span>Segment {formatSignedMs(playbackClock.segmentMs)}</span>
+                <span>Global {formatMs(playbackClock.globalMs)}</span>
+                <span>Writable starts at {formatMs(playbackClock.writableOffsetMs)}</span>
+              </p>
             )}
           </div>
         )}
 
-        {props.trainingMode&&!latestFinalOutput&&<p role="status" className="mb-3 text-sm text-state-needs">The latest result could not be verified. Open Result details to choose a file.</p>}
+  </>;
+  const resultDetails=<>
         <details open={!latestFinalOutput||latestFinalOutput.id!==selectedId} className="mb-3">
           <summary className="cursor-pointer text-xs text-ink-500">Result details</summary>
         <div className="mb-3 rounded-md border border-ink-800 bg-ink-950/50 px-3 py-2.5" aria-label="Review version identity">
@@ -1514,7 +1478,77 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             {artifactPicker === 'review_target' ? 'Freezing file…' : 'Open other file'}
           </button>
         </div>
+        {props.trainingMode&&resultIdentity}
+
         </details>
+  </>;
+  const Workspace=props.trainingMode?AnnotationWorkspace:'div';
+  return (
+    /* THE WORKSPACE IS VIEWPORT-BOUNDED, so feedback volume cannot push the actions
+       off screen. Every new issue used to grow the rail, which grew the page: at 100
+       issues the submission footer was several screens down.
+
+       `min-h` keeps it usable on short laptops and at high browser zoom — below that
+       the workspace stops shrinking and the PAGE scrolls instead, which is why the
+       footer is also sticky. `minmax(0,1fr)` on both axes is what actually permits the
+       children to be smaller than their content; without it a grid/flex item's
+       automatic minimum size is its content and nothing scrolls internally. */
+    <Workspace className={props.trainingMode ? 'training-result-annotation' : 'grid gap-4 lg:h-[calc(100vh-13rem)] lg:min-h-[34rem] lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)]'}>
+      {/* ── artifact surface ─────────────────────────────────────────────── */}
+      <section className="min-h-0 overflow-y-auto rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <HistoricalReviewCandidateNotice candidate={historicalCandidate} unavailable={historicalProvenanceUnavailable}
+          carriedIssueCount={session?.carriedIssueIds?.length ?? 0} />
+        {production && (
+          <div className="mb-4 border-b border-ink-800 pb-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-medium text-ink-100">Segment review</h2>
+                <p className="mt-0.5 text-xs text-ink-500">Professional preview pass</p>
+              </div>
+              <button
+                type="button"
+                disabled
+                title={renderControl.reason ?? 'Final assembly is not enabled in this first slice.'}
+                className="rounded-md border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Final render
+              </button>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-1 sm:grid-cols-6" aria-label="Production segments">
+              {production.segments.map((segment) => {
+                const selected = segment.artifact?.id === selectedId;
+                const ready = segment.state === 'preview_ready' && segment.artifact;
+                const tone = segment.state === 'qa_failed'
+                  ? 'border-red-500/50 text-state-fail'
+                  : segment.state === 'preview_ready'
+                    ? 'border-emerald-500/50 text-state-ok'
+                    : segment.state === 'rendering'
+                      ? 'border-sky-500/50 text-state-running'
+                      : 'border-ink-800 text-ink-500';
+                return (
+                  <button
+                    key={segment.id}
+                    type="button"
+                    disabled={!ready}
+                    onClick={() => ready && setSelectedId(segment.artifact!.id)}
+                    aria-pressed={selected}
+                    className={`min-w-0 rounded border px-2 py-2 text-left ${tone} ${selected ? 'bg-ink-800' : 'bg-ink-950'} disabled:cursor-not-allowed`}
+                  >
+                    <span className="block truncate text-xs font-medium">{segment.ordinal + 1}. {segment.label}</span>
+                    <span className="mt-0.5 block truncate text-[11px]">{segment.state.replace('_', ' ')}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {!renderControl.enabled && renderControl.reason && (
+              <p className="mt-2 text-xs text-ink-500">Final render unavailable: {renderControl.reason}</p>
+            )}
+          </div>
+        )}
+
+        {props.trainingMode&&!latestFinalOutput&&<p role="status" className="mb-3 text-sm text-state-needs">The latest result could not be verified. Open Result details to choose a file.</p>}
+
+        {!props.trainingMode&&resultDetails}
         {sources.review_artifacts !== 'ready' && (
           <p role="status" className="mb-3 text-xs text-state-needs">
             Other review files are unavailable right now. Reload before attaching or sending them.
@@ -1522,23 +1556,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         )}
 
         {resultSurface}
+        {props.trainingMode?resultDetails:resultIdentity}
 
-        {artifact && (
-          <div className="mt-3 text-xs text-ink-500">
-            <p className="truncate">
-              {proxyPreview && <span className="mr-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-state-running">Review proxy</span>}
-              {artifact.relativePath}
-              {artifact.sha256 && <span className="ml-2 font-mono">sha256 {artifact.sha256.slice(0, 12)}…</span>}
-            </p>
-            {playbackClock && (
-              <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-ink-400">
-                <span>Segment {formatSignedMs(playbackClock.segmentMs)}</span>
-                <span>Global {formatMs(playbackClock.globalMs)}</span>
-                <span>Writable starts at {formatMs(playbackClock.writableOffsetMs)}</span>
-              </p>
-            )}
-          </div>
-        )}
 
         {/* Persistent, keyboard-reachable. Not a modal that ambushes every pause. */}
         {!frozen && !accepted && artifact?.status === 'validated' && (
@@ -1624,7 +1643,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         )}
 
         {draft && !frozen && !accepted && (
-          <div className="mt-3 rounded-md border border-ink-700 bg-ink-950 p-3">
+          <div ref={teachingNoteRef} className={props.trainingMode?'recording-note result-note':'mt-3 rounded-md border border-ink-700 bg-ink-950 p-3'} data-floating={props.trainingMode&&!!teachingNotePosition} style={props.trainingMode&&teachingNotePosition?teachingNotePosition:undefined}>
             <div className="mb-2 flex items-center gap-2 text-xs text-ink-400">
               {/* The FROZEN position. It does not move while the clip keeps playing. */}
               <span title={draft.anchorMs === null ? undefined : `Exact position ${formatMs(draft.anchorMs)}`}>
@@ -1709,7 +1728,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               />
             )}
 
-            <textarea
+            <div className={props.trainingMode?'recording-comment-box':undefined}><textarea
               autoFocus
               value={draft.body}
               onChange={(e) => setDraft({ ...draft, body: e.target.value })}
@@ -1722,8 +1741,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 && current.target.sha256===identity.target.sha256 && current.editingIssueId===identity.editingIssueId
                 && generation===draftGeneration.current && JSON.stringify(current.spatial)===JSON.stringify(identity.spatial)
                 && current.rangeEndMs===identity.rangeEndMs ? {...current,body:[current.body.trim(),text].filter(Boolean).join('\n\n')} : current);
-            };return props.renderVoiceNote?props.renderVoiceNote({artifactId:draft.target.artifactId,sha256:draft.target.sha256,frameMs:draft.anchorMs},insert):props.trainingOwnerId&&draft.target.artifactId?<TrainerVoiceNote disabled={busy} onDirtyChange={setVoiceDirty} key={`${generation}:${draft.target.artifactId}:${draft.anchorMs}:${JSON.stringify(draft.spatial)}`} ownerId={props.trainingOwnerId} attach={{sourceKind:'run_artifact',sourceRef:`${runId}:${draft.target.artifactId}`,mark:draft.anchorMs!==null&&draft.rangeEndMs!==null&&draft.rangeEndMs>draft.anchorMs?{startMs:draft.anchorMs,endMs:draft.rangeEndMs}:{frameMs:draft.anchorMs||0,region:draft.spatial?.geometry.kind==='rect'?{x:Math.round(draft.spatial.geometry.x*1000000),y:Math.round(draft.spatial.geometry.y*1000000),width:Math.round(draft.spatial.geometry.width!*1000000),height:Math.round(draft.spatial.geometry.height!*1000000)}:{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,4000-draft.body.trim().length-(draft.body.trim()?2:0))} onInsert={insert}/>:null;})()}
-            <div className="mt-2 flex gap-2">
+            };return props.renderVoiceNote?props.renderVoiceNote({artifactId:draft.target.artifactId,sha256:draft.target.sha256,frameMs:draft.anchorMs},insert):props.trainingOwnerId&&draft.target.artifactId?<TrainerVoiceNote compact disabled={busy} onDirtyChange={setVoiceDirty} key={`${generation}:${draft.target.artifactId}:${draft.anchorMs}:${JSON.stringify(draft.spatial)}`} ownerId={props.trainingOwnerId} attach={{sourceKind:'run_artifact',sourceRef:`${runId}:${draft.target.artifactId}`,mark:draft.anchorMs!==null&&draft.rangeEndMs!==null&&draft.rangeEndMs>draft.anchorMs?{startMs:draft.anchorMs,endMs:draft.rangeEndMs}:{frameMs:draft.anchorMs||0,region:draft.spatial?.geometry.kind==='rect'?{x:Math.round(draft.spatial.geometry.x*1000000),y:Math.round(draft.spatial.geometry.y*1000000),width:Math.round(draft.spatial.geometry.width!*1000000),height:Math.round(draft.spatial.geometry.height!*1000000)}:{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,4000-draft.body.trim().length-(draft.body.trim()?2:0))} onInsert={insert}/>:null;})()}
+            </div><div className="mt-2 flex gap-2">
               <button
                 type="button" disabled={busy||voiceDirty} onClick={submitIssue}
                 className="rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950 disabled:opacity-50"
@@ -1952,7 +1971,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           {props.onDoneTeaching&&<button type="button" className="btn-primary" disabled={busy||!!draft||!!pendingRange||voiceDirty||!teachingNotes.length} onClick={()=>props.onDoneTeaching?.(teachingNotes)}>Done teaching</button>}
           <p className="text-xs text-ink-500">Your saved notes become lessons you can review before applying.</p>
           {visible.length>teachingNotes.length&&<p className="text-xs text-ink-400">{visible.length-teachingNotes.length} note(s) need a fresh visual mark before extraction.</p>}
-          <a href={props.trainingSlug?trainingReviewHref(props.trainingSlug,runId):`/review/${encodeURIComponent(runId)}`} className="inline-block text-xs text-ink-400 underline underline-offset-4">Revise this result →</a>
+          <details><summary className="cursor-pointer text-xs text-ink-400">More options</summary><a href={props.trainingSlug?`${trainingReviewHref(props.trainingSlug,runId)}?mode=revise`:`/review/${encodeURIComponent(runId)}`} className="mt-3 inline-block text-xs text-ink-400 underline underline-offset-4">Revise this result →</a></details>
         </div>}
         <div className={`${props.trainingMode?'hidden ':''}sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900 px-4 py-3`}>
           {error && <p role="alert" className="text-xs text-state-fail">{error}</p>}
@@ -2345,7 +2364,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       </aside>
 
       {cleanupDialog}
-    </div>
+    </Workspace>
   );
 }
 
@@ -2365,7 +2384,7 @@ type SpatialSurfaceProps = {
 /** The viewer. Every non-ready state renders words and buttons, never a dead player. */
 function ArtifactSurface({
   runId, decision, previewUrl, textContent, textTruncated, mediaRef, imageRef, issues, onSelectText, onSeek,
-  onMediaReady, onPlayhead, mediaKey, spatial,
+  onMediaReady, onPlayhead, mediaKey, spatial,trainingMode,
 }: {
   runId: string;
   decision: PreviewDecision | null;
@@ -2388,6 +2407,7 @@ function ArtifactSurface({
   onSelectText: (s: { start: number; end: number; quote: string }) => void;
   onSeek: (ms: number) => void;
   spatial: SpatialSurfaceProps;
+  trainingMode?:boolean;
 }) {
   if (!decision) return <div className="h-48 animate-pulse rounded bg-ink-800/50" />;
 
@@ -2451,6 +2471,7 @@ function ArtifactSurface({
         {decision.kind === 'video' && !spatial.readOnly && (
           <ReviewSpatialOverlay
             mediaKind="video"
+            appearance={trainingMode?'teaching':undefined}
             controlsMode="external"
             mediaEl={() => (mediaRef.current instanceof HTMLVideoElement ? mediaRef.current : null)}
             enabled={spatial.enabled}
@@ -2468,7 +2489,7 @@ function ArtifactSurface({
     return (
       <div>
         {decision.kind === 'video' ? (
-          <ReviewPlaybackControls variant={spatial.readOnly?'finished':undefined} key={mediaKey} mediaKey={mediaKey} mediaRef={mediaRef} onSeek={onSeek}>
+          <ReviewPlaybackControls variant={spatial.readOnly?'finished':trainingMode?'teaching':undefined} key={mediaKey} mediaKey={mediaKey} mediaRef={mediaRef} onSeek={onSeek} timeline={trainingMode?clock=><AnnotationTimeline {...clock} onSeek={onSeek} onOpen={spatial.onOpenIssue} marks={issues.flatMap(issue=>{const anchor=issue.anchor as any;const time=anchor?.type==='visual_spatial'?anchor.temporal:anchor?.type==='media_time'?{startMs:anchor.timeStartMs,endMs:anchor.timeEndMs}:null;return time&&Number.isFinite(time.startMs)?[{id:issue.id,startMs:time.startMs,endMs:time.endMs}]:[];})}/>:undefined}>
             {(revealOutside) => picture(revealOutside)}
           </ReviewPlaybackControls>
         ) : picture()}
@@ -2515,6 +2536,7 @@ function ArtifactSurface({
           />
           {!spatial.readOnly&&<ReviewSpatialOverlay
             mediaKind="image"
+            appearance={trainingMode?'teaching':undefined}
             mediaEl={() => imageRef.current}
             enabled={spatial.enabled}
             pins={spatial.pins}

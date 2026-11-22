@@ -13,3 +13,14 @@ test('bounded own summaries cannot become a channel for customer text',()=>{
  const own:any=fixture();Object.assign(own.agents[0].decisions[0],{kind:'feedback',source:'review_issue',sessionId:null,summary:'Smooth the cut.'});assert.ok(coachPage(own));
  Object.assign(own.agents[0].decisions[0],{kind:'customer',source:'contribution'});assert.equal(coachPage(own),null);
 });
+
+test('canonical saved feedback uses the same decision list, requires its session and rejects mismatched source kinds',()=>{
+ const v:any={...fixture(),contractVersion:'training-coach-decisions.v2',savedFeedbackReady:true};Object.assign(v.agents[0].decisions[0],{kind:'feedback',source:'demo_annotation',summary:'Make the route legible.'});assert.ok(coachPage(v));
+ v.agents[0].decisions[0].sessionId=null;assert.equal(coachPage(v),null);
+ v.agents[0].decisions[0].sessionId=id(4);v.agents[0].decisions[0].kind='lesson';assert.equal(coachPage(v),null);
+});
+
+test('v2 readiness is explicit and legacy readers cannot accept new feedback cards',()=>{
+ const v:any={...fixture(),contractVersion:'training-coach-decisions.v2',savedFeedbackReady:false};assert.ok(coachPage(v));
+ Object.assign(v.agents[0].decisions[0],{kind:'feedback',source:'demo_annotation'});assert.equal(coachPage(v),null);v.savedFeedbackReady=true;assert.ok(coachPage(v));delete v.savedFeedbackReady;v.contractVersion='training-coach-decisions.v1';assert.equal(coachPage(v),null);
+});

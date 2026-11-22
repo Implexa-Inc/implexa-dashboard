@@ -9,12 +9,15 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import Modal from '../../../_components/modal';
 import PageHeader from '@/components/page-header';
+import AnnotationWorkspace from '../../../_components/annotation-workspace';
+import {AnnotationTimelineTicks} from '../../../_components/annotation-timeline';
+import {useAnnotationNotePlacement} from '../../../_components/use-annotation-note-placement';
 import ReviewSpatialOverlay from '../../../_components/review-spatial-overlay';
 import ReviewPlaybackControls from '../../../_components/review-playback-controls';
 import TrainerVoiceNote from '../../../_components/trainer-voice-note';
 import { formatMs as preciseTime, formatMediaTime as formatMs } from '@/lib/review-anchor';
 import { inDesktopApp, revokePreview } from '@/lib/review-preview';
-import { visualContentRect,recordingNotePlacement } from '@/lib/review-spatial-geometry';
+import { visualContentRect } from '@/lib/review-spatial-geometry';
 import {
   CARD_FIELDS, CARD_FIELD_LABELS, CARD_FIELD_MAX, COORD_MAX, MAX_MOMENTS, MAX_MOMENT_MS, MOMENTS_NEXT_NOTE,
   addMoment, momentAt, cardWarnings, createReviewRecorderClient, defaultRegionFromPointer, failureMessage, momentsDirty,
@@ -42,7 +45,7 @@ function focusPictureNote(momentId:string){
   },0);
 }
 
-export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embedded=false,onAnalyzeNarration,onAnalyzeTool,onUseFeedback,onDoneTeaching,onTrainerNarrationChange,trainerNarration=false,narrationUnavailable,onDirtyChange,onClose,onRecordingLoaded,trainingReview,trainingFrames }: { recordingId: string; ownerId:string;trainingSlug?:string;embedded?:boolean;onAnalyzeNarration?:(recordingId:string,momentId:string|null)=>void;onAnalyzeTool?:(recordingId:string,momentId:string|null)=>void;onUseFeedback?:(recordingId:string,moment:Moment)=>void;onDoneTeaching?:(recordingId:string,moments:Moment[])=>void;trainerNarration?:boolean;onTrainerNarrationChange?:(enabled:boolean)=>void;narrationUnavailable?:string;onDirtyChange?:(dirty:boolean)=>void;onClose?:()=>void;onRecordingLoaded?:(detail:RecordingDetail)=>void;trainingReview?:ReactNode;trainingFrames?:Array<{timeMs:number;image:string}> }) {
+export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embedded=false,fullPage=false,feedbackSaveUnavailable,initialMomentId,onAnalyzeNarration,onAnalyzeTool,onUseFeedback,onDoneTeaching,onTrainerNarrationChange,trainerNarration=false,narrationUnavailable,onDirtyChange,onClose,onRecordingLoaded,trainingReview,trainingFrames }: { recordingId: string; ownerId:string;trainingSlug?:string;embedded?:boolean;fullPage?:boolean;feedbackSaveUnavailable?:string;initialMomentId?:string;onAnalyzeNarration?:(recordingId:string,momentId:string|null)=>void;onAnalyzeTool?:(recordingId:string,momentId:string|null)=>void;onUseFeedback?:(recordingId:string,moment:Moment)=>void;onDoneTeaching?:(recordingId:string,moments:Moment[])=>void;trainerNarration?:boolean;onTrainerNarrationChange?:(enabled:boolean)=>void;narrationUnavailable?:string;onDirtyChange?:(dirty:boolean)=>void;onClose?:()=>void;onRecordingLoaded?:(detail:RecordingDetail)=>void;trainingReview?:ReactNode;trainingFrames?:Array<{timeMs:number;image:string}> }) {
   const router = useRouter();
   const client = useMemo(() => createReviewRecorderClient(undefined,ownerId), [ownerId]);
   const [availability, setAvailability] = useState<RecorderAvailability | null>(null);
@@ -78,7 +81,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef=useRef<HTMLDivElement|null>(null),noteRef=useRef<HTMLDivElement|null>(null);
-  const [notePosition,setNotePosition]=useState<ReturnType<typeof recordingNotePlacement>>(null);
+
   const playLineRef = useRef<HTMLDivElement | null>(null);
   const barGesture = useRef<{ anchorMs: number; startX: number; dragging: boolean } | null>(null);
   const resizeGesture = useRef<{moment:Moment;edge:'startMs'|'endMs'}|null>(null);
@@ -102,6 +105,8 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const intrinsic = videoDims
     ?? (detail?.pointerTrack ? { w: detail.pointerTrack.videoWidth, h: detail.pointerTrack.videoHeight } : null)
     ?? (detail?.width && detail?.height ? { w: detail.width, h: detail.height } : null);
+
+  const notePosition=useAnnotationNotePlacement(videoRef,noteRef,!!selected,selected?.region?{x:selected.region.x/COORD_MAX,y:selected.region.y/COORD_MAX,width:selected.region.width/COORD_MAX,height:selected.region.height/COORD_MAX}:null,preview);
 
   const suggestions = useMemo(
     () => (durationMs === null ? [] : suggestMoments(samples, durationMs)),
@@ -144,6 +149,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
       if (seq !== loadSeq.current||scopeRef.current!==expectedScope) return;
       loadedScope.current=expectedScope;
       setDetail(d);loadedCallback.current?.(d);
+      if(initialMomentId&&d.moments.some(m=>m.momentId===initialMomentId))setSelectedId(initialMomentId);
       setSaved(d.moments);
       setMoments(d.moments);
       setLoadError(null);
@@ -187,7 +193,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   // ── unsaved-changes guard ─────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty||fullPage) return;
     // Plain browser only. Inside Implexa Desktop (Electron) a prevented beforeunload
     // shows NO dialog: it silently blocks Cmd+Q, window close and reload. There the
     // in-app modal below is the guard.
@@ -211,7 +217,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
       if (guardUnload) window.removeEventListener('beforeunload', onBeforeUnload);
       document.removeEventListener('click', onClick, true);
     };
-  }, [dirty]);
+  }, [dirty,fullPage]);
 
   useEffect(()=>{if(!dirty)setLeaveHref(null);},[dirty]);
 
@@ -455,20 +461,6 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[moments,saved,busy,voiceDirty.size,scope,detail?.state,detail?.recordingId]);
 
-  useLayoutEffect(()=>{
-    const video=videoRef.current,note=noteRef.current,workspace=workspaceRef.current;
-    if(!selected||!video||!note||!workspace){setNotePosition(null);return;}
-    const place=()=>{
-      const picture=video.getBoundingClientRect();
-      const content=intrinsic?visualContentRect({elementWidth:picture.width,elementHeight:picture.height,naturalWidth:intrinsic.w,naturalHeight:intrinsic.h}):null;
-      const region=selected.region;
-      const mark=region&&content?{left:content.left+region.x/COORD_MAX*content.width,top:content.top+region.y/COORD_MAX*content.height,width:region.width/COORD_MAX*content.width,height:region.height/COORD_MAX*content.height}:null;
-      const next=picture.top<16||picture.bottom>window.innerHeight-16?null:recordingNotePlacement({left:picture.left,top:picture.top,width:picture.width,height:picture.height},mark,note.scrollHeight);
-      setNotePosition(previous=>JSON.stringify(previous)===JSON.stringify(next)?previous:next);
-    };
-    place();const observer=typeof ResizeObserver==='undefined'?null:new ResizeObserver(place);observer?.observe(video);observer?.observe(note);window.addEventListener('resize',place);window.addEventListener('scroll',place,true);
-    return()=>{observer?.disconnect();window.removeEventListener('resize',place);window.removeEventListener('scroll',place,true);};
-  },[selectedId,selected?.region?.x,selected?.region?.y,selected?.region?.width,selected?.region?.height,intrinsic?.w,intrinsic?.h,preview]);
 
   async function recover() {
     if (busyRef.current) return;
@@ -486,20 +478,20 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
 
   if (availability && availability.state !== 'ready') {
     return (
-      <Shell embedded={embedded} back={back} title="Recording">
+      <Shell embedded={embedded} fullPage={fullPage} back={back} title="Recording">
         <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-state-needs">{availability.message}</p>
       </Shell>
     );
   }
   if (loadError) {
-    return <Shell embedded={embedded} back={back} title="Recording"><p role="status" className="text-sm text-state-needs">{loadError}</p></Shell>;
+    return <Shell embedded={embedded} fullPage={fullPage} back={back} title="Recording"><p role="status" className="text-sm text-state-needs">{loadError}</p></Shell>;
   }
   if (!detail) {
-    return <Shell embedded={embedded} back={back} title="Recording"><div className="h-64 animate-pulse rounded bg-ink-800/50" aria-label="Loading recording" /></Shell>;
+    return <Shell embedded={embedded} fullPage={fullPage} back={back} title="Recording"><div className="h-64 animate-pulse rounded bg-ink-800/50" aria-label="Loading recording" /></Shell>;
   }
   if (detail.state !== 'ready' || durationMs === null) {
     return (
-      <Shell embedded={embedded} back={back} title={detail.title || 'Recording'}>
+      <Shell embedded={embedded} fullPage={fullPage} back={back} title={detail.title || 'Recording'}>
         {error && <p role="alert" className="mb-3 text-sm text-state-fail">{error}</p>}
         <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-6 text-center text-sm text-ink-200">
           {detail.state === 'recording' && <p>This recording is still in progress. Stop it from the floating control bar.</p>}
@@ -523,15 +515,14 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const selectedRegionStyle = selected?.region && overlayDims ? regionOverlayStyle(selected.region, overlayDims) : null;
   const pctOf = (ms: number) => `${(ms / Math.max(1, durationMs)) * 100}%`;
   const full = moments.length >= MAX_MOMENTS;
-  const tickMs=Math.max(1000,Math.ceil(durationMs/60000)*1000);
-  const ticks=Array.from({length:Math.floor(durationMs/tickMs)+1},(_,i)=>i*tickMs);
+
   const finishTeaching=async()=>{
     if(dirty&&!(await save()))return;
     const notes=momentsRef.current.filter(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()));
     if(notes.length)onDoneTeaching?.(recordingId,notes);else onAnalyzeNarration?.(recordingId,selectedId);
   };
-  const teachingDisabled=busy!==null||voiceDirty.size>0||(!moments.some(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()))&&(!onAnalyzeNarration||!!narrationUnavailable));
-  const doneTeaching=onDoneTeaching?<button type="button" className="btn-primary" disabled={teachingDisabled} onClick={()=>void finishTeaching()}>Done teaching</button>:null;
+  const teachingDisabled=!!feedbackSaveUnavailable&&moments.some(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()))||busy!==null||voiceDirty.size>0||(!moments.some(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()))&&(!onAnalyzeNarration||!!narrationUnavailable));
+  const doneTeaching=onDoneTeaching?<div><button type="button" className="btn-primary" disabled={teachingDisabled} onClick={()=>void finishTeaching()}>Done teaching</button>{feedbackSaveUnavailable&&<p role="status" className="mt-2 text-xs text-ink-400">{feedbackSaveUnavailable}</p>}</div>:null;
   const markButton=<button type="button" aria-label="Mark this moment" className="btn-success recording-mark" disabled={full||voiceDirty.size>0} onClick={()=>{const ms=freezeForRegion();if(ms!==null)createMoment(momentAt(ms,durationMs),{x:0,y:0,width:COORD_MAX,height:COORD_MAX});}}>+ Mark this moment</button>;
 
   const timeline = (
@@ -546,7 +537,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
         onPointerCancel={() => { barGesture.current = null; setBarDraft(null); }}
         className="recording-timeline relative mt-3 h-16 cursor-text select-none rounded bg-ink-800/70"
       >
-        <div className="recording-ticks" aria-hidden="true">{ticks.map((ms,i)=><span key={ms} style={{left:pctOf(ms)}}>{i%5===0?formatMs(ms).replace('.000',''):''}</span>)}</div>
+        <AnnotationTimelineTicks durationMs={durationMs}/>
         {hoverMs!==null&&<output className="timeline-hover" style={{left:pctOf(hoverMs)}}>{hoverImage?.second===Math.round(hoverMs/100)/10&&<img src={hoverImage.url} alt="Timeline preview" className="mb-1 max-h-48 w-48 rounded object-contain"/>}{hoverUnavailable&&<span className="mb-1 block text-xs">Frame preview unavailable</span>}{formatMs(hoverMs)}</output>}
         {openSuggestions.map((s) => (
           <button
@@ -584,12 +575,12 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   );
 
   return (
-    <Shell embedded={embedded} back={back} title={detail.title || 'Recording'} description={`${detail.origin==='recorded'?'Screen recording':'Uploaded video'} · ${formatMs(durationMs)} · ${new Date(detail.createdAt).toLocaleString()}`} actions={<><span role="status" className="recording-save-status">{voiceDirty.size?'Voice note in progress':error&&dirty?'Couldn’t save changes':dirty?'Saving…':'✓ Saved on this Mac'}</span>{doneTeaching}</>}>
+    <Shell embedded={embedded} fullPage={fullPage} back={back} title={detail.title || 'Recording'} description={`${detail.origin==='recorded'?'Screen recording':'Uploaded video'} · ${formatMs(durationMs)} · ${new Date(detail.createdAt).toLocaleString()}`} actions={<><span role="status" className="recording-save-status">{voiceDirty.size?'Voice note in progress':error&&dirty?'Couldn’t save changes':dirty?'Saving…':'✓ Saved on this Mac'}</span>{doneTeaching}</>}>
       {error && <div role="alert" className="recording-save-error mb-3 rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-state-fail"><span>{error}</span>{dirty&&<button type="button" className="btn-outline" disabled={busy!==null} onClick={()=>void save()}>Retry saving</button>}</div>}
 
       {embedded&&onClose&&<button type="button" className="text-xs text-ink-400 underline" onClick={onClose}>Close recording</button>}
       {embedded&&trainingReview}
-      <div className="recording-workspace" ref={workspaceRef}>
+      <AnnotationWorkspace ref={workspaceRef}>
       <div className="recording-stage">
       <div className="relative">
         {previewError && <p role="status" className="rounded border border-ink-800 bg-ink-950 p-6 text-center text-sm text-ink-200">{previewError}</p>}
@@ -606,6 +597,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                 const v = e.currentTarget;
                 setVideoDims(v.videoWidth && v.videoHeight ? { w: v.videoWidth, h: v.videoHeight } : null);
                 setElementSize({ w: v.clientWidth, h: v.clientHeight });
+                const initial=initialMomentId?momentsRef.current.find(moment=>moment.momentId===initialMomentId):null;if(initial){v.currentTime=initial.startMs/1000;setPlayheadMs(initial.startMs);}
               }}
               onTimeUpdate={(e) => setPlayheadMs(Math.round(e.currentTarget.currentTime * 1000))}
               onSeeked={(e) => setPlayheadMs(Math.round(e.currentTarget.currentTime * 1000))}
@@ -713,7 +705,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
         </ol>
       </section>
 
-      </div>
+      </AnnotationWorkspace>
 
       {embedded&&trainingFrames&&durationMs!==null&&<section aria-label="Screenshots from your recording" className="my-4 space-y-3">
         <h3 className="font-medium">Add feedback to a screenshot</h3>
@@ -753,8 +745,8 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   );
 }
 
-function Shell({ back, title, children,embedded=false,actions,description }: {embedded?:boolean; back: ReactNode; title: string; children: ReactNode;actions?:ReactNode;description?:ReactNode}) {
-  if(embedded)return <section id="recording-annotation" tabIndex={-1} aria-label="Annotate your recording" className="space-y-4"><header className="recording-header"><div><h2>Show the agent what to change</h2>{description&&<p>{description}</p>}</div><div>{actions}</div></header>{children}</section>;
+function Shell({ back, title, children,embedded=false,fullPage=false,feedbackSaveUnavailable,initialMomentId,actions,description }: {embedded?:boolean;fullPage?:boolean;feedbackSaveUnavailable?:string;initialMomentId?:string; back: ReactNode; title: string; children: ReactNode;actions?:ReactNode;description?:ReactNode}) {
+  if(embedded)return <section id="recording-annotation" tabIndex={-1} aria-label="Annotate your recording" className="space-y-4">{fullPage?<PageHeader title="Show the agent what to change" actions={actions}><p className="app-page-description">{description||title}</p></PageHeader>:<header className="recording-header"><div><h2>Show the agent what to change</h2>{description&&<p>{description}</p>}</div><div>{actions}</div></header>}{children}</section>;
   return (
     <div className="app-page">
       <div className="app-content">

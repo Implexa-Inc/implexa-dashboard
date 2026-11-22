@@ -253,7 +253,7 @@ const typeBody = async (value: string) => {
   });
 };
 const clickButton = async (re: RegExp) => {
-  const b = buttons().find((x) => re.test(x.textContent || ''));
+  const b = buttons().find((x) => re.test(x.textContent || x.getAttribute('aria-label') || ''));
   assert.ok(b, `no button matching ${re}`);
   await fire(b!, 'click');
 };
