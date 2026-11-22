@@ -2469,7 +2469,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       <div className="training-chat-intro"><h2>Say it</h2><p>Tell Tukido in a sentence. Type or talk.</p><div><span>Small fixes</span><span>Adding a tool</span><span>Simple rules</span></div></div>
       {session?<TrainingChat plain embedded editUnavailable={runContext?.statusUnavailable===true||runContext?.revisePending===true} sessionId={session} versionId={currentVersion} slug={slug} sources={sources}
         selectedSourceId={selected?.sourceId||null} disabled={!!busy||changesBusy||versionChanged} busy={!!busy} onAttach={()=>{requestTrainingUpload();}}
-        guided={!!changes} automaticInclusion={changes?.policy.enabled===true} request={chatRequest} onSaved={()=>loadChanges()}
+        guided={!!changes} automaticInclusion={changes?.policy.enabled===true} request={chatRequest} onSaved={()=>{void loadChanges();setCoachRefresh(n=>n+1);}}
         onSelectSource={id=>{const source=sources.find(s=>s.sourceId===id);if(source){chooseSource(source);}else{setSelected(null);setPreview(null);setReviewed(null);}}}
         onAction={chatAction}/>:<div className="rounded-xl border border-ink-800 p-5 text-sm text-ink-400"><div className="flex items-center justify-between"><p>What would you like your agent to learn?</p></div><button type="button" className="btn-outline mt-3" disabled={!!busy||!currentVersion||versionChanged} onClick={()=>void startPrivateTraining()}>Start private training</button></div>}
     </aside>}
