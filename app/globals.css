@@ -458,7 +458,7 @@ html, body {
 /* Agents collection: attention cards, four favourites, then one compact roster. */
 .agent-filter-chips {display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 32px;}
 .agent-filter-chips button,.agent-filter-chips summary {font-size:var(--fs-ui);padding:6px 12px;border:1px solid var(--border-subtle);border-radius:999px;background:var(--bg-surface);cursor:pointer;}
-.agent-filter-chips button[aria-pressed="true"] {border-color:var(--action-primary);color:var(--action-primary);}
+.agent-filter-chips button[aria-pressed="true"] {border-color:var(--action-primary);color:var(--text-accent);}
 .agent-filter-chips details {position:relative;}
 .agent-filter-chips details>div {position:absolute;top:100%;right:0;z-index:15;min-width:160px;display:grid;gap:4px;background:var(--bg-surface);padding:8px;border:1px solid var(--border-subtle);border-radius:var(--r-sm);box-shadow:var(--shadow-pop);}
 .agent-section {margin:0 0 32px;}
