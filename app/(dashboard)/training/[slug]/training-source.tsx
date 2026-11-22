@@ -1085,6 +1085,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     });
   }
   async function sendSavedFeedbackToCoach(){
+    if(runDirty||recordingDirty||recordingDraftBlocked()){setError('Finish or discard your current note before sending saved feedback.');return;}
     if(annotationTarget?.kind!=='feedback'||!ownerId||!queuedFeedback||!selected?.token||!session||annotationTarget.sessionId!==session||annotationTarget.annotationId!==queuedFeedback.annotation.annotationId||annotationTarget.annotationDigest!==queuedFeedback.annotation.annotationDigest||!currentVersion||versionChanged||!coachFeedbackReady)return;
     const id=session,version=currentVersion,note=queuedFeedback,source={...selected,token:selected.token};
     await work('Sending your saved feedback to Coach',async()=>{
@@ -1099,6 +1100,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     });
   }
   async function dismissQueuedFeedback(){
+    if(runDirty||recordingDirty||recordingDraftBlocked()){setError('Finish or discard your current note before dismissing saved feedback.');return;}
     if(annotationTarget?.kind!=='feedback'||!ownerId||!session||!currentVersion||versionChanged)return;
     const target=annotationTarget,version=currentVersion;
     await work('Dismissing saved feedback',async()=>{
@@ -2414,7 +2416,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
   if(annotationTarget)return <main id="main-content" tabIndex={-1} className="app-page training-annotation-page"><div className="app-content">
     <Link className="training-breadcrumb" href={trainingAnnotationReturn(slug)}>← Train {agentName}</Link>
     {annotationTarget.kind!=='recording'&&<PageHeader title="Show the agent what to change"><p className="app-page-description">{agentName}</p></PageHeader>}
-    <AnnotationLeaveGuard dirty={(runDirty||recordingDirty||[directNote,demoText,chosen,why,process,behavior].some(value=>value.trim())||directVoiceDirty)||!!busy||suggesting||!!directScopeReview||!!runFeedbackRequest}/>
+    <AnnotationLeaveGuard onDiscard={()=>{setDirectNote('');setDemoText('');setChosen('');setWhy('');setProcess('');setBehavior('');}} dirty={(runDirty||recordingDirty||[directNote,demoText,chosen,why,process,behavior].some(value=>value.trim())||directVoiceDirty)||!!busy||suggesting||!!directScopeReview||!!runFeedbackRequest}/>
     {busy&&<p role="status" className="mb-4 text-sm text-ink-400">{busy}…</p>}
     {error&&<p role="alert" className="mb-4 text-sm text-state-needs">{reasonLabel(error)}</p>}
     {suggestionNote&&<p role="status" className="mb-4 text-sm text-ink-400">{suggestionNote}</p>}

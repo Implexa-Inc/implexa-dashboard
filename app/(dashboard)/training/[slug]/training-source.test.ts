@@ -1910,7 +1910,7 @@ test('cancelling direct upload stays in Training and never previews or calls ana
 
 
 
-test('cancelled or rejected upload preserves a draft even after confirming discard',async()=>{
+test('cancelled or rejected upload preserves a retained draft after only upload replacement consent',async()=>{
  for(const reason of ['selection_cancelled','training_source_unavailable']){
   const h=harness(),original=h.bridge.trainingLocal;
   h.bridge.trainingLocal=async(op,args)=>op==='select'?{ok:false,reason}:original(op,args);
@@ -1919,7 +1919,8 @@ test('cancelled or rejected upload preserves a draft even after confirming disca
    await r.click(r.getByText('Annotate source'));await fillManualTeaching(r);
    const annotation=r.getByText('What should this demonstration teach?').closest('label')!.querySelector('textarea')!;
    await setTextarea(r,annotation,'Keep this unfinished annotation.');
-   await r.click(r.getByText('← Train'));await r.click(r.document.querySelector('button.btn-danger')!);await r.click(r.getByText('↑ Upload'));
+   // Retained controller state is not an explicit Leave-without-saving decision.
+   await r.rerender({slug:'video-craft'});await r.click(r.getByText('↑ Upload'));
    const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;
    for(const checkbox of Array.from(dialog.querySelectorAll('input[type=checkbox]')))await r.click(checkbox);
    await r.click(r.getByText('Open as reference'));
@@ -3738,6 +3739,8 @@ test('canonical feedback never overwrites a genuine image draft and its leave gu
   await r.rerender({...props,annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:SESSION}});await flush();
   assert.match(r.text(),/Finish or discard your current note before opening saved feedback/);
   assert.equal(r.document.querySelector('textarea[aria-label="Your feedback on this image"]'),null,'the canonical source never replaces the source under a real draft');
+  await r.click(r.getByText('Send saved feedback to Coach'));assert.match(r.text(),/Finish or discard your current note before sending saved feedback/);assert.equal(writes,0);
+  await r.click(r.getByText('Dismiss feedback'));await r.click(r.getByText('Permanently dismiss feedback'));assert.match(r.text(),/Finish or discard your current note before dismissing saved feedback/);assert.equal(writes,0);await r.click(r.getByText('Keep feedback'));
   await r.click(r.getByText('← Train'));assert.ok(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'));await r.click(r.getByText('Keep editing'));
   await r.rerender({...props,annotationTarget:{kind:'image',sourceId:SOURCE_ID,sessionId:SESSION}});await flush();
   assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'My actual unfinished note.');assert.equal(writes,0);
@@ -3765,4 +3768,50 @@ test('canonical image and recording extraction keeps the exact saved annotation 
    assert.equal(h.calls.some(c=>['annotate','accept','activate'].includes(c.operation)),false);
   }finally{r.cleanup();}
  }
+});
+
+test('explicit Leave without saving retires only mutable wording and allows the next saved note',async()=>{
+ const f=await recoveryFixture('image'),h=harness({previewImage:VALID_FRAME}),props={slug:'video-craft',ownerId:RECORD,familyId:RECORD};let writes=0;
+ const r=await render('../training/[slug]/training-source.tsx',props,{bridge:h.bridge,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+  if(init.method==='POST'){writes++;return {ok:false,json:async()=>({ok:false})};}
+  if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};
+  if(String(url).includes('/teaching-suggestion?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:f.canonical})};return {ok:false,json:async()=>({ok:false})};
+ }) as typeof fetch});
+ const flush=()=>r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));
+ try{
+  await flush();await r.click(r.getByText('Annotate source'));await flush();await setTextarea(r,r.document.querySelector('textarea[aria-label="Your feedback on this image"]')!,'Discard this unfinished wording.');
+  await r.click(r.getByText('← Train'));await r.click(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"] button.btn-danger')!);
+  assert.equal(r.calls.push.at(-1),'/training/video-craft');
+  await r.rerender({...props,annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:SESSION}});await flush();
+  assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'Keep the route visible.');assert.doesNotMatch(r.text(),/Finish or discard/);
+  await r.click(r.getByText('← Train'));assert.equal(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'),null);assert.equal(writes,0);
+ }finally{r.cleanup();}
+});
+
+test('canonical mark-only feedback keeps frame controls locked without creating an unfinished text draft',async()=>{
+ const f=await recoveryFixture('image'),h=harness({previewImage:VALID_FRAME}),raw=JSON.parse(f.canonical.rawAnnotation);raw.feedback='';f.canonical.rawAnnotation=JSON.stringify(raw);let writes=0;
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,familyId:RECORD,annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:SESSION}},{bridge:h.bridge,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+  if(init.method==='POST'){writes++;return {ok:false,json:async()=>({ok:false})};}if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};if(String(url).includes('/teaching-suggestion?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:f.canonical})};return {ok:false,json:async()=>({ok:false})};
+ }) as typeof fetch});
+ try{
+  await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'');assert.equal((r.document.querySelector('input[aria-label="Training video frame"]') as HTMLInputElement).disabled,true);assert.equal((r.getByText('Open this frame') as HTMLButtonElement).disabled,true);assert.equal((r.getByText('Extract training') as HTMLButtonElement).disabled,false);
+  await r.click(r.getByText('← Train'));assert.equal(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'),null);assert.equal(writes,0);
+ }finally{r.cleanup();}
+});
+
+test('switching between canonical notes hides the previous text until the exact next record arrives',async()=>{
+ const f=await recoveryFixture('image'),h=harness({previewImage:VALID_FRAME}),props={slug:'video-craft',ownerId:RECORD,familyId:RECORD};let release:()=>void=()=>{},writes=0;
+ const wait=new Promise<void>(resolve=>{release=resolve;}),other={...f.canonical,rawAnnotation:JSON.stringify({...JSON.parse(f.canonical.rawAnnotation),feedback:'Another saved instruction.'})};
+ const r=await render('../training/[slug]/training-source.tsx',{...props,annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:SESSION}},{bridge:h.bridge,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+  if(init.method==='POST'){writes++;return {ok:false,json:async()=>({ok:false})};}if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};
+  if(String(url).includes('/teaching-suggestion?')){const b=new URL(String(url),'https://dashboard.test').searchParams.get('annotationId')===NEW_SESSION;return {ok:true,json:async()=>{if(b)await wait;return {ok:true,contractVersion:'training-demo-feedback.v1',annotationId:b?NEW_SESSION:QUESTION,annotationDigest:b?SOURCE_DIGEST:DIGEST,annotation:b?other:f.canonical};}};}return {ok:false,json:async()=>({ok:false})};
+ }) as typeof fetch});
+ const flush=()=>r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));
+ try{
+  await flush();assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'Keep the route visible.');
+  await r.rerender({...props,annotationTarget:{kind:'feedback',annotationId:NEW_SESSION,annotationDigest:SOURCE_DIGEST,sessionId:SESSION}});
+  assert.equal(r.document.querySelector('textarea[aria-label="Your feedback on this image"]'),null,'no stale original is shown under the next record identity');
+  await r.act(()=>release());await flush();assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'Another saved instruction.');
+  await r.click(r.getByText('← Train'));assert.equal(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'),null);assert.equal(writes,0);
+ }finally{release();r.cleanup();}
 });

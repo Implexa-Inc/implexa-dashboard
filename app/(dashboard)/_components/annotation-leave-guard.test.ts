@@ -31,3 +31,12 @@ test('in-app links and browser close protect unsaved annotation; Keep editing do
   await r.click(link);await r.click(r.document.querySelector('button.btn-danger')!);assert.deepEqual(r.calls.push,['/training/video-craft']);
  }finally{r.cleanup();}
 });
+
+test('discard callback runs only on explicit Leave, before navigating',async()=>{
+ let discarded=0;const r=await render('./annotation-leave-guard.tsx',{dirty:true,onDiscard:()=>{assert.equal(r.calls.push.length,0);discarded++;}});
+ try{
+  const link=r.document.createElement('a');link.href='/training/video-craft';r.document.body.append(link);
+  await r.click(link);await r.click(r.getByText('Keep editing'));assert.equal(discarded,0);
+  await r.click(link);await r.click(r.document.querySelector('button.btn-danger')!);assert.equal(discarded,1);assert.deepEqual(r.calls.push,['/training/video-craft']);
+ }finally{r.cleanup();}
+});
