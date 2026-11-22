@@ -3673,3 +3673,15 @@ test('recovery refuses stale or wrong canonical bindings and preserves missing-m
   }finally{r.cleanup();}
  }
 });
+
+test('an older saved-feedback URL redirects to the canonical reader before reopening or sending',async()=>{
+ const f=await recoveryFixture('image'),h=harness({previewImage:VALID_FRAME});let reads=0,writes=0;
+ const props={slug:'video-craft',ownerId:RECORD,familyId:RECORD,annotationTarget:{kind:'image',sourceId:SOURCE_ID,sessionId:SESSION,feedback:f.progress.fingerprint}};
+ const r=await render('../training/[slug]/training-source.tsx',props,{bridge:h.bridge,initialStorage:f.values,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+  if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};if(init.method==='POST'){writes++;return {ok:false,json:async()=>({ok:false})};}
+  if(String(url).includes('/teaching-suggestion?')){reads++;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:f.canonical})};}return {ok:true,json:async()=>({ok:false})};
+ }) as typeof fetch});
+ try{await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.match(r.calls.push.at(-1)!,/annotate\/feedback\//);assert.equal(writes,0);
+  await r.rerender({...props,annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:SESSION}});await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.equal(reads,1);assert.equal(writes,0);assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).readOnly,true);
+ }finally{r.cleanup();}
+});
