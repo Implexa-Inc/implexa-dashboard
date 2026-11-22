@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
+import {extractionProgressFor,checkpointExtraction,saveFeedbackAnnotation} from '../../../../lib/training-feedback-extraction.ts';
 import { guidedTrainingChanges } from '../../../../lib/guided-training-changes.ts';
 import { render as renderBase, type Rendered } from '../../../../lib/test/render.ts';
 import { isTrainingEvidenceStorage, deriveTrainingStages, formatTrainingTime, isManagerTrainingCoverage, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_PROPERTY_CODES, TRAINING_RELATIONS, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
@@ -3576,7 +3577,7 @@ test('image Done saves to Coach, reloads exact feedback, gates AI separately and
   await r.click(r.getByText('Extract training'));assert.equal(requests.length,3,'opening the AI disclosure does not analyze');
   const dialog=r.document.querySelector('[role="dialog"]')!;await r.click(dialog.querySelector('button.btn-primary')!);await flush();
   assert.equal(requests.length,4);assert.match(r.text(),/original feedback.*preserved/);assert.ok(r.document.querySelector('[aria-label="Saved teaching feedback"]'));
-  await r.click(r.getByText('Dismiss feedback'));await flush();assert.equal(dismissed,true);assert.equal(r.calls.push.at(-1),'/training/video-craft');assert.equal(r.document.querySelector('.training-decision-card'),null);
+  await r.click(r.getByText('Dismiss feedback'));assert.equal(dismissed,false,'opening confirmation is not dismissal');assert.match(r.text(),/This cannot be undone/);await r.click(r.getByText('Keep feedback'));assert.equal(dismissed,false);await r.click(r.getByText('Dismiss feedback'));await r.click(r.getByText('Permanently dismiss feedback'));await flush();assert.equal(dismissed,true);assert.equal(r.calls.push.at(-1),'/training/video-craft');assert.equal(r.document.querySelector('.training-decision-card'),null);
   assert.equal(h.calls.some(c=>['annotate','accept','activate'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
@@ -3601,6 +3602,74 @@ test('a reopened mark-only image explains the empty note and permits only explic
   const r=await render('../training/[slug]/training-image-player.tsx',{ownerId:RECORD,sourceId:SOURCE_ID,image:VALID_FRAME,timeMs:0,text:'',disabled:false,readOnly:true,initialSpatial:spatial,onChange:()=>assert.fail('a canonical note is immutable'),onDone:()=>{done++;}});
   try{const textarea=r.document.querySelector('textarea')!;assert.equal(textarea.readOnly,true);assert.equal(textarea.value,'');const button=r.getByText('Extract training') as HTMLButtonElement;
    assert.equal(button.disabled,!marked);assert.equal(done,0);if(marked){assert.match(r.text(),/marked region and no written note/);await r.click(button);assert.equal(done,1);}
+  }finally{r.cleanup();}
+ }
+});
+
+
+async function recoveryFixture(kind:'image'|'recording'){
+ const metadata=source().metadata,frameTime=kind==='image'?0:1000;
+ const moment={momentId:NEW_SESSION,startMs:1000,endMs:3500,region:{x:100000,y:200000,width:400000,height:300000},card:{whatToDo:'Keep the route visible.',why:'Show the actual geography.',insteadOf:'',howToCheck:'',whenNot:''},createdAt:'2026-11-22T12:00:00.000Z'};
+ const rawAnnotation=JSON.stringify(kind==='image'?{role:'trainer_commentary',sourceKind:'upload',sourceId:SOURCE_ID,timeMs:frameTime,spatial:{geometry:{kind:'rect',x:.1,y:.2,width:.4,height:.3},sourceFrame:{visualWidth:1920,visualHeight:1080}},feedback:'Keep the route visible.'}:{role:'trainer_commentary',recordingId:RECORD,moment});
+ const fingerprint=createHash('sha256').update(JSON.stringify(kind==='image'?{id:SESSION,version:VERSION_A,sourceId:SOURCE_ID,sourceSha256:metadata.sha256,rawAnnotation,frameTime}:{sessionId:SESSION,version:VERSION_A,sourceSha256:metadata.sha256,rawAnnotation})).digest('hex');
+ const values:Record<string,string>={},storage={getItem:(key:string)=>values[key]||null,setItem:(key:string,value:string)=>{values[key]=value;}};
+ const progress=extractionProgressFor(storage,`${RECORD}:${SESSION}:${VERSION_A}`,fingerprint);let saveKey='';let canonical:any;
+ await saveFeedbackAnnotation({source:{sourceId:SOURCE_ID,token:TOKEN,metadata},timeMs:frameTime,rawAnnotation,versionId:VERSION_A,progress,
+  check:async()=>{},checkpoint:()=>checkpointExtraction(storage,`${RECORD}:${SESSION}:${VERSION_A}`,progress),call:async()=>({ok:true,image:VALID_FRAME}),
+  send:async(op,body:any,key)=>{assert.equal(op,'annotation');assert.equal(body.action,'save');saveKey=key!;const {action,expectedActiveVersionId,...annotation}=body;canonical={contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId};return {ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:canonical};}});
+ return {values,canonical,progress,saveKey,moment};
+}
+function recoveryCoach(complete=false){return {ok:true,contractVersion:'training-coach-decisions.v2',savedFeedbackReady:true,complete,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:null,versionId:VERSION_A,decisionsComplete:complete,liveLessons:0,lastTaughtAt:null,listing:'not_listed',decisions:[]}]};}
+
+test('legacy image and recording feedback remains discoverable, opens full-page and queues only on an explicit action',async()=>{
+ for(const kind of ['image','recording'] as const){
+  const f=await recoveryFixture(kind),h=harness({previewImage:VALID_FRAME}),posts:any[]=[],reads:string[]=[];
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,familyId:RECORD},{bridge:h.bridge,initialStorage:f.values,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+   if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};
+   if(String(url).includes('/teaching-suggestion?')){
+    if(init.method!=='POST'){reads.push(String(url));return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:f.canonical})};}
+    const body=JSON.parse(init.body);posts.push({body,key:init.headers['Idempotency-Key']});assert.equal(body.action,'queue','the existing canonical note is not saved or analyzed again');return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-queue.v1',annotationId:QUESTION,annotationDigest:DIGEST,eventId:SOURCE_ID})};
+   }return {ok:true,json:async()=>({ok:false})};
+  }) as typeof fetch});
+  try{
+   await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.ok(r.queryByText('Continue your saved feedback'));assert.equal(posts.length,0);assert.equal(reads.length,0);assert.equal(r.document.querySelectorAll('.training-decision-card').length,0,'recovery entries do not inflate Coach decisions');
+   await r.click(r.getByText('Continue saved feedback'));await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.match(r.calls.push.at(-1)!,/annotate\/feedback\//);assert.equal(reads.length,1);assert.equal(posts.length,0);assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).readOnly,true);
+   if(kind==='recording')assert.match(r.text(),/Marked range: 00:01.000 – 00:03.500/);
+   await r.click(r.getByText('Send saved feedback to Coach'));await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.equal(posts.length,1);assert.equal(posts[0].key,`workspace-queue:${QUESTION}`);assert.equal(posts[0].body.annotationDigest,DIGEST);assert.equal(r.calls.push.at(-1),'/training/video-craft');
+   assert.ok(r.queryByText('Continue your saved feedback'),'absence from an incomplete Coach response cannot retire recovery history');assert.equal(h.calls.some(c=>['annotate','accept','activate'].includes(c.operation)),false);
+  }finally{r.cleanup();}
+ }
+});
+
+test('an uncertain accepted queue handoff survives leaving and a fresh mount, then retries the same annotation/key without AI',async()=>{
+ const f=await recoveryFixture('image'),posts:any[]=[];let first=true,stored=f.values;
+ for(let attempt=0;attempt<2;attempt++){
+  const h=harness({previewImage:VALID_FRAME}),r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,familyId:RECORD},{bridge:h.bridge,initialStorage:stored,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+   if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};
+   if(String(url).includes('/teaching-suggestion?')){if(init.method!=='POST')return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:f.canonical})};
+    const body=JSON.parse(init.body);assert.equal(body.action,'queue');posts.push({body,key:init.headers['Idempotency-Key']});const uncertain=first;first=false;return {ok:!uncertain,json:async()=>uncertain?{ok:false,reason:'training_local_unavailable'}:{ok:true,contractVersion:'training-demo-queue.v1',annotationId:QUESTION,annotationDigest:DIGEST,eventId:SOURCE_ID,idempotent:true}};
+   }return {ok:true,json:async()=>({ok:false})};
+  }) as typeof fetch});
+  try{await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));await r.click(r.getByText('Continue saved feedback'));await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));await r.click(r.getByText('Send saved feedback to Coach'));await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));
+   if(!attempt){assert.match(r.text(),/handoff to Coach is unconfirmed/);await r.click(r.getByText('← Train'));assert.ok(r.queryByText('Continue your saved feedback'));stored=Object.fromEntries(Array.from({length:r.window.localStorage.length},(_,i)=>{const key=r.window.localStorage.key(i)!;return [key,r.window.localStorage.getItem(key)!];}));}
+   else assert.equal(r.calls.push.at(-1),'/training/video-craft');
+   assert.equal(h.calls.some(c=>['annotate','accept'].includes(c.operation)),false);
+  }finally{r.cleanup();}
+ }
+ assert.equal(posts.length,2);assert.deepEqual(posts[0],posts[1]);assert.equal(posts[0].key,`workspace-queue:${QUESTION}`);assert.ok(f.saveKey.startsWith('workspace-note:'));
+});
+
+test('recovery refuses stale or wrong canonical bindings and preserves missing-media history without pending counts',async()=>{
+ const f=await recoveryFixture('image');
+ for(const problem of ['owner','session','version','digest','source','media']){
+  const h=harness({previewImage:VALID_FRAME,...(problem==='media'?{localToken:null}:{})}),posts:any[]=[];
+  const ownerId=problem==='owner'?NEW_SESSION:RECORD,target=problem==='session'?NEW_SESSION:SESSION;
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId,familyId:RECORD,...(['owner','media'].includes(problem)?{}:{annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:target}})},{bridge:h.bridge,initialStorage:f.values,webCrypto:globalThis.crypto,fetch:(async(url:any,init:any={})=>{
+   if(String(url).includes('/coach?'))return {ok:true,json:async()=>recoveryCoach()};if(init.method==='POST'){posts.push(init);return {ok:false,json:async()=>({ok:false})};}
+   if(String(url).includes('/teaching-suggestion?'))return {ok:problem!=='session',json:async()=>({ok:problem!=='session',contractVersion:'training-demo-feedback.v1',annotationId:QUESTION,annotationDigest:problem==='digest'?SOURCE_DIGEST:DIGEST,annotation:{...f.canonical,...(problem==='version'?{targetVersionId:VERSION_B}:{}),...(problem==='source'?{sourceSha256:DIGEST}:{})}})};return {ok:true,json:async()=>({ok:false})};
+  }) as typeof fetch});
+  try{await r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));assert.equal(posts.length,0);assert.equal(r.document.querySelectorAll('.training-decision-card').length,0);assert.equal(r.queryByText('Send saved feedback to Coach'),null);
+   if(problem==='owner')assert.equal(r.queryByText('Continue your saved feedback'),null);else if(problem==='media')assert.match(r.text(),/needs its original file|Some saved feedback/);else assert.match(r.text(),/saved feedback is unavailable|computer where you created/);
   }finally{r.cleanup();}
  }
 });
