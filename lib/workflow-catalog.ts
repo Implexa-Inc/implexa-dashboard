@@ -328,6 +328,14 @@ export type MyWorkflowsRead =
   | { status: 'ready'; workflows: MyWorkflowCard[]; unavailableEntries?: number }
   | { status: 'unavailable'; reason: 'no_session' | 'http_error' | 'timeout' | 'network' | 'malformed' };
 
+/** Identity for owner-only teaching; optional detail/activation reads grant no ownership. */
+export function ownedGeneratedWorkflow(read: MyWorkflowsRead | null, slug: string): MyWorkflowCard | null {
+  if (read?.status !== 'ready') return null;
+  const matches = read.workflows.filter(row => row.slug === slug && row.source === 'generated');
+  return matches.length === 1 && /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(matches[0].workflow_id)
+    ? matches[0] : null;
+}
+
 export async function readMyWorkflows(token?: string, deps: {
   fetchImpl?: typeof fetch; getToken?: () => Promise<string | null>;
 } = {}): Promise<MyWorkflowsRead> {
