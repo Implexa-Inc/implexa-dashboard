@@ -30,7 +30,7 @@ test('agent resume uses locked ownership/action language and never package-insta
   assert.match(resume, /agent\.ownership === 'Owned'/);
   assert.match(resume, /agent\.ownership === 'Owned' \? 'Finish setup' : 'Use agent'/,
     'an owner without an acquisition must not receive a runnable label');
-  assert.match(resume, /Configure/); assert.match(resume, /Train/);
+  assert.match(resume, /Setup and permissions/); assert.match(resume, /Train/);
 });
 
 test('evidence keeps two axes: four provenance channels, four evidence types inside each', () => {
@@ -98,7 +98,7 @@ test('disable/remove management preserves history and has explicit destructive c
   assert.match(resume, /disabled=\{busy \|\| !confirmUninstall\}/);
   assert.match(resume, /agent\.readiness\.state === 'Ready'/, 'Use agent is limited to Ready');
   assert.match(resume, /agent\.ownership === 'Owned'/, 'Train and Configure are owner-only');
-  assert.match(resume, /\{agent\.ownership === 'Owned' &&/, 'owner controls stay explicitly owner-gated');
+  assert.match(resume, /\{agent\.ownership\s*===\s*'Owned'\s*&&/, 'owner controls stay explicitly owner-gated');
   assert.match(resume, /agent\.acquisition\.lifecycle !== 'uninstalled'/,
     'uninstalled acquisitions never render disable/remove controls');
 });

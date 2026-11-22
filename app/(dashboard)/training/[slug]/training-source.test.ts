@@ -2074,7 +2074,7 @@ test('inline recording analysis waits for explicit consent, uses committed sourc
  }) as typeof r.window.fetch;
  const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,30));});
  try{
-  await flush();assert.ok(r.queryByText('Annotate your recording'));assert.equal(registrations,0);assert.equal(recognitions,0);
+  await flush();assert.ok(r.document.querySelector('[aria-label="Annotate your recording"]'));assert.equal(registrations,0);assert.equal(recognitions,0);
   for(let i=0;i<2;i++){
    await r.click(r.getByText('Find learnings in my narration'));assert.equal(recognitions,i);assert.match(r.text(),/transcript and 12 storyboard frames/);
    await r.click(r.getByText('Analyze narration'));await flush();
@@ -2393,7 +2393,7 @@ test('an uninserted voice transcript blocks source replacement just like typed u
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,initialRecordingId:RECORD,recentRuns:[{id:QUESTION,date:'2026-11-11T12:00:00Z',status:'Done',artifact:null}]},{bridge:h.bridge});
  const prior=r.window.fetch;r.window.fetch=(async(url:string,init:RequestInit={})=>{requests.push({url,init});if(String(url).includes('/run-review?'))return {ok:false,json:async()=>({ok:false})};return prior(url,init);}) as typeof fetch;
  try{
-  await r.click(r.getByText('Add a voice note'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
+  await r.click(r.document.querySelector('.recording-moment-select')!);assert.ok(r.document.querySelector('.recording-moment.is-selected'));await r.click(r.document.querySelector('button[aria-label="Add a voice note"]')!);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
   assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');
   const sameTranscript=r.document.querySelector('[aria-label="Voice note transcript"]');await r.click(r.getByText('Questions & history'));await r.click(r.getByText('Questions & history'));assert.ok(r.document.querySelector('[aria-label="Voice note transcript"]')===sameTranscript,'step navigation does not remount pending voice feedback');
   assert.ok(r.document.querySelector('#training-recent-results')); await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);

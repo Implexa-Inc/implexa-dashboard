@@ -22,8 +22,8 @@ test('files are a first-class run section, not gated on a final markdown deliver
   const outputBranch = page.indexOf("{r.output_markdown ? (");
   assert.ok(files >= 0 && outputBranch >= 0 && files < outputBranch,
     'the files section must render before and independently of the output-markdown branch');
-  assert.equal(page.match(/<VerifiedArtifacts artifacts=\{verifiedArtifacts\} runId=\{r\.id\}[^>]*\/>/g)?.length, 1,
-    'the run page should expose one stable artifacts surface, not a second buried copy');
+  assert.match(page,/afterResult:<VerifiedArtifacts artifacts=\{verifiedArtifacts\} runId=\{r\.id\} finished\/>/,'finished files live under the finished result');
+  assert.match(page,/\{!showFinishedReview&&<VerifiedArtifacts artifacts=\{verifiedArtifacts\} runId=\{r\.id\}/,'the progress copy is excluded when the finished view is mounted');
 });
 
 test('a restarted Desktop exposes the explicit private-source reauthorization gate', () => {
@@ -56,7 +56,7 @@ test('every run exposes refresh and an expandable bounded artifact list', () => 
   assert.doesNotMatch(component, /if \(!artifacts\.length\) return null/,
     'a run opened before validation lands must not permanently lose its files surface');
   assert.match(component, /router\.refresh\(\)/, 'late Desktop validation must have an in-place refresh path');
-  assert.match(component, /View files \(\$\{artifacts\.length\}\)/,
+  assert.match(component, /View files \(\$\{[^}]*artifacts\.length[^}]*\}\)/,
     'large artifact sets need a prominent count and explicit browse affordance');
   assert.match(component, /max-h-\[28rem\] overflow-y-auto/,
     'dozens of supporting artifacts must not make the entire run page unusable');

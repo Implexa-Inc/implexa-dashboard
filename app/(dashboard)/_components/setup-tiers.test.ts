@@ -387,7 +387,7 @@ test('the Setup tab keeps the permissions/access editor after activation', () =>
   const card = read('activation-card.tsx');
   assert.match(card, /surface\?: 'activation' \| 'setup';/,
     'ActivationCard must have an explicit setup surface, not a second ad-hoc permissions UI');
-  assert.match(card, /setupSurface \? 'Permissions & access' : checklist\.name/,
+  assert.match(card, /setupSurface \? 'Required setup' : checklist\.name/,
     'the setup surface should label the card as editable access, not as the activation page');
   assert.match(card, /setupSurface && isActive && allSavedGranted \? null : isActive && allSavedGranted/,
     'an active setup card should not duplicate Run/questions/feedback — only access controls');
