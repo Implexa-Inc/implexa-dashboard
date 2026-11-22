@@ -110,3 +110,18 @@ test('refreshing counts preserves search state instead of remounting the roster'
  let reads=0;const r=await render('training-agent-picker.tsx',{owned,loadSummary:true,countsReadKey:'first'},{fetch:(async(url:any)=>{if(!String(url).includes('/coach?'))return {ok:false};reads++;return http(roster);}) as typeof fetch});
  try{await flush(r);const search=r.document.querySelector('input[aria-label="Search agents you train"]')!;await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLInputElement.prototype,'value')!.set!.call(search,'Older');search.dispatchEvent(new r.window.Event('input',{bubbles:true}));});await r.rerender({owned,loadSummary:true,countsReadKey:'second'});await flush(r);assert.equal(reads,2);assert.equal((r.document.querySelector('input[aria-label="Search agents you train"]') as HTMLInputElement).value,'Older');assert.equal(r.document.querySelectorAll('#all-coach-agents .coach-agent-row').length,1);}finally{r.cleanup();}
 });
+
+// Negative completeness variants of the recorded real producer output.
+test('retained count filters never turn failed or incomplete counts into an empty product fact',async()=>{
+ for(const filter of ['Listed','Not listed','Needs a decision'])for(const outcome of ['failure','partial','unknown-row']){
+  const initial=structuredClone(roster),next=structuredClone(roster);
+  for(const a of next.body.agents){a.decisions=[];a.listing='unknown';}
+  if(outcome==='partial')next.body.complete=false;
+  if(filter==='Needs a decision')for(const a of next.body.agents)a.decisionsComplete=false;
+  let reads=0;const r=await render('training-agent-picker.tsx',{owned,loadSummary:true,countsReadKey:'first'},{fetch:(async(url:any)=>{if(!String(url).includes('/coach?'))return {ok:false};reads++;return http(reads===1?initial:outcome==='failure'?unavailable:next);}) as typeof fetch});
+  try{await flush(r);const chip=Array.from(r.document.querySelectorAll('.coach-collection-tools button')).find(n=>n.textContent?.startsWith(filter+' ·'))!;await r.click(chip);await r.rerender({owned,loadSummary:true,countsReadKey:'second'});await flush(r);
+   const view=r.document.querySelector('#all-coach-agents')!;assert.match(view.textContent||'',/Counts unavailable for this view/);assert.doesNotMatch(view.textContent||'',/No results|No listed agents|No agents in this view|No known decisions/);assert.equal(reads,2);
+   await r.click(r.getByText('Clear search'));assert.equal(r.document.querySelectorAll('#all-coach-agents .coach-agent-row').length,2,'All remains a recovery path');
+  }finally{r.cleanup();}
+ }
+});
