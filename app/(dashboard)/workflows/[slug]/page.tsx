@@ -21,6 +21,7 @@
  * ?source=web-seed|generated selects the catalog source; ?tab= deep-links a tab.
  */
 
+import AgentDisplayMetrics from '../../_components/agent-display-metrics';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
@@ -639,11 +640,7 @@ export default async function WorkflowDetailPage({
           {workflow.update_available?.input_contract_digest&&<AgentUpdateGate workflowId={workflow.id} update={{...workflow.update_available,input_contract_digest:workflow.update_available.input_contract_digest}}/>}
         </AgentPageHeader>
         <div className="agent-sample-placeholder" role="img" aria-label="Sample preview unavailable"><span>Sample output</span><p>A sample preview is not available here yet.</p></div>
-        <div className="agent-page-stats" aria-label="Recorded agent activity">
-          <Stat label="Runs recorded" value={`${workflow.activity.run_count}`}/>
-          <Stat label="Delivered" value={gradeUnavailable?'Unavailable':grade?`${Math.round(grade.rate*100)}% · ${grade.runs} checked runs`:'Not measured yet'}/>
-          <Stat label="Last run" value={detail!.isUnavailable('latest_run')?'Unavailable':rel(workflow.activity.last_run_at)}/>
-        </div>
+        <AgentDisplayMetrics key={`${session.user.id}:${workflow.id}:${workflow.source}`} slug={workflow.slug} source={workflow.source} familyId={workflow.id} delivered={gradeUnavailable?'Unavailable':grade?`${Math.round(grade.rate*100)}% · ${grade.runs} checked runs`:'Not measured yet'}/>
 
         {/* Connection warning - an account this agent needs is signed out. Loud,
          * above the tabs, with a one-tap sign-in. Renders nothing when healthy. */}
@@ -717,14 +714,5 @@ export default async function WorkflowDetailPage({
         </div>
       </div>
     </main>
-  );
-}
-
-function Stat({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className={`card !p-3 ${highlight ? '!border-success-400/40' : ''}`}>
-      <div className={`text-xl font-semibold tabular-nums ${highlight ? 'text-success-600 dark:text-success-400' : 'text-ink-50'}`}>{value}</div>
-      <div className="text-xs text-ink-400 mt-0.5">{label}</div>
-    </div>
   );
 }
