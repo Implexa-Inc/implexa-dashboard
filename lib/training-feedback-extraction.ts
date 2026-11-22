@@ -1,3 +1,4 @@
+import {isMoment,CARD_FIELDS,CARD_FIELD_LABELS,type Moment} from './review-recorder.ts';
 import {buildSpatialAnchor,anchorError,INTENT_CHANGE} from './review-anchor.ts';
 import type {DraftSpatial} from './review-timestamp-feedback.ts';
 import {demoAnnotationReceipt,scopedTeachingSuggestion,teachingDigest,teachingFrame,type DemoAnnotation,type ScopedTeachingSuggestion,annotationAnalysis,analysisRequestReceipt,type AnnotationAnalysis,type AnalysisRequestReceipt} from './training-teaching-draft.ts';
@@ -75,13 +76,8 @@ export function extractionFailure(value:Reply):string{
   return 'This note could not be analyzed. Your original feedback and saved drafts are preserved.';
 }
 
-/** Compose existing annotation, suggestion, native draft and link writers in order.
- * No acceptance occurs here. Progress survives a failed link so retry reuses its draft.
- */
-export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId,retentionUntil,progress,call,send,check,newDraftRequest,analyzeSetup=false,directionScope=false,reviewBeforeSave=false,relationChoice,checkpoint=()=>{}}:{
-  source:Source;timeMs:number;rawAnnotation:string;versionId:string;retentionUntil:string;progress:FeedbackExtractionProgress;
-  call:(operation:string,args:unknown)=>Promise<Reply>;send:Send;check:()=>Promise<void>;newDraftRequest?:FeedbackDraftRequest;analyzeSetup?:boolean;directionScope?:boolean;reviewBeforeSave?:boolean;relationChoice?:TrainingRelation;checkpoint?:()=>void;
-}){
+/** Save only the existing canonical annotation. No model, draft, admission or activation. */
+export async function saveFeedbackAnnotation({source,timeMs,rawAnnotation,versionId,progress,call,send,check,checkpoint=()=>{}}:{source:Source;timeMs:number;rawAnnotation:string;versionId:string;progress:FeedbackExtractionProgress;call:(operation:string,args:unknown)=>Promise<Reply>;send:Send;check:()=>Promise<void>;checkpoint?:()=>void}){
   if(!rawAnnotation.trim()||rawAnnotation.length>2000)throw Error('This note is too long for one teaching. Split it into shorter notes; the original stays saved.');
   await check();
   const frameTime=Math.min(timeMs,Math.max(0,source.metadata.durationMs-1));
@@ -97,7 +93,26 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
     if(!demoAnnotationReceipt(value,expected))throw Error('Your annotation could not be confirmed saved. Retry this same note.');
     progress.annotation={...expected,annotationId:value.annotationId,annotationDigest:value.annotationDigest};checkpoint();
   }
-  const annotation=progress.annotation;
+  return {annotation:progress.annotation,frameSha256,frameTime,image:preview.image};
+}
+
+/** Explicit owner handoff on the same ledger. A saved note without this exact
+ * receipt cannot be represented as pending in Coach, including during rollout. */
+export async function queueFeedbackAnnotation(args:Parameters<typeof saveFeedbackAnnotation>[0]){
+ const saved=await saveFeedbackAnnotation(args);await args.check();const a=saved.annotation;
+ const value=await args.send('annotation',{action:'queue',annotationId:a.annotationId,annotationDigest:a.annotationDigest,expectedActiveVersionId:args.versionId},`workspace-queue:${a.annotationId}`);
+ if(!value.ok||value.contractVersion!=='training-demo-queue.v1'||value.annotationId!==a.annotationId||value.annotationDigest!==a.annotationDigest||typeof value.eventId!=='string'||!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(value.eventId))throw Error('Your note is saved, but its handoff to Coach is unconfirmed. Retry this same note; no analysis or training was applied.');
+ return saved;
+}
+
+/** Compose existing annotation, suggestion, native draft and link writers in order.
+ * No acceptance occurs here. Progress survives a failed link so retry reuses its draft.
+ */
+export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId,retentionUntil,progress,call,send,check,newDraftRequest,analyzeSetup=false,directionScope=false,reviewBeforeSave=false,relationChoice,checkpoint=()=>{}}:{
+  source:Source;timeMs:number;rawAnnotation:string;versionId:string;retentionUntil:string;progress:FeedbackExtractionProgress;
+  call:(operation:string,args:unknown)=>Promise<Reply>;send:Send;check:()=>Promise<void>;newDraftRequest?:FeedbackDraftRequest;analyzeSetup?:boolean;directionScope?:boolean;reviewBeforeSave?:boolean;relationChoice?:TrainingRelation;checkpoint?:()=>void;
+}){
+  const {annotation,frameSha256,frameTime,image}=await saveFeedbackAnnotation({source,timeMs,rawAnnotation,versionId,progress,call,send,check,checkpoint});
   const binding={sourceId:source.sourceId,sourceSha256:source.metadata.sha256,timeMs:frameTime,frameSha256,annotationId:annotation.annotationId,annotationDigest:annotation.annotationDigest,expectedActiveVersionId:versionId,feedbackSha256:await teachingDigest(new TextEncoder().encode(rawAnnotation))};
   if(!progress.suggestion){
     const interrupted=progress.suggestionStarted===true;
@@ -117,7 +132,7 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
     progress.suggestionStarted=true;if(analyzeSetup){progress.analysisContract=scopeDirections?'training-teaching-suggestion.v9':'training-teaching-suggestion.v7';progress.analysisIntent={retryOf};}
     if(interrupted){progress.draftingRetries=(progress.draftingRetries||0)+1;progress.priorDraftOutcome='unconfirmed';}
     try{checkpoint();}catch(error){Object.assign(progress,previous);throw error;}
-    const value=await send('suggestion',{...wire,mode:'demonstration',includeScope:true,image:preview.image,consent:true,
+    const value=await send('suggestion',{...wire,mode:'demonstration',includeScope:true,image,consent:true,
       ...(scopeDirections?{directionScopeContract:'training-direction-scope.v1'}:{}),
       ...(analyzeSetup?{analysis:{contractVersion:'training-annotation-analysis-request.v1',consentVersion:'training-annotation-taste-and-setup.v1',retryOf}}:{})});
     if(analyzeSetup&&analysisRequestReceipt(value.analysisRequest)){progress.analysisRequest=value.analysisRequest;progress.analysisOutcome=typeof value.reason==='string'&&value.reason.startsWith('teaching_suggestion_')&&value.unavailable===true?'failed':'pending';checkpoint();}
@@ -130,8 +145,8 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
   const suggestion=progress.suggestion;
   if(!suggestion)throw Error('The saved suggestion is missing.');
   if(!(['training-teaching-suggestion.v7','training-teaching-suggestion.v9'].includes(suggestion.contractVersion)?annotationAnalysis(suggestion,binding):scopedTeachingSuggestion(suggestion,binding)))throw Error('The saved suggestion no longer matches this note and frame.');
-  if(suggestion.status==='insufficient'||!suggestion.fields||!suggestion.scopeSuggestion)return {status:'held' as const,reason:suggestion.reason||'Review the category and example type before saving this teaching.',suggestion,image:preview.image};
-  if(['training-teaching-suggestion.v8','training-teaching-suggestion.v9'].includes(suggestion.contractVersion)&&suggestion.creativeDirections===null)return {status:'held' as const,reason:'Which creative direction should this lesson apply to? Clarify it in your feedback.',suggestion,image:preview.image};
+  if(suggestion.status==='insufficient'||!suggestion.fields||!suggestion.scopeSuggestion)return {status:'held' as const,reason:suggestion.reason||'Review the category and example type before saving this teaching.',suggestion,image};
+  if(['training-teaching-suggestion.v8','training-teaching-suggestion.v9'].includes(suggestion.contractVersion)&&suggestion.creativeDirections===null)return {status:'held' as const,reason:'Which creative direction should this lesson apply to? Clarify it in your feedback.',suggestion,image};
   const scope=suggestion.scopeSuggestion;
   if(!TRAINING_PROPERTY_CODES.includes(scope.property as any)||!TRAINING_RELATIONS.includes(scope.relation as any))throw Error('The proposed teaching scope is unsupported.');
   // Review only the source-example relation before the existing immutable writer.
@@ -140,7 +155,7 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
   if(relationChoice!==undefined&&!TRAINING_RELATIONS.includes(relationChoice))throw Error('Choose an example type before saving.');
   if(progress.reviewedRelation!==undefined&&!TRAINING_RELATIONS.includes(progress.reviewedRelation))throw Error('The saved example choice needs review.');
   if(relationChoice!==undefined&&(legacySaveStarted||(progress.reviewedRelation!==undefined?progress.reviewedRelation!==relationChoice:!!progress.record)))throw Error('This teaching save has already started. Finish the saved choice before making a different draft.');
-  if(reviewBeforeSave&&!progress.record&&!legacySaveStarted&&!progress.reviewedRelation&&relationChoice===undefined)return {status:'review' as const,suggestion,image:preview.image};
+  if(reviewBeforeSave&&!progress.record&&!legacySaveStarted&&!progress.reviewedRelation&&relationChoice===undefined)return {status:'review' as const,suggestion,image};
   if(relationChoice!==undefined&&!progress.reviewedRelation){
     progress.reviewedRelation=relationChoice;
     try{checkpoint();}catch(error){delete progress.reviewedRelation;throw error;}
@@ -165,5 +180,33 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
     if(!value.ok||value.contractVersion!=='training-demo-link.v1'||value.annotationId!==annotation.annotationId||value.annotationDigest!==annotation.annotationDigest||value.recordId!==progress.record.recordId||value.recordDigest!==progress.record.recordDigest||typeof value.linkReceiptId!=='string')throw Error('The draft is saved. Retry linking this same note; do not create another draft.');
     progress.linked=true;checkpoint();
   }
-  return {status:'drafted' as const,record:progress.record,suggestion,image:preview.image};
+  return {status:'drafted' as const,record:progress.record,suggestion,image};
+}
+
+/** Decode the canonical saved note without changing its text, range, region or identity. */
+export async function readSavedFeedback(value:any,expected:{annotationId:string;annotationDigest:string;sessionId:string;versionId:string},metadata:{sha256:string;durationMs:number;width:number;height:number}){
+  const raw=value?.annotation;
+  if(value?.ok!==true||value.contractVersion!=='training-demo-feedback.v1'||value.annotationId!==expected.annotationId||value.annotationDigest!==expected.annotationDigest
+    ||raw?.contractVersion!=='training-demo-annotation.v1'||raw.targetVersionId!==expected.versionId||raw.sourceSha256!==metadata.sha256
+    ||!Number.isSafeInteger(raw.timeMs)||raw.timeMs<0||(metadata.durationMs===0?raw.timeMs!==0:raw.timeMs>=metadata.durationMs)
+    ||typeof raw.rawAnnotation!=='string'||raw.rawAnnotation.length>2000||!raw.rawAnnotation.trim()||!/^[a-f0-9]{64}$/.test(raw.frameSha256))throw Error('This saved feedback no longer matches the selected source.');
+  const annotation:DemoAnnotation={annotationId:expected.annotationId,annotationDigest:expected.annotationDigest,sourceId:raw.sourceId,sourceSha256:raw.sourceSha256,timeMs:raw.timeMs,frameSha256:raw.frameSha256,rawAnnotation:raw.rawAnnotation,expectedActiveVersionId:expected.versionId};
+  let note:any;try{note=JSON.parse(annotation.rawAnnotation);}catch{note=null;}
+  if(note?.role!=='trainer_commentary'&&!note?.moment){
+    const fingerprint=await teachingDigest(new TextEncoder().encode(JSON.stringify({id:expected.sessionId,version:expected.versionId,sourceId:annotation.sourceId,sourceSha256:annotation.sourceSha256,rawAnnotation:annotation.rawAnnotation,frameTime:annotation.timeMs})));
+    return {annotation,fingerprint,feedback:annotation.rawAnnotation,spatial:null,moment:null};
+  }
+  let spatial:DraftSpatial|null=null,moment:Moment|null=null,feedback:string,fingerprint:string;
+  if(note.sourceKind==='upload'){
+    if(note.sourceId!==annotation.sourceId||note.timeMs!==annotation.timeMs||typeof note.feedback!=='string'||!note.feedback.trim())throw Error('The saved image note is incomplete.');
+    feedback=note.feedback;spatial=note.spatial??null;
+    fingerprint=await teachingDigest(new TextEncoder().encode(JSON.stringify({id:expected.sessionId,version:expected.versionId,sourceId:annotation.sourceId,sourceSha256:annotation.sourceSha256,rawAnnotation:annotation.rawAnnotation,frameTime:annotation.timeMs})));
+  }else{
+    if(typeof note.recordingId!=='string'||!isMoment(note.moment,metadata.durationMs)||Math.min(note.moment.startMs,Math.max(0,metadata.durationMs-1))!==annotation.timeMs)throw Error('The saved recording mark is incomplete.');
+    const savedMoment:Moment=note.moment;moment=savedMoment;feedback=CARD_FIELDS.filter(key=>moment!.card[key].trim()).map(key=>`${CARD_FIELD_LABELS[key]}: ${moment!.card[key]}`).join('\n');
+    if(savedMoment.region)spatial={geometry:{kind:'rect',x:savedMoment.region.x/1000000,y:savedMoment.region.y/1000000,width:savedMoment.region.width/1000000,height:savedMoment.region.height/1000000},sourceFrame:{visualWidth:metadata.width,visualHeight:metadata.height}};
+    fingerprint=await teachingDigest(new TextEncoder().encode(JSON.stringify({sessionId:expected.sessionId,version:expected.versionId,sourceSha256:annotation.sourceSha256,rawAnnotation:annotation.rawAnnotation})));
+  }
+  if(spatial&&anchorError(buildSpatialAnchor({observedArtifactId:annotation.sourceId,observedArtifactSha256:annotation.sourceSha256,intent:{mode:INTENT_CHANGE},temporalStartMs:annotation.timeMs,geometry:spatial.geometry,sourceFrame:spatial.sourceFrame}))!==null)throw Error('The saved marked region is invalid.');
+  return {annotation,fingerprint,feedback,spatial,moment};
 }

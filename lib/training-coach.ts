@@ -1,13 +1,13 @@
 /** Display-only decision identities; existing action writers recheck authority. */
-export type CoachDecision={summary?:string;id:string;kind:'lesson'|'feedback'|'question'|'customer'|'agent_change';source:'record'|'review_issue'|'question'|'contribution'|'intake_plan'|'annotation_gap'|'recording_agent';sessionId:string|null;versionId:string;digest:string;createdAt:string};
+export type CoachDecision={summary?:string;id:string;kind:'lesson'|'feedback'|'question'|'customer'|'agent_change';source:'record'|'demo_annotation'|'review_issue'|'question'|'contribution'|'intake_plan'|'annotation_gap'|'recording_agent';sessionId:string|null;versionId:string;digest:string;createdAt:string};
 export type CoachAgent={id:string;slug:string;name:string;description:string|null;versionId:string|null;decisions:CoachDecision[];decisionsComplete:boolean;liveLessons:number|null;lastTaughtAt:string|null;listing:'listed'|'draft'|'submitted'|'not_listed'|'public_not_submitted'|'unknown'};
-export type CoachPage={ok:true;contractVersion:'training-coach-decisions.v1';agents:CoachAgent[];complete:boolean};
+export type CoachPage={ok:true;agents:CoachAgent[];complete:boolean}&({contractVersion:'training-coach-decisions.v1'}|{contractVersion:'training-coach-decisions.v2';savedFeedbackReady:boolean});
 export type CoachRead={status:'ready';page:CoachPage}|{status:'unavailable'};
 const uuid=(v:unknown)=>typeof v==='string'&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v);
 const exact=(v:any,keys:string[])=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).sort().join('|')===keys.sort().join('|');
 export function coachPage(value:unknown):CoachPage|null{
- const v=value as any;
- if(!exact(v,['ok','contractVersion','agents','complete'])||v.ok!==true||v.contractVersion!=='training-coach-decisions.v1'||typeof v.complete!=='boolean'||!Array.isArray(v.agents)||v.agents.length>200)return null;
+ const v=value as any,v2=v?.contractVersion==='training-coach-decisions.v2';
+ if(!exact(v,['ok','contractVersion','agents','complete',...(v2?['savedFeedbackReady']:[])])||v.ok!==true||!['training-coach-decisions.v1','training-coach-decisions.v2'].includes(v.contractVersion)||v2&&typeof v.savedFeedbackReady!=='boolean'||typeof v.complete!=='boolean'||!Array.isArray(v.agents)||v.agents.length>200)return null;
  const seen=new Set();
  for(const a of v.agents){
   if(!exact(a,['id','slug','name','description','versionId','decisions','decisionsComplete','liveLessons','lastTaughtAt','listing'])||!uuid(a.id)||seen.has(a.id)
@@ -19,10 +19,10 @@ export function coachPage(value:unknown):CoachPage|null{
    ||!['listed','draft','submitted','not_listed','public_not_submitted','unknown'].includes(a.listing)||!Array.isArray(a.decisions)||a.decisions.length>200)return null;
   seen.add(a.id);const ids=new Set();
   for(const d of a.decisions){
-   const sources:Record<string,string[]>={lesson:['record'],feedback:['review_issue'],question:['question'],customer:['contribution'],agent_change:['intake_plan','annotation_gap','recording_agent']};
+   const sources:Record<string,string[]>={lesson:['record'],feedback:v2&&v.savedFeedbackReady?['review_issue','demo_annotation']:['review_issue'],question:['question'],customer:['contribution'],agent_change:['intake_plan','annotation_gap','recording_agent']};
    if(!exact(d,['id','kind','source','sessionId','versionId','digest','createdAt',...(Object.hasOwn(d,'summary')?['summary']:[])])||!uuid(d.id)||ids.has(d.id)||!sources[d.kind]?.includes(d.source)
     ||Object.hasOwn(d,'summary')&&(!['feedback','agent_change'].includes(d.kind)||typeof d.summary!=='string'||!d.summary.trim()||d.summary.length>180)
-    ||(['lesson','agent_change'].includes(d.kind)?!uuid(d.sessionId):d.sessionId!==null)||d.versionId!==a.versionId||!uuid(d.versionId)||typeof d.digest!=='string'||!/^[a-f0-9]{64}$/.test(d.digest)
+    ||(['lesson','agent_change'].includes(d.kind)||d.source==='demo_annotation'?!uuid(d.sessionId):d.sessionId!==null)||d.versionId!==a.versionId||!uuid(d.versionId)||typeof d.digest!=='string'||!/^[a-f0-9]{64}$/.test(d.digest)
     ||typeof d.createdAt!=='string'||!Number.isFinite(Date.parse(d.createdAt)))return null;
    ids.add(d.id);
   }
