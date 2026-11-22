@@ -125,3 +125,11 @@ test('retained count filters never turn failed or incomplete counts into an empt
   }finally{r.cleanup();}
  }
 });
+
+test('authoritative no-active-version exclusions do not invite a futile count retry',async()=>{
+ const packet=produced('coach-unversioned-family');const rows=owned.filter(a=>a.workflow_id===unversioned.id);
+ const r=await render('training-agent-picker.tsx',{owned:rows,loadSummary:true},{fetch:(async(url:any)=>String(url).includes('/coach?')?http(packet):{ok:false}) as typeof fetch});
+ try{await flush(r);assert.match(r.text(),/no active version/);assert.match(r.text(),/decisions and lessons aren’t counted/);assert.equal(r.queryByText('Retry counts'),null);assert.match(r.text(),/Available counts checked/);
+  const chip=Array.from(r.document.querySelectorAll('.coach-collection-tools button')).find(n=>n.textContent?.startsWith('Needs a decision ·'))!;await r.click(chip);assert.match(r.document.querySelector('#all-coach-agents')!.textContent||'',/No known decisions/);assert.doesNotMatch(r.document.querySelector('#all-coach-agents')!.textContent||'',/Counts unavailable/);
+ }finally{r.cleanup();}
+});
