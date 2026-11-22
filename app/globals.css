@@ -638,3 +638,5 @@ html, body {
 
 @media(max-width:767px){.listing-save-bar{left:0;}.listing-save-inner{padding:12px 16px;flex-wrap:wrap;gap:8px;}.listing-save-inner>p{width:100%;}.listing-layout{padding-bottom:140px;}}
 .listing-step-number{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:28px;border:1px solid var(--border-subtle);border-radius:50%;font-size:14px;color:var(--text-muted);}.listing-step-number.complete{background:var(--state-ok-bg);color:var(--state-ok-fg);border-color:var(--state-ok-dot);}
+
+@media(max-width:767px){.listing-save-inner>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:8px;}.listing-save-inner .btn-outline,.listing-save-inner .btn-secondary,.listing-save-inner .btn-primary{min-width:0;min-height:44px;padding:8px;font-size:12px;white-space:normal;text-align:center;line-height:1.2;}}
