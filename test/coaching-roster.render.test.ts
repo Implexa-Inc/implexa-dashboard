@@ -101,3 +101,12 @@ test('malformed non-string catalog IDs leave only their own rows unknown instead
   try{await flush(r);assert.equal(r.document.querySelectorAll('#all-coach-agents .coach-agent-row').length,2);assert.match(r.document.querySelector('#all-coach-agents .coach-agent-row')!.textContent||'',/Count unavailable/);assert.equal((r.document.querySelector('#all-coach-agents .coach-agent-row button') as HTMLButtonElement).disabled,true);assert.match(r.document.querySelectorAll('#all-coach-agents .coach-agent-row')[1].textContent||'',/No active version/);}finally{r.cleanup();}
  }
 });
+
+test('a complete empty catalog skips optional counts without unavailable tiles, while partial empty stays unknown',async()=>{
+ for(const partial of [false,true]){let reads=0;const r=await render('training-agent-picker.tsx',{owned:[],loadSummary:true,partial},{fetch:(async()=>{reads++;throw Error('no counts request expected');}) as typeof fetch});
+  try{await flush(r);assert.equal(reads,0);assert.equal(r.queryByText('Retry counts'),null);if(partial){assert.match(r.text(),/count unavailable|agents couldn’t be checked/i);assert.doesNotMatch(r.text(),/No agents to train yet/);}else{assert.match(r.text(),/No agents to train yet/);assert.doesNotMatch(r.text(),/count unavailable|Retry counts|Loading counts/i);}}finally{r.cleanup();}}
+});
+test('refreshing counts preserves search state instead of remounting the roster',async()=>{
+ let reads=0;const r=await render('training-agent-picker.tsx',{owned,loadSummary:true,countsReadKey:'first'},{fetch:(async(url:any)=>{if(!String(url).includes('/coach?'))return {ok:false};reads++;return http(roster);}) as typeof fetch});
+ try{await flush(r);const search=r.document.querySelector('input[aria-label="Search agents you train"]')!;await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLInputElement.prototype,'value')!.set!.call(search,'Older');search.dispatchEvent(new r.window.Event('input',{bubbles:true}));});await r.rerender({owned,loadSummary:true,countsReadKey:'second'});await flush(r);assert.equal(reads,2);assert.equal((r.document.querySelector('input[aria-label="Search agents you train"]') as HTMLInputElement).value,'Older');assert.equal(r.document.querySelectorAll('#all-coach-agents .coach-agent-row').length,1);}finally{r.cleanup();}
+});

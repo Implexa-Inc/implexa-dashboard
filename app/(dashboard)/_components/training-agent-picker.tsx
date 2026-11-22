@@ -34,7 +34,7 @@ const filterAgents=(agents:OwnedCoachAgent[],query:string)=>{
 };
 
 /** One trainer-owned roster; the recording arrival is a rare target-choice dialog. */
-export default function TrainingAgentPicker({owned,recordingId,partial=false,loadSummary=false}:{owned:OwnedCoachAgent[];recordingId?:string;partial?:boolean;loadSummary?:boolean}){
+export default function TrainingAgentPicker({owned,recordingId,partial=false,loadSummary=false,countsReadKey='' }:{owned:OwnedCoachAgent[];recordingId?:string;partial?:boolean;loadSummary?:boolean;countsReadKey?:string}){
  const [loadedSummary,setLoadedSummary]=useState<CoachPage>(),[countsLoading,setCountsLoading]=useState(loadSummary);
  const [summaryRetry,setSummaryRetry]=useState(0);
  const [familyFacts,setFamilyFacts]=useState<Record<string,CoachAgent>>({}),[retrying,setRetrying]=useState<Set<string>>(new Set());
@@ -51,7 +51,7 @@ export default function TrainingAgentPicker({owned,recordingId,partial=false,loa
   }).catch(()=>{}).finally(()=>{clearTimeout(timer);requests.current.delete(controller);if(!disposed)setCountsLoading(false);});
   let disposed=false;
   return()=>{disposed=true;clearTimeout(timer);controller.abort();for(const request of requests.current)request.abort();requests.current.clear();};
- },[loadSummary,catalogKey,summaryRetry]);
+ },[loadSummary,catalogKey,summaryRetry,countsReadKey]);
  const incoming=loadedSummary;
  const summary=useMemo(()=>{
   if(!loadSummary)return undefined;
@@ -90,17 +90,17 @@ export default function TrainingAgentPicker({owned,recordingId,partial=false,loa
   router.replace(url.pathname+url.search+url.hash,{scroll:false});
  };
  const unavailable=<CollectionReadError title="Some agents couldn’t be checked" description="Your agents and saved training are unchanged. Try refreshing the list."/>;
- const counts=summary?coachingCounts(summary):null;
+ const counts=summary?coachingCounts(summary):null,emptyKnown=!partial&&agents.length===0;
  const waiting=shown.filter(agent=>summary?.agents.some(row=>row.slug===agent.slug&&row.decisions.length>0));
  const others=shown;
  const columns=<div className="coach-column-head" aria-hidden="true"><span/><span>Agent</span><span>Decisions</span><span>Learnings</span><span>Marketplace</span><span/></div>;
  return <>
-  {!counts&&loadSummary&&<div className="coach-summary-tiles" aria-label="Coaching summary"><div className="card"><b>—</b><span>{countsLoading?'Loading counts…':'Decision count unavailable'}</span></div><div className="card"><b>{coachingCount(knownAgents,!partial&&identitiesComplete)}</b><span>Agents you train</span></div><div className="card"><b>—</b><span>{countsLoading?'Loading counts…':'Listed count unavailable'}</span></div></div>}
-  {counts&&<div className="coach-summary-tiles" aria-label="Coaching summary"><div className={counts.decisions?'card needs':'card'}><b>{coachingCount(counts.decisions,counts.decisionsComplete)}</b><span>Decisions waiting for you</span>{waiting[0]&&<a href="#coach-waiting">Review them →</a>}</div><div className="card"><b>{coachingCount(knownAgents,!partial&&identitiesComplete)}</b><span>Agents you train</span></div><div className="card"><b>{coachingCount(counts.listed,counts.listedComplete)}</b><span>Agents listed</span></div></div>}
+  {!emptyKnown&&!counts&&loadSummary&&<div className="coach-summary-tiles" aria-label="Coaching summary"><div className="card"><b>—</b><span>{countsLoading?'Loading counts…':'Decision count unavailable'}</span></div><div className="card"><b>{coachingCount(knownAgents,!partial&&identitiesComplete)}</b><span>Agents you train</span></div><div className="card"><b>—</b><span>{countsLoading?'Loading counts…':'Listed count unavailable'}</span></div></div>}
+  {!emptyKnown&&counts&&<div className="coach-summary-tiles" aria-label="Coaching summary"><div className={counts.decisions?'card needs':'card'}><b>{coachingCount(counts.decisions,counts.decisionsComplete)}</b><span>Decisions waiting for you</span>{waiting[0]&&<a href="#coach-waiting">Review them →</a>}</div><div className="card"><b>{coachingCount(knownAgents,!partial&&identitiesComplete)}</b><span>Agents you train</span></div><div className="card"><b>{coachingCount(counts.listed,counts.listedComplete)}</b><span>Agents listed</span></div></div>}
   {loadSummary&&!identitiesComplete&&<p role="status" className="text-sm text-ink-400 mb-6">Some agent identities couldn’t be checked. Their counts are unavailable.</p>}
   {loadSummary&&summary?.agents.some(a=>a.versionId===null)&&<p role="status" className="text-sm text-ink-400 mb-6">{summary.agents.filter(a=>a.versionId===null).length} {summary.agents.filter(a=>a.versionId===null).length===1?'agent has':'agents have'} no active version. Their decisions and lessons aren’t counted.</p>}
   {counts&&(!counts.decisionsComplete||!counts.agentsComplete||!counts.listedComplete)&&<p className="text-xs text-ink-400 mb-6">+ means the count may be higher.</p>}
-  {loadSummary&&<p role="status" className="mb-6 text-sm text-ink-400">{countsLoading?'Loading decision and lesson counts…':!summary||!summary.complete?<>Some counts are unavailable. <button type="button" className="underline" disabled={!!retrying.size} onClick={()=>setSummaryRetry(n=>n+1)}>Retry counts</button></>:'Counts checked.'}</p>}
+  {loadSummary&&agents.length>0&&<p role="status" className="mb-6 text-sm text-ink-400">{countsLoading?'Loading decision and lesson counts…':!summary||!summary.complete?<>Some counts are unavailable. <button type="button" className="underline" disabled={!!retrying.size} onClick={()=>setSummaryRetry(n=>n+1)}>Retry counts</button></>:'Counts checked.'}</p>}
   <div className="coach-collection-tools">
    {agents.length>0&&<><input type="search" className="input" value={query} onChange={e=>{setQuery(e.target.value);setAll(false);}} placeholder="Search your agents" aria-label="Search agents you train"/><button type="button" aria-pressed={filter==='all'&&!needle} onClick={()=>{setQuery('');setFilter('all');}} className="coach-all-count">All · {partial?`${agents.length}+`:agents.length}</button></>}
    {summary&&<>{(['waiting','listed','not_listed'] as const).map(value=><button key={value} type="button" className="coach-all-count" aria-pressed={filter===value} onClick={()=>{setFilter(value);setAll(false);}}>{value==='waiting'?'Needs a decision':value==='listed'?'Listed':'Not listed'} · {coachingCount(summary.agents.filter(a=>value==='waiting'?a.decisions.length>0:value==='listed'?a.listing==='listed':a.listing!=='listed'&&a.listing!=='unknown').length,summary.complete&&summary.agents.every(a=>value==='waiting'?a.decisionsComplete:a.listing!=='unknown'))}</button>)}</>}
@@ -111,7 +111,7 @@ export default function TrainingAgentPicker({owned,recordingId,partial=false,loa
    <section id="all-coach-agents" className="coach-collection" aria-label="All agents you train">
     <div className="agent-section-head"><h2>All agents you train</h2><span>{partial?(others.length?`${others.length}+`:'?'):others.length}</span></div>
     {others.length?<>{loadSummary&&columns}<AgentRows covers={covers} agents={all?others:others.slice(0,8)} summary={summary} loading={countsLoading} onRetry={loadSummary?retryFamily:undefined} retrying={retrying} retryable={retryable}/>{others.length>8&&<p className="agent-section-more">Showing {all?others.length:8} of {others.length} · <button type="button" onClick={()=>setAll(!all)}>{all?'Show less':`Show all ${others.length}`}</button></p>}</>:
-     partial?unavailable:<CollectionEmpty title="No results" description={query.trim()?`No agents match “${query.trim()}”.`:filter==='listed'?'No listed agents in this view.':filter==='waiting'?'No known decisions are waiting.':'No agents in this view.'}><button type="button" className="btn-outline" onClick={()=>{setQuery('');setFilter('all');}}>Clear search</button></CollectionEmpty>}
+     partial?unavailable:<CollectionEmpty title={countsLoading&&filter!=='all'?'Checking this view':'No results'} description={countsLoading&&filter!=='all'?'Decision and listing counts are still loading. Choose All to browse every agent.':query.trim()?`No agents match “${query.trim()}”.`:filter==='listed'?'No listed agents in this view.':filter==='waiting'?'No known decisions are waiting.':'No agents in this view.'}><button type="button" className="btn-outline" onClick={()=>{setQuery('');setFilter('all');}}>Clear search</button></CollectionEmpty>}
    </section>}
   <Modal open={chooseRecording&&!!recordingId} onClose={closeRecording} title="Which agent should this recording teach?" subtitle="Your recording stays saved on this Mac." maxWidth="max-w-3xl">
    {agents.length>0&&<input type="search" className="input mb-4" value={targetQuery} onChange={e=>setTargetQuery(e.target.value)} aria-label="Find an agent for this recording" placeholder="Search your agents"/>}

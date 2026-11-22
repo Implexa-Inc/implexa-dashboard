@@ -115,5 +115,5 @@ test('real Coach server page renders the owner catalog without issuing or awaiti
 
 test('a fresh server catalog read gives the count loader a fresh lifecycle even if agent identities are unchanged',async()=>{
  const invoke=async()=>{const shell=await coachList({}),contents=findContents(shell);return findContents(await contents.type(contents.props),picker);};
- const first=await run(invoke,catalog),second=await run(invoke,catalog);assert.notEqual(first.key,second.key);assert.ok(first.key.startsWith(owner+':'));assert.equal(first.props.summary,undefined);assert.equal(second.props.summary,undefined);
+ const first=await run(invoke,catalog),second=await run(invoke,catalog);assert.equal(first.key,second.key);assert.equal(first.key,owner);assert.notEqual(first.props.countsReadKey,second.props.countsReadKey);assert.equal(first.props.summary,undefined);assert.equal(second.props.summary,undefined);
 });
