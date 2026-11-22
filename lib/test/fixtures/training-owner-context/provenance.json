@@ -1,0 +1,57 @@
+{
+  "scope": "ACTUAL HTTP route handler output over synthetic database rows and deterministic optional-service IO; no production/network reads or customer content",
+  "backendCommit": "bb3b3f63dd13eb15b39f1f3cff6aec48f1561c41",
+  "producers": [
+    {
+      "file": "src/routes/me.js",
+      "sha256": "39ddc767777244d806f84b2f384b79aa9802f45194ee1c67ba94dbc16ab8e538"
+    },
+    {
+      "file": "src/services/skill-search.service.js",
+      "sha256": "3a5d33e847f003cd143206cacc0a4faf42a4ac4e3eb9981b1e3bd11dc24bff22"
+    },
+    {
+      "file": "src/services/agent-detail.service.js",
+      "sha256": "c26dc1c73fa7e6f3c7a7e8b400bf97d0da6d32fe834adfb6372d0fe79a203669"
+    }
+  ],
+  "entryPoints": [
+    "GET /api/v2/me/workflows",
+    "GET /api/v2/me/agents/:slug/detail"
+  ],
+  "fixtureFiles": [
+    {
+      "file": "owner-catalog.json",
+      "sha256": "eeb726b87fd485276beb513163ce04e5a342bbd77182ea92b5f28aef1005b56d"
+    },
+    {
+      "file": "agent-detail.json",
+      "sha256": "558ea725d8fef95d9591448bc8b4974316a6a58def3ce7efb5c9be5251ebe8ce"
+    },
+    {
+      "file": "agent-detail-owner-false.json",
+      "sha256": "36fd099bef4b187a09654252aa4952dbe3e65dd65572c2de4fe309a4ed18467a"
+    },
+    {
+      "file": "agent-detail-owner-unknown.json",
+      "sha256": "fd5f18eaa91b145d9b54631df2cbad2169db7b173caa653100b9b9c02189a796"
+    },
+    {
+      "file": "agent-detail-unavailable.json",
+      "sha256": "3981c7d7ef96e3d35964674e77a2705327a3f5e1191f6586d2afa37d1e7671d6"
+    },
+    {
+      "file": "agent-detail-not-found.json",
+      "sha256": "1a34c363b0e5c46e25a57d0b08fba068c5caff39e3ff7fd0eaafcae98685fad3"
+    },
+    {
+      "file": "owner-catalog-unavailable.json",
+      "sha256": "d3dd506419e0d0cb30542d2253b0ba2cb57b9f8354e68a760e1ff272d646bc85"
+    },
+    {
+      "file": "owner-catalog-hidden.json",
+      "sha256": "b66185a61ecb26b494dae7bac42940eb19e76cbb5ca85236f5539e1198ce22df"
+    }
+  ],
+  "networkForbiddenByThrowingFetch": true
+}
