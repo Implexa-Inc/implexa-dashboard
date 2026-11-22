@@ -221,3 +221,13 @@ test('a recording note flips beside the mark, stays inside the picture and falls
  const left=recordingNotePlacement(picture,{left:650,top:400,width:100,height:40},300)!;assert.equal(left.left,338);assert.ok(left.top+300<=picture.top+picture.height-8);assert.ok(left.left>=picture.left);
  assert.equal(recordingNotePlacement({...picture,width:390},null,300),null);assert.equal(recordingNotePlacement({...picture,height:120},null,300),null);
 });
+
+test('central and full-width marks use normal flow when neither side fits, without changing regionless placement',async()=>{
+ const {recordingNotePlacement}=await import('./review-spatial-geometry.ts');
+ const picture={left:20,top:100,width:800,height:450};
+ assert.equal(recordingNotePlacement(picture,{left:320,top:180,width:160,height:90},300),null);
+ assert.equal(recordingNotePlacement(picture,{left:0,top:0,width:800,height:450},300),null);
+ assert.deepEqual(recordingNotePlacement({...picture,width:600},null,300),{left:292,top:116,width:320,maxHeight:434});
+ assert.equal(recordingNotePlacement(picture,{left:360,top:30,width:100,height:100},300)!.left,492,'the exact right clearance still fits');
+ assert.equal(recordingNotePlacement(picture,{left:340,top:30,width:450,height:100},300)!.left,28,'the exact left clearance still fits');
+});
