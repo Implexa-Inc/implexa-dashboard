@@ -1,0 +1,30 @@
+{
+  "status": 200,
+  "headers": {},
+  "body": {
+    "ok": true,
+    "count": 1,
+    "workflows": [
+      {
+        "workflow_id": "90000000-0000-4000-8000-000000000002",
+        "source": "generated",
+        "slug": "owned",
+        "name": "Synthetic teaching fixture",
+        "description": "Summarize synthetic notes.",
+        "vertical": "productivity",
+        "cadence": null,
+        "primary_outcome": "Short summary",
+        "step_count": 1,
+        "origin": "generated",
+        "run_count": 0,
+        "scheduled_count": 0,
+        "is_scheduled": false,
+        "last_run_at": null,
+        "shared": false,
+        "unproven": false,
+        "created_at": "2026-11-01T00:00:00Z",
+        "updated_at": "2026-11-01T00:00:00Z"
+      }
+    ]
+  }
+}

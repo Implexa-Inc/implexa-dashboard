@@ -1,0 +1,11 @@
+{
+  "status": 503,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Server-Timing": "auth;dur=0.0, workflow;dur=0.0, total;dur=0.1"
+  },
+  "body": {
+    "error": "workflow catalog unreadable",
+    "code": "unavailable"
+  }
+}

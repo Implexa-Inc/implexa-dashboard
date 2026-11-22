@@ -1,0 +1,5 @@
+These are actual outputs of the backend HTTP route handlers, captured over synthetic database rows and deterministic optional-service IO. They contain no production or customer data. `provenance.json` pins the deployed backend commit, producer source hashes, and every captured response hash.
+
+Regenerate with `node lib/test/fixtures/training-owner-context/generate.cjs /absolute/path/to/the/pinned/backend/checkout` using that checkout's installed dependencies. The generator forbids network fetches, invokes the real route/auth/catalog/detail code, and captures the entire status/headers/body response. It does not assemble HTTP response DTOs. Database input rows and optional service IO are synthetic. Timings are incidental local values, not performance evidence.
+
+The fixtures cover positive, negative and unavailable owner proof, detail 503/404, an owner catalog failure returned as HTTP 200 with `ok:false`, and a hidden owned agent. Tests deliberately mutate copies for malformed/conflicting-reply cases and inject transport exceptions separately.

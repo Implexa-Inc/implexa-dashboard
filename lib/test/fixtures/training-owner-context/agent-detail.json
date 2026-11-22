@@ -1,0 +1,156 @@
+{
+  "status": 200,
+  "headers": {
+    "Cache-Control": "no-store",
+    "Server-Timing": "auth;dur=1.0, workflow;dur=2.6, activation;dur=1.5, connections;dur=1.4, dismissed;dur=1.1, judge_policy;dur=1.1, schedules;dur=1.4, runs;dur=1.4, latest_run;dur=1.4, own_generated;dur=1.4, lifecycle;dur=1.1, grade;dur=0.0, total;dur=4.4"
+  },
+  "body": {
+    "ok": true,
+    "slug": "owned",
+    "workflow": {
+      "id": "90000000-0000-4000-8000-000000000002",
+      "source": "generated",
+      "slug": "owned",
+      "name": "Synthetic teaching fixture",
+      "description": "Summarize synthetic notes.",
+      "publisher_text_guidance_required": false,
+      "job": "Summarize synthetic notes.",
+      "persona": "productivity",
+      "vertical": "productivity",
+      "cadence": null,
+      "primary_outcome": "Short summary",
+      "signals": [],
+      "workflow_version_id": "90000000-0000-4000-8000-000000000003",
+      "input_contract": null,
+      "input_contract_digest": null,
+      "task_capability": null,
+      "task_capability_digest": null,
+      "revision_contract": {
+        "workflow_id": "90000000-0000-4000-8000-000000000002",
+        "workflow_version_id": "90000000-0000-4000-8000-000000000003",
+        "steps": [
+          {
+            "order": 1,
+            "kind": "instruction",
+            "label": "Summarize synthetic input",
+            "detail": "Return a short summary of the provided synthetic notes."
+          }
+        ],
+        "input_contract": null,
+        "input_contract_digest": null,
+        "task_capability": null,
+        "task_capability_digest": null,
+        "project_bundle_contract": null,
+        "project_bundle_timing_contract": null
+      },
+      "run_input_version_source": "live",
+      "update_available": null,
+      "execution_requirements": null,
+      "capabilities": [],
+      "steps": [
+        {
+          "order": 1,
+          "kind": "instruction",
+          "label": "Summarize synthetic input",
+          "ref": null,
+          "ref_summary": null,
+          "build_evidence": null,
+          "same_as_step": null,
+          "detail": "Return a short summary of the provided synthetic notes.",
+          "gap": false,
+          "fallbacks": []
+        }
+      ],
+      "caveat": null,
+      "sources": [],
+      "content": "# Synthetic teaching fixture\n\n> productivity workflow. Summarize synthetic notes.\n\n**delivers:** Short summary\n\n## steps\n\n1. Summarize synthetic input\n\n> generated on demand by implexa, bound to the best available skills with real-run proof attached where it exists. unproven until run, improves with use.\n",
+      "last_seen_at": "2026-11-01T00:00:00Z",
+      "generated": false,
+      "unproven": false,
+      "publication_state": null,
+      "query": null,
+      "editorial_summary": null,
+      "limitations": null,
+      "audience": null,
+      "prerequisites": null,
+      "required_inputs": null,
+      "last_reviewed_at": null,
+      "editorial_complete": false,
+      "example_result": null,
+      "build_evidence": {
+        "version": 1,
+        "bindableSteps": 0,
+        "boundSteps": 0,
+        "provenSteps": 0,
+        "verifiedSteps": 0,
+        "patternSteps": 0,
+        "unprovenBoundSteps": 0,
+        "summary": "New agent — no proven run history yet."
+      },
+      "created_at": "2026-11-01T00:00:00Z",
+      "updated_at": "2026-11-01T00:00:00Z",
+      "activity": {
+        "run_count": 0,
+        "apply_count": 0,
+        "scheduled_count": 0,
+        "last_run_at": null
+      },
+      "version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "summary": "Initial synthetic fixture",
+          "source": "synthetic_fixture",
+          "at": "2026-11-01T00:00:00Z"
+        }
+      ],
+      "proposed_count": 0
+    },
+    "checklist": {
+      "ok": true,
+      "slug": "owned",
+      "state": "active",
+      "pendingQuestions": 0
+    },
+    "canInspectOwnLearningInfluence": true,
+    "connections": {
+      "agent": {
+        "slug": "owned",
+        "name": "Synthetic teaching fixture"
+      },
+      "needs": [],
+      "warnings": [],
+      "requiresBrowser": false,
+      "ok": true
+    },
+    "grade": null,
+    "gradeVisibility": "private",
+    "judgePolicy": "observe",
+    "schedules": [],
+    "runs": {
+      "items": [],
+      "recommendations": {},
+      "judgments": {}
+    },
+    "lifecycle": {
+      "requests": [],
+      "runningRun": false
+    },
+    "unavailable": [],
+    "timings": {
+      "auth": 1.049708,
+      "workflow": 2.593625,
+      "activation": 1.520875,
+      "connections": 1.388958,
+      "dismissed": 1.100375,
+      "judge_policy": 1.064041,
+      "schedules": 1.420541,
+      "runs": 1.391667,
+      "latest_run": 1.372375,
+      "own_generated": 1.354541,
+      "lifecycle": 1.129625,
+      "grade": 0.048333,
+      "total": 4.386209
+    }
+  }
+}
