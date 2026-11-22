@@ -8,14 +8,15 @@ import LocalTime from './local-time';
 import {humanize,oneLine} from '@/lib/inbox-items';
 import {CollectionEmpty,CollectionReadError} from './collection-state';
 import Modal from './modal';
+import {AgentSampleThumbnail,useAgentSampleThumbnails,type CoverMap} from './agent-sample-thumbnails';
 
-type OwnedCoachAgent=Pick<MyWorkflowCard,'slug'|'name'|'source'|'description'|'updated_at'>;
-function AgentRows({agents,recordingId,summary}:{agents:OwnedCoachAgent[];recordingId?:string;summary?:CoachPage}){
+type OwnedCoachAgent=Pick<MyWorkflowCard,'slug'|'name'|'source'|'description'|'updated_at'>&{workflow_id?:string};
+function AgentRows({agents,recordingId,summary,covers}:{agents:OwnedCoachAgent[];recordingId?:string;summary?:CoachPage;covers?:CoverMap}){
  return <ul className="coach-agent-list">{agents.map(agent=>{
   const facts=summary?.agents.find(row=>row.slug===agent.slug);
   const href=`/training/${encodeURIComponent(agent.slug)}${recordingId?`?annotateRecording=${encodeURIComponent(recordingId)}`:''}`;
   return <li key={agent.slug} className="coach-agent-row">
-   <div className="coach-agent-picture" aria-hidden="true"><svg><use href="/brand/tukido-icons.svg#coach"/></svg></div>
+   <div className="coach-agent-picture"><AgentSampleThumbnail cover={covers?.[facts?.id||agent.workflow_id||'']} icon="coach"/></div>
    <div><h3><Link href={href} prefetch={false}>{agent.name.trim()||humanize(agent.slug)}</Link></h3>{oneLine(agent.description)&&<p>{oneLine(agent.description)}</p>}</div>
    {!recordingId&&facts&&<>
     <div className="coach-row-decisions">{facts.decisions.length===0&&facts.decisionsComplete?<span className="text-ink-400">Nothing waiting</span>:<span className="coach-decision-pill"><b>{coachingCount(facts.decisions.length,facts.decisionsComplete)}</b> to decide</span>}</div>
@@ -47,6 +48,7 @@ export default function TrainingAgentPicker({owned,recordingId,partial=false,sum
   const stamp=(agent:OwnedCoachAgent)=>{const at=Date.parse(agent.updated_at||'');return Number.isFinite(at)?at:0;};
   return [...bySlug.values()].sort((a,b)=>stamp(b)-stamp(a)||a.name.localeCompare(b.name)||a.slug.localeCompare(b.slug));
  },[owned]);
+ const covers=useAgentSampleThumbnails(summary?.agents.map(a=>a.id)||agents.map(a=>a.workflow_id));
  const needle=query.trim().toLowerCase(),targets=filterAgents(agents,targetQuery);
  const factsFor=(slug:string)=>summary?.agents.find(agent=>agent.slug===slug);
  const shown=filterAgents(agents,query).filter(agent=>{const facts=factsFor(agent.slug);return filter==='all'||filter==='waiting'&&!!facts?.decisions.length||filter==='listed'&&facts?.listing==='listed'||filter==='not_listed'&&facts&&facts.listing!=='listed'&&facts.listing!=='unknown';});
@@ -68,16 +70,16 @@ export default function TrainingAgentPicker({owned,recordingId,partial=false,sum
    {summary&&<>{(['waiting','listed','not_listed'] as const).map(value=><button key={value} type="button" className="coach-all-count" aria-pressed={filter===value} onClick={()=>{setFilter(value);setAll(false);}}>{value==='waiting'?'Needs a decision':value==='listed'?'Listed':'Not listed'} · {coachingCount(summary.agents.filter(a=>value==='waiting'?a.decisions.length>0:value==='listed'?a.listing==='listed':a.listing!=='listed'&&a.listing!=='unknown').length,summary.complete&&summary.agents.every(a=>value==='waiting'?a.decisionsComplete:a.listing!=='unknown'))}</button>)}</>}
    <Link href="/training?view=review" className="coach-history-entry" prefetch={false}>Feedback from runs →</Link>
   </div>
-  {waiting.length>0&&<section id="coach-waiting" className="coach-collection mb-8" aria-label="Waiting for you"><div className="agent-section-head"><h2>Waiting for you</h2><span>{waiting.length} agents</span></div>{columns}<AgentRows agents={showAllWaiting?waiting:waiting.slice(0,3)} summary={summary}/>{waiting.length>3&&<button type="button" className="coach-history-entry mt-3" onClick={()=>setShowAllWaiting(!showAllWaiting)}>{showAllWaiting?'Show fewer waiting agents':`Show all ${waiting.length} waiting agents`}</button>}</section>}
+  {waiting.length>0&&<section id="coach-waiting" className="coach-collection mb-8" aria-label="Waiting for you"><div className="agent-section-head"><h2>Waiting for you</h2><span>{waiting.length} agents</span></div>{columns}<AgentRows covers={covers} agents={showAllWaiting?waiting:waiting.slice(0,3)} summary={summary}/>{waiting.length>3&&<button type="button" className="coach-history-entry mt-3" onClick={()=>setShowAllWaiting(!showAllWaiting)}>{showAllWaiting?'Show fewer waiting agents':`Show all ${waiting.length} waiting agents`}</button>}</section>}
   {!agents.length&&!partial?<CollectionEmpty enso title="No agents to train yet" description="Build an agent, then teach it with examples, feedback, or a conversation."><Link href="/create?from=training" className="btn-primary">Build your first agent</Link></CollectionEmpty>:
    (others.length>0||waiting.length===0)&&<section id="all-coach-agents" className="coach-collection" aria-label="All agents you train">
     <div className="agent-section-head"><h2>All agents you train</h2><span>{partial?(others.length?`${others.length}+`:'?'):others.length}{waiting.length?' more':''}</span></div>
-    {others.length?<>{summary&&!waiting.length&&columns}<AgentRows agents={all?others:others.slice(0,8)} summary={summary}/>{others.length>8&&<p className="agent-section-more">Showing {all?others.length:8} of {others.length} · <button type="button" onClick={()=>setAll(!all)}>{all?'Show less':`Show all ${others.length}`}</button></p>}</>:
+    {others.length?<>{summary&&!waiting.length&&columns}<AgentRows covers={covers} agents={all?others:others.slice(0,8)} summary={summary}/>{others.length>8&&<p className="agent-section-more">Showing {all?others.length:8} of {others.length} · <button type="button" onClick={()=>setAll(!all)}>{all?'Show less':`Show all ${others.length}`}</button></p>}</>:
      partial?unavailable:<CollectionEmpty title="No results" description={query.trim()?`No agents match “${query.trim()}”.`:filter==='listed'?'No listed agents in this view.':filter==='waiting'?'No known decisions are waiting.':'No agents in this view.'}><button type="button" className="btn-outline" onClick={()=>{setQuery('');setFilter('all');}}>Clear search</button></CollectionEmpty>}
    </section>}
   <Modal open={chooseRecording&&!!recordingId} onClose={closeRecording} title="Which agent should this recording teach?" subtitle="Your recording stays saved on this Mac." maxWidth="max-w-3xl">
    {agents.length>0&&<input type="search" className="input mb-4" value={targetQuery} onChange={e=>setTargetQuery(e.target.value)} aria-label="Find an agent for this recording" placeholder="Search your agents"/>}
-   {targets.length?<div className="coach-recording-targets"><AgentRows agents={targets} recordingId={recordingId}/></div>:partial?unavailable:<CollectionEmpty title={agents.length?'No results':'No agents to train yet'} description={agents.length?`No agents match “${targetQuery.trim()}”.`:'Build an agent, then choose this recording from your saved recordings.'}>{agents.length?<button type="button" className="btn-outline" onClick={()=>setTargetQuery('')}>Clear search</button>:<Link href="/create?from=training" className="btn-primary">Build your first agent</Link>}</CollectionEmpty>}
+   {targets.length?<div className="coach-recording-targets"><AgentRows covers={covers} agents={targets} recordingId={recordingId}/></div>:partial?unavailable:<CollectionEmpty title={agents.length?'No results':'No agents to train yet'} description={agents.length?`No agents match “${targetQuery.trim()}”.`:'Build an agent, then choose this recording from your saved recordings.'}>{agents.length?<button type="button" className="btn-outline" onClick={()=>setTargetQuery('')}>Clear search</button>:<Link href="/create?from=training" className="btn-primary">Build your first agent</Link>}</CollectionEmpty>}
   </Modal>
  </>;
 }

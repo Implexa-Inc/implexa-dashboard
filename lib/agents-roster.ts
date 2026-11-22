@@ -26,6 +26,7 @@ export type Categorize = (parts: Array<string | null | undefined>) => ListAgent[
 
 /** The library shape this merge needs (a subset of listMyWorkflows' rows). */
 export type LibraryAgent = {
+  workflow_id?:string;
   slug: string;
   name: string;
   source: string;
@@ -81,6 +82,7 @@ export function buildRoster({ feed, mine, paused, categorize }: RosterInput): Ro
       name: a.name,
       source: sourceFor(a.slug),
       canTrain:meta.get(a.slug)?.source==='generated',
+      familyId:meta.get(a.slug)?.workflow_id,
       section,
       category: categorize(parts(a.slug, a.name)),
       needsIntervention: a.needsIntervention,
@@ -105,6 +107,7 @@ export function buildRoster({ feed, mine, paused, categorize }: RosterInput): Ro
       name: w.name,
       source: w.source,
       canTrain:w.source==='generated',
+      familyId:w.workflow_id,
       section: 'not_activated',
       category: categorize([w.name, w.description, w.primary_outcome, w.vertical]),
       lastRun: null,
@@ -122,6 +125,7 @@ export function buildRoster({ feed, mine, paused, categorize }: RosterInput): Ro
       name,
       source: sourceFor(p.skill_slug),
       canTrain:meta.get(p.skill_slug)?.source==='generated',
+      familyId:meta.get(p.skill_slug)?.workflow_id,
       section: 'paused',
       category: categorize(parts(p.skill_slug, name)),
       lastRun: null,

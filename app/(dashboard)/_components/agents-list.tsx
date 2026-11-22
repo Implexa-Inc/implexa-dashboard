@@ -33,6 +33,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import LocalTime from './local-time';
+import {AgentSampleThumbnail,useAgentSampleThumbnails,type CoverMap} from './agent-sample-thumbnails';
+import type {ListingSample} from '@/lib/approved-marketplace-listings';
 import {CollectionEmpty} from './collection-state';
 import {useAgentCollectionCount} from './agent-home-frame';
 
@@ -117,6 +119,7 @@ function RowMenu({ onArchive, onDeactivate, canDeactivate, busy, trainingHref, l
 }
 
 export type ListAgent = {
+  familyId?:string;
   slug: string;
   name: string;
   source: string;
@@ -189,7 +192,7 @@ function stateBadge(a: ListAgent): { label: string; cls: string } | null {
 }
 
 
-function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, card=false }: { card?:boolean; a: ListAgent; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busy: boolean }) {
+function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, card=false,cover }: { cover?:ListingSample;card?:boolean; a: ListAgent; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busy: boolean }) {
   const detail = `/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`;
   const titleHref = detail;
   const badge = a.section !== 'not_activated' ? stateBadge(a) : null;
@@ -207,7 +210,7 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, car
 
   const isDraft=a.section==='not_activated';
   return <li className={`agent-roster-row ${card?'agent-favorite-card':''}`}>
-    {card&&<div className="agent-card-art" aria-hidden="true"><svg><use href="/brand/tukido-icons.svg#agents"/></svg></div>}
+    {card&&<div className="agent-card-art"><AgentSampleThumbnail cover={cover}/></div>}
     <button type="button" className="agent-star" onClick={()=>onToggleFavorite(a)} aria-label={a.favorite?`Unfavorite ${a.name}`:`Add ${a.name} to favorites`} aria-pressed={!!a.favorite}>{a.favorite?'★':'☆'}</button>
     <div className="agent-row-name">
       {editing?<input autoFocus value={draft} onChange={e=>setDraft(e.target.value)} onBlur={save} onKeyDown={e=>{if(e.key==='Enter')save();if(e.key==='Escape'){setDraft(a.name);setEditing(false);}}} maxLength={120} disabled={saving} aria-label={`Name for ${a.name}`} className="input"/>:
@@ -223,10 +226,10 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, car
   </li>;
 }
 
-function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFavorite, busySlug, subtitle, collapsible = false, cards=false, limit=8 }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busySlug: string | null; subtitle?: string; collapsible?: boolean;cards?:boolean;limit?:number }) {
+function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFavorite, busySlug, subtitle, collapsible = false, cards=false, limit=8,covers }: {covers?:CoverMap; title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busySlug: string | null; subtitle?: string; collapsible?: boolean;cards?:boolean;limit?:number }) {
   const [all,setAll]=useState(false);
   if (!agents.length) return null;
-  const content=<><ul className={cards?'agent-favorites-grid':'agent-roster-list'}>{(all?agents:agents.slice(0,limit)).map(a=><Row key={a.slug} a={a} card={cards} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug===a.slug}/>)}</ul>
+  const content=<><ul className={cards?'agent-favorites-grid':'agent-roster-list'}>{(all?agents:agents.slice(0,limit)).map(a=><Row key={a.slug} a={a} cover={a.familyId?covers?.[a.familyId]:undefined} card={cards} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug===a.slug}/>)}</ul>
     {agents.length>limit&&<p className="agent-section-more">Showing {all?agents.length:limit} of {agents.length} · <button type="button" onClick={()=>setAll(!all)}>{all?'Show less':`Show all ${agents.length}`}</button></p>}</>;
   return collapsible?<details className="agent-collapsed-group"><summary>{title} <span>{agents.length}{subtitle?` · ${subtitle}`:''}</span></summary><div>{content}</div></details>:
     <section className="agent-section" aria-label={title}><div className="agent-section-head"><h2>{title}</h2><span>{agents.length}</span>{subtitle&&<p>{subtitle}</p>}</div>{content}</section>;
@@ -402,6 +405,7 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
   // sections below so a starred agent shows once). Newest-starred not tracked here;
   // order follows the roster.
   const favorites = shown.filter((a) => a.favorite);
+  const covers=useAgentSampleThumbnails(list.filter(a=>a.favorite).map(a=>a.familyId));
   const scheduled = shown.filter((a) => a.section === 'scheduled' && !a.favorite);
   const onDemand = shown.filter((a) => a.section === 'on_demand' && !a.favorite);
   const notActivated = shown.filter((a) => a.section === 'not_activated' && !a.favorite);
@@ -444,7 +448,7 @@ export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKn
       {attention.length>0&&<section className="agent-section" aria-label="Needs you"><div className="agent-section-head"><h2>Needs you</h2><span className="agent-attention-count">{attention.length} agents</span></div><div className="agent-needs-grid">
         {(showNeeds?attention:attention.slice(0,3)).map(a=><article key={a.slug} className={`agent-need-card ${a.lastRun?.status==='failed'?'failed':''}`}><h3>{a.name}</h3><p>{(a.pendingQuestions??0)>0?`${a.pendingQuestions} question${a.pendingQuestions===1?' needs':'s need'} your answer.`:a.interventionReason||'Open this agent to see what it needs.'}</p><Link href={`/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`} className="btn-outline">Open agent</Link></article>)}
       </div>{attention.length>3&&<p className="agent-section-more">{!showNeeds&&`and ${attention.length-3} more · `}<button type="button" onClick={()=>setShowNeeds(!showNeeds)}>{showNeeds?'Show less':`Show all ${attention.length}`}</button></p>}</section>}
-      <Section title="Favorites" agents={favorites} cards limit={4} {...rowHandlers}/>
+      <Section title="Favorites" agents={favorites} cards limit={4} covers={covers} {...rowHandlers}/>
       {activated.length>0&&<div className="agent-sort"><label>Sort <select value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recently run</option><option value="name">Name</option></select></label></div>}
       <Section title="All active agents" agents={activated} {...rowHandlers}/>
       <Section title="Drafts" subtitle="saved but not turned on" agents={notActivated} collapsible limit={3} {...rowHandlers}/>

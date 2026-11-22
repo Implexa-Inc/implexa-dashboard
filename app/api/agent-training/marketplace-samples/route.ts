@@ -8,7 +8,7 @@ export async function POST(request:Request){
  if(!session?.access_token)return NextResponse.json({ok:false,reason:'unauthorized'},{status:401});
  const q=new URL(request.url).searchParams,action=q.get('action'),id=q.get('id'),slug=q.get('slug');
  const allowed=action==='reserve'?['action','slug']:['action','id'];
- if(q.size!==2||[...q.keys()].some(key=>!allowed.includes(key)))return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
+ if(q.size!==allowed.length||[...q.keys()].some(key=>!allowed.includes(key)))return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
  const target=action==='reserve'&&slug&&/^[a-zA-Z0-9_-]{1,200}$/.test(slug)?`agents/${encodeURIComponent(slug)}/marketplace-samples`:['prepare','remove'].includes(action||'')&&uuid.test(id||'')?`marketplace-samples/${id}/${action}`:null;
  if(!target)return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
  try{
@@ -21,6 +21,10 @@ export async function GET(request:Request){
  const {data:{session}}=await createClient().auth.getSession();
  if(!session?.access_token)return new Response(null,{status:401});
  const q=new URL(request.url).searchParams,id=q.get('id'),variant=q.get('variant');
+ if(q.get('action')==='covers'){
+  const ids=(q.get('familyIds')||'').split(',');if(q.size!==2||[...q.keys()].some(key=>!['action','familyIds'].includes(key))||ids.length<1||ids.length>50||new Set(ids).size!==ids.length||ids.some(id=>!uuid.test(id)))return new Response(null,{status:400});
+  try{const r=await fetch(`${CORE}/api/v2/agent-training/marketplace-samples/covers?familyIds=${ids.join(',')}`,{headers:{authorization:`Bearer ${session.access_token}`},cache:'no-store',signal:AbortSignal.any([request.signal,AbortSignal.timeout(3000)])});return NextResponse.json(await r.json(),{status:r.status,headers:{'Cache-Control':'private, no-store'}});}catch{return NextResponse.json({ok:false,reason:'sample_storage_unavailable'},{status:503});}
+ }
  if(q.get('action')==='cover'){
   const familyId=q.get('familyId');if(q.size!==2||[...q.keys()].some(key=>!['action','familyId'].includes(key))||!uuid.test(familyId||''))return new Response(null,{status:400});
   try{const r=await fetch(`${CORE}/api/v2/agent-training/marketplace-samples/cover/${familyId}`,{headers:{authorization:`Bearer ${session.access_token}`},cache:'no-store',signal:AbortSignal.any([request.signal,AbortSignal.timeout(3000)])});return NextResponse.json(await r.json(),{status:r.status,headers:{'Cache-Control':'private, no-store'}});}catch{return NextResponse.json({ok:false,reason:'sample_storage_unavailable'},{status:503});}
