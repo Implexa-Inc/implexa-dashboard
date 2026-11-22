@@ -36,3 +36,22 @@ test('cursor rejects partial or expression-injection values and keeps timestamp 
  for(const [time,key] of [[null,id(1)],['bad',id(1)],['2026-11-01T12:00:00Z',`${id(1)}),user_id.neq.x`]])assert.throws(()=>parseRunSummaryCursor(time,key),/invalid_cursor/);
  const time='2026-11-01T12:00:00.123456+00:00';assert.equal(parseRunSummaryCursor(time,id(1))?.ranAt,time);
 });
+
+test('result names use bounded validated owner metadata without output bodies or absolute paths',async()=>{
+ const row={id:id(1),skill_slug:'video',status:'completed',ran_at:'2026-11-01T12:00:00Z'};
+ const {db,calls}=client([row]);const from=db.from;
+ db.from=(table:string)=>{
+  if(table!=='run_artifacts')return from(table);
+  const q:any={};
+  for(const method of ['select','eq','in','order','limit','abortSignal'])q[method]=(...args:any[])=>{calls.push([table,method,...args]);return q;};
+  q.then=(resolve:any)=>Promise.resolve({data:[{run_id:id(1),relative_path:'run-outputs/mountain-view-final.mp4'}],error:null}).then(resolve);
+  return q;
+ };
+ const page=await selectRunSummaries(db,'owner');assert.equal(page.rows[0].outputName,'mountain-view-final.mp4');
+ assert.deepEqual(calls.find(c=>c[0]==='run_artifacts'&&c[1]==='select'),['run_artifacts','select','run_id,relative_path']);
+ for(const [field,value] of [['user_id','owner'],['role','final_output'],['status','validated']])assert.ok(calls.some(c=>c[0]==='run_artifacts'&&c[1]==='eq'&&c[2]===field&&c[3]===value));
+ assert.ok(calls.some(c=>c[0]==='run_artifacts'&&c[1]==='limit'&&c[2]===30));
+ assert.ok(calls.some(c=>c[0]==='run_artifacts'&&c[1]==='abortSignal'&&c[2] instanceof AbortSignal));
+ db.from=(table:string)=>{if(table==='run_artifacts')throw new Error('unavailable');return from(table);};
+ assert.equal((await selectRunSummaries(db,'owner')).rows[0].id,id(1),'optional names never hide real results');
+});

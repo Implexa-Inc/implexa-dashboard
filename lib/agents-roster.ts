@@ -26,6 +26,7 @@ export type Categorize = (parts: Array<string | null | undefined>) => ListAgent[
 
 /** The library shape this merge needs (a subset of listMyWorkflows' rows). */
 export type LibraryAgent = {
+  workflow_id?:string;
   slug: string;
   name: string;
   source: string;
@@ -75,11 +76,13 @@ export function buildRoster({ feed, mine, paused, categorize }: RosterInput): Ro
     const activated = a.state === 'active';
     const section: ListAgent['section'] = !activated
       ? 'not_activated'
-      : a.mode === 'scheduled' ? 'scheduled' : 'on_demand';
+      : a.mode === 'scheduled' && !a.scheduleOff ? 'scheduled' : 'on_demand';
     list.push({
       slug: a.slug,
       name: a.name,
       source: sourceFor(a.slug),
+      canTrain:meta.get(a.slug)?.source==='generated',
+      familyId:meta.get(a.slug)?.workflow_id,
       section,
       category: categorize(parts(a.slug, a.name)),
       needsIntervention: a.needsIntervention,
@@ -87,6 +90,7 @@ export function buildRoster({ feed, mine, paused, categorize }: RosterInput): Ro
       pendingQuestions: a.pendingQuestions,
       nextRunAt: a.nextRunAt,
       scheduleNl: a.scheduleNl,
+      scheduleOff: a.scheduleOff === true,
       lastRun: a.lastRun,
       grade: a.grade,
     });
@@ -102,6 +106,8 @@ export function buildRoster({ feed, mine, paused, categorize }: RosterInput): Ro
       slug: w.slug,
       name: w.name,
       source: w.source,
+      canTrain:w.source==='generated',
+      familyId:w.workflow_id,
       section: 'not_activated',
       category: categorize([w.name, w.description, w.primary_outcome, w.vertical]),
       lastRun: null,
@@ -118,6 +124,8 @@ export function buildRoster({ feed, mine, paused, categorize }: RosterInput): Ro
       slug: p.skill_slug,
       name,
       source: sourceFor(p.skill_slug),
+      canTrain:meta.get(p.skill_slug)?.source==='generated',
+      familyId:meta.get(p.skill_slug)?.workflow_id,
       section: 'paused',
       category: categorize(parts(p.skill_slug, name)),
       lastRun: null,

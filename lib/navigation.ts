@@ -1,3 +1,4 @@
+import { continuityKey } from './live-lifecycle-continuity.ts';
 /**
  * lib/navigation.ts — the ONE canonical description of the dashboard shell.
  *
@@ -79,8 +80,53 @@ export const PRIMARY_NAV: readonly NavItem[] = [
 ];
 
 /** The same three product domains in the web app and Desktop, including the pilot. */
-export function primaryNavigation(_marketplacePilot = false): readonly NavItem[] {
-  return PRIMARY_NAV;
+export function primaryNavigation(_marketplacePilot = false, canTrain = true): readonly NavItem[] {
+  return canTrain ? PRIMARY_NAV : PRIMARY_NAV.filter((item) => item.id !== 'training');
+}
+
+export type WorkAttentionBadge = { count: number; complete: boolean };
+/** A partial or failed refresh cannot disprove an already-known lower bound. */
+export function mergeWorkCount(previous:WorkAttentionBadge|null|undefined,incoming:WorkAttentionBadge|null|undefined):WorkAttentionBadge|null{
+  if(incoming?.complete)return incoming;
+  if(!previous)return incoming??null;
+  return {count:Math.max(previous.count,incoming?.count??0),complete:false};
+}
+export type ShellNavigationState = {
+  canTrain: boolean | null;
+  work?: WorkAttentionBadge | null;
+};
+
+/**
+ * Work's actionable sources: setup rows and Judge cards from TodayFeed, plus
+ * the same human-needed live statuses and bounded recent stalls Work renders.
+ * The broader attention endpoint also contains historical holds outside this
+ * view; those are not counted as extra rows.
+ * Partial reads are lower bounds, never an all-clear.
+ */
+export function workAttentionBadge(
+  needs: {
+    needGrant: ReadonlyArray<{ slug: string }>;
+    stalled?: ReadonlyArray<{id:string}>;
+    missed: ReadonlyArray<{ id: string }>;
+    signIns: ReadonlyArray<{ domain: string }>;
+    homeAttention: ReadonlyArray<{ runId: string | null; attentionId: string }>;
+  },
+  live: ReadonlyArray<{ runId?: string | null; requestId?: string | null; status?: string | null }>,
+  complete: boolean,
+): WorkAttentionBadge {
+  // Caller supplies only human-needed live rows, classified by the existing
+  // LIVE_NEEDS_YOU_STATUSES model; this function only deduplicates identities.
+  const actionable = live;
+  const runAliases = new Map(actionable.filter((item) => item.runId).map((item) => [item.runId!, continuityKey({ runId: item.runId, requestId: item.requestId })!]));
+  const keys = new Set([
+    ...needs.needGrant.map((item) => `grant:${item.slug}`),
+    ...needs.missed.map((item) => `schedule:${item.id}`),
+    ...needs.signIns.map((item) => `signin:${item.domain}`),
+    ...(needs.stalled??[]).map(item=>`run:${runAliases.get(item.id)??item.id}`),
+    ...needs.homeAttention.map((item) => item.runId ? `run:${runAliases.get(item.runId) ?? item.runId}` : `attention:${item.attentionId}`),
+    ...actionable.map((item, index) => `run:${continuityKey({ runId: item.runId, requestId: item.requestId }) ?? `untracked:${index}`}`),
+  ]);
+  return { count: keys.size, complete };
 }
 
 export const SECONDARY_NAV: readonly NavItem[] = [
@@ -141,17 +187,18 @@ export function activeNavItem(pathname: string): NavItem | null {
 
 // ── Work views ───────────────────────────────────────────────────────────────
 //
-// Work's three states (DESIGN.md §8.2). `review` is the "Ready for review"
+// Work's five filters (approved Work mockup). `review` is the "Ready for review"
 // filter that replaces the old Review navigation entry — a filter changes entry
 // context, never destination ownership (§8.5).
 
-export const WORK_VIEWS = ['needs', 'review', 'delivered'] as const;
+export const WORK_VIEWS = ['activity', 'needs', 'review', 'running', 'delivered'] as const;
 export type WorkView = typeof WORK_VIEWS[number] | 'activity' | 'agents';
 
-export const DEFAULT_WORK_VIEW: WorkView = 'needs';
+export const DEFAULT_WORK_VIEW: WorkView = 'activity';
 
 export const WORK_VIEW_LABELS: Record<WorkView, string> = {
-  activity: 'All runs',
+  activity: 'Active',
+  running: 'Running',
   agents: 'All agents',
   needs:     'Needs you',
   review:    'Ready for review',
@@ -164,11 +211,11 @@ export function parseWorkView(raw: string | string[] | undefined | null): WorkVi
   return (WORK_VIEWS as readonly string[]).includes(v ?? '') ? (v as WorkView) : DEFAULT_WORK_VIEW;
 }
 
-/** Default changes only for a readable pilot; explicit legacy filters still win. */
+/** Active is the shared default; all legacy explicit filters keep their destination. */
 export function resolveWorkView(raw: string | string[] | undefined | null, marketplacePilot = false): WorkView {
   const value=Array.isArray(raw)?raw[0]:raw;
-  if (marketplacePilot && value==='agents') return 'agents';
-  return value==='activity'||(marketplacePilot&&!value)?'activity':parseWorkView(value);
+  if (value === 'agents') return 'agents';
+  return parseWorkView(value);
 }
 
 export function workViewHref(view: WorkView): string {
@@ -223,34 +270,6 @@ export function legacyDestination(
 
   const qs = params.toString();
   return qs ? `${path}?${qs}` : path;
-}
-
-/**
- * Merge per-source timestamp lists into one deduplicated list.
- *
- * Work's badge spans two server-fed lists that are read from the SAME table
- * with different filters — every run in the window, and the subset that stalled
- * or is awaiting a decision. The second is largely contained in the first, so
- * concatenating them counts those rows twice and the badge reads roughly double.
- */
-export function mergeTimestamps(...lists: readonly (readonly string[])[]): string[] {
-  return Array.from(new Set(lists.flat()));
-}
-
-/**
- * How many of `timestamps` are newer than a "last opened" marker.
- *
- * ISO strings are compared as epoch millis so a timezone-suffix difference
- * ("+00:00" vs "Z") cannot skew the result, and an unparseable timestamp is
- * skipped rather than counted.
- */
-export function countNewerThan(timestamps: readonly string[], seenMs: number): number {
-  let n = 0;
-  for (const t of timestamps) {
-    const ms = Date.parse(t);
-    if (Number.isFinite(ms) && ms > seenMs) n++;
-  }
-  return n;
 }
 
 // ── State-aware default landing ──────────────────────────────────────────────
@@ -328,23 +347,6 @@ export function postAuthDestination(o: {
   if (o.adoptSlug) return `/workflows/${o.adoptSlug}`;
   if (o.intent) return `/overview?intent=${encodeURIComponent(o.intent)}`;
   return o.next || DEFAULT_LANDING_ROUTE;
-}
-
-/**
- * The per-device "last opened Work" marker, SCOPED TO THE ACCOUNT.
- *
- * An unscoped key leaks across accounts on a shared device: signing out of one
- * account and into another hands the second account the first one's marker, so
- * work that arrived before the switch is silently already-seen and the badge
- * never shows it. The same device genuinely runs two Implexa accounts here —
- * that is why "Switch account" existed at all.
- *
- * Returns null when there is no account id to scope by; the caller renders no
- * badge rather than falling back to a shared key.
- */
-export function workSeenKey(userId: string | null | undefined): string | null {
-  const id = (userId ?? '').trim();
-  return id ? `implexa.seen.work:${id}` : null;
 }
 
 // ── Shell chrome ─────────────────────────────────────────────────────────────

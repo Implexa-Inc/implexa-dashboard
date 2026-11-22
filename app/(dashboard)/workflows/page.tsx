@@ -1,27 +1,13 @@
-/**
- * /workflows — your agents, in ONE mental model.
- *
- * Three sections (Scheduled, On-demand, Not activated), one row shape, a
- * category filter. Built by merging two owner-scoped sources server-side:
- *   - getMyAgents (the /me/agents feed): everything with an activation row —
- *     active (scheduled / on-demand) and mid-activation.
- *   - listMyWorkflows (the user's library): catches agents BUILT but never
- *     activated (no scheduled_skills row), and enriches every row with the
- *     description used for categorization + the correct ?source for its link.
- * The merged, normalized array is handed to <AgentsList /> which renders + the
- * client-side category filter. No more two-list / two-link-target confusion.
- */
-
-import InstalledAgents from '../_components/installed-agents';
+import {Suspense} from 'react';
+import InstalledAgents,{loadInstalledRoster,InstalledAgentCount} from '../_components/installed-agents';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
-import {RentBuildHome} from '../_components/agent-home-frame';
-import GuidedAgentCreation from '../_components/guided-agent-creation';
-import {isExecutorConnected} from '@/lib/connection';
+import AgentHomeFrame from '../_components/agent-home-frame';
 import BuildingAgents from '../_components/building-agents';
 import {getMarketplaceSamples,getApprovedMarketplaceListings} from '@/lib/agent-marketplace-samples-server';
 import MarketplaceSampleGallery from '../_components/marketplace-sample-gallery';
+import {listAgentDiscovery} from '@/lib/agent-discovery';
 import {agentHomeView} from '@/lib/agent-marketplace-samples';
 
 export const dynamic = 'force-dynamic';
@@ -34,16 +20,14 @@ export default async function WorkflowsPage({searchParams}:{searchParams?:{tab?:
     .from('users').select('id, organization_id, last_mcp_call_at, last_hook_event_at').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const samples=await getMarketplaceSamples();
-  const view=agentHomeView(samples,searchParams?.tab),pilot=view!=='ordinary';
+  const view=agentHomeView(searchParams?.tab);
   if(view==='running') redirect('/work?view=activity');
   if(view==='training') redirect('/training');
-  if(view==='rent'){
-    const connected=await isExecutorConnected(supabase,session.user.id,{lastMcpCallAt:profile.last_mcp_call_at,lastHookEventAt:profile.last_hook_event_at});
-    return <RentBuildHome build={<GuidedAgentCreation ownerId={session.user.id} connected={connected}/>} status={<BuildingAgents/>}>
-      <MarketplaceSampleGallery listings={samples.listings} approved={await getApprovedMarketplaceListings(session.access_token)}/>
-    </RentBuildHome>;
-  }
-
-  return <InstalledAgents jwt={session.access_token} pilot={pilot}/>;
+  if(view==='rent')return <AgentHomeFrame key={session.user.id} selected="find"><Suspense fallback={<p role="status" className="mt-6">Loading trained agents…</p>}><FindAgents jwt={session.access_token}/></Suspense></AgentHomeFrame>;
+  const load=loadInstalledRoster(session.access_token);
+  return <AgentHomeFrame key={session.user.id} count={<Suspense fallback={<span className="work-filter-count">…</span>}><InstalledAgentCount load={load}/></Suspense>}><Suspense fallback={<p role="status" className="mt-6">Loading your agents…</p>}><InstalledAgents load={load}/></Suspense></AgentHomeFrame>;
+}
+async function FindAgents({jwt}:{jwt:string}){
+ const [samples,approved,discovery]=await Promise.all([getMarketplaceSamples(),getApprovedMarketplaceListings(jwt),listAgentDiscovery(jwt)]);
+ return <><BuildingAgents/><MarketplaceSampleGallery listings={samples.listings} approved={approved} discovery={discovery}/></>;
 }

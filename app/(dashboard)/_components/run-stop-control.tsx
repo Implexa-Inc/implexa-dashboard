@@ -58,13 +58,13 @@ export default function RunStopControl({ runId, runState, cancelRequestedAt }: {
       <p className="text-sm text-ink-200">
         {ended ? 'This run has already ended. Refreshing its recorded result.'
           : pending ? 'Stop requested. Waiting for the owning executor or Desktop to confirm closure.'
-            : 'This attempt is still open, even if no executor is currently active. You can request Stop without marking the work successful.'}
+            : 'You can stop this run. Files already created will be kept.'}
       </p>
       {!pending && !ended && (!confirm ? (
         <button type="button" className="btn-outline mt-3 text-sm" onClick={() => setConfirm(true)}>Stop run</button>
       ) : (
         <div className="mt-3">
-          <p className="text-sm text-ink-300">Stop this attempt and any remaining verification? This does not delete existing files, retry the work, or create a successful result.</p>
+          <p className="text-sm text-ink-300">Stop this run and its remaining checks? Existing files will stay saved.</p>
           <button type="button" className="btn-outline mt-3 text-sm" disabled={busy} onClick={stop}>{busy ? 'Requesting Stop…' : 'Confirm stop'}</button>
           <button type="button" className="ml-3 text-sm" disabled={busy} onClick={() => setConfirm(false)}>Keep open</button>
         </div>

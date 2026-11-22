@@ -1,0 +1,9 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {buildSync} from 'esbuild';import {fileURLToPath} from 'node:url';import {runInNewContext} from 'node:vm';
+const code=buildSync({entryPoints:[fileURLToPath(new URL('./route.ts',import.meta.url))],bundle:true,platform:'node',format:'cjs',write:false,external:['next/server','@/lib/supabase/server']}).outputFiles[0].text;
+function proxy(signedIn=true){const calls:any[]=[],module={exports:{} as any};runInNewContext(code,{module,exports:module.exports,process:{env:{}},URL,AbortSignal,require:(n:string)=>n==='next/server'?{NextResponse:{json:(value:any,init:any={})=>({value,status:init.status||200,headers:init.headers})}}:{createClient:()=>({auth:{getSession:async()=>({data:{session:signedIn?{access_token:'server-session'}:null}})}})},fetch:async(url:any,init:any)=>{calls.push({url,init});return {status:200,json:async()=>({ok:true})};}});return {GET:module.exports.GET,calls};}
+test('metrics proxy uses authenticated session only and rejects owner or duplicate selectors',async()=>{
+ const p=proxy(),request=(q:string)=>new Request(`https://dashboard.test/api/agents/video-agent/metrics?${q}`,{headers:{authorization:'Bearer forged'}});
+ assert.equal((await p.GET(request('source=generated'),{params:{slug:'video-agent'}})).status,200);assert.equal(p.calls[0].init.headers.authorization,'Bearer server-session');assert.equal(p.calls[0].url,'https://core.implexa.ai/api/v2/me/agents/video-agent/metrics?source=generated');assert.equal(p.calls[0].init.cache,'no-store');
+ for(const q of ['source=generated&ownerId=foreign','source=generated&source=community'])assert.equal((await p.GET(request(q),{params:{slug:'video-agent'}})).status,400);assert.equal(p.calls.length,1);
+ const denied=proxy(false);assert.equal((await denied.GET(request(''),{params:{slug:'video-agent'}})).status,401);assert.equal(denied.calls.length,0);
+});

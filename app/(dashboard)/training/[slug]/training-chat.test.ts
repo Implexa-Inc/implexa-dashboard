@@ -90,7 +90,7 @@ test('selected feedback is an explicit target, never sent by opening; Send binds
  assert.match(r.text(),/Nothing is sent until Send/);
  await r.click(r.getByText('Send'));const b=JSON.parse(calls.find(c=>c.init.method==='POST').init.body);
  assert.deepEqual(b.target,target);assert.equal(b.changesContract,'guided-training-changes.v1');assert.equal(saved,1);
- assert.equal(r.queryByText('Cancel selected target'),null);
+ assert.equal(r.queryByText('Cancel'),null);
  await type(r,'Prefer fewer labels.');await r.click(r.getByText('Send'));
  const normal=JSON.parse(calls.filter(c=>c.init.method==='POST').at(-1).init.body);assert.equal(normal.target,null);
 });
@@ -99,7 +99,7 @@ test('switching selected targets changes idempotency identity and a version swit
  await r.rerender({...props,request:{key:'target-one',target:{kind:'record',id:id(40),digest:H},prompt:'Prefer quieter emphasis.'}});
  await r.rerender({...props,request:{key:'target-two',target:{kind:'record',id:id(41),digest:H},prompt:'Prefer quieter emphasis.'}});
  await r.click(r.getByText('Send'));assert.equal(JSON.parse(calls.find(c=>c.init.method==='POST').init.body).target.id,id(41));
- await r.rerender({...props,versionId:id(90),disabled:true});assert.equal(r.queryByText('Cancel selected target'),null);
+ await r.rerender({...props,versionId:id(90),disabled:true});assert.equal(r.queryByText('Cancel'),null);
 });
 
 test('guided test suggestion reviews the snapshot gate rather than bypassing it through the normal run page',async t=>{
@@ -183,4 +183,11 @@ test('a guided reply with stale context cannot downgrade a subsequent teaching s
  assert.equal(calls.filter(x=>x.init.method==='POST').length,1);
  assert.match(r.text(),/Refresh saved messages before sending this teaching/);
  assert.equal(r.document.querySelector('textarea')!.value,'Keep animation secondary in that direction.');
+});
+
+test('Change it quotes the bound lesson in chat and sends nothing until the trainer submits',async t=>{
+ const {r,props,calls}=await setup(t,{guided:true,embedded:true});
+ await r.rerender({...props,request:{key:'edit-quote',target:{kind:'record',id:id(40),digest:H},prompt:'Please revise the selected teaching. I would like to change: ',quote:'Keep related ideas visually connected.'}});
+ assert.equal(r.document.querySelector('blockquote')?.textContent,'Keep related ideas visually connected.');assert.equal(calls.some(c=>c.init.method==='POST'),false);
+ await r.click(r.getByText('Cancel'));assert.equal(r.document.querySelector('blockquote'),null);
 });

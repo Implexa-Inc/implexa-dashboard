@@ -40,3 +40,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, reason }, { status: phase === 'body' ? 400 : 503 });
   }
 }
+
+// Read the exact saved owner proposal; this never invokes analysis or editing.
+export async function GET(request:Request){
+ const {data:{session}}=await createClient().auth.getSession();
+ if(!session?.access_token)return NextResponse.json({ok:false,reason:'unauthorized'},{status:401});
+ const q=new URL(request.url).searchParams,keys=['operation','sessionId','expectedActiveVersionId','suggestionId','suggestionDigest'];
+ if([...q.keys()].some(k=>!keys.includes(k))||keys.some(k=>q.getAll(k).length!==1)||q.get('operation')!=='agent-change'
+  ||!['sessionId','expectedActiveVersionId','suggestionId'].every(k=>UUID.test(q.get(k)||''))||!/^[a-f0-9]{64}$/.test(q.get('suggestionDigest')||''))return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
+ const target=new URL(`${BACKEND}/api/v2/agent-training/sessions/${q.get('sessionId')}/recording-agent-change`);
+ for(const k of ['expectedActiveVersionId','suggestionId','suggestionDigest'])target.searchParams.set(k,q.get(k)!);
+ try{const response=await fetch(target.toString(),{method:'GET',headers:{authorization:`Bearer ${session.access_token}`},cache:'no-store',signal:AbortSignal.any([request.signal,AbortSignal.timeout(8000)])});
+  return NextResponse.json(await response.json(),{status:response.status,headers:{'Cache-Control':'no-store'}});
+ }catch{return NextResponse.json({ok:false,reason:'recording_proposal_unavailable'},{status:503,headers:{'Cache-Control':'no-store'}});}
+}

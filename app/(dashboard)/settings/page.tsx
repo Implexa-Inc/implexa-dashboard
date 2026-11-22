@@ -1,3 +1,4 @@
+import PageHeader from '@/components/page-header';
 /**
  * /settings — hub page that links into each settings sub-section.
  *
@@ -39,17 +40,16 @@ export default async function SettingsHubPage() {
   const isFoundingCreator = !!profile.founding_creator_unlocked_at;
 
   return (
-    <main className="app-page">
-      <div className="app-content">
-        <header className="mb-10">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Settings</h1>
-          <p className="text-ink-300 text-sm mt-1">
+    <section className="settings-page">
+      <div className="settings-page-content">
+        <PageHeader title="Settings">
+          <p className="app-page-description">
             {profile.display_name ? `${profile.display_name} · ` : ''}{profile.email}
             {org?.name ? ` · ${org.name}` : ''}
             {' · '}<span className="capitalize">{plan}</span> plan
             {isFoundingCreator && <span className="ml-2 text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">Founding creator</span>}
           </p>
-        </header>
+        </PageHeader>
 
         <SettingsGroup title="Account">
           <SettingsCard
@@ -114,7 +114,7 @@ export default async function SettingsHubPage() {
         </SettingsGroup>
 
       </div>
-    </main>
+    </section>
   );
 }
 

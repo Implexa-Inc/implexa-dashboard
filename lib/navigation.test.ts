@@ -12,7 +12,6 @@ import {
   WORK_VIEWS, DEFAULT_WORK_VIEW, parseWorkView, resolveWorkView, workViewHref,
   LEGACY_ROUTE_REDIRECTS, legacyDestination,
   resolveDefaultLanding, isCreateFabSuppressed, anySignal,
-  countNewerThan, mergeTimestamps, workSeenKey,
   DEFAULT_LANDING_ROUTE, postAuthDestination,
 } from './navigation.ts';   // explicit extension: node:test resolves ESM, not bundler-style
 
@@ -72,15 +71,15 @@ test('deep links light up the domain that owns them', () => {
   assert.equal(activeNavItem('/admin'), null, 'an unowned path claims no domain rather than guessing');
 });
 
-test('Work views are the three states Work owns, defaulting to Needs you', () => {
-  assert.deepEqual([...WORK_VIEWS], ['needs', 'review', 'delivered']);
-  assert.equal(DEFAULT_WORK_VIEW, 'needs');
+test('Work has five shared filters and defaults to Active', () => {
+  assert.deepEqual([...WORK_VIEWS], ['activity', 'needs', 'review', 'running', 'delivered']);
+  assert.equal(DEFAULT_WORK_VIEW, 'activity');
   assert.equal(parseWorkView('review'), 'review');
   assert.equal(parseWorkView(['delivered']), 'delivered');
   // A junk or absent filter must not blank the page.
-  assert.equal(parseWorkView(undefined), 'needs');
-  assert.equal(parseWorkView('nonsense'), 'needs');
-  assert.equal(workViewHref('needs'), '/work', 'the default view is the bare canonical URL');
+  assert.equal(parseWorkView(undefined), 'activity');
+  assert.equal(parseWorkView('nonsense'), 'activity');
+  assert.equal(workViewHref('activity'), '/work', 'the default view is the bare canonical URL');
   assert.equal(workViewHref('review'), '/work?view=review');
 });
 
@@ -171,39 +170,6 @@ test('a carried build intent still reaches the ONE surface that consumes it', ()
   );
 });
 
-// ── Badge scoping ────────────────────────────────────────────────────────────
-
-test('the Work seen-marker is scoped per account', () => {
-  // Two accounts on one device must not inherit each other's "last opened"
-  // time; the second would silently start with the first one's work marked
-  // seen. This device really does run more than one Implexa account.
-  assert.equal(workSeenKey('user-a'), 'implexa.seen.work:user-a');
-  assert.notEqual(workSeenKey('user-a'), workSeenKey('user-b'));
-});
-
-test('no account id means NO badge rather than a shared key', () => {
-  for (const id of [null, undefined, '', '   ']) {
-    assert.equal(workSeenKey(id), null, `"${String(id)}" must not fall back to a shared marker`);
-  }
-});
-
-test('the Work badge counts a run ONCE even though two queries return it', () => {
-  // resultRunsAt is "every run in the window"; needsItemsAt is "the stalled or
-  // awaiting-decision subset" — read from the same table. Concatenating them
-  // counts the overlap twice and the badge reads roughly double.
-  const a = '2026-08-11T10:00:00Z';
-  const b = '2026-08-11T11:00:00Z';
-  assert.deepEqual(mergeTimestamps([a, b], [a]), [a, b]);
-  assert.equal(countNewerThan(mergeTimestamps([a, b], [a, b]), Date.parse('2026-08-11T09:00:00Z')), 2);
-});
-
-test('countNewerThan ignores unparseable stamps and is timezone-format agnostic', () => {
-  const seen = Date.parse('2026-08-11T09:00:00Z');
-  assert.equal(countNewerThan(['2026-08-11T10:00:00+00:00', '2026-08-11T10:00:00Z'], seen), 2);
-  assert.equal(countNewerThan(['not-a-date', ''], seen), 0);
-  assert.equal(countNewerThan(['2026-08-11T08:00:00Z'], seen), 0, 'older than the marker is not new');
-});
-
 test('the global Create button stays out of review and contextual Training/creation surfaces', () => {
   for (const p of ['/work', '/work?view=review', '/review', '/review/run-1', '/runs/abc','/training','/training/video-agent','/create','/workflows','/workflows/x','/settings','/settings/account']) {
     assert.equal(isCreateFabSuppressed(p.split('?')[0]), true, `${p} should suppress Create`);
@@ -222,19 +188,19 @@ test('the redesign unifies exactly the existing domains; every deep link retains
  }
 });
 
-test('Work defaults to Needs you outside the pilot, and explicit decisions remain reachable for pilots',()=>{
- for(const value of [undefined,null,''])assert.equal(resolveWorkView(value,false),'needs');
+test('Work defaults to Active for every account while explicit legacy filters stay reachable',()=>{
+ for(const value of [undefined,null,''])assert.equal(resolveWorkView(value,false),'activity');
  assert.equal(resolveWorkView(undefined,true),'activity');
- for(const pilot of [false,true])for(const view of ['needs','review','delivered','activity'] as const){
+ for(const pilot of [false,true])for(const view of ['needs','review','delivered','activity','running'] as const){
   assert.equal(resolveWorkView(view,pilot),view);assert.equal(resolveWorkView([view],pilot),view);
  }
- assert.equal(resolveWorkView('unknown',false),'needs');
+ assert.equal(resolveWorkView('unknown',false),'activity');
 });
 
 
-test('All agents collection belongs only to the pilot; legacy filters retain their destinations',()=>{
+test('Legacy All agents resolves to the Agents collection for both account types',()=>{
  assert.equal(resolveWorkView('agents',true),'agents');
- assert.equal(resolveWorkView('agents',false),'needs');
+ assert.equal(resolveWorkView('agents',false),'agents');
  assert.equal(resolveWorkView(undefined,true),'activity');
  for(const view of ['needs','review','delivered'] as const) assert.equal(resolveWorkView(view,true),view);
 });

@@ -1,3 +1,4 @@
+import PageHeader from '@/components/page-header';
 /**
  * /settings/updates — keep Implexa current.
  *
@@ -11,7 +12,6 @@
  * telemetry is not used because one account can be active on several Macs.
  */
 
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getLatestVersions } from '@/lib/versions';
@@ -40,15 +40,14 @@ export default async function UpdatesPage() {
   const desktop = versions?.desktop ?? { latest: '', download_url: null, notes: null };
 
   return (
-    <main className="app-page">
-      <div className="app-content">
-        <header className="mb-8">
-          <Link href="/settings" className="text-xs text-action-accent hover:underline">← Settings</Link>
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50 mt-2">Updates</h1>
-          <p className="text-ink-300 text-sm mt-1">
+    <section className="settings-page">
+      <div className="settings-page-content">
+
+        <PageHeader title="Updates">
+          <p className="app-page-description">
             Keep your Implexa plugin and desktop app current. Updates ship new workflows, better recommendations, and fixes.
           </p>
-        </header>
+        </PageHeader>
 
         <PluginUpdateStatus
           latest={plugin.latest}
@@ -97,6 +96,6 @@ export default async function UpdatesPage() {
           </div>
         </section>
       </div>
-    </main>
+    </section>
   );
 }

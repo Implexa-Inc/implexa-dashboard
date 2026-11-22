@@ -2,7 +2,7 @@
  * a model statement is never evidence that a teaching was saved or applied. */
 import {isTrainingDirectionScope,type TrainingDirectionScope} from './training-local-ingress.ts';
 export type FeedbackOutcome='not_analysed'|'not_converted'|'partly'|'added';
-export type TrainingChangeRecord={creativeDirections?:TrainingDirectionScope;recordId:string;recordDigest:string;summary:string|null;state:'suggested'|'candidate'|'human_accepted'|'retired'|'revoked'|'discarded'|'unavailable'|'removed';included:boolean;admissionOrigin:'none'|'standing_policy'|'owner_candidate'|'human_decision';category:'taste'|'method_preference'|null;sourceKind:'trainer_feedback'|'creation_notes'|'legacy_evidence';policyReceiptId:string|null;policyReceiptDigest:string|null;sourceEventId:string|null;sourceEventDigest:string|null;model:string|null;reviewMark?:{acknowledgmentId:string}};
+export type TrainingChangeRecord={createdAt?:string;creativeDirections?:TrainingDirectionScope;recordId:string;recordDigest:string;summary:string|null;state:'suggested'|'candidate'|'human_accepted'|'retired'|'revoked'|'discarded'|'unavailable'|'removed';included:boolean;admissionOrigin:'none'|'standing_policy'|'owner_candidate'|'human_decision';category:'taste'|'method_preference'|null;sourceKind:'trainer_feedback'|'creation_notes'|'legacy_evidence';policyReceiptId:string|null;policyReceiptDigest:string|null;sourceEventId:string|null;sourceEventDigest:string|null;model:string|null;reviewMark?:{acknowledgmentId:string}};
 export type GuidedTrainingChanges={ok:true;contractVersion:'guided-training-changes.v1';
  binding:{sessionId:string;agentFamilyId:string;workflowVersionId:string;snapshotDigest:string};
  policy:{policyId:string|null;policyDigest:string|null;revision:number;enabled:boolean};
@@ -12,7 +12,7 @@ export type GuidedTrainingChanges={ok:true;contractVersion:'guided-training-chan
  selectionCoverage?:{maxStandingReferences:2;eligibleTextByStage:Array<{stage:string;count:number}>};
  test:{snapshotDigest:string|null;scope:'private_candidate'|'public_projection'|null;status:'not_run'|'prepared'|'queued'|'running'|'delivered'|'stale'|'failed'|'cancelled'|'blocked';runId:string|null;requestId?:string|null;qualityScore:number|null;gaps:string[];canTest:boolean};
  activation?:{serving?:{mode:'activated_snapshot'|'legacy_accepted'|'snapshot_other_version';candidateDiffers:boolean;activeRecordIds?:string[]};canApplyWithoutTest?:boolean;canActivate:boolean;reason:string|null;servedSnapshotDigest:string|null;withdrawnSinceTest:number;stoppedSinceTest?:number;testRequestId:string|null};
- publication:{canPublish:boolean;reason:string|null;servedSnapshotDigest:string|null;proposedSnapshotDigest?:string|null;canPrepare?:boolean;
+ publication:{unpublishedActiveCount?:number|null;canPublish:boolean;reason:string|null;servedSnapshotDigest:string|null;proposedSnapshotDigest?:string|null;canPrepare?:boolean;
  qualifyingTestRequestId?:string|null;qualifyingRunId?:string|null;qualifyingSnapshotDigest?:string|null}};
 const id=(v:any)=>typeof v==='string'&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(v);
 const sha=(v:any)=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
@@ -23,7 +23,7 @@ export function guidedTrainingChanges(v:any,expected:{sessionId:string;workflowV
   ||!id(v.binding.agentFamilyId)||!sha(v.binding.snapshotDigest)||!v.policy||typeof v.policy.enabled!=='boolean'
   ||!Number.isSafeInteger(v.policy.revision)||v.policy.revision<0||!(v.policy.policyId===null&&v.policy.policyDigest===null||id(v.policy.policyId)&&sha(v.policy.policyDigest))||v.policy.enabled&&v.policy.policyId===null
   ||!Array.isArray(v.records)||v.records.length>100||!Array.isArray(v.feedback)||v.feedback.length>100)return false;
- const seen=new Set();for(const r of v.records){if(Object.hasOwn(r,'creativeDirections')&&!isTrainingDirectionScope(r.creativeDirections)||!id(r.recordId)||seen.has(r.recordId)||!sha(r.recordDigest)||!(r.summary===null&&!r.included&&['revoked','retired','discarded','unavailable'].includes(r.state)||text(r.summary,2000)&&r.summary.trim())
+ const seen=new Set();for(const r of v.records){if(r.createdAt!==undefined&&(typeof r.createdAt!=='string'||!Number.isFinite(Date.parse(r.createdAt)))||Object.hasOwn(r,'creativeDirections')&&!isTrainingDirectionScope(r.creativeDirections)||!id(r.recordId)||seen.has(r.recordId)||!sha(r.recordDigest)||!(r.summary===null&&!r.included&&['revoked','retired','discarded','unavailable'].includes(r.state)||text(r.summary,2000)&&r.summary.trim())
   ||typeof r.included!=='boolean'||!['none','standing_policy','owner_candidate','human_decision'].includes(r.admissionOrigin)
   ||![null,'taste','method_preference'].includes(r.category)||!['trainer_feedback','creation_notes','legacy_evidence'].includes(r.sourceKind)
   ||!(r.policyReceiptId===null&&r.policyReceiptDigest===null||id(r.policyReceiptId)&&sha(r.policyReceiptDigest))
@@ -53,6 +53,7 @@ export function guidedTrainingChanges(v:any,expected:{sessionId:string;workflowV
   ||!Number.isInteger(a.withdrawnSinceTest)||a.withdrawnSinceTest<0||!(a.testRequestId===null||id(a.testRequestId))
   ||a.stoppedSinceTest!==undefined&&(!Number.isInteger(a.stoppedSinceTest)||a.stoppedSinceTest<0)
   ||a.canActivate&&(!id(a.testRequestId)||t?.status!=='delivered'||!id(t?.runId)||t?.requestId!==a.testRequestId)))return false;
+ if(p?.unpublishedActiveCount!==undefined&&p.unpublishedActiveCount!==null&&(!Number.isSafeInteger(p.unpublishedActiveCount)||p.unpublishedActiveCount<0))return false;
  return !!t&&['not_run','prepared','queued','running','delivered','stale','failed','cancelled','blocked'].includes(t.status)&&[null,'private_candidate','public_projection'].includes(t.scope)&&(t.snapshotDigest===null||sha(t.snapshotDigest))&&(t.runId===null||id(t.runId))
   &&(t.requestId===undefined||t.requestId===null||id(t.requestId))
   &&(t.status!=='delivered'||id(t.runId)&&sha(t.snapshotDigest)&&t.scope!==null)

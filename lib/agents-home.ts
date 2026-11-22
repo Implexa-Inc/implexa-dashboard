@@ -25,6 +25,8 @@ export type MyAgent = {
   grade?: { hasGrade: boolean; rate: number; label: 'reliable' | 'mixed' | 'unproven'; runs: number; confidence: number } | null;
   /** 'on_demand' (runs when invoked) vs 'scheduled' (cron/once) — groups the home. */
   mode?: 'on_demand' | 'scheduled';
+  /** Ready for manual runs, but its saved recurring clock is disabled. */
+  scheduleOff?:boolean;
   scheduleNl: string | null;
   /** ISO of the next scheduled fire (active cron), or null. */
   nextRunAt?: string | null;

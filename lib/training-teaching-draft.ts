@@ -188,6 +188,20 @@ export function recordingAgentSuggestion(v:any,expected:RecordingSuggestion['bin
     &&v.limitations.every((s:unknown)=>typeof s==='string'&&!!s.trim()&&s.length<=200)
     &&exact(v.binding,Object.keys(expected))&&JSON.stringify(v.binding)===JSON.stringify(expected);
 }
+// Saved proposals have no new model request. Keep their read contract distinct.
+export type RecordingAgentProposal=Pick<RecordingAgentSuggestion,'capability'|'limitations'|'suggestionId'|'suggestionDigest'|'proposedChange'|'methodSelection'|'binding'>;
+export function savedRecordingAgentProposal(v:any,expected:{sessionId:string;versionId:string;id:string;digest:string}):v is {ok:true;contractVersion:'training-saved-recording-agent.v1';sessionId:string;proposal:RecordingAgentProposal}{
+ if(!exact(v,['ok','contractVersion','sessionId','proposal'])||v.ok!==true||v.contractVersion!=='training-saved-recording-agent.v1'||v.sessionId!==expected.sessionId)return false;
+ const p=v.proposal,b=p?.binding;
+ return exact(p,['capability','limitations','suggestionId','suggestionDigest','proposedChange','methodSelection','binding'])
+  &&isRecordingAgentCapability(p.capability)&&p.suggestionId===expected.id&&p.suggestionDigest===expected.digest
+  &&recordingUuid(p.suggestionId)&&recordingSha(p.suggestionDigest)&&typeof p.proposedChange==='string'&&p.proposedChange.length>0&&p.proposedChange.length<=2000
+  &&['pending_existing_binder','agent_change_required'].includes(p.methodSelection)&&(p.methodSelection!=='agent_change_required'||p.capability==='higgsfield_image_to_video')
+  &&Array.isArray(p.limitations)&&p.limitations.length<=5&&p.limitations.every((x:any)=>typeof x==='string'&&!!x.trim()&&x.length<=200)
+  &&exact(b,['sourceId','sourceSha256','targetVersionId','excerptId','excerptDigest','frames'])&&b.targetVersionId===expected.versionId
+  &&[b.sourceId,b.excerptId].every(recordingUuid)&&[b.sourceSha256,b.excerptDigest].every(recordingSha)
+  &&Array.isArray(b.frames)&&b.frames.length===3&&b.frames.every((f:any)=>exact(f,['timeMs','frameSha256'])&&Number.isSafeInteger(f.timeMs)&&f.timeMs>=0&&recordingSha(f.frameSha256));
+}
 const recordingUuid=(v:any)=>typeof v==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(v);
 const recordingSha=(v:any)=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 export function recordingSuggestion(v:any,expected:RecordingSuggestion['binding']):v is RecordingSuggestion {

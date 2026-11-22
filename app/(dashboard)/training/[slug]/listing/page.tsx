@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import PageHeader from '@/components/page-header';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import MarketplaceSubmission from '../marketplace-submission';
@@ -15,7 +16,7 @@ export default async function MarketplaceListingPage({params,searchParams}:{para
  // pins its active version. This page grants no listing or publication access.
  return <main className="app-page"><div className="app-content">
   <Link href={`/training/${encodeURIComponent(params.slug)}`} className="text-sm text-ink-400">← Back to Coach</Link>
-  <header className="app-page-head mt-7"><div><h1>Prepare your listing</h1><p className="app-page-description">Describe what your agent offers, choose real samples, and review how customers access its tools.</p></div></header>
+  <PageHeader title="Marketplace listing"><p className="app-page-description">Show what your agent offers and how people can use it.</p></PageHeader>
   <MarketplaceSubmission slug={params.slug} versionId={expectedVersion||null}/>
  </div></main>;
 }

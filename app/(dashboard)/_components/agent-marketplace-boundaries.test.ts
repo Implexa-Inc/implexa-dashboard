@@ -15,24 +15,22 @@ test('authenticated primary navigation is exactly Agents, Work, Coach', () => {
   assert.equal(existsSync(join(root, 'app', '(dashboard)', 'marketplace', 'page.tsx')), false);
 });
 
-test('Agents is one outcome-first surface with available results and a query-prefilled build result', () => {
-  assert.match(list, /placeholder="What outcome do you need\?"/);
-  assert.match(list, /Build yours for free/);
-  assert.match(list, /encodeURIComponent\(query\.trim\(\)\)/);
-  assert.match(list, /Filter available agents/);
-  assert.match(list, /Readiness/);
-  assert.match(list, /Tested engine/);
+test('owned Agents search is separate from marketplace discovery and removed filters stay absent', () => {
+  assert.match(list, /placeholder="Find one of your agents"/);
+  assert.doesNotMatch(list, /availableAgents|Agent results|Build yours for free/);
+  assert.doesNotMatch(list, /readinessFilter|engineFilter|Tested engine/, 'the founder removed Readiness and Tested-engine filters');
   assert.doesNotMatch(list, />\s*(Discover|Yours)\s*</, 'no pre-gate Discover/Yours tab chrome');
   assert.match(service, /\/api\/v2\/agents\/discovery/);
 });
 
 test('agent resume uses locked ownership/action language and never package-install language', () => {
-  for (const phrase of ['View agent', 'Use agent', 'Finish setup', 'View build']) assert.match(`${list}\n${resume}`, new RegExp(phrase));
+  for (const phrase of ['Use agent', 'Finish setup']) assert.match(`${list}\n${resume}`, new RegExp(phrase));
+  assert.match(readFileSync(join(import.meta.dirname,'marketplace-sample-gallery.tsx'),'utf8'),/View agent/);
   assert.doesNotMatch(`${list}\n${resume}`, /Install package|Install item|Marketplace item/i);
   assert.match(resume, /agent\.ownership === 'Owned'/);
   assert.match(resume, /agent\.ownership === 'Owned' \? 'Finish setup' : 'Use agent'/,
     'an owner without an acquisition must not receive a runnable label');
-  assert.match(resume, /Configure/); assert.match(resume, /Train/);
+  assert.match(resume, /Setup and permissions/); assert.match(resume, /Train/);
 });
 
 test('evidence keeps two axes: four provenance channels, four evidence types inside each', () => {
@@ -100,7 +98,7 @@ test('disable/remove management preserves history and has explicit destructive c
   assert.match(resume, /disabled=\{busy \|\| !confirmUninstall\}/);
   assert.match(resume, /agent\.readiness\.state === 'Ready'/, 'Use agent is limited to Ready');
   assert.match(resume, /agent\.ownership === 'Owned'/, 'Train and Configure are owner-only');
-  assert.match(resume, /\{agent\.ownership === 'Owned' &&/, 'owner controls stay explicitly owner-gated');
+  assert.match(resume, /\{agent\.ownership\s*===\s*'Owned'\s*&&/, 'owner controls stay explicitly owner-gated');
   assert.match(resume, /agent\.acquisition\.lifecycle !== 'uninstalled'/,
     'uninstalled acquisitions never render disable/remove controls');
 });

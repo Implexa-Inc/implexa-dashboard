@@ -1,10 +1,10 @@
+import PageHeader from '@/components/page-header';
 /**
  * /settings/account — basic account self-service.
  *   - Change display name (instant — writes to public.users)
  *   - Change email (Supabase confirmation flow — sends email to NEW address)
  */
 
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
@@ -22,28 +22,24 @@ export default async function AccountSettingsPage() {
   if (!profile) redirect('/onboarding');
 
   return (
-    <main className="app-page">
-      <div className="max-w-2xl mx-auto">
-        <nav className="text-xs text-ink-500 mb-4">
-          <Link href="/settings" className="hover:underline">← Settings</Link>
-        </nav>
+    <section className="settings-page">
+      <div className="settings-page-content">
 
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Account</h1>
-          <p className="text-sm text-ink-300 mt-1">
+        <PageHeader title="Profile">
+          <p className="app-page-description">
             Update your display name + email address. Joined {new Date(profile.created_at).toLocaleDateString()}.
           </p>
-        </header>
+        </PageHeader>
 
         <AccountForm
           currentEmail={profile.email}
           currentDisplayName={profile.display_name || ''}
         />
       </div>
-    </main>
+    </section>
   );
 }
 
 export const metadata = {
-  title: 'Account — Tukido',
+  title: 'Profile — Tukido',
 };

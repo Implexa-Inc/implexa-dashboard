@@ -534,7 +534,7 @@ async function withoutManagerScaffolds<T extends {id: string}>(supabase: Supabas
 
 
 /** Metadata only: result bodies are read when the user opens a result. */
-export type RunSummary = Pick<RunRow, 'id' | 'skill_slug' | 'status' | 'ran_at'>;
+export type RunSummary = Pick<RunRow, 'id' | 'skill_slug' | 'status' | 'ran_at'> & {outputName?: string};
 export type RunSummaryCursor = {ranAt: string; id: string};
 export type RunSummaryPage = {rows: RunSummary[]; nextCursor: RunSummaryCursor | null};
 
@@ -566,6 +566,22 @@ export async function selectRunSummaries(supabase: SupabaseClient, userId: strin
   const raw = (data ?? []) as RunSummary[];
   const consumed = raw.slice(0, pageSize);
   const rows = await withoutManagerScaffolds(supabase, consumed, true);
+  // Optional, bounded metadata only: never fetch output bodies or absolute paths
+  // for the three-row preview. RLS plus explicit ownership constrain this read.
+  if (rows.length) {
+    try {
+      const {data: artifacts, error: artifactError} = await supabase.from('run_artifacts')
+        .select('run_id,relative_path').eq('user_id', userId).in('run_id', rows.map(row => row.id))
+        .eq('role', 'final_output').eq('status', 'validated')
+        .order('relative_path', {ascending: true}).limit(30)
+        .abortSignal(AbortSignal.timeout(800));
+      if (!artifactError) for (const row of rows) {
+        const file = artifacts?.find(artifact => artifact.run_id === row.id);
+        const basename = file?.relative_path?.split(/[\\/]/).at(-1);
+        if (basename) row.outputName = basename.slice(0, 180);
+      }
+    } catch { /* A missing filename must never hide a delivered result. */ }
+  }
   const last = consumed.at(-1);
   // Pagination follows raw rows, including hidden Manager scaffolds. A short
   // visible page must not strand older customer results.

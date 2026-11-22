@@ -11,7 +11,7 @@ test('Coach renders on the server without reading the native bridge or requiring
   const html = renderToStaticMarkup(React.createElement(TrainingSource, {
     slug: 'video-studio', ownerId: 'test-owner', recentRuns: [],
   }));
-  assert.match(html, /Teach video-studio/);
+  assert.match(html, /Train video-studio/);
   assert.match(html, /Show it/);
   assert.match(html, /Say it/);
 });

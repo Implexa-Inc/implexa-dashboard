@@ -12,7 +12,7 @@
  * lands next; the Activate button reflects readiness today.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
@@ -670,6 +670,7 @@ export function ActivationCard({
   runInputs,
   statusUnavailable,
   revisePending,
+  setupBlockedReason,
 }: {
   checklist: ActivationChecklist;
   proficiency?: 'novice' | 'beginner' | 'pro' | 'advanced' | null;
@@ -694,8 +695,18 @@ export function ActivationCard({
   statusUnavailable: boolean;
   /** Whether a known revise request is already queued or running. */
   revisePending: boolean;
+  /** Existing marketplace acquisition/update must finish before native completion. */
+  setupBlockedReason?:string;
 }) {
   const setupSurface = surface === 'setup';
+  const expectedVersionId=runInputs?.workflowVersionId;
+  const versionedSetup=!!expectedVersionId||!!checklist.setupContext?.versionId;
+  const boundSetupVersion=!!expectedVersionId&&/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(expectedVersionId)&&checklist.setupContext?.versionId===expectedVersionId;
+  const completionKey=JSON.stringify([checklist.setupContext?.accountId,checklist.slug,expectedVersionId]);
+  const currentCompletion=useRef(completionKey);currentCompletion.current=completionKey;
+  const mounted=useRef(true);useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
+  const completionAttempts=useRef(new Set<string>());
+  const [completionRetry,setCompletionRetry]=useState(0);
   // Guided = novice/beginner: friendlier "Turn it on" framing + a reassurance
   // line. Pro/advanced keep the terser "Activate". (audit #7)
   const guided = proficiency === 'novice' || proficiency === 'beginner';
@@ -758,12 +769,15 @@ export function ActivationCard({
   // both by the Activate/Grant button and by an auto-save on toggle for an
   // already-active agent (which has no Activate button to save behind).
   async function persistGrants(opts: Record<string, boolean>, workAround = false, onDemand = false) {
+    if(setupSurface&&versionedSetup&&!boundSetupVersion)throw new Error('The agent changed. Reload Setup.');
     const { data: { session } } = await supabase.auth.getSession();
     const jwt = session?.access_token;
-    await callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/activate`, {
-      jwt, method: 'POST', body: { optIns: opts, ...(workAround ? { workAround: true } : {}), ...(onDemand ? { onDemand: true } : {}) },
+    if(setupSurface&&boundSetupVersion&&(!mounted.current||currentCompletion.current!==completionKey||session?.user?.id!==checklist.setupContext?.accountId))throw new Error('The account or agent changed. Reload Setup.');
+    const result=await callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/activate`, {
+      jwt, method: 'POST', body: { optIns: opts, ...(workAround ? { workAround: true } : {}), ...(onDemand||setupSurface ? { onDemand: true } : {}),...(setupSurface&&boundSetupVersion?{completeSetup:true,expectedVersionId}: {}) },
     });
-    if (requiredTier2.some((item) => opts[item.group])) {
+    if(result?.ok!==true)throw new Error('Setup could not be completed. Try again.');
+    if (mounted.current&&currentCompletion.current===completionKey&&requiredTier2.some((item) => opts[item.group])) {
       setLocalGrantNote('Saved for this agent only. The grant applies to future runs until you revoke it.');
     }
   }
@@ -773,15 +787,17 @@ export function ActivationCard({
   async function activate(workAround = false, onDemand = false) {
     setError(null);
     setActivating(true);
+    const startedFor=completionKey;
     try {
       await persistGrants(optIns, workAround, onDemand);
+      if(!mounted.current||currentCompletion.current!==startedFor)return;
       setActivated(true);
       setSavedLocally(true);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save. Try again.');
+      if(mounted.current&&currentCompletion.current===startedFor)setError(e instanceof Error ? e.message : 'Could not save. Try again.');
     } finally {
-      setActivating(false);
+      if(mounted.current&&currentCompletion.current===startedFor)setActivating(false);
     }
   }
 
@@ -836,7 +852,23 @@ export function ActivationCard({
   // be delivered. undefined (older backend) never blocks, matching the rest
   // of this file's absent-field-means-verified convention.
   const capabilityReady = checklist.readyToRun !== false;
+  const automaticReady=setupSurface&&boundSetupVersion&&!statusUnavailable&&!setupBlockedReason&&!revisePending&&!isActive&&!activating
+    &&checklist.setupReadAvailable===true&&checklist.readyToRun===true
+    &&Number(checklist.blockingQuestions??checklist.pendingQuestions??0)===0
+    &&allLocalGranted&&computerUseSatisfied&&(!showMacSetup||computerUseReady)
+    &&(checklist.canActivate||(anyWorkedAround&&connectionsResolved));
+  useEffect(()=>{
+    if(!automaticReady)return;
+    const attempt=completionKey+':'+completionRetry;
+    if(completionAttempts.current.has(attempt))return;
+    completionAttempts.current.add(attempt);
+    void activate(anyWorkedAround,true);
+  },[automaticReady,completionKey,completionRetry]); // Existing activation writer, once per reviewed version or explicit retry.
+  useEffect(()=>{setActivated(checklist.state==='active');setSavedLocally(false);setError(null);setActivating(false);setOptIns(Object.fromEntries(tier2.filter(item=>item.granted).map(item=>[item.group,true])));},[completionKey]);
   const verifiedHandsFree = isActive && verification.verified && computerUseSatisfied && capabilityReady;
+  const setupReadUnknown=!!statusUnavailable||checklist.setupReadAvailable!==true;
+  const setupReady=!setupReadUnknown&&!setupBlockedReason&&!revisePending&&isActive&&allSavedGranted&&computerUseSatisfied&&(!showMacSetup||computerUseReady)&&checklist.readyToRun===true;
+
   const browserCheck = verification.checks.find((c) => c.key === 'browser' && c.status !== 'ok');
   // Override the green "Active" chip ONLY for a genuinely-active-but-unverified
   // agent — never mask 'needs_attention' or a not-yet-activated state.
@@ -855,6 +887,7 @@ export function ActivationCard({
   // revocation real: the activation endpoint only turns an agent on and must not
   // double as a misleading grant store.
   function toggleOptIn(group: string, on: boolean) {
+    if(setupSurface&&versionedSetup&&!boundSetupVersion){setError('The agent changed. Reload Setup.');return;}
     const next = { ...optIns, [group]: on };
     const permission = tier2.find((item) => item.group === group);
     setOptIns(next);
@@ -881,15 +914,16 @@ export function ActivationCard({
   }
 
   return (
-    <div className={setupSurface ? 'card mb-6' : 'card max-w-2xl'}>
+    <div className={setupSurface ? 'card mb-6 agent-required-setup' : 'card max-w-2xl'}>
+      {setupSurface&&<div role="status" className={`agent-setup-readiness ${setupReadUnknown?'unknown':setupReady?'ready':'needed'}`}><strong>{setupReadUnknown?'Setup status unavailable':setupReady?'Ready to run':'Complete required setup'}</strong><span>{setupReadUnknown?'Reload to check what this agent needs.':setupReady?'Run whenever you’re ready. Scheduled runs are controlled separately below.':'The rows below show what still needs your attention.'}</span></div>}
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-ink-50 truncate">
-            {setupSurface ? 'Permissions & access' : checklist.name}
-          </h1>
+          <h2 className="text-lg font-semibold text-ink-50 truncate">
+            {setupSurface ? 'Required setup' : checklist.name}
+          </h2>
           {setupSurface ? (
             <p className="text-sm text-ink-400 mt-1 leading-snug">
-              Review what this agent can use, and change optional access any time.
+              This agent is ready once the required items are done.
             </p>
           ) : checklist.summary ? (
             <p className="text-sm text-ink-400 mt-1 leading-snug">{checklist.summary}</p>
@@ -925,7 +959,7 @@ export function ActivationCard({
       </details>}
 
       <ul className="divide-y divide-ink-800">
-        {checklist.steps.filter((s) => s.id !== 'computer-use').map((s) => (
+        {checklist.steps.filter((s) => s.id !== 'computer-use'&&(!setupSurface||!['schedule','notifications'].includes(s.id))).map((s) => (
           <StepRow
             key={s.id}
             step={s}
@@ -941,6 +975,8 @@ export function ActivationCard({
           />
         ))}
       </ul>
+
+      {setupSurface&&checklist.steps.some(step=>step.id==='notifications')&&<><h3 className="mt-6 mb-2 text-sm font-medium">Optional</h3><ul>{checklist.steps.filter(step=>step.id==='notifications').map(step=><StepRow key={step.id} step={step} slug={checklist.slug} optIns={optIns} onToggleOptIn={toggleOptIn} onChanged={()=>router.refresh()} savingGroup={savingGroup} permissionNote={localGrantNote} workedAround={workedAround} onToggleWorkAround={toggleWorkAround}/>)}</ul></>}
 
       {/* Optional quality layer at activation, where the user is deciding how
           this agent should run. It never blocks activation. The same control also
@@ -969,7 +1005,7 @@ export function ActivationCard({
       <CapabilityGapsNotice gaps={checklist.capabilityGaps} />
 
       <div className="mt-5 flex items-start gap-3">
-        {setupSurface && isActive && allSavedGranted ? null : isActive && allSavedGranted ? (
+        {setupSurface&&versionedSetup&&!isActive?<div role="status" className="text-sm text-ink-400">{activating?'Completing setup…':error?<><p className="text-state-fail">{error}</p><button type="button" className="btn-outline mt-3" disabled={!automaticReady} onClick={()=>{setError(null);setCompletionRetry(n=>n+1);}}>Try again</button></>:setupBlockedReason?setupBlockedReason:!boundSetupVersion?'The agent changed. Reload Setup.':statusUnavailable||checklist.setupReadAvailable!==true?'Setup status could not be checked. Reload to try again.':revisePending?'Setup will finish after the pending edit is ready.':'Complete the required items above.'}{suggestedCadence&&<p className="mt-2 text-xs">Suggested schedule: {suggestedCadence}. Setup does not start it; enable it in Schedule below.</p>}</div>:setupSurface && isActive && allSavedGranted ? null : isActive && allSavedGranted ? (
           // The moment of highest motivation must not dead-end at "Active."
           // (founder: "I activated this agent but what to do next, Im clueless").
           // Offer the first run right here; the schedule row above covers later.
@@ -1126,7 +1162,7 @@ export function ActivationCard({
               className={ready && !activating ? 'btn-success' : 'btn-outline opacity-50 cursor-not-allowed'}
               title={ready ? 'Switch this agent on' : 'Finish the steps above first'}
             >
-              {activating ? (guided ? 'Turning on…' : 'Activating…') : (guided ? 'Turn it on' : 'Activate')}
+              {activating ? (guided ? 'Turning on…' : 'Activating…') : (setupSurface?'Finish setup':guided ? 'Turn it on' : 'Activate')}
             </button>
             {error ? (
               <span className="text-xs text-state-fail">{error}</span>

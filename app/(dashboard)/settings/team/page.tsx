@@ -1,3 +1,4 @@
+import PageHeader from '@/components/page-header';
 /**
  * /settings/team — basic team management.
  *
@@ -49,18 +50,14 @@ export default async function TeamSettingsPage() {
   }
 
   return (
-    <main className="app-page">
-      <div className="app-content">
-        <nav className="text-xs text-ink-500 mb-4">
-          <Link href="/settings" className="hover:underline">← Settings</Link>
-        </nav>
+    <section className="settings-page">
+      <div className="settings-page-content">
 
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Team</h1>
-          <p className="text-ink-300 text-sm mt-1">
+        <PageHeader title="Team">
+          <p className="app-page-description">
             Invite teammates so the whole team can run your shared agents. Everyone&apos;s runs and results land in one place; each person&apos;s own runs stay private.
           </p>
-        </header>
+        </PageHeader>
 
         {/* Plan strip — members + invites, with a Team-plan note on Free. */}
         <div className="card mb-6 !border-brand-500/40">
@@ -121,7 +118,7 @@ export default async function TeamSettingsPage() {
           </div>
         </section>
       </div>
-    </main>
+    </section>
   );
 }
 

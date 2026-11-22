@@ -34,7 +34,7 @@ import type { ReviewArtifact, ReviewIssue, ReviewProduction, ReviewSession, Revi
 import {
   decidePreview, interpretPreviewResult, requestPreview, revokePreview,
   desktopPreviewSupported, desktopReviewHref, inDesktopApp, parsePreviewUrl,
-  previewText, previewTextTruncated,
+  previewKind, previewText, previewTextTruncated,
   type PreviewDecision,
 } from '@/lib/review-preview';
 import {
@@ -81,9 +81,12 @@ import {
 } from '@/lib/review-timestamp-feedback';
 
 export type ReviewRoomProps = {
+  /** Finished-run summary reuses this viewer and the same session acceptance writer. */
+  finishedView?: {reviewHref:string;changes:ReactNode;afterResult?:ReactNode;checks?:ReactNode;fallbackResult?:ReactNode};
   /** Reuses the same annotation writer; revision controls stay in Review Room. */
   trainingMode?: boolean;
   trainingOwnerId?: string;
+  initialTrainingIssueId?: string;
   customerOwnerId?: string;
   onTeachIssue?: (issue: ReviewIssue, artifact: ReviewArtifact) => void;
   onDoneTeaching?: (notes:Array<{issue:ReviewIssue;artifact:ReviewArtifact}>)=>void;
@@ -1055,6 +1058,18 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     setOpenedIssueId(spatial ? issue.id : null);
   }, [selectedId, seekTo]);
 
+  const initialTrainingJump=useRef<string|null>(null);
+  useEffect(()=>{
+    const id=props.trainingMode?props.initialTrainingIssueId:null;
+    if(!id||initialTrainingJump.current===id)return;
+    const issue=allIssues.find(i=>i.id===id&&i.purpose==='training'&&i.status!=='dismissed');
+    const target=issue&&issueClickTarget(issue,null);
+    if(!issue||!target?.artifactId||!validated.some(a=>a.id===target.artifactId))return;
+    initialTrainingJump.current=id;setSelectedId(target.artifactId);
+    setPendingSeek(target.seekMs===null?null:{artifactId:target.artifactId,seekMs:target.seekMs});
+    setOpenedIssueId(isSpatialAnchorV2(issue.anchor as never)?issue.id:null);
+  },[props.trainingMode,props.initialTrainingIssueId,allIssues,validated]);
+
   /**
    * Apply the pending seek WHEN THE NEW PLAYER REPORTS READY (loadedmetadata), not from
    * an effect that races the preview lifecycle. The three-way agreement is checked here:
@@ -1269,6 +1284,115 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     ? segmentPlaybackClock(production, selectedSegment, playheadMs ?? 0)
     : null;
 
+  const resultSurface = (<ArtifactSurface
+          runId={runId}
+          // A decision for a DIFFERENT artifact must not be rendered over this one —
+          // otherwise A's failure message shows while B is loading.
+          decision={decision && decision.artifactId === selectedId ? decision.value : null}
+          previewUrl={preview?.url ?? null}
+          onMediaReady={onMediaReady}
+          mediaKey={selectedId ?? 'none'}
+          textContent={textContent}
+          textTruncated={textTruncated}
+          mediaRef={mediaRef}
+          imageRef={imageRef}
+          issues={surfaceIssues}
+          onPlayhead={onPlayhead}
+          onSelectText={(s) => {
+            if(props.finishedView)return;
+            if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+            setPendingRange(null);
+            setDraft(openDraft({ target: targetIdentity, playheadMs, selection: s }));
+          }}
+          onSeek={seekTo}
+          spatial={{
+            readOnly:!!props.finishedView,
+            enabled: !props.finishedView && !voiceDirty && !frozen && !accepted && artifact?.status === 'validated',
+            pins: overlayPins,
+            draftSpatial: draft?.spatial ?? null,
+            freezeMedia: freezeMediaForAnnotation,
+            onAnnotate: onSpatialAnnotate,
+            onNudgeDraft,
+            onCancelDraft: cancelSpatialDraft,
+            onOpenIssue: (issueId) => {
+              const issue = issues.find((i) => i.id === issueId);
+              if (issue) goToIssue(issue);
+            },
+          }}
+        />);
+  const cleanupDialog = (cleanupPrompt && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="post-acceptance-cleanup-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+        >
+          <div ref={cleanupDialogRef} className="w-full max-w-md rounded-xl border border-ink-700 bg-ink-950 p-5 shadow-2xl">
+            <h2 id="post-acceptance-cleanup-title" className="text-lg font-semibold text-ink-100">
+              Free up local storage?
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-ink-300">
+              Tukido can remove redundant review copies and rejected render intermediates that are no longer referenced.
+            </p>
+            <p className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-state-ok">
+              Your accepted final, editable project, learned decision traces, and original source stay protected.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                ref={cleanupDismissRef}
+                type="button"
+                disabled={cleanupBusy}
+                onClick={() => setCleanupPrompt(false)}
+                className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-300 disabled:opacity-40"
+              >
+                Keep for now
+              </button>
+              <button
+                type="button"
+                disabled={cleanupBusy}
+                onClick={() => void openPostAcceptanceCleanup()}
+                className="rounded-md bg-action-strong px-3 py-2 text-sm font-medium text-[var(--on-action-strong)] disabled:opacity-40"
+              >
+                {cleanupBusy ? 'Opening cleanup…' : 'Review cleanup'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ));
+
+  if(props.finishedView){
+    const view=props.finishedView;
+    const canAccept=!historicalProvenanceUnavailable&&!issuesUnavailable&&!resolutionsUnavailable&&!proxyPreview
+      &&acts.canAccept&&submitView.mode==='accept_result'&&submitView.primaryEnabled;
+    const canRequestChanges=!historicalProvenanceUnavailable&&!issuesUnavailable&&!resolutionsUnavailable&&activeIssues.length===0&&!['submitting','submitted'].includes(session?.state||'');
+    const resultFiles=validated.filter(item=>item.role==='final_output');
+    const viewableResults=(resultFiles.length?resultFiles:validated).filter(item=>['video','audio','image','text','pdf'].includes(previewKind(item.relativePath)));
+    return <div className="finished-run-layout">
+      <section className="finished-result" aria-label="Your result">
+        <HistoricalReviewCandidateNotice candidate={historicalCandidate} unavailable={historicalProvenanceUnavailable} carriedIssueCount={session?.carriedIssueIds?.length??0}/>
+        {viewableResults.length>1&&<label className="finished-file-picker">Result file<select aria-label="Result file" value={selectedId??''} onChange={event=>setSelectedId(event.target.value)}>{viewableResults.map(a=><option key={a.id} value={a.id}>{artifactOptionLabel(a,a.role==='review_input'?'Attached review file':(currentVersion?.label||props.currentVersionLabel||null))}</option>)}</select></label>}
+        {artifact?resultSurface:view.fallbackResult||resultSurface}
+        {proxyPreview&&<p className="finished-result-name">Review proxy</p>}
+      </section>
+      <aside className="finished-run-rail" aria-label="Review this result">
+        <section className="finished-decision">
+          <h2>{accepted?'Accepted':activeIssues.length?`You have ${activeIssues.length} saved ${activeIssues.length===1?'note':'notes'}`:!canAccept?'Review this result':'Happy with it?'}</h2>
+          {!accepted&&activeIssues.length===0&&<p>Accepting marks your review complete. Nothing is published anywhere.</p>}
+          {error&&<p role="alert" className="text-state-fail">{error}</p>}
+          {notice&&<p role="status">{notice}</p>}
+          {accepted?<p className="text-state-ok">You accepted this result.</p>:canAccept?<button type="button" className="btn-primary" disabled={busy} onClick={()=>void onPrimary()}>{busy?'Accepting…':'Accept'}</button>:<p role="status">{historicalProvenanceUnavailable||issuesUnavailable||resolutionsUnavailable?'Review details could not be verified. Open the review before accepting.':proxyPreview?'The final result is not ready for acceptance.':'Open the review to check what is needed before accepting.'}</p>}
+          {confirmDiscard&&<p role="alert">Your saved notes are unchanged. Open the review to decide what to keep before accepting.</p>}
+          <div className="finished-changes">{canRequestChanges?view.changes:<p className="text-sm text-ink-400">Open the Review Room to keep your saved notes together and continue this review.</p>}</div>
+          <a className="finished-markup" href={view.reviewHref}><strong>{canRequestChanges?'Mark up the result instead':'Continue reviewing this result'}</strong><span>{!canRequestChanges&&activeIssues.length?`${activeIssues.length} saved ${activeIssues.length===1?'note stays':'notes stay'} together in the Review Room →`:'Pin notes to exact moments in the Review Room →'}</span></a>
+        </section>
+        {view.checks}
+        <section className="finished-versions"><h2>Versions</h2>{sources.lineage==='unavailable'?<p>Version history unavailable.</p>:(props.versions?.length?props.versions:[{runId,label:'This result'}]).map(version=><a key={version.runId} aria-current={version.runId===runId?'page':undefined} href={version.runId===runId?`/runs/${encodeURIComponent(runId)}?keep=1`:`/runs/${encodeURIComponent(version.runId)}`}><span>{version.label}</span>{version.runId===runId&&<small>This one</small>}</a>)}</section>
+      </aside>
+      <section className="finished-after-result" aria-label="Result files">{view.afterResult}</section>
+      {cleanupDialog}
+    </div>;
+  }
+
   return (
     /* THE WORKSPACE IS VIEWPORT-BOUNDED, so feedback volume cannot push the actions
        off screen. Every new issue used to grow the rail, which grew the page: at 100
@@ -1397,40 +1521,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           </p>
         )}
 
-        <ArtifactSurface
-          runId={runId}
-          // A decision for a DIFFERENT artifact must not be rendered over this one —
-          // otherwise A's failure message shows while B is loading.
-          decision={decision && decision.artifactId === selectedId ? decision.value : null}
-          previewUrl={preview?.url ?? null}
-          onMediaReady={onMediaReady}
-          mediaKey={selectedId ?? 'none'}
-          textContent={textContent}
-          textTruncated={textTruncated}
-          mediaRef={mediaRef}
-          imageRef={imageRef}
-          issues={surfaceIssues}
-          onPlayhead={onPlayhead}
-          onSelectText={(s) => {
-            if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
-            setPendingRange(null);
-            setDraft(openDraft({ target: targetIdentity, playheadMs, selection: s }));
-          }}
-          onSeek={seekTo}
-          spatial={{
-            enabled: !voiceDirty && !frozen && !accepted && artifact?.status === 'validated',
-            pins: overlayPins,
-            draftSpatial: draft?.spatial ?? null,
-            freezeMedia: freezeMediaForAnnotation,
-            onAnnotate: onSpatialAnnotate,
-            onNudgeDraft,
-            onCancelDraft: cancelSpatialDraft,
-            onOpenIssue: (issueId) => {
-              const issue = issues.find((i) => i.id === issueId);
-              if (issue) goToIssue(issue);
-            },
-          }}
-        />
+        {resultSurface}
 
         {artifact && (
           <div className="mt-3 text-xs text-ink-500">
@@ -2253,51 +2344,14 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         </div>
       </aside>
 
-      {cleanupPrompt && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="post-acceptance-cleanup-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-        >
-          <div ref={cleanupDialogRef} className="w-full max-w-md rounded-xl border border-ink-700 bg-ink-950 p-5 shadow-2xl">
-            <h2 id="post-acceptance-cleanup-title" className="text-lg font-semibold text-ink-100">
-              Free up local storage?
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-ink-300">
-              Tukido can remove redundant review copies and rejected render intermediates that are no longer referenced.
-            </p>
-            <p className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-state-ok">
-              Your accepted final, editable project, learned decision traces, and original source stay protected.
-            </p>
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
-              <button
-                ref={cleanupDismissRef}
-                type="button"
-                disabled={cleanupBusy}
-                onClick={() => setCleanupPrompt(false)}
-                className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-300 disabled:opacity-40"
-              >
-                Keep for now
-              </button>
-              <button
-                type="button"
-                disabled={cleanupBusy}
-                onClick={() => void openPostAcceptanceCleanup()}
-                className="rounded-md bg-action-strong px-3 py-2 text-sm font-medium text-[var(--on-action-strong)] disabled:opacity-40"
-              >
-                {cleanupBusy ? 'Opening cleanup…' : 'Review cleanup'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {cleanupDialog}
     </div>
   );
 }
 
 /** Everything the spatial annotation overlay needs, threaded as one bundle. */
 type SpatialSurfaceProps = {
+  readOnly?:boolean;
   enabled: boolean;
   pins: OverlayPin[];
   draftSpatial: DraftSpatial | null;
@@ -2394,7 +2448,7 @@ function ArtifactSurface({
           onSeeked={(e) => onPlayhead(mediaKey, (e.currentTarget as HTMLMediaElement).currentTime)}
           onPause={(e) => onPlayhead(mediaKey, (e.currentTarget as HTMLMediaElement).currentTime)}
         />
-        {decision.kind === 'video' && (
+        {decision.kind === 'video' && !spatial.readOnly && (
           <ReviewSpatialOverlay
             mediaKind="video"
             controlsMode="external"
@@ -2414,13 +2468,13 @@ function ArtifactSurface({
     return (
       <div>
         {decision.kind === 'video' ? (
-          <ReviewPlaybackControls key={mediaKey} mediaKey={mediaKey} mediaRef={mediaRef} onSeek={onSeek}>
+          <ReviewPlaybackControls variant={spatial.readOnly?'finished':undefined} key={mediaKey} mediaKey={mediaKey} mediaRef={mediaRef} onSeek={onSeek}>
             {(revealOutside) => picture(revealOutside)}
           </ReviewPlaybackControls>
         ) : picture()}
         {/* The OUTSIDE-the-player information affordance (Wave 2 discoverability):
             always visible next to the player, never floating over content. */}
-        {decision.kind === 'video' && (
+        {decision.kind === 'video' && !spatial.readOnly && (
           <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-500" data-testid="spatial-hint">
             <span aria-hidden="true" className="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-ink-600 text-[10px]">i</span>
             <span>{SPATIAL_HINT_COPY}</span>
@@ -2459,7 +2513,7 @@ function ArtifactSurface({
             alt="Artifact under review"
             className="max-h-[60vh] w-full rounded object-contain"
           />
-          <ReviewSpatialOverlay
+          {!spatial.readOnly&&<ReviewSpatialOverlay
             mediaKind="image"
             mediaEl={() => imageRef.current}
             enabled={spatial.enabled}
@@ -2470,7 +2524,7 @@ function ArtifactSurface({
             onNudgeDraft={spatial.onNudgeDraft}
             onCancelDraft={spatial.onCancelDraft}
             onOpenIssue={spatial.onOpenIssue}
-          />
+          />}
         </div>
         <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-500" data-testid="spatial-hint">
           <span aria-hidden="true" className="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-ink-600 text-[10px]">i</span>

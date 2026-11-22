@@ -32,15 +32,13 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
-import GradeBadge from './grade-badge';
-import type { DiscoveredAgent } from '@/lib/agent-discovery';
+import LocalTime from './local-time';
+import {AgentSampleThumbnail,useAgentSampleThumbnails,type CoverMap} from './agent-sample-thumbnails';
+import type {ListingSample} from '@/lib/approved-marketplace-listings';
+import {CollectionEmpty} from './collection-state';
+import {useAgentCollectionCount} from './agent-home-frame';
 
-// 2026-07-01 simplification (Codex's design audit): a row of 3 mystery icon
-// buttons (Eye/Note/Bin) reads as a technical control panel. Each row now has
-// ONE clear primary action in words (Fix / View last result / Open / Activate /
-// Resume) plus rename (the pencil next to the name, unchanged) and archive
-// tucked behind a small "..." menu — a normal user never needs archive at a
-// glance, but it must stay reachable.
+// Collection rows keep one Run action; less frequent lifecycle actions stay in the menu.
 function DotsIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -60,7 +58,7 @@ function DotsIcon() {
  *                  rather than leaving the user to find out from an inbox.
  * Deactivate is only offered when there's a clock to stop.
  */
-function RowMenu({ onArchive, onDeactivate, canDeactivate, busy }: { onArchive: () => void; onDeactivate: () => void; canDeactivate: boolean; busy: boolean }) {
+function RowMenu({ onArchive, onDeactivate, canDeactivate, busy, trainingHref, lastRunHref }: { onArchive: () => void; onDeactivate: () => void; canDeactivate: boolean; busy: boolean;trainingHref?:string;lastRunHref?:string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -87,6 +85,9 @@ function RowMenu({ onArchive, onDeactivate, canDeactivate, busy }: { onArchive: 
       </button>
       {open && (
         <div role="menu" className="absolute right-0 top-full mt-1 z-20 min-w-[230px] rounded-md border border-ink-700 bg-ink-900 py-1 shadow-lg">
+          {trainingHref&&<Link role="menuitem" href={trainingHref+'?chat=edit'} onClick={()=>setOpen(false)} className="block px-3 py-2 text-sm text-ink-300 hover:bg-ink-800">Edit agent</Link>}
+          {trainingHref&&<Link role="menuitem" href={trainingHref} onClick={()=>setOpen(false)} className="block px-3 py-2 text-sm text-ink-300 hover:bg-ink-800">Train this agent</Link>}
+          {lastRunHref&&<Link role="menuitem" href={lastRunHref} onClick={()=>setOpen(false)} className="block px-3 py-2 text-sm text-ink-300 hover:bg-ink-800">Last run</Link>}
           {canDeactivate && (
             <button
               type="button"
@@ -95,7 +96,7 @@ function RowMenu({ onArchive, onDeactivate, canDeactivate, busy }: { onArchive: 
               onClick={() => { setOpen(false); onDeactivate(); }}
               className="w-full text-left px-3 py-1.5 text-sm text-ink-300 hover:bg-ink-800 hover:text-ink-100 disabled:opacity-50"
             >
-              <span className="block">Deactivate</span>
+              <span className="block">Pause</span>
               <span className="block text-[11px] text-ink-500">Stops its schedule. Stays on your list.</span>
             </button>
           )}
@@ -118,9 +119,12 @@ function RowMenu({ onArchive, onDeactivate, canDeactivate, busy }: { onArchive: 
 }
 
 export type ListAgent = {
+  familyId?:string;
   slug: string;
   name: string;
   source: string;
+  /** From the authenticated owned library, never inferred from an unknown feed source. */
+  canTrain?:boolean;
   section: 'scheduled' | 'on_demand' | 'not_activated' | 'paused';
   category: { key: string; label: string; emoji: string };
   needsIntervention?: boolean;
@@ -128,6 +132,7 @@ export type ListAgent = {
   pendingQuestions?: number;
   nextRunAt?: string | null;
   scheduleNl?: string | null;
+  scheduleOff?:boolean;
   lastRun?: {
     id?: string;
     status: string;
@@ -180,25 +185,17 @@ function stateBadge(a: ListAgent): { label: string; cls: string } | null {
   const st = a.lastRun?.status;
   if (rs === 'stalled') return { label: 'Progress interrupted', cls: 'border-amber-500/50 text-state-needs' };
   if (st === 'failed' || rs === 'failed') return { label: 'Last run failed', cls: 'border-rose-500/50 text-state-fail' };
-  if (st === 'partial') return { label: 'Partly finished', cls: 'border-amber-500/50 text-state-needs' };
-  if (st === 'completed' || rs === 'completed') return { label: 'Finished', cls: 'border-emerald-500/40 text-state-ok' };
+  if (st === 'partial') return { label: 'Partly delivered', cls: 'border-amber-500/50 text-state-needs' };
+  if (st === 'completed' || rs === 'completed') return { label: 'Delivered', cls: 'border-emerald-500/40 text-state-ok' };
   if (rs === 'running') return { label: 'Running', cls: 'border-sky-500/40 text-state-running' };
-  return null;
+  return {label:'Never run',cls:'border-ink-700 text-ink-400'};
 }
 
-function engineLabel(lastRun: ListAgent['lastRun']): string | null {
-  const engine = String(lastRun?.executor || '').trim().toLowerCase();
-  if (!engine) return null;
-  const name = engine === 'codex' ? 'Codex' : engine === 'claude' ? 'Claude' : engine;
-  const model = String(lastRun?.model || '').trim();
-  return model ? `${name} · ${model}` : name;
-}
 
-function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy }: { a: ListAgent; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busy: boolean }) {
+function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, card=false,cover }: { cover?:ListingSample;card?:boolean; a: ListAgent; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busy: boolean }) {
   const detail = `/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`;
   const titleHref = detail;
   const badge = a.section !== 'not_activated' ? stateBadge(a) : null;
-  const engine = engineLabel(a.lastRun);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(a.name);
   const [saving, setSaving] = useState(false);
@@ -211,136 +208,35 @@ function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy }: {
     finally { setSaving(false); }
   }
 
-  return (
-    <li className="card agent-roster-row">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap group">
-            {/* Star: favorite this agent so it floats to the top (persists per-user). */}
-            <button
-              type="button"
-              onClick={() => onToggleFavorite(a)}
-              aria-label={a.favorite ? `Unfavorite ${a.name}` : `Add ${a.name} to favorites`}
-              aria-pressed={!!a.favorite}
-              title={a.favorite ? 'Favorited — click to remove' : 'Add as favorite'}
-              className={`text-base leading-none transition-colors ${a.favorite ? 'text-state-needs hover:text-state-needs' : 'text-ink-600 hover:text-state-needs'}`}
-            >
-              {a.favorite ? '★' : '☆'}
-            </button>
-            {editing ? (
-              <input
-                autoFocus
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={save}
-                onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setDraft(a.name); setEditing(false); } }}
-                maxLength={120}
-                disabled={saving}
-                className="text-base font-medium bg-ink-900 border border-ink-600 rounded px-2 py-0.5 text-ink-50 focus:border-brand-500/60 focus:outline-none min-w-[220px]"
-              />
-            ) : (
-              <Link href={titleHref} className="text-base font-medium text-ink-50 hover:underline">
-                {a.name}
-              </Link>
-            )}
-            {!editing && (
-              <button
-                type="button"
-                onClick={() => { setDraft(a.name); setEditing(true); }}
-                aria-label={`Rename ${a.name}`}
-                title="Rename (your view only)"
-                className="text-ink-500 hover:text-ink-200 text-sm opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                ✎
-              </button>
-            )}
-
-            {a.section === 'scheduled' && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/40 text-state-ok" title="Runs automatically on a schedule">Scheduled</span>
-            )}
-            {(a.isChain ?? looksLikeChain(a.name)) && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-state-review" title="This agent runs several agents in sequence">Chain</span>
-            )}
-            {a.section === 'not_activated' && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/40 text-state-running">Draft</span>
-            )}
-            {badge && <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>}
-            <GradeBadge grade={a.grade} />
-          </div>
-          {engine && (
-            <details title={`Last run used ${engine}`} className="mt-1 text-xs text-ink-400"><summary className="cursor-pointer">Run details</summary><p className="mt-2">{a.category.label} · {engine}</p></details>
-          )}
-          {/* Category remains visible even before the first run. */}
-          <p className="mt-1 text-xs text-ink-400">{a.category.label}</p>
-          {/* status line */}
-          <p className="text-xs text-ink-500 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-            {a.needsIntervention && (
-              <span className="text-state-needs">Needs you · {a.interventionReason || 'one quick step'}</span>
-            )}
-            {(a.pendingQuestions ?? 0) > 0 && (
-              <span className="text-state-needs">{a.pendingQuestions} question{a.pendingQuestions === 1 ? '' : 's'} to answer</span>
-            )}
-            {a.section === 'scheduled' && a.nextRunAt && !a.needsIntervention && (
-              <span>Next run: {nextRunLabel(a.nextRunAt)}</span>
-            )}
-            {a.section === 'on_demand' && !a.needsIntervention && (a.pendingQuestions ?? 0) === 0 && <span>Runs on demand</span>}
-            {a.section === 'not_activated' && <span>Saved as a draft · turn it on whenever you&apos;re ready</span>}
-          </p>
-        </div>
-
-        <div className="flex-none flex items-center gap-1.5">
-          {a.section === 'not_activated' ? (
-            <Link href={detail} className="btn-success text-xs px-3 py-1.5 whitespace-nowrap">
-              Review
-            </Link>
-          ) : a.needsIntervention ? (
-            <Link href={detail} className="text-xs px-3 py-1.5 rounded-md border border-amber-500/50 text-state-needs hover:bg-amber-500/10 transition-colors whitespace-nowrap font-medium">
-              Fix
-            </Link>
-          ) : a.lastRun?.id ? (
-            <Link href={`/runs/${a.lastRun.id}`} className="btn-outline text-xs px-3 py-1.5 whitespace-nowrap">
-              {a.lastRun.runState === 'running' ? 'View live' : 'View last result'}
-            </Link>
-          ) : (
-            <Link href={detail} className="btn-outline text-xs px-3 py-1.5 whitespace-nowrap">
-              Open
-            </Link>
-          )}
-          {/* Archive = remove from MY list (never deletes the shared agent).
-              Deactivate = stop its clock, keep it on the list. Neither is
-              offered for a not-yet-activated draft — there's nothing to remove
-              from a running roster yet, and no clock to stop; the row IS the
-              draft. Deactivate only appears when the agent HAS a live schedule
-              ('paused' rows are already stopped — Resume is their action). */}
-          {a.section !== 'not_activated' && (
-            <RowMenu
-              onArchive={() => onArchive(a)}
-              onDeactivate={() => onDeactivate(a)}
-              canDeactivate={a.section === 'scheduled'}
-              busy={busy}
-            />
-          )}
-        </div>
-      </div>
-    </li>
-  );
+  const isDraft=a.section==='not_activated';
+  return <li className={`agent-roster-row ${card?'agent-favorite-card':''}`}>
+    {card&&<div className="agent-card-art"><AgentSampleThumbnail cover={cover}/></div>}
+    <button type="button" className="agent-star" onClick={()=>onToggleFavorite(a)} aria-label={a.favorite?`Unfavorite ${a.name}`:`Add ${a.name} to favorites`} aria-pressed={!!a.favorite}>{a.favorite?'★':'☆'}</button>
+    <div className="agent-row-name">
+      {editing?<input autoFocus value={draft} onChange={e=>setDraft(e.target.value)} onBlur={save} onKeyDown={e=>{if(e.key==='Enter')save();if(e.key==='Escape'){setDraft(a.name);setEditing(false);}}} maxLength={120} disabled={saving} aria-label={`Name for ${a.name}`} className="input"/>:
+        <div className="agent-row-title"><Link href={titleHref}>{a.name}</Link><button type="button" onClick={()=>{setDraft(a.name);setEditing(true);}} aria-label={`Rename ${a.name}`} title="Rename (your view only)">✎</button></div>}
+      {!card&&<p>{a.category.label}{a.canTrain?' · built by you':''}{(a.isChain??looksLikeChain(a.name))?' · Chain':''}</p>}
+      {a.lastRun?.id&&<Link className="agent-last-run" href={`/runs/${encodeURIComponent(a.lastRun.id)}`}>Last result{card&&a.lastRun.ranAt?<> · <LocalTime iso={a.lastRun.ranAt}/></>:' →'}</Link>}
+    </div>
+    <span className={`agent-state ${isDraft?'border-ink-700 text-ink-400':badge?.cls||''}`}>{isDraft?'Draft':badge?.label}</span>
+    {!card&&<div className="agent-when"><span>{isDraft?'Not turned on':a.section==='scheduled'&&a.nextRunAt?`Next: ${nextRunLabel(a.nextRunAt)}`:a.lastRun?.ranAt?<><span>Ran </span><LocalTime iso={a.lastRun.ranAt}/></>:'Not run yet'}</span><small>{a.section==='scheduled'?(a.scheduleNl||'On a schedule'):a.section==='paused'?'Schedule paused':isDraft?'Saved for later':a.scheduleOff?'Schedule off':'On demand'}</small></div>}
+    {!card&&<div className="agent-row-grade">{a.grade?.hasGrade?<><span>{Math.round(a.grade.rate*100)}% delivered</span><small>of {a.grade.runs} runs</small></>:<span aria-label="No delivery history">—</span>}</div>}
+    <Link href={isDraft||a.section==='paused'?detail:detail+'&run=1'} prefetch={false} className="btn-outline agent-run">{isDraft?'Turn on':a.section==='paused'?'Resume':'Run'}</Link>
+    <RowMenu onArchive={()=>onArchive(a)} onDeactivate={()=>onDeactivate(a)} canDeactivate={a.section==='scheduled'} busy={busy} trainingHref={a.canTrain?`/training/${encodeURIComponent(a.slug)}`:undefined} lastRunHref={a.lastRun?.id?`/runs/${encodeURIComponent(a.lastRun.id)}`:undefined}/>
+  </li>;
 }
 
-function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFavorite, busySlug, subtitle, collapsible = false }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busySlug: string | null; subtitle?: string; collapsible?: boolean }) {
-  if (agents.length === 0) return null;
-  const rows=<ul className="agent-roster-list">{agents.map((a) => <Row key={a.slug} a={a} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug === a.slug} />)}</ul>;
-  return collapsible?<details className="mb-8 border-t border-ink-700 pt-5"><summary className="cursor-pointer text-sm text-ink-300">{title} ({agents.length})</summary><div className="mt-4">{rows}</div></details>:(
-    <section className="mb-8">
-      <h2 className="text-lg font-medium text-ink-100 mb-3">
-        {title} <span className="text-ink-500">({agents.length})</span>
-        {subtitle && <span className="ml-2 normal-case tracking-normal text-ink-500 font-normal">{subtitle}</span>}
-      </h2>
-      {rows}
-    </section>
-  );
+function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFavorite, busySlug, subtitle, collapsible = false, cards=false, limit=8,covers }: {covers?:CoverMap; title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busySlug: string | null; subtitle?: string; collapsible?: boolean;cards?:boolean;limit?:number }) {
+  const [all,setAll]=useState(false);
+  if (!agents.length) return null;
+  const content=<><ul className={cards?'agent-favorites-grid':'agent-roster-list'}>{(all?agents:agents.slice(0,limit)).map(a=><Row key={a.slug} a={a} cover={a.familyId?covers?.[a.familyId]:undefined} card={cards} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug===a.slug}/>)}</ul>
+    {agents.length>limit&&<p className="agent-section-more">Showing {all?agents.length:limit} of {agents.length} · <button type="button" onClick={()=>setAll(!all)}>{all?'Show less':`Show all ${agents.length}`}</button></p>}</>;
+  return collapsible?<details className="agent-collapsed-group"><summary>{title} <span>{agents.length}{subtitle?` · ${subtitle}`:''}</span></summary><div>{content}</div></details>:
+    <section className="agent-section" aria-label={title}><div className="agent-section-head"><h2>{title}</h2><span>{agents.length}</span>{subtitle&&<p>{subtitle}</p>}</div>{content}</section>;
 }
 
-export default function AgentsList({ agents, archived = [], availableAgents = [], discoveryUnavailable = null }: { agents: ListAgent[]; archived?: ArchivedAgent[]; availableAgents?: DiscoveredAgent[]; discoveryUnavailable?: string | null }) {
+const EMPTY_ARCHIVED:ArchivedAgent[]=[];
+export default function AgentsList({ agents, archived = EMPTY_ARCHIVED, rosterKnown = true }: { agents: ListAgent[]; archived?: ArchivedAgent[]; rosterKnown?:boolean }) {
   const router = useRouter();
   const params = useSearchParams();
   const supabase = createClient();
@@ -348,14 +244,18 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
   // Local copies so archive/restore update instantly (the backend already
   // filters dismissed agents out of the feeds, so an optimistic move is safe).
   const [list, setList] = useState<ListAgent[]>(agents);
+  const publishCount=useAgentCollectionCount();
+  useEffect(()=>{publishCount?.({count:list.length,complete:rosterKnown});},[publishCount,list.length,rosterKnown]);
   const [arch, setArch] = useState<ArchivedAgent[]>(archived);
   const [busySlug, setBusySlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [showPaused, setShowPaused] = useState(false);
+  const [showNeeds,setShowNeeds]=useState(false);
+  const [sort,setSort]=useState('recent');
   const [query, setQuery] = useState('');
-  const [readinessFilter, setReadinessFilter] = useState('');
-  const [engineFilter, setEngineFilter] = useState('');
+  // A server refresh can recover a previously unavailable roster without remounting.
+  useEffect(()=>{setList(agents);},[agents]);
+  useEffect(()=>{setArch(archived);},[archived]);
 
   // Star / un-star. Optimistic (flip in place), best-effort backend — a favorite
   // is a pure display marker, so a failed write just reverts the star, never an
@@ -493,39 +393,28 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
   // a warning inside a collapsed section is a warning nobody reads.
   const liveArchived = arch.filter((a) => a.isLive).length;
 
-  // Search: match the typed query against the agent name + its category label, so
-  // a big roster narrows instantly (client-side; no round trip). Combined with the
-  // category chips (both must match).
+  // Owned-agent search stays local and combines with the existing category keys.
+  const countLabel=(n:number)=>rosterKnown?n:n?`${n}+`:'?';
   const q = query.trim().toLowerCase();
-  const byCat = activeCat ? list.filter((a) => a.category.key === activeCat) : list;
+  const needsHelp=(a:ListAgent)=>!!a.needsIntervention||(a.pendingQuestions??0)>0;
+  const byCat = activeCat==='needs'?list.filter(needsHelp):activeCat==='scheduled'?list.filter(a=>a.section==='scheduled'):activeCat?list.filter(a=>a.category.key===activeCat):list;
   const shown = q
     ? byCat.filter((a) => a.name.toLowerCase().includes(q) || a.category.label.toLowerCase().includes(q))
     : byCat;
-  const discoveryReadinessStates = useMemo(
-    () => [...new Set(availableAgents.map((a) => a.readiness.state))].sort(),
-    [availableAgents],
-  );
-  const discoveryEngines = useMemo(
-    () => [...new Set(availableAgents.flatMap((a) => a.testedCompatibility.executionEngines))].sort(),
-    [availableAgents],
-  );
-  const availableShown = availableAgents.filter((a) => {
-    const matchesQuery = !q || `${a.name} ${a.job} ${a.builder.name}`.toLowerCase().includes(q);
-    const matchesReadiness = !readinessFilter || a.readiness.state === readinessFilter;
-    const matchesEngine = !engineFilter || a.testedCompatibility.executionEngines.includes(engineFilter);
-    return matchesQuery && matchesReadiness && matchesEngine;
-  });
   // Favorites float to their own section at the very top (and are removed from the
   // sections below so a starred agent shows once). Newest-starred not tracked here;
   // order follows the roster.
   const favorites = shown.filter((a) => a.favorite);
+  const covers=useAgentSampleThumbnails(list.filter(a=>a.favorite).map(a=>a.familyId));
   const scheduled = shown.filter((a) => a.section === 'scheduled' && !a.favorite);
   const onDemand = shown.filter((a) => a.section === 'on_demand' && !a.favorite);
   const notActivated = shown.filter((a) => a.section === 'not_activated' && !a.favorite);
   const paused = shown.filter((a) => a.section === 'paused' && !a.favorite);
   // The full activated roster (scheduled + on-demand together, scheduler-tagged) —
   // favorites are pulled into their own section above, so exclude them here.
-  const activated = [...scheduled, ...onDemand];
+  const activated = [...scheduled, ...onDemand].sort((a,b)=>sort==='name'?a.name.localeCompare(b.name):(Date.parse(b.lastRun?.ranAt||'')||0)-(Date.parse(a.lastRun?.ranAt||'')||0));
+  const attention=shown.filter(needsHelp);
+  const rowHandlers={onArchive:archive,onDeactivate:deactivate,onRename:rename,onToggleFavorite:toggleFavorite,busySlug};
   const setCat = (key: string) => {
     const p = new URLSearchParams(params.toString());
     if (key) p.set('cat', key); else p.delete('cat');
@@ -537,166 +426,37 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
       {error && <p className="text-xs text-state-fail mb-3">{error}</p>}
 
       {/* One outcome-first query spans owned/hired and eligible available agents. */}
-      <div className="relative mb-4">
-          <span aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 text-sm">⌕</span>
+      {(rosterKnown||list.length>0)&&<div className="relative mb-4">
+          <span aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500"><svg width="16" height="16"><use href="/brand/tukido-icons.svg#search"/></svg></span>
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="What outcome do you need?"
-            aria-label="Search agents by outcome"
+            placeholder="Find one of your agents"
+            aria-label="Search your agents"
             className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm pl-8 pr-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
           />
-      </div>
+      </div>}
 
-      {availableAgents.length > 0 && (
-        <div className="mb-5 flex flex-wrap gap-3" aria-label="Filter available agents">
-          <label className="text-xs text-ink-400">
-            Readiness
-            <select
-              value={readinessFilter}
-              onChange={(event) => setReadinessFilter(event.target.value)}
-              className="ml-2 rounded-md border border-ink-700 bg-ink-900 px-2 py-1.5 text-ink-100 focus:border-brand-500/60 focus:outline-none"
-            >
-              <option value="">All states</option>
-              {discoveryReadinessStates.map((state) => <option key={state} value={state}>{state}</option>)}
-            </select>
-          </label>
-          <label className="text-xs text-ink-400">
-            Tested engine
-            <select
-              value={engineFilter}
-              onChange={(event) => setEngineFilter(event.target.value)}
-              className="ml-2 rounded-md border border-ink-700 bg-ink-900 px-2 py-1.5 text-ink-100 focus:border-brand-500/60 focus:outline-none"
-            >
-              <option value="">All engines</option>
-              {discoveryEngines.map((engine) => <option key={engine} value={engine}>{engine}</option>)}
-            </select>
-          </label>
-          {(readinessFilter || engineFilter) && (
-            <button type="button" onClick={() => { setReadinessFilter(''); setEngineFilter(''); }} className="text-xs text-action-accent hover:underline">
-              Clear filters
-            </button>
-          )}
-        </div>
-      )}
+      {(rosterKnown||list.length>0)&&<nav className="agent-filter-chips" aria-label="Filter your agents">
+        <button type="button" aria-pressed={!activeCat} onClick={()=>setCat('')}>All</button>
+        <button type="button" aria-pressed={activeCat==='needs'} onClick={()=>setCat(activeCat==='needs'?'':'needs')}>Needs you · {countLabel(list.filter(needsHelp).length)}</button>
+        <button type="button" aria-pressed={activeCat==='scheduled'} onClick={()=>setCat(activeCat==='scheduled'?'':'scheduled')}>On a schedule · {countLabel(list.filter(a=>a.section==='scheduled').length)}</button>
+        {categories.slice(0,3).map(c=><button key={c.key} type="button" aria-pressed={activeCat===c.key} onClick={()=>setCat(activeCat===c.key?'':c.key)}>{c.label} · {c.n}</button>)}
+        {categories.length>3&&<details><summary>More</summary><div>{categories.slice(3).map(c=><button key={c.key} type="button" aria-pressed={activeCat===c.key} onClick={()=>setCat(activeCat===c.key?'':c.key)}>{c.label} · {c.n}</button>)}</div></details>}
+      </nav>}
+      {attention.length>0&&<section className="agent-section" aria-label="Needs you"><div className="agent-section-head"><h2>Needs you</h2><span className="agent-attention-count">{attention.length} agents</span></div><div className="agent-needs-grid">
+        {(showNeeds?attention:attention.slice(0,3)).map(a=><article key={a.slug} className={`agent-need-card ${a.lastRun?.status==='failed'?'failed':''}`}><h3>{a.name}</h3><p>{(a.pendingQuestions??0)>0?`${a.pendingQuestions} question${a.pendingQuestions===1?' needs':'s need'} your answer.`:a.interventionReason||'Open this agent to see what it needs.'}</p><Link href={`/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`} className="btn-outline">Open agent</Link></article>)}
+      </div>{attention.length>3&&<p className="agent-section-more">{!showNeeds&&`and ${attention.length-3} more · `}<button type="button" onClick={()=>setShowNeeds(!showNeeds)}>{showNeeds?'Show less':`Show all ${attention.length}`}</button></p>}</section>}
+      <Section title="Favorites" agents={favorites} cards limit={4} covers={covers} {...rowHandlers}/>
+      {activated.length>0&&<div className="agent-sort"><label>Sort <select value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recently run</option><option value="name">Name</option></select></label></div>}
+      <Section title="All active agents" agents={activated} {...rowHandlers}/>
+      <Section title="Drafts" subtitle="saved but not turned on" agents={notActivated} collapsible limit={3} {...rowHandlers}/>
+      <Section title="Paused" agents={paused} collapsible limit={3} {...rowHandlers}/>
+      {shown.length===0&&rosterKnown&&(q||activeCat?
+        <CollectionEmpty title="No results" description={<>{list.length===1?'Your agent doesn’t match':`None of your ${list.length} agents match`}{q?` “${query.trim()}”`:''}{activeCat?` in ${activeCat==='needs'?'Needs you':activeCat==='scheduled'?'On a schedule':categories.find(c=>c.key===activeCat)?.label||activeCat}`:''}.</>}><button type="button" className="btn-outline" onClick={()=>{setQuery('');setCat('');}}>Clear search and filters</button></CollectionEmpty>:
+        <CollectionEmpty enso title="No agents yet" description="Agents you build or pick up from a trainer appear here, ready to run."><div><Link href="/create" className="btn-primary">Build an agent</Link> <Link href="/workflows?tab=rent" className="btn-outline">Find a trained agent</Link></div></CollectionEmpty>)}
 
-      {discoveryUnavailable && (
-        <div role="status" className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-state-needs">
-          Available agents could not be checked. Your hired and owned agents are still shown below.
-        </div>
-      )}
-
-      {(q || availableShown.length > 0) && (
-        <section className="mb-8" aria-labelledby="available-agent-results">
-          <h2 id="available-agent-results" className="text-lg font-medium text-ink-100 mb-3">Agent results</h2>
-          <ul className="space-y-3">
-            {q && (
-              <li className="card flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-ink-50">Build yours for free</p>
-                  <p className="mt-1 text-xs text-ink-400">Start a private agent for “{query.trim()}”. You own the build.</p>
-                </div>
-                <Link href={`/create?intent=${encodeURIComponent(query.trim())}`} className="btn-primary text-xs px-3 py-1.5 whitespace-nowrap">View build</Link>
-              </li>
-            )}
-            {availableShown.map((agent) => (
-              <li key={agent.id} className="card flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link href={`/workflows/${encodeURIComponent(agent.slug)}`} className="text-base font-medium text-ink-50 hover:underline">{agent.name}</Link>
-                    <span className="text-[10px] uppercase tracking-wider rounded border border-ink-700 px-1.5 py-0.5 text-ink-300">{agent.ownership}</span>
-                    <span className="text-[10px] uppercase tracking-wider rounded border border-sky-500/40 px-1.5 py-0.5 text-state-running">{agent.readiness.state}</span>
-                  </div>
-                  <p className="mt-1 text-sm text-ink-300">{agent.job}</p>
-                  <p className="mt-1 text-xs text-ink-500">Built by {agent.builder.name} · v{agent.version.number}</p>
-                </div>
-                <Link href={`/workflows/${encodeURIComponent(agent.slug)}`} className="btn-outline text-xs px-3 py-1.5 whitespace-nowrap">View agent</Link>
-              </li>
-            ))}
-            {availableShown.length === 0 && (
-              <li className="card text-sm text-ink-400" role="status">No available agents match these filters.</li>
-            )}
-          </ul>
-        </section>
-      )}
-
-      {categories.length > 1 && (
-        <div className="flex flex-wrap items-center gap-2 mb-7">
-          <button
-            type="button"
-            onClick={() => setCat('')}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${!activeCat ? 'border-brand-500/50 bg-brand-500/10 text-action-accent' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
-          >
-            All
-          </button>
-          {categories.map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              onClick={() => setCat(activeCat === c.key ? '' : c.key)}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${activeCat === c.key ? 'border-brand-500/50 bg-brand-500/10 text-action-accent' : 'border-ink-700 text-ink-400 hover:text-ink-200'}`}
-            >
-              {c.label} <span className="text-ink-600">{c.n}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* One row per agent. Live execution belongs in Work. */}
-      <div className="mb-5 text-sm"><Link href="/workflows?tab=rent" className="text-action-accent hover:underline">Find a trained agent →</Link></div>
-      <Section title="Favorites" subtitle="your starred agents" agents={favorites} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
-      <Section title="Active agents" agents={activated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
-      <Section title="Drafts" agents={notActivated} collapsible onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
-
-      {shown.length === 0 && (
-        <div className="card text-center py-10">
-          <p className="text-ink-100 font-medium text-sm">
-            {q ? 'No agents match your search.' : activeCat ? 'No agents in this category.' : 'No agents yet.'}
-          </p>
-          <p className="text-xs text-ink-500 mt-1">
-            {q
-              ? <button type="button" onClick={() => setQuery('')} className="text-action-accent hover:underline">Clear search</button>
-              : activeCat
-                ? <button type="button" onClick={() => setCat('')} className="text-action-accent hover:underline">Clear filter</button>
-                : <>Describe one in <Link href="/create" className="text-action-accent hover:underline">Create</Link> and Tukido builds it.</>}
-          </p>
-        </div>
-      )}
-
-      {/* Paused — recurring agents the user paused. Collapsed by default (like
-          Archived): their clock is stopped but they still run on demand. Each row
-          opens the agent page, where Resume lives. */}
-      {paused.length > 0 && (
-        <section className="mt-10 pt-6 border-t border-ink-800">
-          <h2 className="text-sm text-ink-400 mb-3">Paused ({paused.length})</h2>
-          <ul className="space-y-2">
-            {(showPaused ? paused : paused.slice(0, 3)).map((a) => (
-              <li key={a.slug} className="card flex items-center justify-between gap-3 py-2.5">
-                <span className="flex items-center gap-2 min-w-0">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
-                  <span className="text-sm text-ink-300 truncate">{a.name}</span>
-                </span>
-                <Link
-                  href={`/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`}
-                  className="btn-success text-xs px-3 py-1.5 whitespace-nowrap flex-none"
-                >
-                  Resume
-                </Link>
-              </li>
-            ))}
-          </ul>
-          {paused.length > 3 && (
-            <button
-              type="button"
-              onClick={() => setShowPaused((v) => !v)}
-              className="text-xs text-ink-500 hover:text-ink-300 mt-3"
-            >
-              {showPaused ? 'Show less' : `Show all (${paused.length})`}
-            </button>
-          )}
-        </section>
-      )}
 
       {/* Archived — per-user hidden agents, restorable. The shared agents are
           untouched; this is just the caller's view.
@@ -708,11 +468,13 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
           liveness can't be left implicit. If this badge never appears, good:
           that's the contract holding, visibly. */}
       {arch.length > 0 && (
-        <section className="mt-10 pt-6 border-t border-ink-800">
+        <section className="agent-collapsed-group">
           <button
             type="button"
             onClick={() => setShowArchived((v) => !v)}
-            className="text-sm text-ink-400 hover:text-ink-300 flex items-center gap-1.5"
+            aria-expanded={showArchived}
+            aria-controls="archived-agents"
+            className="agent-archive-toggle"
           >
             <span className={`inline-block transition-transform ${showArchived ? 'rotate-90' : ''}`}>▸</span>
             Archived ({arch.length})
@@ -723,7 +485,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
             )}
           </button>
           {showArchived && (
-            <>
+            <div id="archived-agents">
               <p className="text-[11px] text-ink-500 mt-2">Hidden from your list. Archiving also stops the schedule.</p>
               <ul className="space-y-2 mt-3">
                 {arch.map((a) => (
@@ -762,7 +524,7 @@ export default function AgentsList({ agents, archived = [], availableAgents = []
                   </li>
                 ))}
               </ul>
-            </>
+            </div>
           )}
         </section>
       )}

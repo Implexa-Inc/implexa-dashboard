@@ -307,30 +307,11 @@ test('unavailable private installation never falls back to publisher training or
  finally{r.cleanup();}
 });
 
-test('public definition needs current-version review and confirmation without publishing teaching evidence',async()=>{
- for(const mode of ['valid','stale','not-owned']) {
-  const h=await renderedWith(),r=h.rendered,requests:Array<{method:string;body:any}>=[];
-  r.window.fetch=(async(_url:any,options:any={})=>{
-   requests.push({method:options.method||'GET',body:options.body?JSON.parse(options.body):null});
-   return {ok:mode!=='not-owned',json:async()=>options.method==='POST'?{ok:true,shared:true}:{ok:mode!=='not-owned',error:'Agent not found.',
-    publication:{versionId:mode==='stale'?VERSION_B:VERSION_A,shared:false,publicUrl:'https://implexa.ai/workflows/video-craft'}}};
-  }) as typeof r.window.fetch;
-  try {
-   assert.equal(r.queryByText('Make agent public'),null);
-   await r.click(r.getByText('Check public visibility'));
-   if(mode!=='valid'){assert.equal(r.queryByText('Make agent public'),null);assert.equal(requests.length,1);continue;}
-   assert.equal((r.getByText('Make agent public') as HTMLButtonElement).disabled,true);
-   await r.click(r.getByText(/Publish this agent definition for other people/).closest('label')!.querySelector('input')!);
-   await r.click(r.getByText('Make agent public'));
-   assert.deepEqual(requests[1],{method:'POST',body:{expectedVersionId:VERSION_A,definitionOnlyConfirmed:true}});
-   assert.match(r.text(),/This agent definition is public/);assert.ok(r.queryByText('Open public agent'));
-   assert.match(r.text(),/public site and in community search/);
-   await r.click(r.getByText('Make agent private'));
-   assert.deepEqual(requests[2],{method:'POST',body:{expectedVersionId:VERSION_A,makePrivate:true}});
-   assert.match(r.text(),/This agent definition is private/);assert.equal(r.queryByText('Open public agent'),null);
-   assert.equal(h.calls.some(c=>['accept','serverStorage','annotate'].includes(c.operation)),false);
-  }finally{r.cleanup();}
- }
+test('training replaces its separate public/private controls with the single listing page',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ try{assert.equal(r.queryByText('Make agent public'),null);assert.equal(r.queryByText('Check public visibility'),null);
+ const link=r.getByText('Manage marketplace listing and visibility');assert.equal(link.tagName,'A');assert.equal(link.getAttribute('href'),`/training/video-craft/listing?versionId=${VERSION_A}`);assert.equal(h.calls.some(c=>['accept','serverStorage','annotate'].includes(c.operation)),false);
+ }finally{r.cleanup();}
 });
 
 async function setInput(rendered: Rendered, input: Element, value: string) {
@@ -617,7 +598,7 @@ test('malformed or stale active-version training requirements fail closed before
 test('source and session identities, exact time input and accessible range value are visible', async () => {
   const { rendered } = await renderedWith();
   try {
-    assert.match(rendered.text(), /Teach Video craft/);assert.match(rendered.text(), /Video craft/);
+    assert.match(rendered.text(), /Train Video craft/);assert.match(rendered.text(), /Video craft/);
     assert.match(rendered.text(), /Active version: 11111111 · Session version: 11111111/);
     assert.match(rendered.text(), /approved-edit.mp4Video · 11:50.667Annotate sourceSource details1920×1080 · SHA-256 bbbbbbbb/);
     await rendered.click(rendered.getByText('Annotate source'));
@@ -997,7 +978,7 @@ test('a decision with no eligible Manager stage cannot be saved', async () => {
     await rendered.click(rendered.getByText('Preview this exact frame'));
     for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea[maxlength="400"]')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
     for (const label of ['Plan the treatment', 'Build the composition', 'Review previews', 'Check final quality', 'Revise from feedback']) {
-      await rendered.click(rendered.getByText(label).closest('label')!.querySelector('input')!);
+      await rendered.click([...rendered.document.querySelectorAll('#recording-analysis fieldset label')].find(el=>el.textContent?.startsWith(label))!.querySelector('input')!);
     }
     assert.equal((rendered.getByText('Save decision draft') as HTMLButtonElement).disabled, true);
     assert.equal(calls.some((item) => item.operation === 'annotate'), false);
@@ -1137,7 +1118,7 @@ test('successor preserves prior stages and expands required routes only after ex
 
     assert.match(rendered.text(), /The predecessor stages were preserved exactly/);
     assert.match(rendered.text(), /Still missing: Plan the treatment, Design scene contracts, Select assets, Revise from feedback/);
-    const stageChecked = (label: string) => (rendered.getByText(label).closest('label')!.querySelector('input') as HTMLInputElement).checked;
+    const stageChecked = (label: string) => ([...rendered.document.querySelectorAll('#recording-analysis fieldset label')].find(el=>el.textContent?.startsWith(label))!.querySelector('input') as HTMLInputElement).checked;
     assert.equal(stageChecked('Build the composition'), true);
     assert.equal(stageChecked('Plan the treatment'), false, 'the UI never silently widens accepted evidence');
     assert.equal(stageChecked('Select assets'), false);
@@ -1724,7 +1705,7 @@ test('the existing Training controller sends the exact reviewed public preparati
   assert.equal(h.calls.some(c=>['accept','delivery'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
-test('owner workspace is one page with closed chat, direct teaching actions and unchanged consents',async()=>{
+test('owner workspace keeps chat visible beside teaching actions and preserves source consents',async()=>{
  const h=await renderedWith(),r=h.rendered;
  r.window.Element.prototype.scrollIntoView=()=>{};
  const visible=(el:Element)=>!el.closest('[hidden]');
@@ -1732,14 +1713,14 @@ test('owner workspace is one page with closed chat, direct teaching actions and 
  try{
   for(const label of ['◉ Record','↑ Upload','Show it'])assert.equal(visible(r.getByText(label)),true);
   assert.ok(r.document.querySelector('[aria-label="Choose a training source"]'));assert.equal(r.queryByText('3 ways to train'),null);assert.equal(r.queryByText('Multimodal Training'),null);
-  assert.equal(visible(r.getByText('Check public visibility')),false);
+  assert.equal(visible(r.getByText('Manage marketplace listing and visibility')),false);
   assert.equal(visible(r.getByText('Load recorded questions')),false);
   assert.equal(visible(r.getByText('Add training source')),false);
   const chat=r.document.getElementById('training-companion')!;
-  assert.equal(chat.hidden,true);assert.equal(r.document.querySelectorAll('#training-chat-message').length,1);
+  assert.equal(chat.hidden,false);assert.equal(r.document.querySelectorAll('#training-chat-message').length,1);
   const toggle=r.document.getElementById('training-chat-toggle')!;await r.click(toggle);
   assert.equal(chat.hidden,false);assert.equal(toggle.getAttribute('aria-expanded'),'true');
-  await r.click(r.document.querySelector('[aria-label="Close chat"]')!);assert.equal(chat.hidden,true);
+  assert.equal(r.document.querySelector('[aria-label="Close chat"]'),null,'persistent rail has no competing close state');
   await r.click(r.getByText('↑ Upload'));
   const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;assert.ok(dialog);
   assert.equal((dialog.querySelector('input') as HTMLInputElement).checked,false);
@@ -1749,7 +1730,7 @@ test('owner workspace is one page with closed chat, direct teaching actions and 
   await r.click(r.getByText('Questions from your agent →'));
   assert.equal(visible(r.getByText('Load recorded questions')),true);
   await r.click(r.getByText('Sharing & settings'));
-  assert.equal(visible(r.getByText('Check public visibility')),true);
+  assert.equal(visible(r.getByText('Manage marketplace listing and visibility')),true);
   assert.equal(h.calls.some(c=>['select','recording','annotate','accept','delivery'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
@@ -1761,7 +1742,7 @@ test('choosing a source from history returns to teaching without changing the sa
   await r.click(r.getByText('Annotate source'));
   assert.equal(r.document.getElementById('recording-analysis')!.closest('[hidden]'),null);
   const wording=r.getByText('Advanced manual teaching').closest('details')!;assert.equal(wording.open,false,'empty structured wording is not imposed on the normal annotation path');
-  assert.equal(r.getByText('Check public visibility').closest('[hidden]')!==null,true);
+  assert.equal(r.getByText('Manage marketplace listing and visibility').closest('[hidden]')!==null,true);
   assert.equal(h.calls.some(c=>['annotate','accept','recording'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
@@ -2093,7 +2074,7 @@ test('inline recording analysis waits for explicit consent, uses committed sourc
  }) as typeof r.window.fetch;
  const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,30));});
  try{
-  await flush();assert.ok(r.queryByText('Annotate your recording'));assert.equal(registrations,0);assert.equal(recognitions,0);
+  await flush();assert.ok(r.document.querySelector('[aria-label="Annotate your recording"]'));assert.equal(registrations,0);assert.equal(recognitions,0);
   for(let i=0;i<2;i++){
    await r.click(r.getByText('Find learnings in my narration'));assert.equal(recognitions,i);assert.match(r.text(),/transcript and 12 storyboard frames/);
    await r.click(r.getByText('Analyze narration'));await flush();
@@ -2412,7 +2393,7 @@ test('an uninserted voice transcript blocks source replacement just like typed u
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,initialRecordingId:RECORD,recentRuns:[{id:QUESTION,date:'2026-11-11T12:00:00Z',status:'Done',artifact:null}]},{bridge:h.bridge});
  const prior=r.window.fetch;r.window.fetch=(async(url:string,init:RequestInit={})=>{requests.push({url,init});if(String(url).includes('/run-review?'))return {ok:false,json:async()=>({ok:false})};return prior(url,init);}) as typeof fetch;
  try{
-  await r.click(r.getByText('Add a voice note'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
+  await r.click(r.document.querySelector('.recording-moment-select')!);assert.ok(r.document.querySelector('.recording-moment.is-selected'));await r.click(r.document.querySelector('button[aria-label="Add a voice note"]')!);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
   assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');
   const sameTranscript=r.document.querySelector('[aria-label="Voice note transcript"]');await r.click(r.getByText('Questions & history'));await r.click(r.getByText('Questions & history'));assert.ok(r.document.querySelector('[aria-label="Voice note transcript"]')===sameTranscript,'step navigation does not remount pending voice feedback');
   assert.ok(r.document.querySelector('#training-recent-results')); await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);
@@ -2607,7 +2588,7 @@ test('upload analysis shows progress, falls back to screenshots, and keeps learn
 test('contextual review preserves draft selection and requires final Apply confirmation',async()=>{
  const h=harness({previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;h.bridge.trainingLocal=async(operation,args)=>{const result:any=await original(operation,args);if(operation==='list'&&result.sources?.[0]){const first=result.sources[0].decisions[0];first.content.derivatives=[{sha256:DIGEST}];result.sources[0].decisions=[first,{...first,recordId:QUESTION,decision:{...first.decision,why:'A second precise judgment.'}}];}return result;};
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);r.window.Element.prototype.scrollIntoView=()=>{};
- try{assert.equal(r.document.querySelector('[aria-label="Training steps"]'),null);assert.ok(r.getByText('Show it'));const playing=r.document.createElement('video');let paused=0;Object.defineProperty(playing,'paused',{get:()=>false});playing.pause=()=>{paused++;};r.document.querySelector('#main-content')!.append(playing);assert.ok(r.getByText('Review training →').closest('[aria-labelledby=training-opportunities-heading]'),'ready teachings share the AI suggestions section');await r.click(r.getByText('Review training →'));assert.equal(paused,1,'leaving Teach pauses hidden playback without touching native voice capture');playing.remove();const review=r.document.querySelector('[aria-label="Review proposed visual training"]')!;assert.ok(review.closest('[hidden]')===null);const boxes=[...review.querySelectorAll('input[type=checkbox]')] as HTMLInputElement[];assert.equal(boxes.length,2);await r.click(boxes[1]);await r.click(r.getByText('Continue to Apply & Test'));assert.ok(review.closest('[hidden]'));const apply=r.document.querySelector('[aria-label="Selected training to apply"]')!;assert.ok(apply.closest('[hidden]')===null);assert.match(apply.textContent||'',/1 visual lesson selected/);await r.click([...apply.querySelectorAll('button')].find(button=>button.textContent==='Apply selected lesson')!);const modal=r.document.querySelector('[role="dialog"][aria-label="Apply these lessons?"]')!;assert.ok(modal);assert.ok(modal.closest('[hidden]')===null);assert.equal(modal.querySelectorAll('li').length,1);assert.doesNotMatch(modal.textContent||'',/second precise/);await r.click(r.getByText('Keep reviewing'));await r.click(r.getByText('Review selection'));assert.equal(boxes[1].checked,false);assert.equal(h.calls.some(call=>call.operation==='accept'),false);}finally{r.cleanup();}
+ try{assert.equal(r.document.querySelector('[aria-label="Training steps"]'),null);assert.ok(r.getByText('Show it'));const playing=r.document.createElement('video');let paused=0;Object.defineProperty(playing,'paused',{get:()=>false});playing.pause=()=>{paused++;};r.document.querySelector('#main-content')!.append(playing);assert.ok(r.getByText('Review training →').closest('.training-recovery-details'),'the prior batch-review path remains in saved work');await r.click(r.getByText('Review training →'));assert.equal(paused,1,'leaving Teach pauses hidden playback without touching native voice capture');playing.remove();const review=r.document.querySelector('[aria-label="Review proposed visual training"]')!;assert.ok(review.closest('[hidden]')===null);const boxes=[...review.querySelectorAll('input[type=checkbox]')] as HTMLInputElement[];assert.equal(boxes.length,2);await r.click(boxes[1]);await r.click(r.getByText('Continue to Apply & Test'));assert.ok(review.closest('[hidden]'));const apply=r.document.querySelector('[aria-label="Selected training to apply"]')!;assert.ok(apply.closest('[hidden]')===null);assert.match(apply.textContent||'',/1 visual lesson selected/);await r.click([...apply.querySelectorAll('button')].find(button=>button.textContent==='Apply selected lesson')!);const modal=r.document.querySelector('[role="dialog"][aria-label="Apply these lessons?"]')!;assert.ok(modal);assert.ok(modal.closest('[hidden]')===null);assert.equal(modal.querySelectorAll('li').length,1);assert.doesNotMatch(modal.textContent||'',/second precise/);await r.click(r.getByText('Keep reviewing'));await r.click(r.getByText('Review selection'));assert.equal(boxes[1].checked,false);assert.equal(h.calls.some(call=>call.operation==='accept'),false);}finally{r.cleanup();}
 });
 
 test('Upload refuses an open marked-result proposal before file selection and returns to its mounted review',async()=>{
@@ -2993,7 +2974,7 @@ test('delayed Apply and saved-change reads cannot overwrite a newer session or v
  const code=transformSync(`function controller(){
   ${block('  async function loadChanges(','  useEffect(()=>{setChanges(null);')}
   ${block('  async function mutateChanges(','  function requestLearning(')}
-  ${block('  async function work(','  async function changePublication(')}
+  ${block('  async function work(','  function rememberList(')}
   ${block('  async function applyTextDrafts(','  async function applyVisualDrafts(')}
   return {loadChanges,applyTextDrafts};
  }`,{loader:'ts',target:'es2022'}).code;
@@ -3176,7 +3157,7 @@ test('a reviewed planning successor preserves direction conditions and exception
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
  try{
   await r.click(r.getByText('Review accepted evidence'));await r.click(r.getByText('Create planning-scoped successor'));
-  assert.ok(r.getByText('Only for Cinematic B-roll-heavy'));
+  assert.ok(r.getByText('Applies to: Cinematic B-roll-heavy runs'));
   await r.click(r.getByText('Preview this exact frame'));
   await r.click(r.getByText('Save decision draft'));
   const write=h.calls.find(c=>c.operation==='annotate');assert.ok(write,'normal native writer was called');
@@ -3204,7 +3185,7 @@ for(const creativeDirections of [[],['Cinematic B-roll-heavy']] as const)test(`d
   await chooseDirectUpload(r);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
   await setTextarea(r,r.document.querySelector('[aria-label="Teach from an image"] textarea')!,'For cinematic B-roll-heavy videos, explain the place with relevant imagery.');
   await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
-  const review=r.document.querySelector('[aria-label="Review example type"]');assert.ok(review);assert.match(review.textContent||'',creativeDirections.length?/Only for Cinematic B-roll-heavy/:/All directions/);
+  const review=r.document.querySelector('[aria-label="Review example type"]');assert.ok(review);assert.match(review.textContent||'',creativeDirections.length?/Applies to: Cinematic B-roll-heavy runs/:/Applies to: every creative direction/);
   assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false,'scope is visible before the immutable writer');
  }finally{r.cleanup();}
 });
@@ -3421,4 +3402,83 @@ test('a background check superseded by teaching cannot raise a failure or replac
    assert.equal(h.calls.some(call=>['accept','delivery','annotate'].includes(call.operation)),false);
   }finally{r.cleanup();}
  }
+});
+
+
+test('Accept in the unified decision review activates only the displayed lesson and confirms fresh serving',async()=>{
+ const h=harness(),chosen=NEW_SESSION,other=QUESTION,writes:any[]=[];let live:string[]=[];
+ const record=(id:string)=>({recordId:id,recordDigest:DIGEST,summary:id===chosen?'Use a smooth connection between related ideas.':'Keep captions readable.',state:'candidate',included:true,admissionOrigin:'standing_policy',category:'taste',sourceKind:'trainer_feedback',policyReceiptId:TOKEN,policyReceiptDigest:DIGEST,sourceEventId:SOURCE_ID,sourceEventDigest:DIGEST,model:'claude-haiku-5-5',creativeDirections:[]});
+ const guided=()=>({ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[record(chosen),record(other)],test:{snapshotDigest:null,scope:null,status:'not_run',runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canApplyWithoutTest:true,canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'activated_snapshot',candidateDiffers:true,activeRecordIds:live}},publication:{canPublish:false,reason:'publication_test_required',servedSnapshotDigest:null}});
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
+  if(String(url).includes('/agent-training/coach'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v1',complete:true,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:'Video editing',versionId:VERSION_A,decisionsComplete:true,liveLessons:live.length,lastTaughtAt:live.length?'2026-11-21T12:00:00Z':null,listing:'not_listed',decisions:[chosen,other].filter(id=>!live.includes(id)).map(id=>({id,kind:'lesson',source:'record',sessionId:SESSION,versionId:VERSION_A,digest:DIGEST,createdAt:'2026-11-21T12:00:00Z'}))}]})};
+  if(String(url).includes('/changes?')){if(init.method==='POST'){const body=JSON.parse(String(init.body));writes.push(body);assert.equal(body.recordId,chosen);assert.equal(body.recordDigest,DIGEST);assert.equal(body.recordAction,'add');live=[chosen];return {ok:true,json:async()=>({ok:true,contractVersion:'training-snapshot-activation.v1',activationId:TOKEN,activationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:'b'.repeat(64),testRequestId:null,recordId:chosen,recordDigest:DIGEST,recordAction:'add',candidateSnapshotDigest:DIGEST,replay:false})};}return {ok:true,json:async()=>guided()};}
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+ }) as typeof fetch});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});
+ try{
+  const first=r.document.querySelector('.training-decision-card button')!;assert.ok(first);assert.equal(writes.length,0);await r.click(first);
+  const dialog=r.document.querySelector('[role=dialog]')!;assert.match(dialog.textContent||'',/smooth connection/);assert.doesNotMatch(dialog.textContent||'',/Keep captions readable/);
+  await r.click([...dialog.querySelectorAll('button')].find(b=>b.textContent==='Accept learning')!);
+  assert.equal(writes.length,1);assert.equal(writes[0].expectedActiveVersionId,VERSION_A);assert.equal(writes[0].expectedSnapshotDigest,DIGEST);assert.equal(writes[0].testRequestId,null);assert.equal(writes[0].applicationMode,'without_sample');
+  assert.deepEqual(live,[chosen]);assert.equal(r.document.querySelector('[role=dialog]'),null);assert.equal(r.document.querySelectorAll('.training-decision-card').length,1);assert.match(r.text(),/Added. It applies to your next run/);
+  assert.equal(h.calls.some(c=>['annotate','accept','create'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
+for(const committed of [false,true])test(`an uncertain activation retry preserves its key and avoids a second admission (server committed: ${committed})`,async()=>{
+ const h=harness(),chosen=NEW_SESSION,other=QUESTION,writes:any[]=[];let live:string[]=[],admitted=false,fail=true;const activationKeys:string[]=[];
+ const record=(id:string)=>({recordId:id,recordDigest:DIGEST,summary:id===chosen?'Use a smooth connection between related ideas.':'Keep captions readable.',state:id===chosen&&!admitted?'suggested':'candidate',included:id!==chosen||admitted,admissionOrigin:id===chosen&&!admitted?'none':'standing_policy',category:'taste',sourceKind:'trainer_feedback',policyReceiptId:TOKEN,policyReceiptDigest:DIGEST,sourceEventId:SOURCE_ID,sourceEventDigest:DIGEST,model:'claude-haiku-5-5',creativeDirections:[]});
+ const guided=()=>({ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[record(chosen),record(other)],test:{snapshotDigest:null,scope:null,status:'not_run',runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canApplyWithoutTest:true,canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'activated_snapshot',candidateDiffers:true,activeRecordIds:live}},publication:{canPublish:false,reason:'publication_test_required',servedSnapshotDigest:null}});
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
+  if(String(url).includes('/agent-training/coach'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v1',complete:true,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:'Video editing',versionId:VERSION_A,decisionsComplete:true,liveLessons:live.length,lastTaughtAt:live.length?'2026-11-21T12:00:00Z':null,listing:'not_listed',decisions:[chosen,other].filter(id=>!live.includes(id)).map(id=>({id,kind:'lesson',source:'record',sessionId:SESSION,versionId:VERSION_A,digest:DIGEST,createdAt:'2026-11-21T12:00:00Z'}))}]})};
+  if(String(url).includes('/changes?')){if(init.method==='POST'){const body=JSON.parse(String(init.body));writes.push(body);if(body.action==='admit'){admitted=true;return {ok:true,json:async()=>({ok:true})};}activationKeys.push((init.headers as any)['Idempotency-Key']);if(fail){fail=false;if(committed)live=[chosen];throw Error('network');}assert.equal(body.recordId,chosen);assert.equal(body.recordDigest,DIGEST);assert.equal(body.recordAction,'add');live=[chosen];return {ok:true,json:async()=>({ok:true,contractVersion:'training-snapshot-activation.v1',activationId:TOKEN,activationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:'b'.repeat(64),testRequestId:null,recordId:chosen,recordDigest:DIGEST,recordAction:'add',candidateSnapshotDigest:DIGEST,replay:false})};}return {ok:true,json:async()=>guided()};}
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+ }) as typeof fetch});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});
+ try{
+  const first=r.document.querySelector('.training-decision-card button')!;assert.ok(first);assert.equal(writes.length,0);await r.click(first);
+  const dialog=r.document.querySelector('[role=dialog]')!;assert.match(dialog.textContent||'',/smooth connection/);assert.doesNotMatch(dialog.textContent||'',/Keep captions readable/);
+  await r.click([...dialog.querySelectorAll('button')].find(b=>b.textContent==='Accept learning')!);
+  assert.equal(writes.length,2);assert.deepEqual(live,committed?[chosen]:[]);assert.ok(r.document.querySelector('[role=dialog]'));await r.click([...r.document.querySelector('[role=dialog]')!.querySelectorAll('button')].find(b=>b.textContent==='Accept learning')!);assert.equal(writes.filter(w=>w.action==='admit').length,1);assert.equal(writes.filter(w=>w.recordAction==='add').length,2);assert.equal(activationKeys[0],activationKeys[1]);assert.equal(writes[0].expectedActiveVersionId,VERSION_A);assert.equal(writes[0].expectedSnapshotDigest,DIGEST);assert.equal(writes[1].testRequestId,null);assert.equal(writes[1].applicationMode,'without_sample');
+  assert.deepEqual(live,[chosen]);assert.equal(r.document.querySelector('[role=dialog]'),null);assert.equal(r.document.querySelectorAll('.training-decision-card').length,1);assert.match(r.text(),/Added. It applies to your next run/);
+  assert.equal(h.calls.some(c=>['annotate','accept','create'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
+test('Review all advances after Accept without automatically applying the next lesson',async()=>{
+ const h=harness(),chosen=NEW_SESSION,other=QUESTION,writes:any[]=[];let live:string[]=[];
+ const record=(id:string)=>({recordId:id,recordDigest:DIGEST,summary:id===chosen?'Use a smooth connection between related ideas.':'Keep captions readable.',state:'candidate',included:true,admissionOrigin:'standing_policy',category:'taste',sourceKind:'trainer_feedback',policyReceiptId:TOKEN,policyReceiptDigest:DIGEST,sourceEventId:SOURCE_ID,sourceEventDigest:DIGEST,model:'claude-haiku-5-5',creativeDirections:[]});
+ const guided=()=>({ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[record(chosen),record(other)],test:{snapshotDigest:null,scope:null,status:'not_run',runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canApplyWithoutTest:true,canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'activated_snapshot',candidateDiffers:true,activeRecordIds:live}},publication:{canPublish:false,reason:'publication_test_required',servedSnapshotDigest:null}});
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
+  if(String(url).includes('/agent-training/coach'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v1',complete:true,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:'Video editing',versionId:VERSION_A,decisionsComplete:true,liveLessons:live.length,lastTaughtAt:live.length?'2026-11-21T12:00:00Z':null,listing:'not_listed',decisions:[chosen,other].filter(id=>!live.includes(id)).map(id=>({id,kind:'lesson',source:'record',sessionId:SESSION,versionId:VERSION_A,digest:DIGEST,createdAt:'2026-11-21T12:00:00Z'}))}]})};
+  if(String(url).includes('/changes?')){if(init.method==='POST'){const body=JSON.parse(String(init.body));writes.push(body);assert.equal(body.recordId,chosen);assert.equal(body.recordDigest,DIGEST);assert.equal(body.recordAction,'add');live=[chosen];return {ok:true,json:async()=>({ok:true,contractVersion:'training-snapshot-activation.v1',activationId:TOKEN,activationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:'b'.repeat(64),testRequestId:null,recordId:chosen,recordDigest:DIGEST,recordAction:'add',candidateSnapshotDigest:DIGEST,replay:false})};}return {ok:true,json:async()=>guided()};}
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+ }) as typeof fetch});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});
+ try{
+  const first=r.getByText('Review all 2');assert.ok(first);assert.equal(writes.length,0);await r.click(first);
+  const dialog=r.document.querySelector('[role=dialog]')!;assert.match(dialog.textContent||'',/smooth connection/);assert.doesNotMatch(dialog.textContent||'',/Keep captions readable/);
+  await r.click([...dialog.querySelectorAll('button')].find(b=>b.textContent==='Accept learning')!);
+  assert.equal(writes.length,1);assert.equal(writes[0].expectedActiveVersionId,VERSION_A);assert.equal(writes[0].expectedSnapshotDigest,DIGEST);assert.equal(writes[0].testRequestId,null);assert.equal(writes[0].applicationMode,'without_sample');
+  assert.deepEqual(live,[chosen]);assert.match(r.document.querySelector('[role=dialog]')?.textContent||'',/Keep captions readable/);assert.equal(r.document.querySelectorAll('.training-decision-card').length,1);assert.match(r.text(),/Added. It applies to your next run/);
+  assert.equal(h.calls.some(c=>['annotate','accept','create'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
+test('Review reopens the exact saved tool proposal without running analysis or queuing an edit',async()=>{
+ const h=harness(),requests:Array<{url:string;init:RequestInit}>=[];
+ const item={id:QUESTION,kind:'agent_change',source:'recording_agent',sessionId:SESSION,versionId:VERSION_A,digest:DIGEST,createdAt:'2026-11-21T12:00:00Z',summary:'Research visual references before planning.'};
+ const proposal={suggestionId:QUESTION,suggestionDigest:DIGEST,capability:'web_reference_research',limitations:[],proposedChange:'Research visual references before planning.',methodSelection:'pending_existing_binder',binding:{sourceId:SOURCE_ID,sourceSha256:DIGEST,targetVersionId:VERSION_A,excerptId:RECORD,excerptDigest:DIGEST,frames:[0,100,200].map(timeMs=>({timeMs,frameSha256:DIGEST}))}};
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
+  requests.push({url:String(url),init});
+  if(String(url).includes('/agent-training/coach'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v1',complete:true,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:null,versionId:VERSION_A,decisionsComplete:true,liveLessons:0,lastTaughtAt:null,listing:'not_listed',decisions:[item]}]})};
+  if(String(url).includes('/teaching-suggestion?')){assert.notEqual(init.method,'POST');assert.match(String(url),new RegExp(`suggestionId=${QUESTION}`));return {ok:true,json:async()=>({ok:true,contractVersion:'training-saved-recording-agent.v1',sessionId:SESSION,proposal})};}
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+ }) as typeof fetch});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});
+ try{await r.click(r.document.querySelector('.training-decision-card button')!);
+  const dialog=r.document.querySelector('[role=dialog]')!;assert.match(dialog.textContent||'',/Research visual references before planning/);assert.match(dialog.textContent||'',/Draft baseline operating method/);
+  assert.equal(requests.filter(x=>x.url.includes('/teaching-suggestion?')).length,1);assert.equal(requests.some(x=>x.init.method==='POST'),false);
+  assert.equal([...dialog.querySelectorAll('button')].find(x=>x.textContent==='Request this agent update')?.hasAttribute('disabled'),true);
+ }finally{r.cleanup();}
 });

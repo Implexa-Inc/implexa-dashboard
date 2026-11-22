@@ -530,3 +530,9 @@ test('active voice enrichment keeps the v2 status wire and rejects a mismatched 
  const operations:any[]=[],win={implexaDesktop:{reviewRecorderContractVersion:'2',trainerCommentaryContractVersion:'1',reviewRecorder:async(operation:string,args:any)=>{operations.push({operation,args});return operation==='status'?{ok:true,active:{recordingId:ID,state:'recording'}}:{ok:true,voiceNote:{voiceNoteId:M1,attach:{sourceKind:'upload',sourceRef:'source'}}};}}};
  const result=await createReviewRecorderClient(win,ID).status();assert.deepEqual(result,{active:{recordingId:ID,state:'recording'}});assert.deepEqual(operations.map(call=>call.operation),['status','getVoiceNote']);assert.deepEqual(operations[1].args,{recordingId:ID,expectedOwnerId:ID});
 });
+
+
+test('single teaching marks are two seconds and clip to valid source bounds',async()=>{
+ const {momentAt}=await import('./review-recorder.ts');
+ assert.deepEqual(momentAt(1250,10000),{startMs:1250,endMs:3250});assert.deepEqual(momentAt(9500,10000),{startMs:9500,endMs:10000});assert.deepEqual(momentAt(10000,10000),{startMs:9999,endMs:10000});assert.deepEqual(momentAt(-20,10000),{startMs:0,endMs:2000});assert.equal(momentAt(NaN,10000),null);assert.equal(momentAt(0,0),null);
+});

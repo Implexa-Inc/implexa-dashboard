@@ -16,7 +16,7 @@ function proxy({ signedIn = true, status = 200, offline = false, timedOut = fals
     fetch: async (url: string, init: any) => { calls.push({ url, init }); if (offline) throw Error('private-provider-detail');
       if(timedOut)throw Object.assign(Error('private'),{name:'TimeoutError'});
       return { status, json: async () => {if(invalidReply)throw SyntaxError('private upstream body');return { ok: status === 200 };} }; } });
-  return { calls, POST: module.exports.POST, maxDuration: module.exports.maxDuration };
+  return { calls, GET: module.exports.GET, POST: module.exports.POST, maxDuration: module.exports.maxDuration };
 }
 function req(body = '{}', query = `sessionId=${SESSION}`) { return new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?${query}`, {
   method: 'POST', headers: { Authorization: 'Bearer browser-forgery' }, body }); }
@@ -81,4 +81,12 @@ test('only the named review-mark operation has the larger exact-PNG budget',asyn
   const denied=proxy();assert.equal((await denied.POST(req(JSON.stringify(value),query as string))).status,400);assert.equal(denied.calls.length,0);
  }
  const big=proxy();assert.equal((await big.POST(req('x'.repeat(12*1024*1024+1),`sessionId=${SESSION}&operation=review-mark`))).status,413);assert.equal(big.calls.length,0);
+});
+
+test('saved recording read forwards only exact selectors with server authentication, never inference',async()=>{
+ const query=`operation=agent-change&sessionId=${SESSION}&expectedActiveVersionId=${SESSION}&suggestionId=${SESSION}&suggestionDigest=${'a'.repeat(64)}`;
+ const p=proxy();assert.equal((await p.GET(new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?${query}`))).status,200);
+ assert.equal(p.calls.length,1);assert.equal(p.calls[0].init.method,'GET');assert.equal(p.calls[0].init.headers.authorization,'Bearer server-session');assert.match(p.calls[0].url,/recording-agent-change/);assert.equal(p.calls[0].init.body,undefined);
+ for(const extra of ['&ownerId=foreign','&suggestionId='+SESSION])assert.equal((await p.GET(new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?${query}${extra}`))).status,400);
+ const denied=proxy({signedIn:false});assert.equal((await denied.GET(new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?${query}`))).status,401);assert.equal(denied.calls.length,0);
 });

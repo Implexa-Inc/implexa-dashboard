@@ -1,3 +1,4 @@
+import PageHeader from '@/components/page-header';
 /**
  * /settings/run-environment — Run From Anywhere (Phase 2, S2).
  *
@@ -8,7 +9,6 @@
  * path/account mid-run). Per-user + private — never touches the shared agent.
  */
 
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
@@ -37,19 +37,15 @@ export default async function RunEnvironmentPage() {
   } catch { /* none set yet */ }
 
   return (
-    <main className="app-page">
-      <div className="max-w-2xl mx-auto">
-        <nav className="text-xs text-ink-500 mb-4">
-          <Link href="/settings" className="hover:underline">← Settings</Link>
-        </nav>
+    <section className="settings-page">
+      <div className="settings-page-content">
 
-        <header className="mb-6">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Run environment</h1>
-          <p className="text-sm text-ink-300 mt-1 leading-relaxed">
+        <PageHeader title="Run environment">
+          <p className="app-page-description">
             Where on-demand runs happen on this machine: the folder to work in and the browser that
             holds your logins. Private to you; never changes the shared agent.
           </p>
-        </header>
+        </PageHeader>
 
         <div className="mb-6 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-4 text-sm">
           <div className="font-medium text-ink-50 mb-1">You usually don&apos;t need to fill this in.</div>
@@ -70,7 +66,7 @@ export default async function RunEnvironmentPage() {
           <ConnectTelegram />
         </div>
       </div>
-    </main>
+    </section>
   );
 }
 
