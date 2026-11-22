@@ -742,3 +742,5 @@ html, body {
 
 .agent-input-summary{display:grid;gap:12px;font-size:14px;line-height:1.65;}.agent-input-summary small{font-size:11px;margin-left:8px;color:var(--text-muted);}.agent-input-summary details{font-size:12px;color:var(--text-muted);}
 
+
+.agent-listing-cover{max-width:820px;margin:0 0 24px;}.agent-listing-cover video,.agent-listing-cover img{display:block;width:100%;max-height:420px;object-fit:contain;border-radius:var(--r-md);background:var(--bg-sunken);}.agent-listing-cover figcaption{font-size:12px;margin-top:8px;color:var(--text-muted);}

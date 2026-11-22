@@ -32,6 +32,7 @@ import { remoteSafety } from '@/lib/remote-safety';
 import { loadInboxItems } from '@/lib/inbox';
 import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
 import AgentOverview,{AgentInputSummary} from '../../_components/agent-overview';
+import AgentListingCover from '../../_components/agent-listing-cover';
 import AgentPageHeader from '../../_components/agent-page-header';
 import AgentReadiness from '../../_components/agent-readiness';
 import { missingRequiredApiKeys } from '@/lib/agent-readiness-requirements';
@@ -596,7 +597,7 @@ export default async function WorkflowDetailPage({
           {workflow.update_available?.input_contract_digest&&<AgentUpdateGate workflowId={workflow.id} update={{...workflow.update_available,input_contract_digest:workflow.update_available.input_contract_digest}}/>}
         </AgentPageHeader>
         {activeTab==='overview'&&<>
-        <div className="agent-sample-placeholder" role="img" aria-label="Sample preview unavailable"><span>Sample output</span><p>A sample preview is not available here yet.</p></div>
+        <AgentListingCover key={`${session.user.id}:${workflow.id}`} familyId={workflow.id}/>
         <AgentDisplayMetrics key={`${session.user.id}:${workflow.id}:${workflow.source}`} slug={workflow.slug} source={workflow.source} familyId={workflow.id} delivered={gradeUnavailable?'Unavailable':grade?`${Math.round(grade.rate*100)}% · ${grade.runs} checked runs`:'Not measured yet'}/>
         </>}
 

@@ -21,6 +21,11 @@ export async function GET(request:Request){
  const {data:{session}}=await createClient().auth.getSession();
  if(!session?.access_token)return new Response(null,{status:401});
  const q=new URL(request.url).searchParams,id=q.get('id'),variant=q.get('variant');
+ if(q.get('action')==='cover'){
+  const familyId=q.get('familyId');if(q.size!==2||[...q.keys()].some(key=>!['action','familyId'].includes(key))||!uuid.test(familyId||''))return new Response(null,{status:400});
+  try{const r=await fetch(`${CORE}/api/v2/agent-training/marketplace-samples/cover/${familyId}`,{headers:{authorization:`Bearer ${session.access_token}`},cache:'no-store',signal:AbortSignal.any([request.signal,AbortSignal.timeout(3000)])});return NextResponse.json(await r.json(),{status:r.status,headers:{'Cache-Control':'private, no-store'}});}catch{return NextResponse.json({ok:false,reason:'sample_storage_unavailable'},{status:503});}
+ }
+
  // Originals are never proxied through Vercel. Only bounded normalised media.
  if(q.size!==2||[...q.keys()].some(key=>!['id','variant'].includes(key))||!uuid.test(id||'')||!['preview','poster'].includes(variant||''))return new Response(null,{status:400});
  try{
