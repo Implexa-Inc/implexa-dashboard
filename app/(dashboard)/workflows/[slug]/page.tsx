@@ -26,10 +26,12 @@ import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
 import { listMyWorkflows, workflowRunInputs } from '@/lib/workflow-catalog';
-import { getAgentDetail, agentActionContext } from '@/lib/agent-detail';
+import { getAgentDetail, agentActionContext, agentPageReadMode } from '@/lib/agent-detail';
 import { remoteSafety } from '@/lib/remote-safety';
 import { loadInboxItems } from '@/lib/inbox';
 import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
+import AgentOverview,{AgentInputSummary} from '../../_components/agent-overview';
+import AgentPageHeader from '../../_components/agent-page-header';
 import AgentReadiness from '../../_components/agent-readiness';
 import { missingRequiredApiKeys } from '@/lib/agent-readiness-requirements';
 import AgentNameEditor from '../../_components/agent-name-editor';
@@ -95,6 +97,7 @@ export default async function WorkflowDetailPage({
   params: { slug: string };
   searchParams: { source?: string; run?:string; tab?: string; legacy?: string; trainingPreparationId?:string;trainingPreparationDigest?:string };
 }) {
+  if(searchParams.legacy){const query=new URLSearchParams(Object.entries(searchParams).filter(([key,value])=>key!=='legacy'&&typeof value==='string') as Array<[string,string]>);redirect(`/workflows/${encodeURIComponent(params.slug)}${query.size?'?'+query:''}`);}
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
@@ -113,30 +116,19 @@ export default async function WorkflowDetailPage({
   // it now runs in parallel with the envelope and simply wins when the agent is
   // a marketplace one.
   const detailPromise = getAgentDetail(params.slug, session.access_token, { source: searchParams.source });
-  if (searchParams.legacy !== '1'&&trainingTest.state!=='prepared') {
-    const resume = await getAgentResume(params.slug, session.access_token);
-    if (resume.status === 'found') {
-      // Follow the same installed-agent path as Use agent, only after the
-      // authoritative marketplace reader confirms this acquisition is ready.
-      if(searchParams.run==='1'&&resume.agent.readiness.state==='Ready'&&resume.agent.acquisition?.lifecycle==='installed'){
-        const target=new URLSearchParams({legacy:'1',run:'1'});
-        if(searchParams.source)target.set('source',searchParams.source);
-        redirect(`/workflows/${encodeURIComponent(params.slug)}?${target}`);
-      }
-      return <AgentResume agent={resume.agent}/>;
-    }
-    if (resume.status === 'unavailable') return <main className="app-page agent-resume-page"><div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4"><h1 className="text-lg font-semibold text-ink-50">Agent unavailable</h1><p role="alert" className="mt-2 text-sm text-state-needs">{resume.reason} Marketplace readiness could not be verified, so running is disabled. Try again.</p></div></main>;
-  }
-
+  const resume=trainingTest.state==='prepared'?null:await getAgentResume(params.slug,session.access_token);
   const detailResult = await detailPromise;
 
+  // A readable public/acquisition projection remains useful if the deeper detail is absent.
+  const readMode=agentPageReadMode(detailResult,resume);
+  if(readMode.mode==='public')return <AgentResume agent={readMode.agent} detailUnavailable/>;
   // A FAILED READ IS NOT A MISSING AGENT. 'unavailable' used to fall through to
   // the schedule-only branch below, which calls notFound() when the agent has
   // no schedule row — so a backend blip told the owner their agent had been
   // deleted. The reader distinguishes not_found from unavailable precisely so
   // this branch can, and the schedule-only fallback stays reserved for its real
   // case: a scheduled SKILL that genuinely is not in the workflow catalog.
-  if (detailResult.status === 'unavailable') {
+  if (readMode.mode === 'unavailable') {
     return (
       <main className="app-page agent-resume-page">
         <div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4">
@@ -259,7 +251,9 @@ export default async function WorkflowDetailPage({
   // failure hides the queued edit and offers both Run now and Edit Agent again.
   const lifecycleUnavailable = detail!.isUnavailable('lifecycle');
   // Any section whose failure makes the primary action unsafe to offer.
-  const actionsBlocked = activationUnavailable || connectionsUnavailable || lifecycleUnavailable;
+  const discoveryUnavailable=readMode.mode==='detail'&&readMode.discoveryUnavailable;
+  const marketplaceAgent=resume?.status==='found'?resume.agent:null;
+  const actionsBlocked = activationUnavailable || connectionsUnavailable || lifecycleUnavailable||discoveryUnavailable;
   const safety = remoteSafety(workflow);
   const boundCount = workflow.steps.filter((s) => s.ref && !s.gap).length;
 
@@ -329,98 +323,11 @@ export default async function WorkflowDetailPage({
   const tabKeys = ['overview', 'runs', 'setup'];
   const activeTab = searchParams.tab && tabKeys.includes(searchParams.tab) ? searchParams.tab : 'overview';
 
-  const overviewPanel = () => (
-    <>
-      {/* Readiness, not a shopping list. "What you'll need" is PROVISIONING and
-          now lives in Activate, where it can be finished and then collapse — it
-          used to sit here permanently, never reflecting satisfaction, offering
-          "Get it" for keys the user already had. */}
-      <AgentReadiness
-        slug={workflow.slug}
-        isActive={isActive}
-        blockingQuestions={blockingQuestions}
-        optionalQuestions={optionalQuestions}
-        requirementsSatisfied={missingServices.length === 0}
-        missingServices={missingServices}
-      />
+  const canTrain = detail!.canInspectOwnLearningInfluence === true;
+  const setupHref=`/workflows/${encodeURIComponent(workflow.slug)}?${new URLSearchParams({...(searchParams.source?{source:searchParams.source}:{}),tab:'setup'})}`;
 
-      {/* Stat strip */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <Stat label="Steps" value={`${workflow.steps.length}`} />
-        <Stat label="Runs recorded" value={`${workflow.activity.run_count}`} highlight={workflow.activity.run_count > 0} />
-        <Stat label="Last run" value={rel(workflow.activity.last_run_at)} />
-      </div>
-
-      {(workflow.input_contract?.fields.length||workflow.primary_outcome)&&<section className="agent-give-get mb-8" aria-label="Inputs and output">
-        <div className="card"><h2 className="mb-4 text-lg font-medium">You give</h2>
-          {workflow.input_contract?.fields.length?<ul className="space-y-3">{workflow.input_contract.fields.map(field=><li key={field.key} className="text-sm"><p className="font-medium text-ink-100">{field.label}<span className="ml-2 text-xs font-normal text-ink-400">{field.required?'Required':'Optional'}</span></p>{field.description&&<p className="mt-1 text-xs leading-relaxed text-ink-400">{field.description}</p>}</li>)}</ul>:<p className="text-sm text-ink-400">No run inputs declared.</p>}
-        </div>
-        <div className="card"><h2 className="mb-4 text-lg font-medium">You get</h2><p className="text-sm leading-relaxed text-ink-200">{workflow.primary_outcome||workflow.job||workflow.description}</p>
-          {workflow.signals.length>0&&<ul className="mt-4 space-y-2 text-xs text-ink-400">{workflow.signals.map(signal=><li key={signal}>{signal}</li>)}</ul>}
-        </div>
-      </section>}
-
-      {/* Steps */}
-      <div className="card mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">How it works</h2>
-          <span className="text-xs text-ink-500">
-            {workflow.steps.length} steps
-            {boundCount > 0 && (
-              <span className="text-state-ok">
-                {' '}· {Number(workflow.build_evidence?.provenSteps || 0) > 0
-                  ? `${workflow.build_evidence?.provenSteps} from proven runs`
-                  : `${boundCount} bound skills`}
-              </span>
-            )}
-          </span>
-        </div>
-        {workflow.steps.length === 0 ? (
-          <p className="text-sm text-ink-500 italic">No steps recorded.</p>
-        ) : (
-          <ul className="divide-y divide-ink-800">
-            {workflow.steps.map((s) => (
-              <StepRow
-                key={`${s.order}-${s.label.slice(0, 16)}`}
-                step={s}
-                showBuildEvidence={Boolean(workflow.build_evidence && workflow.build_evidence.status !== 'pending')}
-              />
-            ))}
-          </ul>
-        )}
-        {/* Extend this chain in place (cycle-checked) — append one of your other
-            agents as a new step, instead of building a duplicate chain. */}
-        {isChain && (
-          <div className="mt-3 pt-3 border-t border-ink-800">
-            <ExtendChain slug={workflow.slug} candidates={chainCandidates} />
-          </div>
-        )}
-      </div>
-
-      {/* Caveat */}
-      {workflow.caveat && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20 p-5 mb-6">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-state-needs mb-1">Keep in mind</h2>
-          <p className="text-sm text-state-needs">{workflow.caveat}</p>
-        </div>
-      )}
-
-      {/* Runs hands-free with */}
-      {workflow.capabilities.length > 0 && (
-        <div className="card mb-6">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-3">Runs hands-free with</h2>
-          <ul className="space-y-3">
-            {workflow.capabilities.map((cap) => (
-              <li key={cap.id} className="text-sm">
-                <div className="text-ink-100">{cap.name}</div>
-                <div className="text-xs text-ink-400 mt-0.5">{cap.why}</div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <details className="proof-disclosure mb-6"><summary><span>Run history and checks</span><span className="ml-3 inline-flex flex-wrap items-center gap-2 text-xs font-normal text-ink-300">{grade && <span>Delivered {Math.round(grade.rate * 100)}% across {grade.runs} real run{grade.runs === 1 ? '' : 's'}</span>}<RemoteSafetyBadge safety={safety} size="xs" /></span></summary><div className="mt-5">
+  const hasTrackRecord=!!grade&&grade.runs>0||Number(workflow.build_evidence?.provenSteps)>0||Number(workflow.build_evidence?.verifiedSteps)>0;
+  const trustDetails=<>      <details className="proof-disclosure mb-6"><summary><span>Run history and checks</span><span className="ml-3 inline-flex flex-wrap items-center gap-2 text-xs font-normal text-ink-300">{grade && <span>Delivered {Math.round(grade.rate * 100)}% across {grade.runs} real run{grade.runs === 1 ? '' : 's'}</span>}<RemoteSafetyBadge safety={safety} size="xs" /></span></summary><div className="mt-5">
       {/* Build evidence — whether this agent was assembled from parts that
           have actually delivered in real runs, not merely from semantic matches. */}
       {workflow.build_evidence && workflow.build_evidence.status !== 'pending' && (
@@ -473,37 +380,56 @@ export default async function WorkflowDetailPage({
         )}
       </div>
 
-      </div></details>
+      </div></details></>;
 
-      {/* Schedule — edit / pause / make-on-demand inline, no navigating away. */}
+  const overviewPanel = () => <AgentOverview
+    inputs={workflow.input_contract?.fields} output={workflow.primary_outcome||workflow.job||workflow.description} signals={workflow.signals}
+    steps={workflow.steps.length?<>      {/* Steps */}
       <div className="card mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Schedule</h2>
-          {scheduleRoutine && (
-            <span className="text-xs text-ink-400">
-              {scheduleRoutine.run_count} run{scheduleRoutine.run_count === 1 ? '' : 's'} · last {rel(scheduleRoutine.last_run_at)}
-            </span>
-          )}
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">How it works</h2>
+          <span className="text-xs text-ink-500">
+            {workflow.steps.length} steps
+            {boundCount > 0 && (
+              <span className="text-state-ok">
+                {' '}· {Number(workflow.build_evidence?.provenSteps || 0) > 0
+                  ? `${workflow.build_evidence?.provenSteps} from proven runs`
+                  : `${boundCount} bound skills`}
+              </span>
+            )}
+          </span>
         </div>
-        {schedulesUnavailable ? (
-          // NOT the on-demand state. ScheduleManager REPLACES any existing
-          // routine on save, so offering the editor over an unread schedule
-          // list invites the user to overwrite a cadence we failed to show
-          // them. Say so and withhold the control instead.
-          <p role="status" className="text-sm text-ink-300">
-            Schedule unavailable — we could not read whether this agent runs on a clock, so editing is disabled to
-            avoid replacing a schedule you cannot see. Reload to try again.
-          </p>
+        {workflow.steps.length === 0 ? (
+          <p className="text-sm text-ink-500 italic">No steps recorded.</p>
         ) : (
-          <ScheduleManager slug={workflow.slug} agentName={workflow.name} routine={scheduleRoutine} />
+          <ul className="divide-y divide-ink-800">
+            {workflow.steps.map((s) => (
+              <StepRow
+                key={`${s.order}-${s.label.slice(0, 16)}`}
+                step={s}
+                showBuildEvidence={Boolean(workflow.build_evidence && workflow.build_evidence.status !== 'pending')}
+              />
+            ))}
+          </ul>
         )}
       </div>
-
-      {/* Changelog */}
+</>:null}
+    needs={<>      <AgentReadiness
+        slug={workflow.slug}
+        setupHref={setupHref}
+        isActive={isActive}
+        blockingQuestions={blockingQuestions}
+        optionalQuestions={optionalQuestions}
+        requirementsSatisfied={missingServices.length === 0}
+        missingServices={missingServices}
+      /></>}
+    limitations={workflow.caveat}
+    trust={hasTrackRecord?trustDetails:undefined}
+  >      {/* Changelog */}
       {workflow.versions.length > 0 && (
-        <div className="card mb-6">
+        <div id="agent-history" className="card mb-6">
           <div className="flex items-center gap-2 mb-3 flex-wrap">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Changelog</h2>
+            <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Version history</h2>
             {workflow.proposed_count > 0 && (
               <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/40 text-state-needs">
                 {workflow.proposed_count} proposed
@@ -544,8 +470,7 @@ export default async function WorkflowDetailPage({
           </ul>
         </div>
       )}
-    </>
-  );
+</AgentOverview>;
 
   const runsPanel = () => runsUnavailable ? (
     // NOT the empty state: we did not read the history, so we cannot say it is
@@ -569,56 +494,55 @@ export default async function WorkflowDetailPage({
   );
 
   const setupPanel = () => (
-    <>
-      <AgentExecutorPreference slug={workflow.slug} />
-      {/* Same run-input identity the header's <AgentActions/> gets — the card
-          renders its own Run now, and a Run button that can't build the envelope
-          is a refusal the user has no way to answer from that screen. */}
-      {checklist && <ActivationCard checklist={checklist} surface="setup" runInputs={workflowRunInputs(workflow)} statusUnavailable={actionsBlocked} revisePending={revisePending} />}
-      <div className="mb-6">
-        <ImplexaJudgePolicy slug={workflow.slug} />
-      </div>
+    <section className="agent-setup-column">
+      {marketplaceAgent&&<AgentResume agent={marketplaceAgent} surface="setup"/>}
+      {checklist && <ActivationCard checklist={checklist} surface="setup" setupBlockedReason={marketplaceAgent&&marketplaceAgent.readiness.state!=='Ready'?'Finish the marketplace setup or update above first.':undefined} runInputs={workflowRunInputs(workflow)} statusUnavailable={actionsBlocked} revisePending={revisePending} />}
+
       {/* The agent's config interview — answer its questions here so it runs
        * unattended (no stopping to ask in Claude Code). Renders nothing when
        * the agent declares no questions. */}
       <div id="agent-setup" className="mb-6 scroll-mt-20">
         <AgentSetupCard slug={workflow.slug} source={workflow.source} />
-        {/* The primary Activate/Run action lives up in the page header — far
-         * enough from this card that saving your answers here left you with no
-         * next step in view (founder feedback: "I have to click Done, go back,
-         * and then activate"). Mirror it right here so Save answers is
-         * immediately followed by the actual next action, no navigating away. */}
-        <div className="mt-3">
-          <AgentActions
-            trainingTest={trainingTest.state==='prepared'?trainingTest.binding:null}
-            slug={workflow.slug}
-            name={workflow.name}
-            isActive={isActive}
-            requiresLocal={checklist?.requiresLocal}
-            source={workflow.source}
-            nextRunAt={checklist?.nextRunAt}
-            pendingQuestions={checklist?.pendingQuestions}
-            blockingQuestions={checklist?.blockingQuestions}
-            claudeTaskId={pausableRoutine?.claude_task_id}
-            inFlight={inFlight}
-            revisePending={revisePending}
-            statusUnavailable={actionsBlocked}
-            workflowVersionId={workflow.workflow_version_id}
-            activeVersionNumber={workflow.version}
-            inputContract={workflow.input_contract}
-            inputContractDigest={workflow.input_contract_digest}
-            pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
-            align="start"
-          />
-        </div>
+
       </div>
 
+      {!!workflow.input_contract?.fields.length&&<section className="card mb-6"><h2 className="mb-3">Each run</h2><p className="text-sm text-ink-400 mb-4">You provide these when you choose Run.</p><AgentInputSummary inputs={workflow.input_contract.fields}/></section>}
+
+      {/* Schedule — edit / pause / make-on-demand inline, no navigating away. */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Schedule</h2>
+          {scheduleRoutine && (
+            <span className="text-xs text-ink-400">
+              {scheduleRoutine.run_count} run{scheduleRoutine.run_count === 1 ? '' : 's'} · last {rel(scheduleRoutine.last_run_at)}
+            </span>
+          )}
+        </div>
+        {schedulesUnavailable ? (
+          // NOT the on-demand state. ScheduleManager REPLACES any existing
+          // routine on save, so offering the editor over an unread schedule
+          // list invites the user to overwrite a cadence we failed to show
+          // them. Say so and withhold the control instead.
+          <p role="status" className="text-sm text-ink-300">
+            Schedule unavailable — we could not read whether this agent runs on a clock, so editing is disabled to
+            avoid replacing a schedule you cannot see. Reload to try again.
+          </p>
+        ) : (
+          <ScheduleManager slug={workflow.slug} agentName={workflow.name} routine={scheduleRoutine} />
+        )}
+      </div>
+
+
+      <section className="agent-how-it-runs"><h2>How it runs</h2><AgentExecutorPreference slug={workflow.slug}/><ImplexaJudgePolicy slug={workflow.slug}/></section>
+      <details className="proof-disclosure mb-6"><summary>Technical details</summary><code className="mt-3 block break-all">{workflow.slug}</code>{workflow.vertical&&<p>Category: {workflow.vertical}</p>}{workflow.cadence&&<p>Cadence: {workflow.cadence}</p>}</details>
+
+      {!hasTrackRecord&&trustDetails}
       {/* Author-only Learning Influence v1 rule management. Selected publisher
           teachings and customer-private preferences use separate runtime paths. */}
       {detail!.canInspectOwnLearningInfluence === true && (
-        <div id="agent-learnings" className="mb-6 scroll-mt-20">
+        <details id="agent-learnings" className="proof-disclosure mb-6 scroll-mt-20"><summary>Advanced learning rules</summary>
           <AgentLearningsCard slug={workflow.slug} canInspectOwnLearningInfluence={detail!.canInspectOwnLearningInfluence} />
-        </div>
+        </details>
       )}
 
       {/* "Edit what the agent DOES" now lives in the header's Edit Agent pop-up
@@ -626,13 +550,14 @@ export default async function WorkflowDetailPage({
           where the click happens, instead of a tab-switch-and-scroll. */}
 
       {/* "Or have feedback? Tell Claude to change it." */}
-      <AgentFeedback slug={workflow.slug} name={workflow.name} statusUnavailable={lifecycleUnavailable} revisePending={revisePending} />
-    </>
+      <details className="proof-disclosure"><summary>Advanced edit handoff</summary><AgentFeedback slug={workflow.slug} name={workflow.name} statusUnavailable={lifecycleUnavailable} revisePending={revisePending}/></details>
+    </section>
   );
 
   const tabs: TabDef[] = [
     { key: 'overview', label: 'Overview' },
-    { key: 'runs', label: agentRuns.length ? `Runs (${agentRuns.length})` : 'Runs' },
+    { key: 'runs', label: agentRuns.length ? `My runs (${agentRuns.length})` : 'My runs' },
+    ...(canTrain?[{key:'training',label:'Training',href:`/training/${encodeURIComponent(workflow.slug)}`}]:[]),
     { key: 'setup', label: 'Setup', attention: setupAttention },
   ];
 
@@ -645,112 +570,38 @@ export default async function WorkflowDetailPage({
 
         {workflow.publisher_text_guidance_required&&<p className="mb-4 rounded-lg border border-amber-500/30 p-3 text-sm text-state-needs">The latest released training requires Codex and Implexa Desktop 0.4.160 or newer. Check this before installing or adopting it; Claude execution is not supported for this text guidance yet.</p>}
 
-        {/* Header */}
-        <header className="mb-6">
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-            {workflow.vertical && (
-              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-ink-700 text-ink-400">
-                {workflow.vertical}
-              </span>
-            )}
-            {workflow.cadence && (
-              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-ink-700 text-state-needs">
-                {workflow.cadence}
-              </span>
-            )}
-            {workflow.unproven && (
-              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/40 text-state-needs">
-                auto-generated · unproven
-              </span>
-            )}
-            {/* Judge state belongs beside the other "what is this agent" facts, so
-                you can see at a glance that a second model reviews this agent's runs
-                without opening Setup.
-                The two ON modes are NOT collapsed into one badge on purpose: observe
-                only reviews, every_run may queue a repair that RE-RUNS the agent on
-                your own subscription. A badge that said just "ON" for both would hide
-                the one that spends money. */}
-            {judgePolicy === 'observe' && (
-              <span
-                className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-violet-500/40 text-state-review"
-                title="Tukido Judge reviews every run of this agent and reports back. Nothing is changed or re-run."
-              >
-                Judge: on
-              </span>
-            )}
-            {judgePolicy === 'every_run' && (
-              <span
-                className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-violet-500/40 text-state-review"
-                title="Tukido Judge reviews every run AND may automatically re-run this agent to repair what it safely can, on your own subscription."
-              >
-                Judge: on · repair
-              </span>
-            )}
-          </div>
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                {/* Rename is a per-user alias (your view only, never the shared
-                    name), so it's available on EVERY agent — not just generated. */}
-                <AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={true} />
-                {/* Distinct from the rename pencil above: this opens the
-                    plain-language "edit what this agent does" form directly (a
-                    pop-up, not a tab-switch-and-scroll — founder feedback: the
-                    old Link "doesn't do anything" visible at the click itself).
-                    The Setup tab no longer carries its own copy of this form. */}
-                <AgentEditButton slug={workflow.slug} statusUnavailable={lifecycleUnavailable} revisePending={revisePending} />
-                {workflow.run_input_version_source === 'installed' && <ForkRunCta skillSlug={workflow.slug} source={workflow.source} versionId={workflow.workflow_version_id} />}
-                <AgentDefinitionReview definition={workflow.revision_contract ?? null} versionSource={workflow.definition_version_source ?? null} updateAvailable={!!workflow.update_available} revisePending={revisePending} statusUnavailable={lifecycleUnavailable} slug={workflow.slug} />
-              </div>
-              <details className="mt-2 text-xs text-ink-400"><summary className="cursor-pointer">Agent details</summary><code className="mt-2 block font-mono">{workflow.slug}</code></details>
-              {revisePending && (
-                <div className="mt-3 flex items-start gap-2 rounded-md border border-violet-500/30 bg-violet-500/5 px-3 py-2 max-w-xl">
-                  <span className="mt-0.5 inline-block h-2 w-2 flex-none rounded-full bg-violet-500 animate-pulse" aria-hidden />
-                  <p className="text-xs text-state-review leading-snug">
-                    <span className="font-medium">Rewrite in progress.</span> Your Claude is updating this agent’s
-                    steps with your edit. Running is paused until it lands. If its permissions or inputs changed,
-                    you’ll review and activate the update before using it.
-                    {/* A revise lands ASYNCHRONOUSLY (the drainer calls revise_workflow
-                        minutes later). Without this the page kept showing the OLD steps
-                        until a manual reload — the banner was the only thing that ever
-                        updated. Re-running the server render is the check. */}
-                    <ReviseLandedPoller revisePending={revisePending} />
-                  </p>
-                </div>
+        <AgentPageHeader
+          title={<AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={true}/>}
+          description={workflow.job || workflow.description}
+          byline={<><span>{canTrain?'Built by you':marketplaceAgent?`Trained by ${marketplaceAgent.builder.name}`:checklist?.requiresLocal?'Runs on your computer':'Agent'}</span><span>·</span><span>{workflow.activity.run_count} recorded runs</span>{typeof workflow.version==='number'&&<><span>·</span><span data-testid="active-version">Active version: v{workflow.version}</span></>}{judgePolicy==='observe'&&<><span>·</span><span title="Reviews each run without changing or rerunning it">Judge on</span></>}{judgePolicy==='every_run'&&<><span>·</span><span title="Reviews and may rerun one repair using your subscription">Judge on · may repair</span></>}{workflow.unproven&&<><span>·</span><span>Not proven by runs yet</span></>}</>}
+          more={<>
+            <Link href={setupHref.replace('tab=setup','tab=overview')+'#agent-history'}>Version history</Link>
+            <AgentDefinitionReview definition={workflow.revision_contract ?? null} versionSource={workflow.definition_version_source ?? null} updateAvailable={!!workflow.update_available} revisePending={revisePending} statusUnavailable={lifecycleUnavailable} slug={workflow.slug}/>
+            <AgentEditButton slug={workflow.slug} statusUnavailable={lifecycleUnavailable} revisePending={revisePending} chainEditor={isChain?<ExtendChain slug={workflow.slug} candidates={chainCandidates}/>:undefined}/>
+            {workflow.run_input_version_source==='installed'&&<ForkRunCta skillSlug={workflow.slug} source={workflow.source} versionId={workflow.workflow_version_id}/>}
+            {pausableRoutine&&<AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status}/>}
+              {/* Desktop-first: open this agent in the app (gated until the app
+                  ships; web actions above remain the fallback). */}
+              {desktopAppLive() && (
+                <NotInApp>
+                  <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-action-accent hover:underline">
+                    Open in the Tukido app ↗
+                  </a>
+                </NotInApp>
               )}
-              <p className="text-ink-200 mt-3">{workflow.job || workflow.description}</p>
-              <div className="mt-3 flex items-center gap-2 flex-wrap">
-                {/→|->/.test(workflow.name || '') && (
-                  <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-state-review" title="A chain — runs several agents in sequence, each feeding the next">⛓ Chain</span>
-                )}
-                <RemoteSafetyBadge safety={safety} />
-              </div>
-            </div>
-            <div className="flex-none flex flex-col items-end gap-2">
-              {workflow.update_available?.input_contract_digest && (
-                <AgentUpdateGate
-                  workflowId={workflow.id}
-                  update={{ ...workflow.update_available, input_contract_digest: workflow.update_available.input_contract_digest }}
-                />
-              )}
-              {/*
-                §3.1 — the active version, stated, beside the run action.
-                A compatible edit now lands on its own, so the ONLY signal the
-                owner got that their edit took effect was an update card
-                disappearing. Absence of a card is not a receipt: it looks
-                identical to an edit that never registered. Say which version is
-                live, permanently, so "did my change land?" has an answer that
-                does not depend on having watched the previous screen.
-              */}
-              {typeof workflow.version === 'number' && (
-                <p className="text-[11px] text-ink-500" data-testid="active-version">
-                  Active version: v{workflow.version}
-                </p>
-              )}
-
-            </div>
-          </div>
-        </header>
+          </>}
+        >
+          {revisePending&&<div role="status" className="agent-page-notice">Your edit is being prepared. Running is paused until it is ready.{<ReviseLandedPoller revisePending={revisePending}/>}</div>}
+          {workflow.update_available?.input_contract_digest&&<AgentUpdateGate workflowId={workflow.id} update={{...workflow.update_available,input_contract_digest:workflow.update_available.input_contract_digest}}/>}
+        </AgentPageHeader>
+        {activeTab==='overview'&&<>
+        <div className="agent-sample-placeholder" role="img" aria-label="Sample preview unavailable"><span>Sample output</span><p>A sample preview is not available here yet.</p></div>
+        <div className="agent-page-stats" aria-label="Recorded agent activity">
+          <Stat label="Runs recorded" value={`${workflow.activity.run_count}`}/>
+          <Stat label="Delivered" value={gradeUnavailable?'Unavailable':grade?`${Math.round(grade.rate*100)}% · ${grade.runs} checked runs`:'Not measured yet'}/>
+          <Stat label="Last run" value={detail!.isUnavailable('latest_run')?'Unavailable':rel(workflow.activity.last_run_at)}/>
+        </div>
+        </>}
 
         {/* Connection warning - an account this agent needs is signed out. Loud,
          * above the tabs, with a one-tap sign-in. Renders nothing when healthy. */}
@@ -787,15 +638,18 @@ export default async function WorkflowDetailPage({
           </div>
         )}
 
+        {discoveryUnavailable&&<p role="status">Marketplace setup could not be checked. Running is paused until it loads.</p>}
         <AgentTabs
           tabs={tabs}
           active={activeTab}
           panel={activeTab === 'runs' ? runsPanel() : activeTab === 'setup' ? setupPanel() : overviewPanel()}
         />
         <div className="agent-action-bar" aria-label="Agent actions">
-          <div className="min-w-0"><p className="truncate text-sm font-medium text-ink-100">{workflow.name}</p>{typeof workflow.version==='number'&&<p className="text-xs text-ink-400">Version {workflow.version}</p>}</div>
+          <div className="min-w-0"><p className="truncate text-sm font-medium text-ink-100">{actionsBlocked?'Setup status unavailable':blockingQuestions>0||missingServices.length?'Finish the required setup':isActive?'Ready for your next run':'Finish the required setup'}</p>{typeof workflow.version==='number'&&<p className="text-xs text-ink-400">Version {workflow.version}{canTrain?' · built by you':''}</p>}</div>
           <div className="flex flex-wrap items-center justify-end gap-3">
-              <AgentActions
+              <Link href={setupHref} className="btn-outline px-4 py-2 text-sm">Setup</Link>
+              {marketplaceAgent&&marketplaceAgent.readiness.state!=='Ready'?<AgentResume agent={marketplaceAgent} surface="action"/>:<AgentActions
+                runLabel="Run" presentation="dock"
                 openOnArrival={searchParams.run==='1'}
                 trainingTest={trainingTest.state==='prepared'?trainingTest.binding:null}
                 slug={workflow.slug}
@@ -815,19 +669,8 @@ export default async function WorkflowDetailPage({
                 inputContract={workflow.input_contract}
                 inputContractDigest={workflow.input_contract_digest}
                 pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
-              />
-              {pausableRoutine && (
-                <AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status} />
-              )}
-              {/* Desktop-first: open this agent in the app (gated until the app
-                  ships; web actions above remain the fallback). */}
-              {desktopAppLive() && (
-                <NotInApp>
-                  <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-action-accent hover:underline">
-                    Open in the Tukido app ↗
-                  </a>
-                </NotInApp>
-              )}
+              />}
+
           </div>
         </div>
       </div>

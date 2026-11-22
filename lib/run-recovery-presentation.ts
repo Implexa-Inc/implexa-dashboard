@@ -15,7 +15,7 @@ export function recoveredArtifactHeadline(input: RecoveryPresentation): string |
 export function runProblemHeadline(input: RecoveryPresentation, failed: boolean): string {
   if (recoveredArtifactHeadline(input)) return 'The execution ended, but its verified result is available';
   if (input.hasDeterministicContinuation) return 'This run has a verified recovery path';
-  return failed ? 'This run did not finish' : 'This run stalled';
+  return failed ? 'This run did not finish' : 'Progress interrupted';
 }
 
 export function suppressDuplicateRetry(input: RecoveryPresentation): boolean {

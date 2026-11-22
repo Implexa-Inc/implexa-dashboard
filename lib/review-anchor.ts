@@ -307,6 +307,12 @@ export function isAnchorStale(
 }
 
 /** MM:SS.mmm, or HH:MM:SS.mmm past an hour — matches the compiled brief exactly. */
+/** Human-facing media clock. Exact millisecond values remain in anchor payloads. */
+export function formatMediaTime(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
 export function formatMs(ms: number): string {
   const total = Math.max(0, Math.floor(Number(ms) || 0));
   const msPart = String(total % 1000).padStart(3, '0');

@@ -28,3 +28,7 @@ test('the Run intent is consumed without adding history and preserves other URL 
   assert.equal(r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests').length,0);
  }finally{r.cleanup();}
 });
+test('the agent dock keeps one Run label and parks supervised execution inside the existing run form',async()=>{
+ const r=await render('agent-actions.tsx',{...props,presentation:'dock',runLabel:'Run'},{backend});
+ try{await flush(r);assert.ok(r.document.querySelector('[role="dialog"]'));assert.ok(r.queryByText('More run options'));const watch=Array.from(r.document.querySelectorAll('label')).find(el=>el.textContent?.includes('Open in a session to watch'));assert.ok(watch?.querySelector('input'));await r.click(watch!.querySelector('input')!);assert.ok(r.queryByText('Open in Claude →'));assert.equal(r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests').length,0);}finally{r.cleanup();}
+});

@@ -6,7 +6,7 @@ import { callBackend } from '@/lib/api';
 
 type Preference = 'auto' | 'claude' | 'codex';
 const OPTIONS: Array<{ value: Preference; label: string; detail: string }> = [
-  { value: 'auto', label: 'Auto', detail: 'Best ready engine by headroom, affinity, and delivery history.' },
+  { value: 'auto', label: 'Auto', detail: 'Whichever of your AI apps is ready.' },
   { value: 'claude', label: 'Claude', detail: 'Always use Claude when it is ready for the job.' },
   { value: 'codex', label: 'Codex', detail: 'Always use Codex when it is ready for the job.' },
 ];
@@ -46,7 +46,7 @@ export default function AgentExecutorPreference({ slug }: { slug: string }) {
   return (
     <section className="card max-w-2xl mb-6">
       <div className="flex items-start justify-between gap-3">
-        <div><h2 className="text-base font-semibold text-ink-50">Execution engine</h2><p className="text-xs text-ink-400 mt-1">Auto is recommended. A pinned engine never silently becomes the other engine unless a capacity failure triggers the one permitted retry.</p></div>
+        <div><h2 className="text-base font-semibold text-ink-50">Execution engine</h2><p className="text-xs text-ink-400 mt-1">Auto picks whichever of your AI apps is ready. Choose one to always use it.</p></div>
         {saving && <span className="text-[11px] text-ink-500">Saving…</span>}
       </div>
       <div className="grid sm:grid-cols-3 gap-2 mt-4" aria-label="Execution engine preference">

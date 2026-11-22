@@ -64,6 +64,8 @@ import StageCompetenceProof from '../../_components/stage-competence-proof';
 import StageManagerProof from '../../_components/stage-manager-proof';
 import TasteFitReviewCard from '../../_components/taste-fit-review';
 import { runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-presentation';
+import ReviewRoom from '../../_components/review-room';
+import type {ReactNode} from 'react';
 import { getReviewPacket } from '@/lib/review';
 import { loadReviewAmendmentTarget } from '@/lib/review-amendment-target';
 import { classifyHeldApprovalSurface, parsePaidActionApprovalRead, type PaidActionApprovalView } from '@/lib/paid-action-approval';
@@ -742,6 +744,7 @@ export default async function RunDetailPage({
   }
 
   let creativeGradeNotice: string | null = null;
+  let creativeGradePlainNotice: string | null = null;
   if (requiresCreativeReview && !judgment?.creative_grade) {
     try {
       const {data: policy, error: policyError} = await supabase.from('user_agent_judge_policies').select('mode')
@@ -752,6 +755,7 @@ export default async function RunDetailPage({
         ? 'Creative grade required, but this agent’s Judge is off. The delivered output remains available.'
         : judgmentPending ? 'Creative grade pending. Delivery and grading are separate.'
           : 'Creative grade required but not available yet. This output has no assessed creative grade.';
+      creativeGradePlainNotice=policyError?'The quality review settings could not be checked.':(!policy||policy.mode==='off')?'Quality review is turned off for this agent.':judgmentPending?'The quality review is still running.':'A visual quality score is not available yet.';
     } catch { /* Existing delivery is still readable when review metadata is unavailable. */ }
   }
 
@@ -926,248 +930,9 @@ export default async function RunDetailPage({
   const arrivedFromSupersededShell = typeof searchParams?.superseded === 'string'
     && UUID_RE.test(searchParams.superseded) ? searchParams.superseded : null;
 
-  return (
-    <main className="app-page">
-      <div className="app-content">
-        <BackLink fallback="/work" label="Work" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
-        {requiredTrainingHold && <div role="status" className="mt-4 rounded-lg border border-amber-500/40 px-4 py-3 text-sm text-ink-200">
-          <p>Required reference training is missing. This run stopped before the worker started. Accept replacement training before starting a new run.</p>
-          <Link href={`/training/${encodeURIComponent(r.skill_slug)}`} className="mt-2 inline-block underline">Open Training</Link>
-        </div>}
-
-        {/* A run inside an outcome production points at its parent FIRST: the
-            production is the canonical account of the job, and this page is a
-            diagnostic on one of its steps. */}
-        {/* Arrived here from a superseded execution shell. Say so — a silent
-            redirect that swaps the run out from under the reader is worse than
-            the confusion it was meant to fix. */}
-        {arrivedFromSupersededShell && (
-          <p role="status" className="mt-4 rounded-lg border border-ink-800 bg-ink-950/40 px-3 py-2 text-xs text-ink-400 leading-relaxed">
-            You followed a link to an earlier execution attempt that was superseded. This is the run that actually
-            carried out that step.{' '}
-            <Link href={`/runs/${arrivedFromSupersededShell}?keep=1`} className="text-ink-300 hover:underline">
-              See the superseded attempt
-            </Link>
-          </p>
-        )}
-
-        <div className="mt-4">
-          <ProductionLineageBanner lineage={productionLineage} />
-        </div>
-
-        {/* web→app handoff: the https email link lands here; offer the bounce into
-            the desktop app. Dormant until the app ships (desktopAppLive). */}
-        {desktopAppLive() && (
-          <NotInApp>
-            <div className="mt-4">
-              <OpenInAppPrompt runId={r.id} />
-            </div>
-          </NotInApp>
-        )}
-
-        <header className="app-page-head mt-4">
-          {/* The title itself is the primary way back to the agent now (founder
-              ask: the small "open agent" text link below was too easy to miss).
-              The Link lives INSIDE the h1 so the page keeps its heading landmark
-              either way; only wrap it in a Link when we actually know the agent
-              (wf) so we never link to a workflow we couldn't resolve. */}
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
-            {wf ? (
-              <Link
-                href={`/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`}
-                className="hover:underline"
-              >
-                {name}
-              </Link>
-            ) : name}
-          </h1>
-          <div className="flex items-center gap-2.5 mt-2 flex-wrap">
-            <RunStateBadge info={info} size="xs" />
-            <RunVerificationBadge status={verificationStatus} size="xs" />
-            <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
-
-            {desktopAppLive() && (
-              <NotInApp>
-                <a href={appRunUrl(r.id)} className="text-xs text-action-accent hover:underline">
-                  open in the Tukido app ↗
-                </a>
-              </NotInApp>
-            )}
-          </div>
-        </header>
-
-        {r.run_state==='completed'&&verifiedArtifacts.some(artifact=>artifact.role==='final_output')&&<div className="mb-6"><Link href={`/review/${r.id}`} className="btn-primary">Open result</Link></div>}
-
-
-        <RunStopControl key={r.id} runId={r.id} runState={r.run_state ?? null} cancelRequestedAt={run?.cancel_requested_at} />
-        <VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} />
-        {r.output_markdown ? (verifiedArtifacts.length ? <details className="proof-disclosure mb-6"><summary>Agent’s notes</summary><div className="prose prose-sm mt-4 max-w-none"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div></details>:<div className="prose prose-sm mb-6 max-w-none rounded-lg border border-ink-700 bg-ink-900 p-5"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div>) : null}
-
-        {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-state-needs">{creativeGradeNotice}</p>}
-        <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id}
-          finalOutputSha256={finalReviewArtifactSha256} reviewPending={judgmentPending} />
-        {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
-        {judgmentReadUnavailable && <p className="text-sm text-state-needs">Final review status is unavailable. Refresh to check it again.</p>}
-        {failedJudgeRetry && (
-          <section className="card border-amber-500/30" aria-label="Final review recovery">
-            <h2 className="font-medium text-ink-100">Final review is incomplete</h2>
-            <p className="mt-1 text-sm text-ink-300">Your delivered work is unchanged.</p>
-            <ControlPlaneRetry requestId={failedJudgeRetry.requestId} runId={failedJudgeRetry.runId} />
-          </section>
-        )}
-        {judgment?.verdict === 'repair' && ['pending', 'consumed'].includes(repairRequest?.status || '') && (
-          <RunJudgmentPending phase="repair" requestStatus={(repairRequest?.status as 'pending' | 'consumed') || null} createdAt={repairRequest?.created_at || null} />
-        )}
-
-        {/* Share — prominent on ANY completed run with a deliverable, so the owner
-            can turn it into a public, forkable Run Card without hunting (founder
-            ask). Amber + share icon. The detailed URL/copy state expands in place. */}
-        {r.run_state === 'completed' && r.output_markdown && (
-          <div className="mb-6">
-            <RunShareButton runId={r.id} />
-          </div>
-        )}
-
-        {/* Files are a first-class part of EVERY run, not an appendix to a final
-            markdown answer. Keep this near the header for running, held, failed,
-            partial and completed runs alike. The component stays present at zero
-            so a tab opened before Desktop validation lands has an honest Refresh
-            path instead of permanently looking as though the run made no files. */}
-        <details className="proof-disclosure mb-6">
-          <summary>How it was made, and proof</summary>
-          <div className="mt-5 space-y-4">
-        <EngineOverrideBanner
-          originalPreference={engineRouting?.original_preference}
-          selectedExecutor={engineRouting?.selected_executor}
-          selectionReason={engineRouting?.selection_reason}
-        />
-
-        <StageCompetenceProof proof={competencePacket.competenceProof} />
-
-        <StageManagerProof proof={competencePacket.managerProof} />
-
-        <TasteFitReviewCard review={competencePacket.tasteFit} />
-
-        <section className="mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4" aria-label="Learnings used">
-          <h2 className="text-sm font-semibold text-ink-100">Learnings used</h2>
-          <p className="mt-1 text-xs text-ink-500">Owner-approved rules frozen for this attempt. This is separate from stage skills above.</p>
-          {learningProofUnavailable && !learningProof ? (
-            <p className="mt-2 text-xs text-state-needs">The attempt-bound learning proof is unavailable. No handling state is inferred.</p>
-          ) : learningProof ? (
-            <div className="mt-2">
-              <p className="text-[11px] text-ink-500">Frozen for attempt {learningProof.launch_attempt_id.slice(0, 12)} at fence {learningProof.fencing_epoch} · context {learningProof.context_digest.slice(0, 12)}</p>
-              <p className="text-[11px] text-ink-500">Human review: {humanReviewLabels[humanReview]}. This is separate from delivery and the Judge’s review.</p>
-              <p className="text-[11px] text-ink-500">{associatedHumanReview === 'not_associated'
-                ? 'No human outcome associated with this attempt.' : associatedHumanReview === 'unavailable'
-                  ? 'Human outcome association unavailable.' : `Associated human review for this attempt: ${humanReviewLabels[associatedHumanReview]}.`}</p>
-              <ul className="mt-2 space-y-2">
-                {(learningProof.context.rules || []).map((rule) => {
-                  const receipt = learningHandling.find((item) => item.rule_version_id === rule.id);
-                  return <li key={rule.id} className="rounded-md border border-ink-800 px-3 py-2">
-                    <p className="text-sm text-ink-100">{rule.instruction}</p>
-                    <p className="mt-1 text-[10px] uppercase tracking-wide text-ink-500">{rule.ruleClass} · v{rule.version} · {rule.id.slice(0, 8)} · {rule.versionDigest.slice(0, 12)}</p>
-                    <p className="mt-1 text-xs text-ink-400">Executor handling: {receipt ? receipt.handling.replaceAll('_', ' ') : 'pending'}</p>
-                    {receipt?.reason && <p className="mt-1 text-xs text-ink-500">Reason: {receipt.reason}</p>}
-                    <p className="mt-1 text-[11px] text-ink-500">Applied means the executor reported following the supplied rule. It does not prove causation or success.</p>
-                  </li>;
-                })}
-              </ul>
-            </div>
-          ) : !learningSourceAvailable ? (
-            <p className="mt-2 text-xs text-state-needs">The frozen learning source is unavailable. This is not shown as an empty result.</p>
-          ) : (engineRouting?.learning_context?.rules || []).length === 0 ? (
-            <p className="mt-2 text-xs text-ink-500">No learning context was frozen for this run.</p>
-          ) : (
-            <div className="mt-2"><p className="text-xs text-ink-500">Legacy prepared context. This run predates attempt-bound handling receipts.</p><ul className="mt-2 space-y-2">
-              {(engineRouting?.learning_context?.rules || []).map((rule) => (
-                <li key={rule.id} className="rounded-md border border-ink-800 px-3 py-2">
-                  <p className="text-sm text-ink-100">{rule.instruction}</p>
-                  <p className="mt-1 text-[10px] uppercase tracking-wide text-ink-500">
-                    {rule.ruleClass} · v{rule.version} · {rule.id.slice(0, 8)} · {rule.versionDigest.slice(0, 12)}
-                  </p>
-                </li>
-              ))}
-            </ul></div>
-          )}
-        </section>
-
-          </div>
-        </details>
-
-        {/* THE REVISION POINTER (2026-08-23). Beside the files, not buried in the
-            deliverable's else-chain, because a reviewed PARENT usually has its own
-            output and its own older artifacts — so it never reaches that chain and
-            the page reads as the finished answer while the answer the user asked
-            for sits on the child. The child's files stay attributed to the child:
-            merging them here would be the same parent/child confusion wearing the
-            opposite face. */}
-        {revisedResult && (
-          <div className="mb-6 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-4">
-            <p className="text-sm font-semibold text-ink-50">This run was revised, and the revision delivered</p>
-            <p className="mt-1 text-sm text-ink-300 leading-relaxed">
-              The revised result is on its own run
-              {revisedResult.artifactCount > 0
-                ? `, with ${revisedResult.artifactCount} validated file${revisedResult.artifactCount === 1 ? '' : 's'}`
-                : ''}. The files listed above belong to this run.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-3">
-              <Link href={`/review/${encodeURIComponent(revisedResult.runId)}`} className="btn-success text-sm px-4 py-2">
-                Open the revised result
-              </Link>
-              <Link href={`/runs/${encodeURIComponent(revisedResult.runId)}`} className="btn-outline text-sm px-4 py-2">
-                Its files &amp; artifacts
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {recoveredFinalArtifact && (r.run_state === 'failed' || r.run_state === 'stalled') && (
-          <div className="mb-6 rounded-lg border border-emerald-500/45 bg-emerald-500/[0.08] p-4" role="status">
-            <p className="text-sm font-semibold text-ink-50">A validated final output was recovered from this run</p>
-            <p className="mt-1 text-sm leading-relaxed text-ink-300">
-              The execution record is still {r.run_state}, but Tukido verified the final file on this Mac.
-              Open it from Files &amp; artifacts above; no duplicate rerun is needed.
-            </p>
-            <p className="mt-2 truncate font-mono text-[11px] text-ink-500">{recoveredFinalArtifact.relativePath}</p>
-          </div>
-        )}
-
-        {!recoveredFinalArtifact && recoveryPresentation.hasDeterministicContinuation && (
-          <div className="mb-6 rounded-lg border border-sky-500/35 bg-sky-500/[0.07] p-4" role="status">
-            <p className="text-sm font-semibold text-ink-50">
-              {alreadyRecoveredElsewhere ? 'Automatic recovery already handled this run' : 'A deterministic recovery path is available'}
-            </p>
-            <p className="mt-1 text-sm leading-relaxed text-ink-300">
-              {recoveryAttempt?.summary
-                || recoveryAttempt?.next_action
-                || (approvalContinuationRecovery
-                  ? 'Continue from the preserved approval gate below. Tukido reuses the same run identity and will not start a duplicate.'
-                  : 'Review the recorded trace below, then use the recovery action shown with it. No completion is inferred from progress notes alone.')}
-            </p>
-            {recoveryAttempt?.recover_request_id && (
-              <p className="mt-2 font-mono text-[11px] text-ink-500">Recovery request {recoveryAttempt.recover_request_id.slice(0, 12)}…</p>
-            )}
-          </div>
-        )}
-
-        <CheckpointedContinuationHistoryCard history={checkpointedContinuations} />
-
-        {/* First quality-mode entry point: only offer B-roll generation beside a
-            desktop-validated video deliverable. A markdown path is a worker claim,
-            not evidence that there is a video to build from. The proposal itself
-            is still no-spend; the next page requires an explicit approval. */}
-        {r.output_markdown && verifiedArtifacts.some(isValidatedVideoOutput) && (
-          <div className="mb-6 rounded-lg border border-sky-500/30 bg-sky-500/[0.07] p-4">
-            <p className="text-sm font-medium text-ink-100">Add a B-roll moment</p>
-            <p className="mt-1 text-xs leading-relaxed text-ink-400">
-              Name one 2–10 second window, compare Quick, Professional, and Production, then review the exact maximum before approving anything paid.
-            </p>
-            <Link href={`/runs/${encodeURIComponent(r.id)}/generate-broll`} className="mt-3 inline-flex btn-primary px-4 py-2 text-sm">
-              Generate B-roll
-            </Link>
-          </div>
-        )}
-
+  const showProgressLayout = info.state !== 'completed' || held;
+  const showFinishedReview = !showProgressLayout && competencePacket.live && competencePacket.run?.id===r.id;
+  const heldRunControls = <>
         {/* The ONE action surface for a held run — context-aware primary (Approve &
             finish / Mark as done / Answer & continue), Request-changes on demand, a
             quiet Dismiss, and power-user escapes under "⋯". Replaces the old banner +
@@ -1206,85 +971,8 @@ export default async function RunDetailPage({
           </div>
         )}
 
-        {/* Caught needing browser / computer-use access → one-click "Grant browser
-            access" that opens Claude with a grant-only prompt (it pops the macOS
-            permission dialog + pairs Chrome), instead of bouncing to onboarding. */}
-        {!!r.output_markdown && NEEDS_BROWSER_GRANT_RE.test(r.output_markdown) && (
-          <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-4">
-            <p className="text-sm font-medium text-ink-100">This run needed browser or screen access it didn&apos;t have here</p>
-            {/* Deliberately does NOT claim the Chrome extension is ungranted — it
-                often IS connected (the run says so), and asserting otherwise
-                misled the founder. The real gap is usually Computer Use, or the
-                run happening unattended in the background. Offer BOTH fixes. */}
-            <p className="text-xs mt-1 text-state-needs">
-              A step here drives a browser or your screen, and that wasn&apos;t fully available in this run — usually
-              because Computer Use (Screen Recording + Accessibility) isn&apos;t granted yet, or it ran unattended in the
-              background. Grant it once and re-run, or run it from the app while you&apos;re at your desk. Tukido never
-              sees your logins.
-            </p>
-            <div className="mt-3">
-              <GrantPermissionsButton />
-            </div>
-            <p className="mt-2 text-xs text-state-needs">
-              Click → Tukido opens Claude with a pre-filled prompt → press Enter → Claude asks for permissions →
-              choose &quot;Always Allow&quot; (preferred). Or just re-run it attended from the agent page.
-            </p>
-          </div>
-        )}
-
-        {/* Non-held alert (stalled / failed) has no approval to act on — just the
-            quiet "hide from alerts" (the retry CTA lives in the deliverable block). */}
-        {!held && (info.attention || info.state === 'failed') && (
-          <div className="mb-6">
-            <ClearAlertButton runId={r.id} pending={false} />
-          </div>
-        )}
-
-        {/* Proposed follow-up actions (run_actions, 0090) — the one-tap "what's
-            next" for a DELIVERED run (publish / approve render / …). Held runs use
-            RunActions above; this is for the delivered-with-next-steps case the
-            founder flagged (a run that shipped real follow-ups but went silent). */}
-        {!held && !approvalContinuationRecovery && runActions.length > 0 && (
-          <div className="mb-6">
-            <RunActionItems runId={r.id} actions={runActions} />
-          </div>
-        )}
-
-        {/* "Finish this run" — a DELIVERED run that clearly stopped mid-pipeline
-            (its notes list remaining/blocked steps) gets a one-tap finish, so the
-            user never has to read prose to figure out how to continue. Suppressed
-            when the run already surfaced granular run_actions (no double CTA). */}
-        {!held && r.run_state === 'completed' && !!r.output_markdown &&
-          runActions.length === 0 &&
-          PARTIAL_RUN_RE.test(r.output_markdown.replace(/[*_`]/g, '')) && (
-          <div className="mb-6">
-            <FinishRunButton runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
-          </div>
-        )}
-
-        {/* Live per-step checklist: which of the chain's steps are done / running
-            / pending, updating on poll while in flight. Only when the run reported
-            structured step state (a chain/workflow via record_run_heartbeat). */}
-        {(stepsState.length > 0 || info.state === 'queued' || info.state === 'running') && (
-          <RunStepChecklist runId={r.id} initialSteps={stepsState} initialRunState={info.state} />
-        )}
-
-        {/* Live step trace: where the run is / where it got stuck. Only when the
-            run reported step notes (on-demand + long runs via record_run_heartbeat).
-            Rendered through <RunStepTrace>, the same component each Production
-            node section uses — one trace renderer, two surfaces. */}
-        {steps.length > 0 && (
-          <RunStepTrace
-            entries={steps}
-            live={info.state === 'running'}
-            attention={info.attention}
-            stalled={info.state === 'stalled'}
-            /* The trace is server-rendered and doesn't auto-update mid-run —
-               give a manual refresh so a long run isn't stuck on stale steps. */
-            action={<StepTraceRefresh />}
-          />
-        )}
-
+  </>;
+  const runProblem = <>
         {!r.output_markdown && (showRunProblem ? (
           // A stalled/failed run has no deliverable. Don't dead-end at a blank
           // "no deliverable" line: say what happened + give the one action. This
@@ -1439,22 +1127,21 @@ export default async function RunDetailPage({
           </p>
         ))}
 
-        {/* UNIVERSAL "Continue this run" — a FINISHED run must never dead-end.
-            REGRESSION FIX (2026-07-18, founder hit this on a Done+Verified video
-            assembly run): <RunActions> consolidated ~10 controls and its comment
-            says it "replaces … the always-open Continue box" — but it only renders
-            when `held`, so a cleanly-completed run lost EVERY path to iterate. The
-            box itself (<RunContinueBox/>) still documented case 3, "iterate on a
-            finished run's output", yet was rendered nowhere but the inbox — and the
-            inbox only lists runs needing attention, so a finished run appeared in
-            neither place. Held runs keep using <RunActions> above (it has its own
-            continue); this is its non-held twin, sitting right under the deliverable
-            you just read. Failed/stalled runs are already covered by "Run again" +
-            <StuckRunButton> in the no-deliverable branch, so this stays scoped to a
-            real deliverable and never stacks a second CTA on a failure. */}
-        {!held && r.output_markdown && (
-          <div className="mt-5">
-            <RunContinueBox runId={r.id}
+  </>;
+  const runChecklist = <>
+        {/* Live per-step checklist: which of the chain's steps are done / running
+            / pending, updating on poll while in flight. Only when the run reported
+            structured step state (a chain/workflow via record_run_heartbeat). */}
+        {(stepsState.length > 0 || showProgressLayout) && (
+          <RunStepChecklist runId={r.id} initialSteps={stepsState} initialRunState={info.state}
+            presentation={held?'waiting':info.state} initialNote={progress?.current?.note||steps.at(-1)?.note}
+            startedAt={r.started_at} endedAt={r.completed_at} interruptedAt={r.stalled_at} expectedMs={r.expected_duration_ms} initialNow={Date.now()}/>
+        )}
+
+  </>;
+  const cancellation = <RunStopControl key={r.id} runId={r.id} runState={r.run_state ?? null} cancelRequestedAt={run?.cancel_requested_at} />;
+
+  const continueBox = (<RunContinueBox presentation={showFinishedReview?'finished':undefined} runId={r.id}
               agentName={name}
               slug={r.skill_slug}
               workflowVersionId={runWorkflowVersionId}
@@ -1462,22 +1149,67 @@ export default async function RunDetailPage({
               audioEdits={supportsAudioRevision}
               higgsfieldCreditChoices={revisionCreditChoices}
               initialNote={judgment?.verdict === 'repair' ? (judgment.repair_prompt || judgment.next_action || '') : ''}
-            />
+            />);
+  const judgmentPanel = <section className="finished-checks" aria-label="Checked before it reached you">{showFinishedReview&&<><h2 className="finished-checks-title">Checked before it reached you</h2>{(competencePacket.sources.verification!=='ready'||competencePacket.verification.receipts.length>0)&&<p className="finished-check-count">{competencePacket.sources.verification!=='ready'?'Recorded checks could not be loaded.':competencePacket.verification.receipts.length?competencePacket.verification.receipts.every(receipt=>['pass','fail'].includes(receipt.status))?`${competencePacket.verification.receipts.filter(receipt=>receipt.status==='pass').length} of ${competencePacket.verification.receipts.length} recorded checks passed`:`${competencePacket.verification.receipts.length} checks recorded`:'No checks recorded for this result.'}</p>}</>}{creativeGradeNotice && <p role="status" className="mb-4 text-sm text-state-needs">{showFinishedReview?creativeGradePlainNotice:creativeGradeNotice}</p>}
+        <RunJudgmentCard presentation={showFinishedReview?'finished':undefined} judgment={judgment} repairRequest={repairRequest} currentRunId={r.id}
+          finalOutputSha256={finalReviewArtifactSha256} reviewPending={judgmentPending} />
+        {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
+        {judgmentReadUnavailable && <p className="text-sm text-state-needs">Final review status is unavailable. Refresh to check it again.</p>}
+        {failedJudgeRetry && (
+          <section className="card border-amber-500/30" aria-label="Final review recovery">
+            <h2 className="font-medium text-ink-100">Final review is incomplete</h2>
+            <p className="mt-1 text-sm text-ink-300">Your delivered work is unchanged.</p>
+            <ControlPlaneRetry requestId={failedJudgeRetry.requestId} runId={failedJudgeRetry.runId} />
+          </section>
+        )}
+        {judgment?.verdict === 'repair' && ['pending', 'consumed'].includes(repairRequest?.status || '') && (
+          <RunJudgmentPending phase="repair" requestStatus={(repairRequest?.status as 'pending' | 'consumed') || null} createdAt={repairRequest?.created_at || null} />
+        )}</section>;
+  const brollAction = <>
+        {/* First quality-mode entry point: only offer B-roll generation beside a
+            desktop-validated video deliverable. A markdown path is a worker claim,
+            not evidence that there is a video to build from. The proposal itself
+            is still no-spend; the next page requires an explicit approval. */}
+        {r.output_markdown && verifiedArtifacts.some(isValidatedVideoOutput) && (
+          <div className="mb-6 rounded-lg border border-sky-500/30 bg-sky-500/[0.07] p-4">
+            <p className="text-sm font-medium text-ink-100">Add a B-roll moment</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-400">
+              Name one 2–10 second window, compare Quick, Professional, and Production, then review the exact maximum before approving anything paid.
+            </p>
+            <Link href={`/runs/${encodeURIComponent(r.id)}/generate-broll`} className="mt-3 inline-flex btn-primary px-4 py-2 text-sm">
+              Generate B-roll
+            </Link>
           </div>
         )}
 
-        {/* Jump to this agent's OTHER runs. A held run often references sibling
-            runs ("Day 16/17 are still pending") — make it one click to go act on
-            them, instead of Open agent → Runs → hunt for the run. */}
-        <div className="mt-4 text-xs">
-          <Link
-            href={`${agentHref}${agentHref.includes('?') ? '&' : '?'}tab=runs`}
-            className="text-ink-400 hover:text-ink-200 inline-flex items-center gap-1.5"
-          >
-            <span aria-hidden>↩</span> See {name}&apos;s other runs — open one to continue it
-          </Link>
-        </div>
+        {!showProgressLayout&&heldRunControls}
 
+  </>;
+  const suggestedActions = <>
+        {/* Proposed follow-up actions (run_actions, 0090) — the one-tap "what's
+            next" for a DELIVERED run (publish / approve render / …). Held runs use
+            RunActions above; this is for the delivered-with-next-steps case the
+            founder flagged (a run that shipped real follow-ups but went silent). */}
+        {!held && !approvalContinuationRecovery && runActions.length > 0 && (
+          <div className="mb-6">
+            <RunActionItems runId={r.id} actions={runActions} />
+          </div>
+        )}
+
+        {/* "Finish this run" — a DELIVERED run that clearly stopped mid-pipeline
+            (its notes list remaining/blocked steps) gets a one-tap finish, so the
+            user never has to read prose to figure out how to continue. Suppressed
+            when the run already surfaced granular run_actions (no double CTA). */}
+        {!held && r.run_state === 'completed' && !!r.output_markdown &&
+          runActions.length === 0 &&
+          PARTIAL_RUN_RE.test(r.output_markdown.replace(/[*_`]/g, '')) && (
+          <div className="mb-6">
+            <FinishRunButton runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
+          </div>
+        )}
+
+  </>;
+  const laterActions = <>
         {/* Per-run feedback — the same form the Results overlay shows, so a run
             opened from an Active-Agents card / email / Telegram / the calendar is
             rateable right here instead of forcing a detour through the Runs tab.
@@ -1514,6 +1246,333 @@ export default async function RunDetailPage({
         {/* Next agents to build — the run's own recommendations, right under its
             output (recommendation engine v1). Renders nothing when there are none. */}
         <NextAgentCards runId={r.id} recommendations={recommendations} />
+  </>;
+  const finishedView = showFinishedReview ? <ReviewRoom runId={r.id} agentName={name} agentSlug={r.skill_slug}
+    customerOwnerId={preferenceInstallationId?session.user.id:undefined} artifacts={competencePacket.artifacts}
+    historicalCandidates={competencePacket.historicalCandidates} production={competencePacket.production} issues={competencePacket.issues}
+    session={competencePacket.session} reviewArtifacts={competencePacket.reviewArtifacts} sources={competencePacket.sources}
+    isApprovalHold={false} versions={competencePacket.lineage.versions}
+    finishedView={{reviewHref:`/review/${encodeURIComponent(r.id)}`,changes:continueBox,checks:judgmentPanel,
+      fallbackResult:r.output_markdown?<div className="prose prose-sm max-w-none"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div>:undefined,
+      afterResult:<VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} finished/>}}/> : null;
+
+  return (
+    <main className="app-page">
+      <div className="app-content">
+        <BackLink fallback="/work" label="Work" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
+        {requiredTrainingHold && <div role="status" className="mt-4 rounded-lg border border-amber-500/40 px-4 py-3 text-sm text-ink-200">
+          <p>Required reference training is missing. This run stopped before the worker started. Accept replacement training before starting a new run.</p>
+          <Link href={`/training/${encodeURIComponent(r.skill_slug)}`} className="mt-2 inline-block underline">Open Training</Link>
+        </div>}
+
+        {/* A run inside an outcome production points at its parent FIRST: the
+            production is the canonical account of the job, and this page is a
+            diagnostic on one of its steps. */}
+        {/* Arrived here from a superseded execution shell. Say so — a silent
+            redirect that swaps the run out from under the reader is worse than
+            the confusion it was meant to fix. */}
+        {arrivedFromSupersededShell && (
+          <p role="status" className="mt-4 rounded-lg border border-ink-800 bg-ink-950/40 px-3 py-2 text-xs text-ink-400 leading-relaxed">
+            You followed a link to an earlier execution attempt that was superseded. This is the run that actually
+            carried out that step.{' '}
+            <Link href={`/runs/${arrivedFromSupersededShell}?keep=1`} className="text-ink-300 hover:underline">
+              See the superseded attempt
+            </Link>
+          </p>
+        )}
+
+        <div className="mt-4">
+          <ProductionLineageBanner lineage={productionLineage} />
+        </div>
+
+        {/* web→app handoff: the https email link lands here; offer the bounce into
+            the desktop app. Dormant until the app ships (desktopAppLive). */}
+        {desktopAppLive() && (
+          <NotInApp>
+            <div className="mt-4">
+              <OpenInAppPrompt runId={r.id} />
+            </div>
+          </NotInApp>
+        )}
+
+        <header className="app-page-head mt-4"><div className="run-detail-title">
+          {/* The title itself is the primary way back to the agent now (founder
+              ask: the small "open agent" text link below was too easy to miss).
+              The Link lives INSIDE the h1 so the page keeps its heading landmark
+              either way; only wrap it in a Link when we actually know the agent
+              (wf) so we never link to a workflow we couldn't resolve. */}
+          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+            {wf ? (
+              <Link
+                href={`/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`}
+                className="hover:underline"
+              >
+                {name}
+              </Link>
+            ) : name}
+          </h1>
+          <div className="flex items-center gap-2.5 mt-2 flex-wrap">
+            {showFinishedReview?<span className="finished-review-state">{competencePacket.sources.session!=='ready'?'Review status unavailable':competencePacket.session?.state==='accepted'?'Accepted':competencePacket.session?.state==='submitted'?'Changes requested':'Ready for your review'}</span>:<RunStateBadge info={info} size="xs" />}
+            {!showFinishedReview&&<RunVerificationBadge status={verificationStatus} size="xs" />}
+            <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
+
+            {desktopAppLive() && (
+              <NotInApp>
+                <a href={appRunUrl(r.id)} className="text-xs text-action-accent hover:underline">
+                  open in the Tukido app ↗
+                </a>
+              </NotInApp>
+            )}
+          </div>
+        </div>{showFinishedReview&&<details className="finished-more"><summary aria-label="More actions">⋯</summary><div><RunShareButton runId={r.id}/><Link href={`${agentHref}${agentHref.includes('?')?'&':'?'}run=1`}>Run again from scratch →</Link></div></details>}</header>
+
+        {finishedView}
+        <FinishedRunDetails collapsed={showFinishedReview}>
+        <div className={showProgressLayout?'run-detail-layout':undefined} data-priority={held||showRunProblem||info.state==='stalled'?'true':undefined}>
+        {showProgressLayout&&<aside className="run-detail-rail" aria-label="Run actions">
+          {heldRunControls}
+          {runProblem}
+          <section className="run-control-panel"><h2>This run</h2><p>Follow progress here and review anything the agent needs from you.</p>{cancellation}</section>
+        </aside>}
+        <div className="run-detail-main">
+        {showProgressLayout&&runChecklist}
+        {!showFinishedReview&&r.run_state==='completed'&&verifiedArtifacts.some(artifact=>artifact.role==='final_output')&&<div className="mb-6"><Link href={`/review/${r.id}`} className="btn-primary">Open result</Link></div>}
+
+
+        {!showProgressLayout&&cancellation}
+        {!showFinishedReview&&<VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} progress={showProgressLayout}/>}
+        {r.output_markdown ? (verifiedArtifacts.length ? <details className="proof-disclosure mb-6"><summary>Agent’s notes</summary><div className="prose prose-sm mt-4 max-w-none"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div></details>:<div className="prose prose-sm mb-6 max-w-none rounded-lg border border-ink-700 bg-ink-900 p-5"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div>) : null}
+
+        {!showFinishedReview&&judgmentPanel}
+
+        {/* Share — prominent on ANY completed run with a deliverable, so the owner
+            can turn it into a public, forkable Run Card without hunting (founder
+            ask). Amber + share icon. The detailed URL/copy state expands in place. */}
+        {!showFinishedReview && r.run_state === 'completed' && r.output_markdown && (
+          <div className="mb-6">
+            <RunShareButton runId={r.id} />
+          </div>
+        )}
+
+        {/* Files are a first-class part of EVERY run, not an appendix to a final
+            markdown answer. Keep this near the header for running, held, failed,
+            partial and completed runs alike. The component stays present at zero
+            so a tab opened before Desktop validation lands has an honest Refresh
+            path instead of permanently looking as though the run made no files. */}
+        <details className="proof-disclosure mb-6">
+          <summary>How it was made, and proof</summary>
+          <div className="mt-5 space-y-4">
+        <EngineOverrideBanner
+          originalPreference={engineRouting?.original_preference}
+          selectedExecutor={engineRouting?.selected_executor}
+          selectionReason={engineRouting?.selection_reason}
+        />
+
+        <StageCompetenceProof proof={competencePacket.competenceProof} />
+
+        <StageManagerProof proof={competencePacket.managerProof} />
+
+        <TasteFitReviewCard review={competencePacket.tasteFit} />
+
+        <section className="mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4" aria-label="Learnings used">
+          <h2 className="text-sm font-semibold text-ink-100">Learnings used</h2>
+          <p className="mt-1 text-xs text-ink-500">Owner-approved rules frozen for this attempt. This is separate from stage skills above.</p>
+          {learningProofUnavailable && !learningProof ? (
+            <p className="mt-2 text-xs text-state-needs">The attempt-bound learning proof is unavailable. No handling state is inferred.</p>
+          ) : learningProof ? (
+            <div className="mt-2">
+              <p className="text-[11px] text-ink-500">Frozen for attempt {learningProof.launch_attempt_id.slice(0, 12)} at fence {learningProof.fencing_epoch} · context {learningProof.context_digest.slice(0, 12)}</p>
+              <p className="text-[11px] text-ink-500">Human review: {humanReviewLabels[humanReview]}. This is separate from delivery and the Judge’s review.</p>
+              <p className="text-[11px] text-ink-500">{associatedHumanReview === 'not_associated'
+                ? 'No human outcome associated with this attempt.' : associatedHumanReview === 'unavailable'
+                  ? 'Human outcome association unavailable.' : `Associated human review for this attempt: ${humanReviewLabels[associatedHumanReview]}.`}</p>
+              <ul className="mt-2 space-y-2">
+                {(learningProof.context.rules || []).map((rule) => {
+                  const receipt = learningHandling.find((item) => item.rule_version_id === rule.id);
+                  return <li key={rule.id} className="rounded-md border border-ink-800 px-3 py-2">
+                    <p className="text-sm text-ink-100">{rule.instruction}</p>
+                    <p className="mt-1 text-[10px] uppercase tracking-wide text-ink-500">{rule.ruleClass} · v{rule.version} · {rule.id.slice(0, 8)} · {rule.versionDigest.slice(0, 12)}</p>
+                    <p className="mt-1 text-xs text-ink-400">Executor handling: {receipt ? receipt.handling.replaceAll('_', ' ') : 'pending'}</p>
+                    {receipt?.reason && <p className="mt-1 text-xs text-ink-500">Reason: {receipt.reason}</p>}
+                    <p className="mt-1 text-[11px] text-ink-500">Applied means the executor reported following the supplied rule. It does not prove causation or success.</p>
+                  </li>;
+                })}
+              </ul>
+            </div>
+          ) : !learningSourceAvailable ? (
+            <p className="mt-2 text-xs text-state-needs">The frozen learning source is unavailable. This is not shown as an empty result.</p>
+          ) : (engineRouting?.learning_context?.rules || []).length === 0 ? (
+            <p className="mt-2 text-xs text-ink-500">No learning context was frozen for this run.</p>
+          ) : (
+            <div className="mt-2"><p className="text-xs text-ink-500">Legacy prepared context. This run predates attempt-bound handling receipts.</p><ul className="mt-2 space-y-2">
+              {(engineRouting?.learning_context?.rules || []).map((rule) => (
+                <li key={rule.id} className="rounded-md border border-ink-800 px-3 py-2">
+                  <p className="text-sm text-ink-100">{rule.instruction}</p>
+                  <p className="mt-1 text-[10px] uppercase tracking-wide text-ink-500">
+                    {rule.ruleClass} · v{rule.version} · {rule.id.slice(0, 8)} · {rule.versionDigest.slice(0, 12)}
+                  </p>
+                </li>
+              ))}
+            </ul></div>
+          )}
+        </section>
+
+          </div>
+        </details>
+
+        {/* THE REVISION POINTER (2026-08-23). Beside the files, not buried in the
+            deliverable's else-chain, because a reviewed PARENT usually has its own
+            output and its own older artifacts — so it never reaches that chain and
+            the page reads as the finished answer while the answer the user asked
+            for sits on the child. The child's files stay attributed to the child:
+            merging them here would be the same parent/child confusion wearing the
+            opposite face. */}
+        {revisedResult && (
+          <div className="mb-6 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-4">
+            <p className="text-sm font-semibold text-ink-50">This run was revised, and the revision delivered</p>
+            <p className="mt-1 text-sm text-ink-300 leading-relaxed">
+              The revised result is on its own run
+              {revisedResult.artifactCount > 0
+                ? `, with ${revisedResult.artifactCount} validated file${revisedResult.artifactCount === 1 ? '' : 's'}`
+                : ''}. The files listed above belong to this run.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Link href={`/review/${encodeURIComponent(revisedResult.runId)}`} className="btn-success text-sm px-4 py-2">
+                Open the revised result
+              </Link>
+              <Link href={`/runs/${encodeURIComponent(revisedResult.runId)}`} className="btn-outline text-sm px-4 py-2">
+                Its files &amp; artifacts
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {recoveredFinalArtifact && (r.run_state === 'failed' || r.run_state === 'stalled') && (
+          <div className="mb-6 rounded-lg border border-emerald-500/45 bg-emerald-500/[0.08] p-4" role="status">
+            <p className="text-sm font-semibold text-ink-50">A validated final output was recovered from this run</p>
+            <p className="mt-1 text-sm leading-relaxed text-ink-300">
+              The execution record is still {r.run_state}, but Tukido verified the final file on this Mac.
+              Open it from Files &amp; artifacts above; no duplicate rerun is needed.
+            </p>
+            <p className="mt-2 truncate font-mono text-[11px] text-ink-500">{recoveredFinalArtifact.relativePath}</p>
+          </div>
+        )}
+
+        {!recoveredFinalArtifact && recoveryPresentation.hasDeterministicContinuation && (
+          <div className="mb-6 rounded-lg border border-sky-500/35 bg-sky-500/[0.07] p-4" role="status">
+            <p className="text-sm font-semibold text-ink-50">
+              {alreadyRecoveredElsewhere ? 'Automatic recovery already handled this run' : 'A deterministic recovery path is available'}
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-ink-300">
+              {recoveryAttempt?.summary
+                || recoveryAttempt?.next_action
+                || (approvalContinuationRecovery
+                  ? 'Continue from the preserved approval gate below. Tukido reuses the same run identity and will not start a duplicate.'
+                  : 'Review the recorded trace below, then use the recovery action shown with it. No completion is inferred from progress notes alone.')}
+            </p>
+            {recoveryAttempt?.recover_request_id && (
+              <p className="mt-2 font-mono text-[11px] text-ink-500">Recovery request {recoveryAttempt.recover_request_id.slice(0, 12)}…</p>
+            )}
+          </div>
+        )}
+
+        <CheckpointedContinuationHistoryCard history={checkpointedContinuations} />
+
+        {!showFinishedReview&&brollAction}
+
+        {/* Caught needing browser / computer-use access → one-click "Grant browser
+            access" that opens Claude with a grant-only prompt (it pops the macOS
+            permission dialog + pairs Chrome), instead of bouncing to onboarding. */}
+        {!!r.output_markdown && NEEDS_BROWSER_GRANT_RE.test(r.output_markdown) && (
+          <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-4">
+            <p className="text-sm font-medium text-ink-100">This run needed browser or screen access it didn&apos;t have here</p>
+            {/* Deliberately does NOT claim the Chrome extension is ungranted — it
+                often IS connected (the run says so), and asserting otherwise
+                misled the founder. The real gap is usually Computer Use, or the
+                run happening unattended in the background. Offer BOTH fixes. */}
+            <p className="text-xs mt-1 text-state-needs">
+              A step here drives a browser or your screen, and that wasn&apos;t fully available in this run — usually
+              because Computer Use (Screen Recording + Accessibility) isn&apos;t granted yet, or it ran unattended in the
+              background. Grant it once and re-run, or run it from the app while you&apos;re at your desk. Tukido never
+              sees your logins.
+            </p>
+            <div className="mt-3">
+              <GrantPermissionsButton />
+            </div>
+            <p className="mt-2 text-xs text-state-needs">
+              Click → Tukido opens Claude with a pre-filled prompt → press Enter → Claude asks for permissions →
+              choose &quot;Always Allow&quot; (preferred). Or just re-run it attended from the agent page.
+            </p>
+          </div>
+        )}
+
+        {/* Non-held alert (stalled / failed) has no approval to act on — just the
+            quiet "hide from alerts" (the retry CTA lives in the deliverable block). */}
+        {!held && (info.attention || info.state === 'failed') && (
+          <div className="mb-6">
+            <ClearAlertButton runId={r.id} pending={false} />
+          </div>
+        )}
+
+        {!showFinishedReview&&suggestedActions}
+
+        {!showProgressLayout&&runChecklist}
+
+        {/* Live step trace: where the run is / where it got stuck. Only when the
+            run reported step notes (on-demand + long runs via record_run_heartbeat).
+            Rendered through <RunStepTrace>, the same component each Production
+            node section uses — one trace renderer, two surfaces. */}
+        {steps.length > 0 && (
+          <RunStepTrace
+            entries={steps}
+            live={info.state === 'running'}
+            attention={info.attention}
+            stalled={info.state === 'stalled'}
+            /* The trace is server-rendered and doesn't auto-update mid-run —
+               give a manual refresh so a long run isn't stuck on stale steps. */
+            action={<StepTraceRefresh />}
+          />
+        )}
+
+        {!showProgressLayout&&runProblem}
+
+        {/* UNIVERSAL "Continue this run" — a FINISHED run must never dead-end.
+            REGRESSION FIX (2026-07-18, founder hit this on a Done+Verified video
+            assembly run): <RunActions> consolidated ~10 controls and its comment
+            says it "replaces … the always-open Continue box" — but it only renders
+            when `held`, so a cleanly-completed run lost EVERY path to iterate. The
+            box itself (<RunContinueBox/>) still documented case 3, "iterate on a
+            finished run's output", yet was rendered nowhere but the inbox — and the
+            inbox only lists runs needing attention, so a finished run appeared in
+            neither place. Held runs keep using <RunActions> above (it has its own
+            continue); this is its non-held twin, sitting right under the deliverable
+            you just read. Failed/stalled runs are already covered by "Run again" +
+            <StuckRunButton> in the no-deliverable branch, so this stays scoped to a
+            real deliverable and never stacks a second CTA on a failure. */}
+        {!held && r.output_markdown && !showFinishedReview && (
+          <div className="mt-5">
+            {continueBox}
+          </div>
+        )}
+
+        {/* Jump to this agent's OTHER runs. A held run often references sibling
+            runs ("Day 16/17 are still pending") — make it one click to go act on
+            them, instead of Open agent → Runs → hunt for the run. */}
+        <div className="mt-4 text-xs">
+          <Link
+            href={`${agentHref}${agentHref.includes('?') ? '&' : '?'}tab=runs`}
+            className="text-ink-400 hover:text-ink-200 inline-flex items-center gap-1.5"
+          >
+            <span aria-hidden>↩</span> See {name}&apos;s other runs — open one to continue it
+          </Link>
+        </div>
+
+        {!showFinishedReview&&laterActions}
+
+        </div>
+        </div>
+        </FinishedRunDetails>
+        {showFinishedReview&&<details className="finished-what-next"><summary>What next</summary>{brollAction}{suggestedActions}{laterActions}</details>}
       </div>
     </main>
   );
@@ -1525,4 +1584,9 @@ function artifactRolePriority(role: string | null): number {
   if (role === 'qa_report') return 2;
   if (role === 'source') return 3;
   return 4;
+}
+
+/** Existing recovery, proof and follow-up actions remain available without dominating a delivered result. */
+function FinishedRunDetails({collapsed,children}:{collapsed:boolean;children:ReactNode}){
+ return collapsed?<details id="run-details" className="finished-run-details"><summary>Delivery details and more actions</summary>{children}</details>:<>{children}</>;
 }

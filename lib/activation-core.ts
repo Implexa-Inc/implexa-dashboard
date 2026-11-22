@@ -130,6 +130,7 @@ export function mapActivationChecklist(b: Record<string, unknown> | null | undef
     blockingQuestions: b.blockingQuestions === undefined ? undefined : Number(b.blockingQuestions),
     optionalQuestions: Number(b.optionalQuestions ?? 0),
     readyToRun: b.readyToRun === undefined ? undefined : !!b.readyToRun,
+    setupReadAvailable: b.setupReadAvailable === true,
     // Absent on an older backend → [], so the section simply doesn't render.
     capabilityGaps: Array.isArray(b.capabilityGaps)
       ? (b.capabilityGaps as unknown[]).filter((g): g is CapabilityGap =>

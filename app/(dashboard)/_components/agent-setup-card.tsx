@@ -190,13 +190,13 @@ export default function AgentSetupCard({
   return (
     <div className={`card max-w-2xl transition-shadow ${flash ? 'ring-2 ring-amber-500/70 ring-offset-2 ring-offset-ink-950' : ''}`}>
       <div className="flex items-start justify-between gap-3 mb-1">
-        <h2 className="text-base font-semibold text-ink-50">Questions this agent needs answered</h2>
+        <h2 className="text-base font-semibold text-ink-50">{requiredFields.length?'Questions this agent needs answered':'Your preferences'}</h2>
         {setup.needs_setup
           ? <span className="flex-none text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-amber-500/50 text-state-needs">{setup.missing.length} to answer</span>
-          : <span className="flex-none text-[11px] text-state-ok">✓ all set</span>}
+          : requiredFields.length ? <span className="flex-none text-[11px] text-state-ok">✓ all set</span> : <span className="text-xs text-ink-400">Optional</span>}
       </div>
       <p className="text-xs text-ink-400 mb-4 leading-snug">
-        Answer once here and the agent runs on its own — it won’t stop to ask in Claude Code.
+        {requiredFields.length?'Answer once so the agent has what it needs for future runs.':'Remembered for next time.'}
       </p>
 
       <div className="space-y-4">
@@ -209,7 +209,7 @@ export default function AgentSetupCard({
             {/* One visible break between "must answer" and "can tune". Without it
                 the tiers exist only in the data and the user still reads every
                 field as mandatory. */}
-            {i === requiredFields.length && optionalFields.length > 0 && (
+            {requiredFields.length > 0 && i === requiredFields.length && optionalFields.length > 0 && (
               <div className="pt-2 mb-3 border-t border-ink-800">
                 <div className="text-xs font-semibold uppercase tracking-wide text-ink-500 mt-3">Optional preferences</div>
                 <p className="text-xs text-ink-500 mt-0.5">

@@ -10,11 +10,11 @@
  * Setup tab no longer carries its own copy of this card.
  */
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import Modal from './modal';
 import ImproveAgent from './improve-agent';
 
-export default function AgentEditButton({ slug, statusUnavailable = false, revisePending = false,label="Edit Agent",className }: {label?:string;className?:string; slug: string; statusUnavailable?: boolean; revisePending?: boolean }) {
+export default function AgentEditButton({ slug, statusUnavailable = false, revisePending = false,label="Edit Agent",className,chainEditor }: {label?:string;className?:string;slug:string;statusUnavailable?:boolean;revisePending?:boolean;chainEditor?:ReactNode}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -31,6 +31,7 @@ export default function AgentEditButton({ slug, statusUnavailable = false, revis
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title="Edit this agent" maxWidth="max-w-md">
         <ImproveAgent slug={slug} bare statusUnavailable={statusUnavailable} revisePending={revisePending} />
+        {chainEditor&&<section className="mt-6 border-t border-ink-800 pt-5"><h2 className="mb-3 text-sm">Add an agent to this chain</h2>{chainEditor}</section>}
       </Modal>
     </>
   );

@@ -88,12 +88,15 @@ export function ImplexaJudgePolicy({ slug, compact = false }: { slug: string; co
               true in every_run; in observe the Judge reviews and reports and
               changes nothing. Describing work the feature will not do is the same
               class of lie as an all-clear over an unread source. */}
+          <p className="text-xs text-ink-400 mt-1 leading-relaxed">An independent AI reviews the result. Repairs are a separate choice.</p>
+          <details className="mt-2 text-xs text-ink-500"><summary>How reviews work</summary>
           <p className="text-xs text-ink-400 mt-1 leading-relaxed max-w-xl">
             After every run, a fresh AI session checks the original request, agent criteria, memory, feedback, and actual artifacts. It reports what it finds — nothing is changed and nothing is re-run unless you turn on automatic repair below.
           </p>
           <p className="text-[11px] text-ink-500 mt-1.5 leading-relaxed">
             Tukido prefers the other engine (Claude reviews Codex, or Codex reviews Claude); if it isn&apos;t ready, a new session on the same engine reviews it. Missing inputs, new permissions, approvals, and consequential actions come back to you instead of being guessed or repeated. Reviews and repairs use your own subscriptions and stay separate from evidence-based “Verified complete.”
           </p>
+          </details>
         </div>
         <button
           type="button"

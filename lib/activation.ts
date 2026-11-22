@@ -156,8 +156,10 @@ export type ActivationChecklist = {
   blockingQuestions?: number;
   /** Preferences the user can still set; never block a run. */
   optionalQuestions?: number;
-  /** readyToRun === blockingQuestions === 0 && blockingCapabilityGaps === 0. */
+  /** Required setup reads succeeded, with no required-answer or capability gap. */
   readyToRun?: boolean;
+  /** Strict setup-schema and saved-answer reads succeeded; absent is unknown. */
+  setupReadAvailable?: boolean;
   /**
    * Capabilities this agent needs but has NO viable tool for (every candidate
    * unavailable, or a stated preference contradicted itself). Server-derived
