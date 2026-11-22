@@ -1,7 +1,7 @@
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
-import { teachingSuggestion, teachingDigest, teachingFrame, teachingFailure, recordingAgentSuggestion, annotationGapPage, annotationAnalysis, scopedTeachingSuggestion, recordingLocatorCapability } from './training-teaching-draft.ts';
+import { savedRecordingAgentProposal, teachingSuggestion, teachingDigest, teachingFrame, teachingFailure, recordingAgentSuggestion, annotationGapPage, annotationAnalysis, scopedTeachingSuggestion, recordingLocatorCapability } from './training-teaching-draft.ts';
 const binding = { sourceId:'source',sourceSha256:'a'.repeat(64),timeMs:0,frameSha256:'b'.repeat(64),questionReceiptId:'question',
   questionReceiptDigest:'c'.repeat(64),expectedActiveVersionId:'version',feedbackSha256:'d'.repeat(64) };
 const value = { requestId:'11111111-1111-4111-8111-111111111111',ok:true,contractVersion:'training-teaching-suggestion.v2',model:'claude-haiku-5-5',binding,
@@ -136,4 +136,11 @@ test('actual Higgsfield producer supports automatic discovery, both method paths
   const changed=structuredClone(entry.proposal);changed.binding.targetVersionId='wrong-version';
   assert.equal(recordingAgentSuggestion(changed,entry.proposal.binding,'higgsfield_image_to_video'),false);
  }
+});
+
+test('saved proposal decoder binds the selected receipt without inventing model request metadata',()=>{
+ const id='11111111-1111-4111-8111-111111111111',digest='a'.repeat(64),expected={sessionId:id,versionId:id,id,digest};
+ const proposal={suggestionId:id,suggestionDigest:digest,capability:'web_reference_research',limitations:[],proposedChange:'Search references.',methodSelection:'pending_existing_binder',binding:{sourceId:id,sourceSha256:digest,targetVersionId:id,excerptId:id,excerptDigest:digest,frames:[0,1,2].map(timeMs=>({timeMs,frameSha256:digest}))}};
+ const v={ok:true,contractVersion:'training-saved-recording-agent.v1',sessionId:id,proposal};assert.equal(savedRecordingAgentProposal(v,expected),true);
+ for(const bad of [{...v,requestId:id},{...v,proposal:{...proposal,suggestionDigest:'b'.repeat(64)}},{...v,proposal:{...proposal,binding:{...proposal.binding,targetVersionId:'22222222-2222-4222-8222-222222222222'}}}])assert.equal(savedRecordingAgentProposal(bad,expected),false);
 });

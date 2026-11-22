@@ -11,10 +11,10 @@ export function decisionPresentation(item:CoachDecision,changes:GuidedTrainingCh
  const lesson=changes?.records.find(r=>r.recordId===item.id&&r.recordDigest===item.digest);
  const question=questions?.items.find(q=>q.id===item.id&&q.receiptDigest===item.digest);
  return item.kind==='lesson'?{source:'From your teaching',title:lesson?teachingCaption(lesson.summary):'Review a saved learning',reason:'Choose whether this lesson should guide your next run.'}:
- item.kind==='feedback'?{source:'From your result',title:'Turn your marked feedback into a lesson',reason:'You marked this feedback for training.'}:
+ item.kind==='feedback'?{source:'From your result',title:item.summary||'Turn your marked feedback into a lesson',reason:'You marked this feedback for training.'}:
  item.kind==='question'?{source:'From the agent',title:question?trainingPropertyLabel(question.property):'An approach needs your guidance',reason:'Choose how your agent should handle this decision.'}:
  item.kind==='customer'?{source:'From a customer',title:'A suggestion for future runs',reason:'Review general guidance. Customer material stays private.'}:
- {source:'Proposed agent change',title:'Review a change to steps or tools',reason:'An agent change needs your approval.'};
+ {source:'Proposed agent change',title:item.summary||'Review a change to steps or tools',reason:'An agent change needs your approval.'};
 }
 export default function TrainingDecisions({agent,loading,error,changes,questions,onReview,onRetry}:{agent:CoachAgent|null;loading:boolean;error:boolean;changes:GuidedTrainingChanges|null;questions:QuestionsPage|null;onReview:(item:CoachDecision,all?:boolean)=>void;onRetry:()=>void}){
  return <section className="training-decisions" aria-labelledby="training-decisions-heading">

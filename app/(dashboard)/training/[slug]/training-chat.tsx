@@ -15,7 +15,7 @@ type Turn={turnId:string;versionId:string;sourceId:string|null;sourceSha256:stri
 type Context={directionScopeContract?:'training-direction-scope.v1';creativeDirectionOptions?:TrainingCreativeDirection[];agent:{id:string;name:string;slug:string;versionId:string};boundMethods:Array<{stageIndex:number;source:string;slug:string;contentDigest:string}>;
  researchMethodPresent:boolean;source:{sourceId:string;sha256:string}|null;availableActions:Action[]};
 type Reply={ok:boolean;reason?:string;contractVersion?:string;canSend?:boolean;turns?:Turn[];turn?:Turn;context?:Context|null;totalTurns?:number};
-export type TrainingChatRequest={key:string;target:{kind:'feedback'|'record';id:string;digest:string};prompt:string};
+export type TrainingChatRequest={key:string;target:{kind:'feedback'|'record';id:string;digest:string};prompt:string;quote?:string};
 const names:Record<Action,string>={none:'',analyse_tool_method:'Analyze the recording’s tool method',analyse_taste:'Analyze the recording’s taste',
  review_method:'Review the operating method',review_agent_update:'Review the agent update',review_teaching:'Review the teaching',test_agent:'Open the agent to test'};
 const validTurn=(v:Turn)=>v&&typeof v.turnId==='string'&&typeof v.versionId==='string'&&typeof v.message==='string'
@@ -113,7 +113,7 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
    </li>;
   })}</ol>
   {!canSend&&sessionId&&!loading&&<p>Sending is unavailable until this session matches the active agent version.</p>}
-  {target&&<div className="rounded-lg border border-ink-700 p-3 text-xs">{target.kind==='feedback'?'Preparing a learning from the selected original feedback.':'Editing the selected teaching as a new private version.'} Nothing is sent until Send.<button type="button" disabled={sending} onClick={()=>{setTarget(null);pending.current=null;}}>Cancel selected target</button></div>}
+  {target&&<div className="rounded-lg border border-ink-700 p-3 text-xs">{request?.quote&&target.id===request.target.id&&target.digest===request.target.digest&&<blockquote className="mb-3 border-l-2 border-ink-600 pl-3 text-sm leading-6">{request.quote}</blockquote>}{target.kind==='feedback'?'Preparing a learning from the selected original feedback.':'Editing the selected teaching as a new private version.'} Nothing is sent until Send.<button type="button" disabled={sending} onClick={()=>{setTarget(null);pending.current=null;}}>Cancel selected target</button></div>}
 
   {error&&<p role="alert" className="text-sm text-state-needs">{error.replaceAll('_',' ')}</p>}
  </ChatFrame><Modal open={!!editTurn} onClose={()=>setEditTurn(null)} title="Review agent change">{editTurn&&<ImproveAgent key={editTurn.turnId} slug={slug} bare initialNote={editTurn.message} statusUnavailable={disabled||editUnavailable||!canSend||editTurn.versionId!==versionId} trainingChatBinding={{sessionId,turnId:editTurn.turnId,expectedActiveVersionId:editTurn.versionId}}/>}</Modal></>;

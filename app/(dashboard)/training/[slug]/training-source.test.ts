@@ -997,7 +997,7 @@ test('a decision with no eligible Manager stage cannot be saved', async () => {
     await rendered.click(rendered.getByText('Preview this exact frame'));
     for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea[maxlength="400"]')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
     for (const label of ['Plan the treatment', 'Build the composition', 'Review previews', 'Check final quality', 'Revise from feedback']) {
-      await rendered.click(rendered.getByText(label).closest('label')!.querySelector('input')!);
+      await rendered.click([...rendered.document.querySelectorAll('#recording-analysis fieldset label')].find(el=>el.textContent?.startsWith(label))!.querySelector('input')!);
     }
     assert.equal((rendered.getByText('Save decision draft') as HTMLButtonElement).disabled, true);
     assert.equal(calls.some((item) => item.operation === 'annotate'), false);
@@ -1137,7 +1137,7 @@ test('successor preserves prior stages and expands required routes only after ex
 
     assert.match(rendered.text(), /The predecessor stages were preserved exactly/);
     assert.match(rendered.text(), /Still missing: Plan the treatment, Design scene contracts, Select assets, Revise from feedback/);
-    const stageChecked = (label: string) => (rendered.getByText(label).closest('label')!.querySelector('input') as HTMLInputElement).checked;
+    const stageChecked = (label: string) => ([...rendered.document.querySelectorAll('#recording-analysis fieldset label')].find(el=>el.textContent?.startsWith(label))!.querySelector('input') as HTMLInputElement).checked;
     assert.equal(stageChecked('Build the composition'), true);
     assert.equal(stageChecked('Plan the treatment'), false, 'the UI never silently widens accepted evidence');
     assert.equal(stageChecked('Select assets'), false);
@@ -3176,7 +3176,7 @@ test('a reviewed planning successor preserves direction conditions and exception
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
  try{
   await r.click(r.getByText('Review accepted evidence'));await r.click(r.getByText('Create planning-scoped successor'));
-  assert.ok(r.getByText('Only for Cinematic B-roll-heavy'));
+  assert.ok(r.getByText('Applies to: Cinematic B-roll-heavy runs'));
   await r.click(r.getByText('Preview this exact frame'));
   await r.click(r.getByText('Save decision draft'));
   const write=h.calls.find(c=>c.operation==='annotate');assert.ok(write,'normal native writer was called');
@@ -3204,7 +3204,7 @@ for(const creativeDirections of [[],['Cinematic B-roll-heavy']] as const)test(`d
   await chooseDirectUpload(r);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
   await setTextarea(r,r.document.querySelector('[aria-label="Teach from an image"] textarea')!,'For cinematic B-roll-heavy videos, explain the place with relevant imagery.');
   await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
-  const review=r.document.querySelector('[aria-label="Review example type"]');assert.ok(review);assert.match(review.textContent||'',creativeDirections.length?/Only for Cinematic B-roll-heavy/:/All directions/);
+  const review=r.document.querySelector('[aria-label="Review example type"]');assert.ok(review);assert.match(review.textContent||'',creativeDirections.length?/Applies to: Cinematic B-roll-heavy runs/:/Applies to: every creative direction/);
   assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false,'scope is visible before the immutable writer');
  }finally{r.cleanup();}
 });
@@ -3481,5 +3481,23 @@ test('Review all advances after Accept without automatically applying the next l
   assert.equal(writes.length,1);assert.equal(writes[0].expectedActiveVersionId,VERSION_A);assert.equal(writes[0].expectedSnapshotDigest,DIGEST);assert.equal(writes[0].testRequestId,null);assert.equal(writes[0].applicationMode,'without_sample');
   assert.deepEqual(live,[chosen]);assert.match(r.document.querySelector('[role=dialog]')?.textContent||'',/Keep captions readable/);assert.equal(r.document.querySelectorAll('.training-decision-card').length,1);assert.match(r.text(),/Added. It applies to your next run/);
   assert.equal(h.calls.some(c=>['annotate','accept','create'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
+test('Review reopens the exact saved tool proposal without running analysis or queuing an edit',async()=>{
+ const h=harness(),requests:Array<{url:string;init:RequestInit}>=[];
+ const item={id:QUESTION,kind:'agent_change',source:'recording_agent',sessionId:SESSION,versionId:VERSION_A,digest:DIGEST,createdAt:'2026-11-21T12:00:00Z',summary:'Research visual references before planning.'};
+ const proposal={suggestionId:QUESTION,suggestionDigest:DIGEST,capability:'web_reference_research',limitations:[],proposedChange:'Research visual references before planning.',methodSelection:'pending_existing_binder',binding:{sourceId:SOURCE_ID,sourceSha256:DIGEST,targetVersionId:VERSION_A,excerptId:RECORD,excerptDigest:DIGEST,frames:[0,100,200].map(timeMs=>({timeMs,frameSha256:DIGEST}))}};
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:string,init:RequestInit={})=>{
+  requests.push({url:String(url),init});
+  if(String(url).includes('/agent-training/coach'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-coach-decisions.v1',complete:true,agents:[{id:RECORD,slug:'video-craft',name:'Video craft',description:null,versionId:VERSION_A,decisionsComplete:true,liveLessons:0,lastTaughtAt:null,listing:'not_listed',decisions:[item]}]})};
+  if(String(url).includes('/teaching-suggestion?')){assert.notEqual(init.method,'POST');assert.match(String(url),new RegExp(`suggestionId=${QUESTION}`));return {ok:true,json:async()=>({ok:true,contractVersion:'training-saved-recording-agent.v1',sessionId:SESSION,proposal})};}
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+ }) as typeof fetch});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});
+ try{await r.click(r.document.querySelector('.training-decision-card button')!);
+  const dialog=r.document.querySelector('[role=dialog]')!;assert.match(dialog.textContent||'',/Research visual references before planning/);assert.match(dialog.textContent||'',/Draft baseline operating method/);
+  assert.equal(requests.filter(x=>x.url.includes('/teaching-suggestion?')).length,1);assert.equal(requests.some(x=>x.init.method==='POST'),false);
+  assert.equal([...dialog.querySelectorAll('button')].find(x=>x.textContent==='Request this agent update')?.hasAttribute('disabled'),true);
  }finally{r.cleanup();}
 });

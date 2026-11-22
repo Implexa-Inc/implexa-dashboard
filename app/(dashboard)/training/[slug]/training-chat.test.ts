@@ -184,3 +184,10 @@ test('a guided reply with stale context cannot downgrade a subsequent teaching s
  assert.match(r.text(),/Refresh saved messages before sending this teaching/);
  assert.equal(r.document.querySelector('textarea')!.value,'Keep animation secondary in that direction.');
 });
+
+test('Change it quotes the bound lesson in chat and sends nothing until the trainer submits',async t=>{
+ const {r,props,calls}=await setup(t,{guided:true,embedded:true});
+ await r.rerender({...props,request:{key:'edit-quote',target:{kind:'record',id:id(40),digest:H},prompt:'Please revise the selected teaching. I would like to change: ',quote:'Keep related ideas visually connected.'}});
+ assert.equal(r.document.querySelector('blockquote')?.textContent,'Keep related ideas visually connected.');assert.equal(calls.some(c=>c.init.method==='POST'),false);
+ await r.click(r.getByText('Cancel selected target'));assert.equal(r.document.querySelector('blockquote'),null);
+});

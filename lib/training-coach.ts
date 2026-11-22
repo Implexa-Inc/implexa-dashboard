@@ -1,5 +1,5 @@
 /** Display-only decision identities; existing action writers recheck authority. */
-export type CoachDecision={id:string;kind:'lesson'|'feedback'|'question'|'customer'|'agent_change';source:'record'|'review_issue'|'question'|'contribution'|'intake_plan'|'annotation_gap'|'recording_agent';sessionId:string|null;versionId:string;digest:string;createdAt:string};
+export type CoachDecision={summary?:string;id:string;kind:'lesson'|'feedback'|'question'|'customer'|'agent_change';source:'record'|'review_issue'|'question'|'contribution'|'intake_plan'|'annotation_gap'|'recording_agent';sessionId:string|null;versionId:string;digest:string;createdAt:string};
 export type CoachAgent={id:string;slug:string;name:string;description:string|null;versionId:string|null;decisions:CoachDecision[];decisionsComplete:boolean;liveLessons:number|null;lastTaughtAt:string|null;listing:'listed'|'draft'|'submitted'|'not_listed'|'unknown'};
 export type CoachPage={ok:true;contractVersion:'training-coach-decisions.v1';agents:CoachAgent[];complete:boolean};
 export type CoachRead={status:'ready';page:CoachPage}|{status:'unavailable'};
@@ -20,7 +20,8 @@ export function coachPage(value:unknown):CoachPage|null{
   seen.add(a.id);const ids=new Set();
   for(const d of a.decisions){
    const sources:Record<string,string[]>={lesson:['record'],feedback:['review_issue'],question:['question'],customer:['contribution'],agent_change:['intake_plan','annotation_gap','recording_agent']};
-   if(!exact(d,['id','kind','source','sessionId','versionId','digest','createdAt'])||!uuid(d.id)||ids.has(d.id)||!sources[d.kind]?.includes(d.source)
+   if(!exact(d,['id','kind','source','sessionId','versionId','digest','createdAt',...(Object.hasOwn(d,'summary')?['summary']:[])])||!uuid(d.id)||ids.has(d.id)||!sources[d.kind]?.includes(d.source)
+    ||Object.hasOwn(d,'summary')&&(!['feedback','agent_change'].includes(d.kind)||typeof d.summary!=='string'||!d.summary.trim()||d.summary.length>180)
     ||(['lesson','agent_change'].includes(d.kind)?!uuid(d.sessionId):d.sessionId!==null)||d.versionId!==a.versionId||!uuid(d.versionId)||typeof d.digest!=='string'||!/^[a-f0-9]{64}$/.test(d.digest)
     ||typeof d.createdAt!=='string'||!Number.isFinite(Date.parse(d.createdAt)))return null;
    ids.add(d.id);

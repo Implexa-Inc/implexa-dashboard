@@ -8,3 +8,8 @@ test('private fields, stale versions, duplicate identities and wrong source kind
  const cases=[(v:any)=>v.agents[0].decisions[0].excerpt='private',(v:any)=>v.agents[0].decisions[0].source='contribution',(v:any)=>v.agents[0].decisions[0].versionId=id(8),(v:any)=>v.agents[0].decisions.push(v.agents[0].decisions[0]),(v:any)=>v.agents[0].runId=id(9)];
  for(const mutate of cases){const v=fixture();mutate(v);assert.equal(coachPage(v),null);}
 });
+
+test('bounded own summaries cannot become a channel for customer text',()=>{
+ const own:any=fixture();Object.assign(own.agents[0].decisions[0],{kind:'feedback',source:'review_issue',sessionId:null,summary:'Smooth the cut.'});assert.ok(coachPage(own));
+ Object.assign(own.agents[0].decisions[0],{kind:'customer',source:'contribution'});assert.equal(coachPage(own),null);
+});

@@ -11,8 +11,8 @@ import type {TrainingDirectionScope} from '@/lib/training-local-ingress';
 
 export function TrainingDirectionLabel({scope}:{scope:TrainingDirectionScope|undefined}) {
  if (scope === undefined) return null;
- return <p className={`mt-2 text-xs ${scope === null ? 'text-state-needs' : 'text-action-accent'}`}>
-  {scope === null ? 'Creative direction needs review' : scope.length === 0 ? 'All directions' : `Only for ${scope[0]}`}
+ return <p className={`mt-2 text-xs ${scope === null ? 'text-state-needs' : 'text-ink-500'}`}>
+  {scope === null ? 'Creative direction needs review' : scope.length === 0 ? 'Applies to: every creative direction' : `Applies to: ${scope[0]} runs`}
  </p>;
 }
 
