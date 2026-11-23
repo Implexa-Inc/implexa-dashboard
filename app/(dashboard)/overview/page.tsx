@@ -1,6 +1,8 @@
 /**
- * /overview — Home, the manager's desk. THREE zones, in the order a manager
- * actually thinks (2026-07-24 redesign):
+ * Legacy website-intent handoff only. Ordinary /overview entries (including
+ * installed Desktop launchers) redirect to the redesigned /work page. The
+ * explicit ?intent handoff still mounts its existing build consumer here.
+ * Its THREE legacy zones, in the order a manager thinks:
  *
  *   BUILD    — what should I delegate next? (describe it, or take a suggestion)
  *   TODAY    — what do my agents need from me? (ONE list, one all-clear)
@@ -24,6 +26,7 @@
  */
 
 import { redirect } from 'next/navigation';
+import { legacyDestination } from '@/lib/navigation';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
@@ -45,7 +48,12 @@ import FirstRunPermissionsNote from '../_components/first-run-permissions-note';
 
 export const dynamic = 'force-dynamic';
 
-export default async function OverviewPage() {
+export default async function OverviewPage({ searchParams }: {
+  searchParams?: Record<string, string | string[] | undefined>;
+} = {}) {
+  const intent = Array.isArray(searchParams?.intent) ? searchParams.intent[0] : searchParams?.intent;
+  if (!intent?.trim()) redirect(legacyDestination('/work', searchParams));
+
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');

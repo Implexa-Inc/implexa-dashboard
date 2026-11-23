@@ -17,11 +17,36 @@ const PROTECTED_PREFIXES = ['/skills', '/settings', '/pricing'];
 const AUTH_REFRESH_TIMEOUT_MS = 8000;
 const AUTH_VERIFY_TIMEOUT_MS = 4000;
 
-function authUnavailable() {
+function authUnavailable(request: NextRequest) {
+  const headers = { 'Cache-Control': 'no-store', 'Retry-After': '5' };
+  const path = request.nextUrl.pathname;
+  const acceptsHtml = request.headers.get('accept')?.split(',').some(value => {
+    const [type, ...parameters] = value.trim().toLowerCase().split(';');
+    return type === 'text/html' && !parameters.some(parameter => /^\s*q\s*=\s*0(?:\.0*)?\s*$/.test(parameter));
+  });
+  const destination = request.headers.get('sec-fetch-dest');
+  if (['GET', 'HEAD'].includes(request.method) && acceptsHtml
+    && path !== '/api' && !path.startsWith('/api/')
+    && !request.headers.has('rsc') && !request.headers.has('next-router-state-tree')
+    && (!destination || destination === 'document')) {
+    // Middleware runs before the app's error boundary. Never reflect a URL,
+    // account, SDK error or cookie into this document. An empty relative href
+    // retries the current address only when the user chooses it; no scripts.
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign-in check unavailable · Tukido</title><style>
+:root{color-scheme:light dark;font:16px/1.6 system-ui,sans-serif}body{margin:0;background:Canvas;color:CanvasText;min-height:100vh;display:grid;place-items:center}main{max-width:34rem;padding:2rem}h1{font-size:1.5rem;line-height:1.3}a{display:inline-block;color:inherit;padding:.65rem 1rem;border:1px solid currentColor;border-radius:.5rem;font-weight:600}a:focus-visible{outline:3px solid currentColor;outline-offset:4px}
+</style></head><body><main><p>Tukido</p><h1>Sign-in check temporarily unavailable</h1><p>We couldn’t complete the sign-in verification. Please try again in a moment.</p><a href="">Try again</a></main></body></html>`;
+    return new NextResponse(request.method === 'HEAD' ? null : html, { status: 503, headers: {
+      ...headers,
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'",
+      'X-Content-Type-Options': 'nosniff',
+      Vary: 'Accept, RSC, Next-Router-State-Tree, Sec-Fetch-Dest',
+    } });
+  }
   return NextResponse.json({
     code: 'auth_read_unavailable',
     error: 'Sign-in verification is temporarily unavailable. Please try again.',
-  }, { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '5' } });
+  }, { status: 503, headers });
 }
 
 function isSignedOutError(error: unknown) {
@@ -44,6 +69,19 @@ export async function middleware(request: NextRequest) {
   // Only a verified result (including genuine sign-out) commits the SDK writes.
   const pendingCookies: CookieToSet[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let phase: 'initialize' | 'refresh' | 'verify' = 'initialize';
+  function unavailable(reason: 'invalid_result' | 'sdk_error' | 'aborted' | 'exception', error?: unknown) {
+    controller.abort();
+    try {
+      const status = isAuthApiError(error) && Number.isInteger(error.status)
+        && error.status >= 400 && error.status <= 599 ? error.status : null;
+      // Failure-only metadata. No route/query, identity, cookies, SDK message or
+      // arbitrary error fields. Diagnostics must never change the auth result.
+      console.warn(JSON.stringify({ event: 'auth.read_unavailable', phase, reason,
+        durationMs: Math.max(0, Math.round(performance.now() - startedAt)), upstreamStatus: status }));
+    } catch { /* Preserve the same refusal even if the diagnostic sink fails. */ }
+    return authUnavailable(request);
+  }
   async function withinDeadline<T>(operation: () => Promise<T>, phaseExpiresAt: number): Promise<T> {
     // One allowance per phase, not per SDK retry or upstream fetch.
     expiresAt = Math.min(phaseExpiresAt, overallExpiresAt);
@@ -105,21 +143,20 @@ export async function middleware(request: NextRequest) {
     );
     // getSession awaits SDK initialization/refresh. Its stored user is UNTRUSTED
     // and never authorizes access; getUser remains the independent authority.
+    phase = 'refresh';
     const prepared = await withinDeadline(() => supabase.auth.getSession(), refreshExpiresAt);
     if (!prepared?.data || (prepared.error && !isSignedOutError(prepared.error))) {
-      controller.abort();
-      return authUnavailable();
+      return unavailable(prepared?.error ? 'sdk_error' : 'invalid_result', prepared?.error);
     }
+    phase = 'verify';
     const result = await withinDeadline(() => supabase.auth.getUser(), performance.now() + AUTH_VERIFY_TIMEOUT_MS);
     if (!result?.data || (result.error && (!isSignedOutError(result.error) || result.data.user !== null))
       || (result.data.user !== null && !result.data.user?.id)) {
-      controller.abort();
-      return authUnavailable();
+      return unavailable(result?.error ? 'sdk_error' : 'invalid_result', result?.error);
     }
     user = result.data.user;
   } catch {
-    controller.abort();
-    return authUnavailable();
+    return unavailable(controller.signal.aborted ? 'aborted' : 'exception');
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }

@@ -350,3 +350,85 @@ test('concurrent requests do not share refresh deadlines, aborts or cookie propo
   assert(response.headers.get('set-cookie'));
   assert.equal(signals[2].aborted, false);
 });
+
+test('browser document failures offer a static manual retry without reflecting private data', async t => {
+  t.mock.method(console, 'warn', () => {});
+  globalThis.fetch = async () => json({ message: 'private upstream detail' }, 500);
+  const navigation = request('/work?private=private-query');
+  navigation.headers.set('accept', 'text/html,application/xhtml+xml');
+  navigation.headers.set('sec-fetch-dest', 'document');
+  const response = await middleware(navigation);
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get('set-cookie'), null);
+  assert.equal(response.headers.get('location'), null);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal(response.headers.get('retry-after'), '5');
+  assert.match(response.headers.get('content-type')!, /^text\/html/);
+  assert.match(response.headers.get('content-security-policy')!, /default-src 'none'/);
+  const html = await response.text();
+  assert.match(html, /<a href="">Try again<\/a>/);
+  assert.match(html, /Sign-in check temporarily unavailable/);
+  assert.doesNotMatch(html, /<script|http-equiv|private-query|private upstream|fixture-user|synthetic-refresh|auth_read_unavailable/);
+  const head = new NextRequest(navigation, { method: 'HEAD' });
+  const headResponse = await middleware(head);
+  assert.equal(headResponse.status, 503);
+  assert.match(headResponse.headers.get('content-type')!, /^text\/html/);
+  assert.equal(await headResponse.text(), '');
+});
+
+test('API, Flight, non-document and HTML-refusing requests retain the exact JSON contract', async t => {
+  t.mock.method(console, 'warn', () => {});
+  globalThis.fetch = async () => json({ message: 'private upstream detail' }, 500);
+  for (const entry of [
+    { path: '/api', headers: { accept: 'text/html' } },
+    { path: '/api/agent-training/chat', headers: { accept: 'text/html' } },
+    { path: '/work', headers: { accept: 'text/html', rsc: '1' } },
+    { path: '/work', headers: { accept: 'text/html', 'next-router-state-tree': 'fixture' } },
+    { path: '/work', headers: { accept: 'text/html', 'sec-fetch-dest': 'empty' } },
+    { path: '/work', headers: { accept: 'text/html; q=0,application/json' } },
+    { path: '/work', headers: { accept: 'application/json' } },
+  ]) {
+    const navigation = request(entry.path);
+    for (const [name, value] of Object.entries(entry.headers)) navigation.headers.set(name, value!);
+    await unavailable(await middleware(navigation));
+  }
+  const post = new NextRequest(request('/work'), { method: 'POST', headers: {
+    cookie: cookies.map(c => `${c.name}=${c.value}`).join('; '), accept: 'text/html',
+  } });
+  await unavailable(await middleware(post));
+});
+
+test('failure diagnostics distinguish refresh and verification without logging SDK prose or identity', async t => {
+  const records: string[] = [];
+  t.mock.method(console, 'warn', (record: string) => { records.push(record); });
+  globalThis.fetch = async () => json({ message: 'private upstream detail' }, 500);
+  await unavailable(await middleware(request('/work?private=secret')));
+  assert.deepEqual(Object.keys(JSON.parse(records[0])).sort(), ['durationMs', 'event', 'phase', 'reason', 'upstreamStatus']);
+  assert.deepEqual({ ...JSON.parse(records[0]), durationMs: 0 }, {
+    event: 'auth.read_unavailable', phase: 'verify', reason: 'sdk_error', upstreamStatus: 500, durationMs: 0,
+  });
+  t.mock.method(Date, 'now', () => new Date().getTime() + 7200000);
+  // A real SDK refresh refuses this non-retryable unexpected response.
+  globalThis.fetch = async () => json({ message: 'private refresh detail', code: 'unexpected' }, 400);
+  await unavailable(await middleware(request()));
+  assert.equal(JSON.parse(records.at(-1)!).phase, 'refresh');
+  assert.equal(JSON.parse(records.at(-1)!).upstreamStatus, 400);
+  assert.doesNotMatch(records.join(' '), /secret|private|fixture-user|synthetic|token|cookie|message|\/work/);
+});
+
+test('an unavailable diagnostic sink cannot change the refusal, cookies or authority', async t => {
+  t.mock.method(console, 'warn', () => { throw new Error('sink unavailable'); });
+  globalThis.fetch = async () => json({ message: 'private upstream detail' }, 500);
+  await unavailable(await middleware(request()));
+});
+
+test('HTML negotiation does not alter verified access or genuine sign-out', async () => {
+  const navigation = request();
+  navigation.headers.set('accept', 'text/html');
+  globalThis.fetch = async () => json(user);
+  assert.equal((await middleware(navigation)).status, 200);
+  globalThis.fetch = async () => json({ code: 'session_not_found', message: 'revoked' }, 401);
+  const signedOut = await middleware(navigation);
+  assert.equal(signedOut.status, 307);
+  assert.equal(new URL(signedOut.headers.get('location')!).pathname, '/login');
+});

@@ -42,10 +42,18 @@ upstream transport and rejects late results; SDK retries cannot reset its allowa
 Dependency errors return a sanitized,
 non-cacheable `503 auth_read_unavailable`, never a login/onboarding redirect or
 an authentication bypass. Uncertain results do not commit cookie changes.
+Document GET/HEAD requests receive a static, script-free retry page; API and
+React Flight requests keep the JSON error contract. Retry is manual and preserves
+the current address. Failure diagnostics contain only phase, fixed reason,
+elapsed time and a normalized upstream HTTP status, never identity or SDK prose.
 Successful session refresh and genuine sign-out keep the existing behavior;
 protected prefixes, route matcher and downstream auth/Run gates are unchanged.
 This replaces the shared four-second auth budget; it does not change authentication
 criteria or the previous bounded-failure and cookie-protection behavior.
+
+Legacy `/overview` launches redirect to `/work`, retaining their query string.
+Explicit nonempty `?intent` links retain the existing website build handoff;
+this compatibility path does not add another agent-creation flow.
 
 1. User signs up via Supabase Auth (email/password or OAuth).
 2. `/auth/callback` exchanges the code for a session.
