@@ -1,8 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {buildSync} from 'esbuild';
+import {runInNewContext} from 'node:vm';
+import {fileURLToPath} from 'node:url';
+import {NextResponse} from 'next/server.js';
 import {render,type Rendered} from '../../../../lib/test/render.ts';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,VERSION=id(1),SESSION=id(2),SOURCE=id(3),H='a'.repeat(64);
 const source={sourceId:SOURCE,localName:'Cambrian demonstration',metadata:{sha256:H,mediaType:'video/mp4',durationMs:324000}};
+// The UI failure fixture is produced by the actual BFF handler. Only auth and
+// its failed transport are synthetic; the HTTP status/headers/body are unchanged.
+async function producedReadFailure(){
+ const code=buildSync({entryPoints:[fileURLToPath(new URL('../../../api/agent-training/chat/route.ts',import.meta.url))],bundle:true,platform:'node',format:'cjs',write:false,
+  external:['next/server','@/lib/supabase/server'],alias:{'@/lib/trainer-questions':fileURLToPath(new URL('../../../../lib/trainer-questions.ts',import.meta.url))}}).outputFiles[0].text;
+ const module={exports:{} as {GET:(request:Request)=>Promise<Response>}};
+ runInNewContext(code,{module,exports:module.exports,process:{env:{}},URL,AbortSignal,TextDecoder,Uint8Array,
+  console:{info(){},warn(){}},require:(name:string)=>name==='next/server'?{NextResponse}
+   :name==='@/lib/supabase/server'?{createClient:()=>({auth:{getSession:async()=>({data:{session:{access_token:'synthetic-session'}}})}})}:assert.fail(name),
+  fetch:async()=>{throw Error('Synthetic unavailable transport');}});
+ return module.exports.GET(new Request(`https://dashboard.invalid/api/agent-training/chat?sessionId=${SESSION}`));
+}
 const context=()=>({agent:{id:id(4),name:'Video agent',slug:'video-agent',versionId:VERSION},researchMethodPresent:true,directionScopeContract:'training-direction-scope.v1',creativeDirectionOptions:['Animation-heavy','Cinematic B-roll-heavy','Balanced','No B-rolls'],
  boundMethods:[{stageIndex:2,source:'community',slug:'implexa-inc-reference-research-assessment',contentDigest:H}],
  source:{sourceId:SOURCE,sha256:H},availableActions:['none','analyse_taste','review_method','test_agent']});
@@ -25,6 +41,35 @@ async function type(r:Rendered,text:string){
  const e=r.document.querySelector('textarea')!;
  await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLTextAreaElement.prototype,'value')!.set!.call(e,text);e.dispatchEvent(new r.window.Event('input',{bubbles:true}));});
 }
+test('a real BFF read refusal offers an explicit GET-only retry without claiming a version mismatch',async t=>{
+ const failure=await producedReadFailure();assert.equal(failure.status,503);
+ const calls:any[]=[];let finishRetry:(value:Response)=>void=()=>{};
+ const retry=new Promise<Response>(resolve=>{finishRetry=resolve;});
+ const r=await render('../training/[slug]/training-chat.tsx',{embedded:true,sessionId:SESSION,versionId:VERSION,slug:'video-agent',sources:[],selectedSourceId:null,disabled:false,onSelectSource:()=>{},onAction:async()=>assert.fail('no action')},{
+  fetch:(async(url:string,init:any={})=>{calls.push({url,init});return calls.length===1?failure.clone():retry;}) as typeof fetch});
+ t.after(()=>r.cleanup());
+ assert.match(r.text(),/This conversation couldn’t load/);assert.doesNotMatch(r.text(),/matches the active agent version/);
+ assert.equal((r.getByText('Send') as HTMLButtonElement).disabled,true);
+ assert.equal(calls.length,1);await r.click(r.getByText('Retry loading conversation'));
+ assert.equal(calls.length,2);assert.match(r.text(),/Loading this conversation/);
+ assert.equal((r.getByText('Send') as HTMLButtonElement).disabled,true);
+ await r.act(async()=>{finishRetry(failure.clone());await new Promise(resolve=>setImmediate(resolve));});
+ assert.match(r.text(),/This conversation couldn’t load/);assert.ok(r.getByText('Retry loading conversation'));
+ assert.equal(calls.length,2);assert.equal(calls.some(call=>call.init.method==='POST'),false);
+});
+test('a failed refresh disables an earlier ready composer and preserves unsent wording',async t=>{
+ const {r}=await setup(t,{embedded:true});await type(r,'Keep this unsent teaching.');
+ assert.equal((r.getByText('Send') as HTMLButtonElement).disabled,false);
+ const failure=await producedReadFailure(),reads:any[]=[];
+ r.window.fetch=(async(url:string,init:any={})=>{reads.push({url,init});return failure.clone();}) as typeof fetch;
+ await r.click(r.getByText('Refresh saved messages'));
+ assert.equal((r.getByText('Send') as HTMLButtonElement).disabled,true);
+ assert.equal(r.document.querySelector('textarea')!.value,'Keep this unsent teaching.');
+ assert.match(r.text(),/This conversation couldn’t load/);
+ await r.click(r.getByText('Retry loading conversation'));
+ assert.equal(reads.length,2);assert.equal(reads.some(read=>read.init.method==='POST'),false);
+ assert.equal(r.document.querySelector('textarea')!.value,'Keep this unsent teaching.');
+});
 test('opening chat shows server-bound method and disclosure without calling a provider or existing action',async t=>{
  const {r,calls,actions}=await setup(t);assert.equal(calls.length,0);
  await r.click(r.getByText('Open conversation'));
@@ -57,7 +102,7 @@ test('unconfirmed Send preserves the question and refresh recovers the saved rep
 });
 test('wrong server context cannot enable Send or a source/version-bound action',async t=>{
  const {r,calls,actions}=await setup(t,{turns:[turn()],wrongContext:true});await r.click(r.getByText('Open conversation'));
- assert.match(r.text(),/training chat unavailable/);assert.equal((r.getByText('Send') as HTMLButtonElement).disabled,true);
+ assert.match(r.text(),/This conversation couldn’t load/);assert.equal((r.getByText('Send') as HTMLButtonElement).disabled,true);
  assert.equal(calls.length,1);assert.equal(actions.length,0);
 });
 test('historical conversation can open and restore messages while Send and actions remain unavailable',async t=>{
