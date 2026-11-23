@@ -6,11 +6,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Modal from '../../../_components/modal';
 import PageHeader from '@/components/page-header';
 import AnnotationWorkspace from '../../../_components/annotation-workspace';
-import {AnnotationTimelineTicks} from '../../../_components/annotation-timeline';
+import AnnotationTimeline,{useTimelineFramePreview} from '../../../_components/annotation-timeline';
 import {useAnnotationNotePlacement} from '../../../_components/use-annotation-note-placement';
 import ReviewSpatialOverlay from '../../../_components/review-spatial-overlay';
 import ReviewPlaybackControls from '../../../_components/review-playback-controls';
@@ -27,7 +27,6 @@ import {
 } from '@/lib/review-recorder';
 
 const SNAP_MS = 100;
-const BAR_DRAG_PX = 4;
 const LEAVE_COPY = 'Your latest changes are still saving or couldn’t be saved. Leaving now may lose them.';
 
 type Range = { startMs: number; endMs: number };
@@ -58,10 +57,6 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const [voiceDirty,setVoiceDirty]=useState<Set<string>>(()=>new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const noteSnapshot = useRef<{id:string;before:Moment|null}|null>(null);
-  const [hoverImage,setHoverImage]=useState<{second:number;url:string}|null>(null);
-  const [hoverUnavailable,setHoverUnavailable]=useState(false);
-  const hoverDecoder=useRef<HTMLVideoElement|null>(null);
-  const hoverSecond=useRef<number|null>(null);
   const [hoverMs,setHoverMs] = useState<number|null>(null);
   const [barDraft, setBarDraft] = useState<Range | null>(null);
   const [drawing, setDrawing] = useState(false);
@@ -79,11 +74,9 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const dirtyCallback=useRef(onDirtyChange);dirtyCallback.current=onDirtyChange;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const barRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef=useRef<HTMLDivElement|null>(null),noteRef=useRef<HTMLDivElement|null>(null);
 
   const playLineRef = useRef<HTMLDivElement | null>(null);
-  const barGesture = useRef<{ anchorMs: number; startX: number; dragging: boolean } | null>(null);
   const resizeGesture = useRef<{moment:Moment;edge:'startMs'|'endMs'}|null>(null);
   const loadSeq = useRef(0);
   const busyRef = useRef(false);
@@ -114,29 +107,8 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   );
   const openSuggestions = suggestions.filter((s) => !moments.some((m) => rangesOverlap(m, s)));
 
-  // Reuse one decoder for this already-authorized, origin-bound preview. The
-  // protocol supports parallel range reads; anonymous CORS keeps sampling honest.
-  useEffect(()=>{
-    if(!preview)return;
-    const video=document.createElement('video');video.crossOrigin='anonymous';video.muted=true;video.preload='metadata';
-    hoverDecoder.current=video;setHoverImage(null);setHoverUnavailable(false);let live=true;
-    const fail=()=>{if(live)setHoverUnavailable(true);};
-    const capture=()=>{
-      if(!live||hoverSecond.current===null||!video.videoWidth||!video.videoHeight||Math.abs(video.currentTime-hoverSecond.current)>.2)return;
-      try{const canvas=document.createElement('canvas');canvas.width=Math.min(1280,video.videoWidth);canvas.height=Math.max(1,Math.round(canvas.width*video.videoHeight/video.videoWidth));const context=canvas.getContext('2d');if(!context)return;context.drawImage(video,0,0,canvas.width,canvas.height);setHoverImage({second:hoverSecond.current,url:canvas.toDataURL('image/jpeg',.65)});}
-      catch{fail();}
-    };
-    const seekHover=()=>{if(hoverSecond.current!==null)video.currentTime=Math.min(hoverSecond.current,Math.max(0,video.duration-.01));};
-    video.addEventListener('loadedmetadata',seekHover);video.addEventListener('loadeddata',capture);video.addEventListener('seeked',capture);video.addEventListener('error',fail);
-    return()=>{live=false;hoverDecoder.current=null;video.removeEventListener('loadedmetadata',seekHover);video.removeEventListener('loadeddata',capture);video.removeEventListener('seeked',capture);video.removeEventListener('error',fail);if(video.getAttribute('src')){video.removeAttribute('src');video.load();}};
-  },[preview]);
-  const hoveredSecond=hoverMs===null?null:Math.round(hoverMs/100)/10;
-  useEffect(()=>{
-    hoverSecond.current=hoveredSecond;
-    if(hoveredSecond===null||!preview||hoverUnavailable)return;
-    const timer=window.setTimeout(()=>{const video=hoverDecoder.current;if(!video)return;if(!video.getAttribute('src'))video.src=preview.url;else if(video.readyState>=1)video.currentTime=Math.min(hoveredSecond,Math.max(0,video.duration-.01));},180);
-    return()=>window.clearTimeout(timer);
-  },[hoveredSecond,preview,hoverUnavailable]);
+  // One shared decoder hook samples the frame under the pointer (see annotation-timeline).
+  const {image:hoverFrame,anyImage:hoverImage,unavailable:hoverUnavailable}=useTimelineFramePreview(preview?.url??null,hoverMs);
 
   // ── loading ────────────────────────────────────────────────────────────────
 
@@ -327,33 +299,6 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     return () => window.removeEventListener('keydown', onKey);
   }, [createMoment, durationMs, leaveHref,voiceDirty.size]);
 
-  const barMs = (clientX: number) => {
-    const rect = barRef.current?.getBoundingClientRect();
-    if (!rect || durationMs === null || rect.width <= 0) return 0;
-    return Math.min(durationMs, Math.max(0, ((clientX - rect.left) / rect.width) * durationMs));
-  };
-  const onBarDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (durationMs === null || e.button !== 0) return;
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    barGesture.current = { anchorMs: barMs(e.clientX), startX: e.clientX, dragging: false };
-  };
-  const onBarMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const g = barGesture.current;
-    if (!g || durationMs === null) return;
-    if (!g.dragging && Math.abs(e.clientX - g.startX) <= BAR_DRAG_PX) return;
-    g.dragging = true;
-    setBarDraft(rangeFromDrag(g.anchorMs, barMs(e.clientX), durationMs, SNAP_MS));
-  };
-  const onBarUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const g = barGesture.current;
-    barGesture.current = null;
-    if (!g || durationMs === null) return;
-    if (!g.dragging) { seek(Math.round(g.anchorMs)); return; }
-    const range = rangeFromDrag(g.anchorMs, barMs(e.clientX), durationMs, SNAP_MS);
-    setBarDraft(null);
-    if (range && range.endMs > range.startMs) createMoment(range);
-  };
-
   // ── region drawing on the picture ─────────────────────────────────────────
   // The Review Room's own <ReviewSpatialOverlay /> does the gesture: drag threshold,
   // letterbox rejection, pointer capture, keyboard Enter/Escape. With external
@@ -513,7 +458,6 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     ? { elementWidth: elementSize.w, elementHeight: elementSize.h, videoWidth: intrinsic.w, videoHeight: intrinsic.h }
     : null;
   const selectedRegionStyle = selected?.region && overlayDims ? regionOverlayStyle(selected.region, overlayDims) : null;
-  const pctOf = (ms: number) => `${(ms / Math.max(1, durationMs)) * 100}%`;
   const full = moments.length >= MAX_MOMENTS;
 
   const finishTeaching=async()=>{
@@ -526,20 +470,21 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const markButton=<button type="button" aria-label="Mark this moment" className="btn-success recording-mark" disabled={full||voiceDirty.size>0} onClick={()=>{const ms=freezeForRegion();if(ms!==null)createMoment(momentAt(ms,durationMs),{x:0,y:0,width:COORD_MAX,height:COORD_MAX});}}>+ Mark this moment</button>;
 
   const timeline = (
-<div
-        ref={barRef}
-        role="group"
-        aria-label="Recording timeline. Drag to mark a moment; click to seek."
-        onPointerDown={onBarDown}
-        onPointerMove={e=>{onBarMove(e);setHoverMs(Math.round(barMs(e.clientX)));}}
-        onPointerLeave={()=>setHoverMs(null)}
-        onPointerUp={onBarUp}
-        onPointerCancel={() => { barGesture.current = null; setBarDraft(null); }}
-        className="recording-timeline relative mt-3 h-16 cursor-text select-none rounded bg-ink-800/70"
-      >
-        <AnnotationTimelineTicks durationMs={durationMs}/>
-        {hoverMs!==null&&<output className="timeline-hover" style={{left:pctOf(hoverMs)}}>{hoverImage?.second===Math.round(hoverMs/100)/10&&<img src={hoverImage.url} alt="Timeline preview" className="mb-1 max-h-48 w-48 rounded object-contain"/>}{hoverUnavailable&&<span className="mb-1 block text-secondary">Frame preview unavailable</span>}{formatMs(hoverMs)}</output>}
-        {openSuggestions.map((s) => (
+    <AnnotationTimeline
+      durationMs={durationMs} playheadMs={playheadMs} playLineRef={playLineRef} noun="Moment" snapMs={SNAP_MS}
+      label="Recording timeline. Click to jump, drag to mark a moment, drag the round handle to scrub."
+      marks={moments.map(m=>({id:m.momentId,startMs:m.startMs,endMs:m.endMs,selected:m.momentId===selectedId,resizable:true,title:`Exact range: ${preciseTime(m.startMs)}–${preciseTime(m.endMs)}`}))}
+      onSeek={seek} onOpen={id=>{const m=momentsRef.current.find(x=>x.momentId===id);if(m)selectMoment(m);}}
+      toRange={(anchorMs,headMs)=>rangeFromDrag(anchorMs,headMs,durationMs,SNAP_MS)}
+      onRange={range=>createMoment(range)} onRangeDraft={setBarDraft}
+      resizeDisabled={voiceDirty.size>0}
+      onResizeStart={(id,edge)=>{const m=momentsRef.current.find(x=>x.momentId===id);if(!m)return;selectMoment(m);resizeGesture.current={moment:m,edge};}}
+      onResize={(id,edge,ms)=>{const g=resizeGesture.current;if(g?.moment.momentId===id&&g.edge===edge)resizeMoment(g.moment,edge,ms);}}
+      onResizeEnd={(_id,_edge,cancelled)=>{const g=resizeGesture.current;if(cancelled&&g)patch(g.moment.momentId,current=>({...current,startMs:g.moment.startMs,endMs:g.moment.endMs}));resizeGesture.current=null;}}
+      onResizeKey={(id,edge,direction)=>{const m=momentsRef.current.find(x=>x.momentId===id);if(!m)return;selectMoment(m);resizeMoment(m,edge,m[edge]+direction*SNAP_MS);}}
+      onHover={setHoverMs}
+      hoverContent={()=><>{hoverFrame&&<img src={hoverFrame.url} alt="Timeline preview" className="mb-1 max-h-48 w-48 rounded object-contain"/>}{hoverUnavailable&&<span className="mb-1 block text-secondary">Frame preview unavailable</span>}</>}
+    >{pctOf=>openSuggestions.map((s) => (
           <button
             key={`s-${s.startMs}`}
             type="button"
@@ -550,28 +495,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
             className="recording-suggestion absolute top-1 bottom-1 rounded-sm border border-dashed border-amber-300/70 bg-amber-300/10 hover:bg-amber-300/25"
             style={{ left: pctOf(s.startMs), width: `max(4px, ${pctOf(s.endMs - s.startMs)})` }}
           >+ Add</button>
-        ))}
-        {moments.map((m, i) => (
-          <div key={m.momentId} className={`recording-moment-bar absolute top-2 bottom-2 rounded-sm ${m.momentId===selectedId?'is-selected':''}`}
-            style={{left:pctOf(m.startMs),width:`max(28px, ${pctOf(m.endMs-m.startMs)})`}}>
-            <button type="button" className="h-full w-full" aria-label={`Moment ${i+1} at ${formatMs(m.startMs)}`} title={`Exact range: ${preciseTime(m.startMs)}–${preciseTime(m.endMs)}`}
-              onPointerDown={e=>e.stopPropagation()} onClick={()=>selectMoment(m)}>{i+1}</button>
-            {(['startMs','endMs'] as const).map(edge=><button key={edge} type="button" className={`moment-resize ${edge==='startMs'?'start':'end'}`}
-              aria-label={`${edge==='startMs'?'Start':'End'} of moment ${i+1}`} title="Drag to adjust; arrow keys adjust by 0.1 second"
-              disabled={voiceDirty.size>0}
-              onPointerDown={e=>{e.stopPropagation();if(e.button!==0)return;selectMoment(m);resizeGesture.current={moment:m,edge};e.currentTarget.setPointerCapture?.(e.pointerId);}}
-              onPointerMove={e=>{e.stopPropagation();const g=resizeGesture.current;if(g?.moment.momentId===m.momentId&&g.edge===edge)resizeMoment(g.moment,edge,barMs(e.clientX));}}
-              onPointerUp={e=>{e.stopPropagation();resizeGesture.current=null;}}
-              onPointerCancel={e=>{e.stopPropagation();const g=resizeGesture.current;if(g)patch(g.moment.momentId,current=>({...current,startMs:g.moment.startMs,endMs:g.moment.endMs}));resizeGesture.current=null;}}
-              onKeyDown={e=>{if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;e.preventDefault();e.stopPropagation();selectMoment(m);resizeMoment(m,edge,m[edge]+(e.key==='ArrowLeft'?-SNAP_MS:SNAP_MS));}}/>) }
-          </div>
-        ))}
-        {barDraft && (
-          <div className="pointer-events-none absolute top-0 bottom-0 rounded-sm border-2 border-sky-300 bg-sky-300/20"
-            style={{ left: pctOf(barDraft.startMs), width: pctOf(barDraft.endMs - barDraft.startMs) }} />
-        )}
-        <div ref={playLineRef} className="recording-playhead pointer-events-none absolute top-0 bottom-0 w-px" style={{ left: pctOf(playheadMs) }} />
-      </div>
+        ))}</AnnotationTimeline>
   );
 
   return (
@@ -648,7 +572,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
       </div>
 
       <p className="mt-1.5 text-reading text-ink-500">
-        Click the picture or press M to mark two seconds. Drag the timeline to choose a longer moment. Dashed marks are suggestions; click one to add it.
+        Click the picture or press M to mark two seconds. Drag across the timeline to choose a longer moment, or drag its round handle to scrub. Dashed marks are suggestions; click one to add it.
       </p>
       {barDraft && <p className="text-secondary text-state-running">{formatMs(barDraft.startMs)}–{formatMs(barDraft.endMs)} ({seconds(barDraft.endMs - barDraft.startMs)})</p>}
       {notice && <p role="status" className="mt-2 text-secondary text-ink-300">{notice}</p>}

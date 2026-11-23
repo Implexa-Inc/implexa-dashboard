@@ -39,12 +39,12 @@ import {
 } from '@/lib/review-preview';
 import {
   buildMediaAnchor, buildTextAnchor, buildArtifactAnchor, anchorError, bodyError,
-  anchorLabel, formatMs, sortIssues, isAnchorStale, isSpatialAnchorV2, type ReviewAnchor,
+  anchorLabel, formatMediaTime, formatMs, noteTimeLabel, sortIssues, isAnchorStale, isSpatialAnchorV2, type ReviewAnchor,
 } from '@/lib/review-anchor';
 import ReviewSpatialOverlay, { SPATIAL_HINT_COPY, type OverlayPin } from '@/app/(dashboard)/_components/review-spatial-overlay';
 import ReviewPlaybackControls from './review-playback-controls';
 import AnnotationWorkspace from './annotation-workspace';
-import AnnotationTimeline from './annotation-timeline';
+import AnnotationTimeline,{useTimelineFramePreview,type TimelineEdge,type TimelineMark,type TimelineRange} from './annotation-timeline';
 import {useAnnotationNotePlacement} from './use-annotation-note-placement';
 import ReviewContinuationRecovery from '@/app/(dashboard)/_components/review-continuation-recovery';
 import { evidenceGate, evidenceChip, type SessionEvidenceStatus } from '@/lib/review-evidence-status';
@@ -75,6 +75,7 @@ import {
 
 import {
   beginRange, canOfferRange, canReplaceDraft, completeRange, composerHeaderLabel, draftFromIssue,
+  rangeDraftFromDrag, resizeRangeDraft, RANGE_RESIZE_STEP_MS,
   draftIssuesAtSecond, displayedSecond, editAction, feedbackHereEditLabel, feedbackHereLabel, liveRangeError,
   openDraft, openSpatialDraft, playheadFromEvent, pointCommentLabel, rangeEndButtonLabel, rangeStartLabel,
   rangeSurvivesSelection, replaceIssue, saveActionFor, saveDraftLabel, spatialAnchorFromDraft,
@@ -311,6 +312,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   // an open flag separate from the anchor is how a composer ends up on screen with a
   // position nobody snapshotted.
   const [draft, setDraft] = useState<FeedbackDraft | null>(null);
+  const [noteFocusTick, setNoteFocusTick] = useState(0);
   const [voiceDirty,setVoiceDirty]=useState(false);
   const dirtyCallback = useRef(props.onDirtyChange); dirtyCallback.current = props.onDirtyChange;
   const draftGeneration = useRef(0), draftWasOpen = useRef(false);
@@ -972,6 +974,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
     setPendingRange(null);
     setOpenedIssueId(null);
+    setNoteFocusTick((tick) => tick + 1);
     setDraft(openSpatialDraft({
       target: targetIdentity,
       frozenTimestampMs: args.frozenTimestampMs,
@@ -1001,6 +1004,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     setError(null); setRangeAttempt(null);
     if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
     setPendingRange(null);
+    setNoteFocusTick((tick) => tick + 1);
     setDraft(openDraft({ target: targetIdentity, playheadMs }));
   }, [draft, targetIdentity, playheadMs, voiceDirty]);
 
@@ -1022,11 +1026,37 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     const done = completeRange(pendingRange, playheadMs);
     if (done.error || !done.draft) { setRangeAttempt('end'); return; }
     setRangeAttempt(null);
+    setNoteFocusTick((tick) => tick + 1);
     setDraft(done.draft);
     setPendingRange(null);
   }, [pendingRange, playheadMs]);
 
   const cancelRange = useCallback(() => { setPendingRange(null); setRangeAttempt(null); }, []);
+
+  /** A range dragged across the timeline: the same draft the two-button path builds. */
+  const onTimelineRange = useCallback((range: TimelineRange) => {
+    setError(null); setRangeAttempt(null);
+    if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+    const done = rangeDraftFromDrag({ target: targetIdentity, startMs: range.startMs, endMs: range.endMs });
+    if (done.error || !done.draft) { setError(done.error || 'That range could not be marked.'); return; }
+    setPendingRange(null);
+    setOpenedIssueId(null);
+    seekTo(range.startMs);
+    setNoteFocusTick((tick) => tick + 1);
+    setDraft(done.draft);
+  }, [draft, targetIdentity, voiceDirty, seekTo]);
+
+  /** Drag or arrow-key one end of the OPEN range draft. Saved notes change only on Save. */
+  const resizeDraftRange = useCallback((edge: TimelineEdge, ms: number | null, direction: -1 | 1 | 0) => {
+    if (voiceDirty) return;
+    const seconds = mediaRef.current?.duration;
+    const durationMs = Number.isFinite(seconds) && (seconds as number) > 0 ? (seconds as number) * 1000 : 0;
+    setDraft((d) => {
+      if (!d || d.anchorMs === null || d.rangeEndMs === null) return d;
+      const from = edge === 'startMs' ? d.anchorMs : d.rangeEndMs;
+      return resizeRangeDraft(d, edge, ms === null ? from + direction * RANGE_RESIZE_STEP_MS : ms, durationMs);
+    });
+  }, [voiceDirty]);
 
   /** Reopen an existing DRAFT issue on its own file, anchor, body and kind. */
   const startEdit = useCallback((issue: ReviewIssue) => {
@@ -1037,6 +1067,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     if (!next) { setError('Only unsent feedback about the file you are viewing can be edited here.'); return; }
     if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
     setPendingRange(null);
+    setNoteFocusTick((tick) => tick + 1);
     setDraft(next);
   }, [draft, targetIdentity, voiceDirty]);
 
@@ -1290,6 +1321,46 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   const teachingNoteRef=useRef<HTMLDivElement>(null);
   const pictureRef=artifact&&previewKind(artifact.relativePath)==='image'?imageRef:mediaRef;
   const teachingNotePosition=useAnnotationNotePlacement(pictureRef,teachingNoteRef,!!props.trainingMode&&!!draft,draft?.spatial?.geometry||null,selectedId);
+  // Training: focus the note WITHOUT scrolling. A scrolling autofocus moved the
+  // picture off screen, which cancelled the beside-the-mark placement and left the
+  // note under the player. When it cannot float it sits at the top of the notes
+  // column, so only bring that into view if it is actually off screen.
+  const noteFieldRef=useRef<HTMLTextAreaElement>(null);
+  const [noteMoreOpen,setNoteMoreOpen]=useState(false);
+  // The tick moves when a note is (re)opened by an explicit act, so replacing an
+  // empty note with a new mark focuses the new one too. Resizing and nudging never move it.
+  const noteFocusKey=props.trainingMode&&draft?`${draftGeneration.current}:${draft.editingIssueId||'new'}:${draft.target.artifactId}:${noteFocusTick}`:null;
+  useEffect(()=>{
+    if(!noteFocusKey)return;
+    setNoteMoreOpen(false);
+    noteFieldRef.current?.focus({preventScroll:true});
+    const timer=window.setTimeout(()=>{const note=teachingNoteRef.current;if(note&&note.dataset.floating!=='true')note.scrollIntoView?.({block:'nearest'});},0);
+    return()=>window.clearTimeout(timer);
+  },[noteFocusKey]);
+  const canMarkNow=!props.finishedView&&!frozen&&!accepted&&artifact?.status==='validated';
+  // M adds a note at the current frame — the keyboard twin of "+ Point comment".
+  useEffect(()=>{
+    if(!props.trainingMode||!canMarkNow)return;
+    const onKey=(event:KeyboardEvent)=>{
+      const target=event.target as HTMLElement|null;
+      if(target&&(target.isContentEditable||['INPUT','TEXTAREA','SELECT'].includes(target.tagName)))return;
+      if(event.defaultPrevented||event.metaKey||event.ctrlKey||event.altKey||event.repeat||(event.key!=='m'&&event.key!=='M'))return;
+      if(document.querySelector('[role="dialog"][aria-modal="true"]'))return;
+      const element=mediaRef.current;
+      if(!(element instanceof HTMLVideoElement)||element.seeking)return;
+      event.preventDefault();
+      element.pause();
+      const ms=Math.round(Math.max(0,element.currentTime)*1000);
+      setPlayheadMs(ms);setError(null);setRangeAttempt(null);
+      if(voiceDirty||!canReplaceDraft(draft)){setError(DRAFT_IN_PROGRESS);return;}
+      setPendingRange(null);
+      setNoteFocusTick(tick=>tick+1);
+      setDraft(openDraft({target:targetIdentity,playheadMs:ms}));
+    };
+    window.addEventListener('keydown',onKey);
+    return()=>window.removeEventListener('keydown',onKey);
+  },[props.trainingMode,canMarkNow,voiceDirty,draft,targetIdentity]);
+  const noteCountLabel=(count:number)=>`${count} ${count===1?'note':'notes'}`;
 
   const resultSurface = (<ArtifactSurface
           trainingMode={props.trainingMode}
@@ -1313,6 +1384,15 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             setDraft(openDraft({ target: targetIdentity, playheadMs, selection: s }));
           }}
           onSeek={seekTo}
+          timeline={props.trainingMode?{
+            onRange:canMarkNow?onTimelineRange:undefined,
+            draft:draft&&draft.anchorMs!==null&&draft.target.artifactId===selectedId?{startMs:draft.anchorMs,endMs:draft.rangeEndMs,editingIssueId:draft.editingIssueId??null,resizable:draft.rangeEndMs!==null&&!draft.spatial&&!draft.selection}:null,
+            onResize:(edge,ms)=>resizeDraftRange(edge,ms,0),
+            onResizeKey:(edge,direction)=>resizeDraftRange(edge,null,direction),
+            resizeDisabled:voiceDirty||busy,
+            pendingStartMs:pendingRange&&pendingRange.target.artifactId===selectedId?pendingRange.startMs:null,
+            openedIssueId,
+          }:undefined}
           spatial={{
             readOnly:!!props.finishedView,
             enabled: !props.finishedView && !voiceDirty && !frozen && !accepted && artifact?.status === 'validated',
@@ -1482,6 +1562,138 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
         </details>
   </>;
+  const noteKindSelect = draft ? (
+              <select
+                value={draft.kind}
+                onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
+                className={`${props.trainingMode?'':'ml-auto '}rounded border border-ink-700 bg-ink-900 px-1.5 py-0.5 text-ui text-ink-200`}
+                aria-label="Issue type"
+              >
+                {ISSUE_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+              </select>
+  ) : null;
+  const noteTargetFields = draft ? (<>
+
+
+            {/* WHICH FILE, from the draft's own frozen identity — never from whatever
+                is selected now. With several artifacts in a review, a timestamp alone
+                does not say what the comment is about. A spatial reference draft
+                states BOTH roles: where the mark sits and what the change applies to. */}
+            <p className="mb-2 truncate text-secondary text-ink-400" title={draft.target.relativePath ?? undefined}>
+              {draft.spatial ? spatialReferenceLine(draft) : targetLine(draft.target)}
+            </p>
+
+            {/* REFERENCE MODE (v2 only): observe A, change B — a typed, validated
+                backend field on the spatial anchor, not prose. Default is change mode:
+                the marked file IS the file to change. Geometry always belongs to the
+                marked (observed) file either way. */}
+            {draft.spatial && validated.some((a) => a.id !== draft.target.artifactId && a.sha256) && (
+              <label className="mb-2 block text-ui text-ink-400">
+                This mark asks for a change to
+                <select
+                  aria-label="File this annotation applies to"
+                  value={draft.referenceTarget?.artifactId ?? ''}
+                  onChange={(e) => {
+                    const targetId = e.target.value;
+                    if (!targetId) { setDraft({ ...draft, referenceTarget: null }); return; }
+                    const t = validated.find((a) => a.id === targetId);
+                    if (!t?.sha256) return;
+                    setDraft({
+                      ...draft,
+                      referenceTarget: { artifactId: t.id, sha256: t.sha256, relativePath: t.relativePath },
+                    });
+                  }}
+                  className="mt-1 block w-full rounded border border-ink-700 bg-ink-900 px-1.5 py-1 text-ui text-ink-200"
+                >
+                  <option value="">{`${draft.target.relativePath || 'this file'} — the marked file itself`}</option>
+                  {validated.filter((a) => a.id !== draft.target.artifactId && a.sha256).map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {`${a.relativePath} — the mark is a reference for it`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+  </>) : null;
+  const composer = draft && !frozen && !accepted ? (
+          <div ref={teachingNoteRef} className={props.trainingMode?'recording-note result-note':'mt-3 rounded-md border border-ink-700 bg-ink-950 p-3'} data-floating={props.trainingMode&&!!teachingNotePosition} style={props.trainingMode&&teachingNotePosition?teachingNotePosition:undefined}>
+            <div className="mb-2 flex items-center gap-2 text-secondary text-ink-400">
+              {/* The FROZEN position. It does not move while the clip keeps playing. */}
+              <span title={draft.anchorMs === null ? undefined : `Exact position ${formatMs(draft.anchorMs)}`}>
+                {composerHeaderLabel(draft)}
+              </span>
+              {!props.trainingMode&&noteKindSelect}
+            </div>
+            {!props.trainingMode&&noteTargetFields}
+            {/* A source file is an INPUT the agent may edit in place. Reference-only is
+                a real intent and nothing in the contract carries it as a field (see
+                docs/review-target-intent-contract.md), so the room states the situation
+                and leaves the wording to the reviewer. It is never inferred.
+
+                DELIBERATELY NO ONE-CLICK SENTENCE. A canned "use this as reference"
+                is unsafe while the brief names only the session's artifact: it would
+                arrive under a heading naming a different file, reading as precise. */}
+            {targetGuidance(draft.target) && (
+              <p className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-secondary leading-snug text-state-needs">
+                {targetGuidance(draft.target)}
+              </p>
+            )}
+
+            {draft.kind === 'audio' && draft.anchorMs !== null && draft.target.relativePath && (
+              <ReviewAudioEvidence
+                key={`${draft.target.artifactId}:${draft.anchorMs}:${draft.editingIssueId || 'new'}`}
+                reviewedFile={draft.target.relativePath}
+                anchorMs={draft.anchorMs}
+                onInsert={(text, priorText) => setDraft((current) => {
+                  if (!current || current.target.artifactId !== draft.target.artifactId) return current;
+                  const body = priorText && current.body.includes(priorText)
+                    ? current.body.replace(priorText, text)
+                    : current.body.includes(text) ? current.body : [current.body.trim(), text].filter(Boolean).join('\n\n');
+                  return { ...current, body };
+                })}
+              />
+            )}
+
+            <div className={props.trainingMode?'recording-comment-box':undefined}><textarea
+              ref={noteFieldRef}
+              autoFocus={!props.trainingMode}
+              value={draft.body}
+              onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+              rows={3}
+              placeholder="What should change here?"
+              className="w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-ui text-ink-100"
+            />
+            {props.trainingMode && (()=>{const generation=draftGeneration.current,identity=draft;const insert=(text:string)=>{
+              setDraft(current => current && current.target.artifactId===identity.target.artifactId && current.anchorMs===identity.anchorMs
+                && current.target.sha256===identity.target.sha256 && current.editingIssueId===identity.editingIssueId
+                && generation===draftGeneration.current && JSON.stringify(current.spatial)===JSON.stringify(identity.spatial)
+                && current.rangeEndMs===identity.rangeEndMs ? {...current,body:[current.body.trim(),text].filter(Boolean).join('\n\n')} : current);
+            };return props.renderVoiceNote?props.renderVoiceNote({artifactId:draft.target.artifactId,sha256:draft.target.sha256,frameMs:draft.anchorMs},insert):props.trainingOwnerId&&draft.target.artifactId?<TrainerVoiceNote compact disabled={busy} onDirtyChange={setVoiceDirty} key={`${generation}:${draft.target.artifactId}:${draft.anchorMs}:${JSON.stringify(draft.spatial)}`} ownerId={props.trainingOwnerId} attach={{sourceKind:'run_artifact',sourceRef:`${runId}:${draft.target.artifactId}`,mark:draft.anchorMs!==null&&draft.rangeEndMs!==null&&draft.rangeEndMs>draft.anchorMs?{startMs:draft.anchorMs,endMs:draft.rangeEndMs}:{frameMs:draft.anchorMs||0,region:draft.spatial?.geometry.kind==='rect'?{x:Math.round(draft.spatial.geometry.x*1000000),y:Math.round(draft.spatial.geometry.y*1000000),width:Math.round(draft.spatial.geometry.width!*1000000),height:Math.round(draft.spatial.geometry.height!*1000000)}:{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,4000-draft.body.trim().length-(draft.body.trim()?2:0))} onInsert={insert}/>:null;})()}
+            </div>
+            {props.trainingMode&&<details className="result-note-more" open={noteMoreOpen||!!draft.referenceTarget} onToggle={event=>setNoteMoreOpen(event.currentTarget.open)}>
+              <summary>More options</summary>
+              <label className="mb-2 flex items-center gap-2 text-ui text-ink-400">Type {noteKindSelect}</label>
+              {noteTargetFields}
+            </details>}
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button" disabled={busy||voiceDirty} onClick={submitIssue}
+                className="rounded-md bg-ink-100 px-3 py-1.5 text-ui font-medium text-ink-950 disabled:opacity-50"
+              >
+                {saveDraftLabel(draft)}
+              </button>
+              <button
+                type="button"
+                // Cancelling clears the frozen anchor with the draft. Leaving it behind
+                // would silently anchor the NEXT comment to the abandoned moment.
+                disabled={voiceDirty} onClick={() => { setDraft(null); setRangeAttempt(null); }}
+                className="rounded-md border border-ink-700 px-3 py-1.5 text-ui text-ink-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+  ) : null;
   const Workspace=props.trainingMode?AnnotationWorkspace:'div';
   return (
     /* THE WORKSPACE IS VIEWPORT-BOUNDED, so feedback volume cannot push the actions
@@ -1642,125 +1854,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           </div>
         )}
 
-        {draft && !frozen && !accepted && (
-          <div ref={teachingNoteRef} className={props.trainingMode?'recording-note result-note':'mt-3 rounded-md border border-ink-700 bg-ink-950 p-3'} data-floating={props.trainingMode&&!!teachingNotePosition} style={props.trainingMode&&teachingNotePosition?teachingNotePosition:undefined}>
-            <div className="mb-2 flex items-center gap-2 text-secondary text-ink-400">
-              {/* The FROZEN position. It does not move while the clip keeps playing. */}
-              <span title={draft.anchorMs === null ? undefined : `Exact position ${formatMs(draft.anchorMs)}`}>
-                {composerHeaderLabel(draft)}
-              </span>
-              <select
-                value={draft.kind}
-                onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
-                className="ml-auto rounded border border-ink-700 bg-ink-900 px-1.5 py-0.5 text-ui text-ink-200"
-                aria-label="Issue type"
-              >
-                {ISSUE_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
-              </select>
-            </div>
-
-            {/* WHICH FILE, from the draft's own frozen identity — never from whatever
-                is selected now. With several artifacts in a review, a timestamp alone
-                does not say what the comment is about. A spatial reference draft
-                states BOTH roles: where the mark sits and what the change applies to. */}
-            <p className="mb-2 truncate text-secondary text-ink-400" title={draft.target.relativePath ?? undefined}>
-              {draft.spatial ? spatialReferenceLine(draft) : targetLine(draft.target)}
-            </p>
-
-            {/* REFERENCE MODE (v2 only): observe A, change B — a typed, validated
-                backend field on the spatial anchor, not prose. Default is change mode:
-                the marked file IS the file to change. Geometry always belongs to the
-                marked (observed) file either way. */}
-            {draft.spatial && validated.some((a) => a.id !== draft.target.artifactId && a.sha256) && (
-              <label className="mb-2 block text-ui text-ink-400">
-                This mark asks for a change to
-                <select
-                  aria-label="File this annotation applies to"
-                  value={draft.referenceTarget?.artifactId ?? ''}
-                  onChange={(e) => {
-                    const targetId = e.target.value;
-                    if (!targetId) { setDraft({ ...draft, referenceTarget: null }); return; }
-                    const t = validated.find((a) => a.id === targetId);
-                    if (!t?.sha256) return;
-                    setDraft({
-                      ...draft,
-                      referenceTarget: { artifactId: t.id, sha256: t.sha256, relativePath: t.relativePath },
-                    });
-                  }}
-                  className="mt-1 block w-full rounded border border-ink-700 bg-ink-900 px-1.5 py-1 text-ui text-ink-200"
-                >
-                  <option value="">{`${draft.target.relativePath || 'this file'} — the marked file itself`}</option>
-                  {validated.filter((a) => a.id !== draft.target.artifactId && a.sha256).map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {`${a.relativePath} — the mark is a reference for it`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            {/* A source file is an INPUT the agent may edit in place. Reference-only is
-                a real intent and nothing in the contract carries it as a field (see
-                docs/review-target-intent-contract.md), so the room states the situation
-                and leaves the wording to the reviewer. It is never inferred.
-
-                DELIBERATELY NO ONE-CLICK SENTENCE. A canned "use this as reference"
-                is unsafe while the brief names only the session's artifact: it would
-                arrive under a heading naming a different file, reading as precise. */}
-            {targetGuidance(draft.target) && (
-              <p className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-secondary leading-snug text-state-needs">
-                {targetGuidance(draft.target)}
-              </p>
-            )}
-
-            {draft.kind === 'audio' && draft.anchorMs !== null && draft.target.relativePath && (
-              <ReviewAudioEvidence
-                key={`${draft.target.artifactId}:${draft.anchorMs}:${draft.editingIssueId || 'new'}`}
-                reviewedFile={draft.target.relativePath}
-                anchorMs={draft.anchorMs}
-                onInsert={(text, priorText) => setDraft((current) => {
-                  if (!current || current.target.artifactId !== draft.target.artifactId) return current;
-                  const body = priorText && current.body.includes(priorText)
-                    ? current.body.replace(priorText, text)
-                    : current.body.includes(text) ? current.body : [current.body.trim(), text].filter(Boolean).join('\n\n');
-                  return { ...current, body };
-                })}
-              />
-            )}
-
-            <div className={props.trainingMode?'recording-comment-box':undefined}><textarea
-              autoFocus
-              value={draft.body}
-              onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-              rows={3}
-              placeholder="What should change here?"
-              className="w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-ui text-ink-100"
-            />
-            {props.trainingMode && (()=>{const generation=draftGeneration.current,identity=draft;const insert=(text:string)=>{
-              setDraft(current => current && current.target.artifactId===identity.target.artifactId && current.anchorMs===identity.anchorMs
-                && current.target.sha256===identity.target.sha256 && current.editingIssueId===identity.editingIssueId
-                && generation===draftGeneration.current && JSON.stringify(current.spatial)===JSON.stringify(identity.spatial)
-                && current.rangeEndMs===identity.rangeEndMs ? {...current,body:[current.body.trim(),text].filter(Boolean).join('\n\n')} : current);
-            };return props.renderVoiceNote?props.renderVoiceNote({artifactId:draft.target.artifactId,sha256:draft.target.sha256,frameMs:draft.anchorMs},insert):props.trainingOwnerId&&draft.target.artifactId?<TrainerVoiceNote compact disabled={busy} onDirtyChange={setVoiceDirty} key={`${generation}:${draft.target.artifactId}:${draft.anchorMs}:${JSON.stringify(draft.spatial)}`} ownerId={props.trainingOwnerId} attach={{sourceKind:'run_artifact',sourceRef:`${runId}:${draft.target.artifactId}`,mark:draft.anchorMs!==null&&draft.rangeEndMs!==null&&draft.rangeEndMs>draft.anchorMs?{startMs:draft.anchorMs,endMs:draft.rangeEndMs}:{frameMs:draft.anchorMs||0,region:draft.spatial?.geometry.kind==='rect'?{x:Math.round(draft.spatial.geometry.x*1000000),y:Math.round(draft.spatial.geometry.y*1000000),width:Math.round(draft.spatial.geometry.width!*1000000),height:Math.round(draft.spatial.geometry.height!*1000000)}:{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,4000-draft.body.trim().length-(draft.body.trim()?2:0))} onInsert={insert}/>:null;})()}
-            </div><div className="mt-2 flex gap-2">
-              <button
-                type="button" disabled={busy||voiceDirty} onClick={submitIssue}
-                className="rounded-md bg-ink-100 px-3 py-1.5 text-ui font-medium text-ink-950 disabled:opacity-50"
-              >
-                {saveDraftLabel(draft)}
-              </button>
-              <button
-                type="button"
-                // Cancelling clears the frozen anchor with the draft. Leaving it behind
-                // would silently anchor the NEXT comment to the abandoned moment.
-                disabled={voiceDirty} onClick={() => { setDraft(null); setRangeAttempt(null); }}
-                className="rounded-md border border-ink-700 px-3 py-1.5 text-ui text-ink-300"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
+        {!props.trainingMode&&composer}
       </section>
 
       {/* ── issue rail ───────────────────────────────────────────────────────
@@ -1777,7 +1871,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="text-ui font-medium text-ink-200">{props.trainingMode?'Your teaching notes':'Review issues'}</h2>
             {!issuesUnavailable && !resolutionsUnavailable && visible.length > 0 && (
-              <span className="shrink-0 text-micro tabular-nums text-ink-500">{groupCountLabel(visible.length)}</span>
+              <span className="shrink-0 text-micro tabular-nums text-ink-500">{props.trainingMode ? noteCountLabel(visible.length) : groupCountLabel(visible.length)}</span>
             )}
           </div>
           {!issuesUnavailable && !resolutionsUnavailable && unresolvedPrior.length > 1 && (
@@ -1799,7 +1893,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
         {/* THE ONLY SCROLLING REGION IN THE RAIL. Focusable so "Keep reviewing" can
             hand the keyboard back to the list it is telling the user to return to. */}
-        <div ref={railListRef} tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        {props.trainingMode&&composer}
+        <div ref={railListRef} tabIndex={-1} className="result-note-list min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {issuesUnavailable ? (
           // NOT an empty rail: we could not read them.
           <p className="text-secondary text-state-needs">
@@ -1813,7 +1908,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           <p className="text-secondary text-ink-500">
             {/* Not "pause and add feedback" any more — pausing was never the requirement,
                 and saying so is what made a stale pause position look authoritative. */}
-            {proxyPreview ? 'No parent-run issues are attached to this proxy.' : 'No issues yet. Move to a moment and add feedback.'}
+            {proxyPreview ? 'No parent-run issues are attached to this proxy.' : props.trainingMode ? 'No notes yet. Move to a moment and add feedback.' : 'No issues yet. Move to a moment and add feedback.'}
           </p>
         ) : (
           groups.map((group) => (
@@ -1834,7 +1929,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               >
                 {group.displayName}
               </button>
-              <span className="shrink-0 text-micro tabular-nums text-ink-500">{groupCountLabel(group.count)}</span>
+              <span className="shrink-0 text-micro tabular-nums text-ink-500">{props.trainingMode ? noteCountLabel(group.count) : groupCountLabel(group.count)}</span>
             </h3>
             {group.unavailable && (
               <p className="mb-2 text-reading text-state-needs">
@@ -1856,10 +1951,11 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                       type="button"
                       onClick={() => goToIssue(i)}
                       className="font-mono text-state-running hover:underline"
+                      title={props.trainingMode ? anchorLabel(i.anchor as Record<string, unknown>) : undefined}
                     >
-                      {anchorLabel(i.anchor as Record<string, unknown>)}
+                      {props.trainingMode ? noteTimeLabel(i.anchor as Record<string, unknown>) : anchorLabel(i.anchor as Record<string, unknown>)}
                     </button>
-                    <span className="rounded bg-ink-800 px-1 py-0.5 text-ink-400">{i.kind}</span>
+                    {!props.trainingMode&&<span className="rounded bg-ink-800 px-1 py-0.5 text-ink-400">{i.kind}</span>}
                     <span className="ml-auto text-ink-500">{i.status}</span>
                   </div>
                   {/* WHICH FILE this issue is about is now the group heading above, so
@@ -1870,7 +1966,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                   )}
                   <p className="mt-1 whitespace-pre-wrap text-reading text-ink-200">{i.body}</p>
                   {!props.trainingMode&&props.customerOwnerId&&!stale&&isSpatialAnchorV2(i.anchor as never)&&<CustomerFeedbackSharing issue={i} ownerId={props.customerOwnerId}/>}
-                  {props.trainingMode && props.onTeachIssue && group.artifact && !stale && teachingNotes.some(note=>note.issue.id===i.id) && <button type="button" disabled={busy} className="mt-3 text-ui text-action-accent hover:underline disabled:opacity-40" onClick={()=>props.onTeachIssue?.(i,group.artifact!)}>Extract training</button>}
+                  {props.trainingMode && props.onTeachIssue && group.artifact && !stale && teachingNotes.some(note=>note.issue.id===i.id) && <button type="button" disabled={busy} className="mt-3 text-ui text-state-running hover:underline disabled:opacity-40" onClick={()=>props.onTeachIssue?.(i,group.artifact!)}>Extract training</button>}
                   {!props.trainingMode && submitView.mode === 'send_changes' && patternEligibleIssueIds.has(i.id) && (
                     <label className="mt-2 flex items-start gap-2 rounded border border-violet-500/20 bg-violet-500/5 px-2 py-1.5 text-ui text-ink-300">
                       <input
@@ -1900,7 +1996,17 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                     const chip = evidenceChip(evidenceForIssue(i));
                     if (!chip) return null;
                     const tone = chip.tone === 'ok' ? 'text-state-ok' : chip.tone === 'failed' ? 'text-state-needs' : 'text-ink-500';
+                    // Training keeps a FAILED capture in plain sight; routine progress is under More options.
+                    if (props.trainingMode && chip.tone !== 'failed') return null;
                     return <p className={`mt-1 text-reading ${tone}`}>{chip.label}</p>;
+                  })()}
+                  {props.trainingMode && (() => {
+                    const chip = isSpatialAnchorV2(i.anchor as never) && i.status === 'draft' ? evidenceChip(evidenceForIssue(i)) : null;
+                    return <details className="result-note-more">
+                      <summary>More options</summary>
+                      <p className="text-secondary text-ink-400">Type: {i.kind}</p>
+                      {chip && chip.tone !== 'failed' && <p className={`text-secondary ${chip.tone === 'ok' ? 'text-state-ok' : 'text-ink-500'}`}>{chip.label}</p>}
+                    </details>;
                   })()}
                   {stale && (
                     <p className="mt-1 text-secondary text-state-needs">
@@ -2384,8 +2490,18 @@ type SpatialSurfaceProps = {
 /** The viewer. Every non-ready state renders words and buttons, never a dead player. */
 function ArtifactSurface({
   runId, decision, previewUrl, textContent, textTruncated, mediaRef, imageRef, issues, onSelectText, onSeek,
-  onMediaReady, onPlayhead, mediaKey, spatial,trainingMode,
+  onMediaReady, onPlayhead, mediaKey, spatial,trainingMode,timeline,
 }: {
+  /** Training only: the shared annotation timeline's range, resize and highlight wiring. */
+  timeline?: {
+    onRange?: (range: TimelineRange) => void;
+    draft: { startMs: number; endMs: number | null; editingIssueId: string | null; resizable: boolean } | null;
+    onResize: (edge: TimelineEdge, ms: number) => void;
+    onResizeKey: (edge: TimelineEdge, direction: -1 | 1) => void;
+    resizeDisabled: boolean;
+    pendingStartMs: number | null;
+    openedIssueId: string | null;
+  };
   runId: string;
   decision: PreviewDecision | null;
   previewUrl: string | null;
@@ -2409,6 +2525,9 @@ function ArtifactSurface({
   spatial: SpatialSurfaceProps;
   trainingMode?:boolean;
 }) {
+  // Hooks first: every state below returns early.
+  const [hoverMs, setHoverMs] = useState<number | null>(null);
+  const hoverFrame = useTimelineFramePreview(timeline && decision?.state === 'ready' && decision.kind === 'video' ? previewUrl : null, hoverMs);
   if (!decision) return <div className="h-48 animate-pulse rounded bg-ink-800/50" />;
 
   if (decision.state !== 'ready' && decision.state !== 'loading') {
@@ -2468,6 +2587,11 @@ function ArtifactSurface({
           onSeeked={(e) => onPlayhead(mediaKey, (e.currentTarget as HTMLMediaElement).currentTime)}
           onPause={(e) => onPlayhead(mediaKey, (e.currentTarget as HTMLMediaElement).currentTime)}
         />
+        {timeline && hoverMs !== null && hoverFrame.anyImage && <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="recording-hover-picture" src={hoverFrame.anyImage.url} alt="Timeline preview" />
+          <span className="recording-preview-badge">Preview {formatMediaTime(Math.round(hoverFrame.anyImage.second * 1000))}</span>
+        </>}
         {decision.kind === 'video' && !spatial.readOnly && (
           <ReviewSpatialOverlay
             mediaKind="video"
@@ -2489,7 +2613,17 @@ function ArtifactSurface({
     return (
       <div>
         {decision.kind === 'video' ? (
-          <ReviewPlaybackControls variant={spatial.readOnly?'finished':trainingMode?'teaching':undefined} key={mediaKey} mediaKey={mediaKey} mediaRef={mediaRef} onSeek={onSeek} timeline={trainingMode?clock=><AnnotationTimeline {...clock} onSeek={onSeek} onOpen={spatial.onOpenIssue} marks={issues.flatMap(issue=>{const anchor=issue.anchor as any;const time=anchor?.type==='visual_spatial'?anchor.temporal:anchor?.type==='media_time'?{startMs:anchor.timeStartMs,endMs:anchor.timeEndMs}:null;return time&&Number.isFinite(time.startMs)?[{id:issue.id,startMs:time.startMs,endMs:time.endMs}]:[];})}/>:undefined}>
+          <ReviewPlaybackControls variant={spatial.readOnly?'finished':trainingMode?'teaching':undefined} key={mediaKey} mediaKey={mediaKey} mediaRef={mediaRef} onSeek={onSeek} timeline={timeline?clock=>{
+            const timeOf=(issue:ReviewIssue)=>{const anchor=issue.anchor as any;const time=anchor?.type==='visual_spatial'?anchor.temporal:anchor?.type==='media_time'?{startMs:anchor.timeStartMs,endMs:anchor.timeEndMs}:null;return time&&Number.isFinite(time.startMs)?time as {startMs:number;endMs:number|null}:null;};
+            // The note being written is the selected mark; while it edits a saved note it takes that note's place.
+            const draftMark:TimelineMark|null=timeline.draft?{id:timeline.draft.editingIssueId||'__draft',startMs:timeline.draft.startMs,endMs:timeline.draft.endMs,selected:true,resizable:timeline.draft.resizable}:null;
+            const marks:TimelineMark[]=issues.flatMap(issue=>{if(draftMark&&issue.id===draftMark.id)return [draftMark];const time=timeOf(issue);return time?[{id:issue.id,startMs:time.startMs,endMs:time.endMs,selected:!draftMark&&issue.id===timeline.openedIssueId}]:[];});
+            if(draftMark&&!marks.includes(draftMark))marks.push(draftMark);
+            return <AnnotationTimeline {...clock} marks={marks} onSeek={onSeek} onOpen={id=>{if(id!==draftMark?.id)spatial.onOpenIssue(id);}}
+              onRange={timeline.onRange} onResize={(_id,edge,ms)=>timeline.onResize(edge,ms)} onResizeKey={(_id,edge,direction)=>timeline.onResizeKey(edge,direction)} resizeDisabled={timeline.resizeDisabled}
+              onHover={setHoverMs} hoverContent={()=>hoverFrame.image?<img src={hoverFrame.image.url} alt="Timeline preview" className="mb-1 max-h-48 w-48 rounded object-contain"/>:null}>
+              {pctOf=>timeline.pendingStartMs!==null&&clock.playheadMs>timeline.pendingStartMs?<div className="pointer-events-none absolute top-0 bottom-0 rounded-sm border-2 border-sky-300 bg-sky-300/20" style={{left:pctOf(timeline.pendingStartMs),width:pctOf(clock.playheadMs-timeline.pendingStartMs)}}/>:null}
+            </AnnotationTimeline>;}:undefined}>
             {(revealOutside) => picture(revealOutside)}
           </ReviewPlaybackControls>
         ) : picture()}
@@ -2499,6 +2633,11 @@ function ArtifactSurface({
           <p className="mt-2 flex items-start gap-1.5 text-secondary text-ink-500" data-testid="spatial-hint">
             <span aria-hidden="true" className="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-ink-600 text-secondary">i</span>
             <span>{SPATIAL_HINT_COPY}</span>
+          </p>
+        )}
+        {timeline && decision.kind === 'video' && (
+          <p className="mt-1.5 text-secondary text-ink-500" data-testid="timeline-hint">
+            Move over the timeline to preview a moment and click to jump there. Drag its round handle to scrub{timeline.onRange ? ', or drag across it to mark a range. Press M to add a note here' : ''}. Space plays and pauses.
           </p>
         )}
         {markers.length > 0 && (

@@ -516,6 +516,40 @@ export function completeRange(
 }
 
 /**
+ * A range dragged across the timeline. Deliberately the SAME two steps as
+ * "Select a range" then "Set end", so both paths produce an identical draft and
+ * every refusal (no position, end not after start) is the one already written.
+ */
+export function rangeDraftFromDrag(args: {
+  target: FrozenTarget; startMs: number; endMs: number;
+}): { draft: FeedbackDraft | null; error: string | null } {
+  const begun = beginRange({ target: args.target, playheadMs: args.startMs });
+  if (begun.error) return { draft: null, error: begun.error };
+  return completeRange(begun.range, args.endMs);
+}
+
+export const RANGE_RESIZE_STEP_MS = 100;
+
+/**
+ * Move one end of an OPEN range draft (never a saved issue: that changes only on
+ * Save). Snaps to 0.1 s, never crosses the other end, never leaves the file. A
+ * point, spatial or text draft is returned untouched.
+ */
+export function resizeRangeDraft(
+  draft: FeedbackDraft, edge: 'startMs' | 'endMs', ms: number, durationMs: number,
+): FeedbackDraft {
+  if (draft.anchorMs === null || draft.rangeEndMs === null || draft.spatial || draft.selection || !Number.isFinite(ms)) return draft;
+  const value = Math.round(ms / RANGE_RESIZE_STEP_MS) * RANGE_RESIZE_STEP_MS;
+  if (edge === 'startMs') {
+    const start = Math.max(0, Math.min(value, draft.rangeEndMs - RANGE_RESIZE_STEP_MS));
+    return start === draft.anchorMs || start >= draft.rangeEndMs ? draft : { ...draft, anchorMs: start };
+  }
+  const limit = Number.isFinite(durationMs) && durationMs > 0 ? Math.round(durationMs) : Number.MAX_SAFE_INTEGER;
+  const end = Math.min(limit, Math.max(value, draft.anchorMs + RANGE_RESIZE_STEP_MS));
+  return end === draft.rangeEndMs || end <= draft.anchorMs ? draft : { ...draft, rangeEndMs: end };
+}
+
+/**
  * A range in progress belongs to ONE file. Selecting another artifact ends it rather
  * than carrying a start time from video A into video B's timeline.
  */

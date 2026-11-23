@@ -345,6 +345,10 @@ html, body {
 .timeline-hover { pointer-events: none; position: absolute; z-index: 2; bottom: calc(100% + 6px); transform: translateX(-50%); border-radius: var(--r-xs); padding: 4px 8px; white-space: nowrap; background: var(--bg-inverse); color: var(--text-inverse); font:var(--fs-micro) var(--font-mono),monospace; }
 .moment-resize { position: absolute; top: -1px; bottom: -1px; width: 12px; cursor: ew-resize; touch-action: none; }
 .moment-resize.start { left: -5px; } .moment-resize.end { right: -5px; }
+.timeline-ghost { pointer-events: none; position: absolute; top: 0; bottom: 0; width: 1px; background: var(--text-muted); opacity: .55; }
+.timeline-playhead-handle { pointer-events: auto; position: absolute; top: -7px; left: -8px; width: 17px; height: 17px; border-radius: 50%; background: var(--text-strong); border: 2px solid var(--bg-surface); box-shadow: 0 1px 3px rgb(0 0 0 / .3); cursor: grab; touch-action: none; }
+.timeline-playhead-handle:active { cursor: grabbing; }
+.timeline-playhead-handle::after { content: ''; position: absolute; inset: -8px; }
 .moment-resize::after { content: ''; display: block; width: 3px; height: 50%; margin: auto; border-radius: 3px; background: currentColor; opacity: .7; }
 .playback-button[aria-label="Play"], .playback-button[aria-label="Pause"] { min-width: 92px; border-radius: var(--r-pill); background: var(--action-strong); color: var(--on-action-strong); padding: 10px 20px; border-color: transparent; }
 .agent-action-bar { position: sticky; z-index: 25; bottom: 0; margin-top: 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border: 1px solid var(--border-subtle); border-radius: var(--r-md); background: var(--bg-surface); box-shadow: var(--shadow-2); }
@@ -764,6 +768,12 @@ html, body {
 .training-result-annotation .result-note{background:var(--bg-surface);border:1px solid var(--border-control);border-radius:var(--r-md);padding:20px;}
 .training-annotation-page .result-note .recording-comment-box textarea{min-height:112px;}
 .training-annotation-page .recording-stage{min-width:0;}
+.training-result-annotation>aside{overflow-y:auto;}
+.training-result-annotation>aside>.result-note:not([data-floating="true"]){flex-shrink:0;margin-bottom:16px;}
+.training-result-annotation>aside>.result-note-list{min-height:96px;}
+.result-note-more{margin-top:8px;font-size:var(--fs-secondary);color:var(--text-muted);}
+.result-note-more>summary{cursor:pointer;width:fit-content;}
+.result-note-more[open]>summary{margin-bottom:8px;}
 @media(max-width:1100px){.training-result-annotation>aside{position:static;max-height:none;}}
 
 /* Readable actions retain the existing row layout, with usable targets. */

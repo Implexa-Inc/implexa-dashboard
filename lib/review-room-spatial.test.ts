@@ -732,3 +732,145 @@ test('a finished text-only run shows the existing written output without inventi
  assert.match(text(),/READ-ONLY-WRITTEN-RESULT/);assert.doesNotMatch(text(),/No artifact selected/);assert.equal(container.querySelector('video'),null);
  assert.equal(calls.some(c=>['accept','submit','create_issue'].includes(String(c.body.action))),false);
 });
+
+// ── item 16: the shared annotation timeline on the training result page ─────────────
+// Real <ReviewRoom trainingMode/>, real timeline, real pointer/keyboard events, and the
+// real anchor that leaves the browser. The bar is rigged 600px wide over a 60 s clip,
+// so 10px is one second.
+const timelineBar = () => container.querySelector('.recording-timeline') as HTMLElement;
+async function mountTrainingTimeline(over: Record<string, unknown> = {}, currentTime = 5) {
+  await mount({ trainingMode: true, ...over });
+  const state = rigVideo(video(), { currentTime });
+  Object.defineProperty(video(), 'duration', { configurable: true, get: () => 60 });
+  await media(video(), 'loadedmetadata'); await media(video(), 'durationchange');
+  timelineBar().getBoundingClientRect = () => ({ left: 0, top: 700, width: 600, height: 72, right: 600, bottom: 772, x: 0, y: 700, toJSON: () => ({}) } as DOMRect);
+  return state;
+}
+const dragBar = async (fromX: number, toX: number) => {
+  await fire(timelineBar(), 'pointerdown', { clientX: fromX });
+  await fire(timelineBar(), 'pointermove', { clientX: (fromX + toX) / 2 });
+  await fire(timelineBar(), 'pointermove', { clientX: toX });
+  await fire(timelineBar(), 'pointerup', { clientX: toX });
+};
+const lastCreated = () => calls.filter((call) => call.body.action === 'create_issue').at(-1)!.body;
+
+test('timeline drag marks the same range anchor as Select a range then Set end', async () => {
+  const state = await mountTrainingTimeline();
+  state.currentTime = 10; await media(video(), 'timeupdate');
+  await clickButton(/^Select a range$/);
+  state.currentTime = 20; await media(video(), 'timeupdate');
+  await clickButton(/Set end/);
+  await typeBody('Hold this section longer.'); await clickButton(/^Save issue$/);
+  const viaButtons = lastCreated();
+
+  await dragBar(100, 200);
+  assert.equal(composerBox() !== null, true, 'the drag opens the note');
+  assert.equal(state.currentTime, 10, 'the picture moves to the start of the dragged range');
+  await typeBody('Hold this section longer.'); await clickButton(/^Save issue$/);
+  const viaDrag = lastCreated();
+  assert.notEqual(viaDrag, viaButtons);
+  assert.deepEqual(viaDrag.anchor, viaButtons.anchor);
+  assert.deepEqual({ start: (viaDrag.anchor as any).timeStartMs, end: (viaDrag.anchor as any).timeEndMs }, { start: 10000, end: 20000 });
+  assert.equal(viaDrag.kind, viaButtons.kind); assert.equal(viaDrag.artifactId, viaButtons.artifactId); assert.equal(viaDrag.purpose, 'training');
+});
+
+test('timeline click jumps, the round handle scrubs, and hovering previews the time without moving the picture', async () => {
+  const state = await mountTrainingTimeline();
+  await fire(timelineBar(), 'pointerdown', { clientX: 300 }); await fire(timelineBar(), 'pointerup', { clientX: 300 });
+  assert.equal(state.currentTime, 30); assert.equal(composerBox(), null, 'a click is a jump, never a note');
+  const handle = container.querySelector('.timeline-playhead-handle') as HTMLElement;
+  assert.equal(handle !== null, true);
+  const before = state.seeks.length;
+  await fire(handle, 'pointerdown', { clientX: 300 });
+  await fire(handle, 'pointermove', { clientX: 380 }); await fire(handle, 'pointermove', { clientX: 450 });
+  await fire(handle, 'pointerup', { clientX: 450 });
+  assert.deepEqual(state.seeks.slice(before), [38, 45], 'every move of the handle seeks');
+  assert.equal(composerBox(), null, 'scrubbing never starts a range');
+  const seeks = state.seeks.length;
+  await fire(timelineBar(), 'pointermove', { clientX: 120 });
+  assert.equal(container.querySelector('.timeline-hover')?.textContent, '0:12');
+  assert.equal(state.seeks.length, seeks, 'hover does not seek');
+  assert.equal(container.querySelector('input[aria-label="Seek video"]') !== null, true, 'the native slider stays for keyboard and screen readers');
+  assert.match(container.querySelector('[data-testid="timeline-hint"]')?.textContent || '', /round handle to scrub, or drag across it to mark a range\. Press M/);
+});
+
+test('an open range adjusts by its ends and Save sends the adjusted anchor; saved notes have no handles', async () => {
+  await mountTrainingTimeline({ issues: [{ ...storedSpatialIssue, purpose: 'training' }] });
+  assert.equal(container.querySelectorAll('.moment-resize').length, 0, 'a saved note changes only through Edit and Save');
+  await dragBar(100, 200);
+  const ends = () => [...container.querySelectorAll('.moment-resize')] as HTMLElement[];
+  assert.equal(ends().length, 2);
+  await key(ends()[1], 'ArrowRight');
+  await fire(ends()[0], 'pointerdown', { clientX: 100 }); await fire(ends()[0], 'pointermove', { clientX: 124 }); await fire(ends()[0], 'pointerup', { clientX: 124 });
+  // Neither end can cross the other or leave the clip.
+  await fire(ends()[1], 'pointerdown', { clientX: 201 }); await fire(ends()[1], 'pointermove', { clientX: 5000 }); await fire(ends()[1], 'pointerup', { clientX: 5000 });
+  await fire(ends()[0], 'pointerdown', { clientX: 124 }); await fire(ends()[0], 'pointermove', { clientX: 5000 }); await fire(ends()[0], 'pointerup', { clientX: 5000 });
+  await typeBody('Adjusted range.'); await clickButton(/^Save issue$/);
+  const anchor = lastCreated().anchor as any;
+  assert.deepEqual({ start: anchor.timeStartMs, end: anchor.timeEndMs }, { start: 59900, end: 60000 });
+  assert.equal(anchor.type, 'media_time');
+});
+
+test('training note opens in the notes column and M marks the current frame; ordinary review is unchanged', async () => {
+  const state = await mountTrainingTimeline({}, 33);
+  await key(dom.window.document.body, 'm');
+  assert.equal(composerBox() !== null, true, 'M opens a note');
+  assert.equal(state.pauses > 0, true);
+  assert.equal(composerBox()!.closest('aside') !== null, true, 'the note falls back to the notes column, never under the player');
+  assert.equal(composerBox()!.closest('aside')!.querySelector('h2')!.compareDocumentPosition(composerBox()!) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+  assert.equal(composerBox()!.closest('aside')!.querySelector('.result-note-list')!.compareDocumentPosition(composerBox()!) & dom.window.Node.DOCUMENT_POSITION_PRECEDING, dom.window.Node.DOCUMENT_POSITION_PRECEDING, 'above the saved notes');
+  assert.equal(dom.window.document.activeElement === composerBox(), true, 'focused without a scrolling autofocus');
+  assert.equal(composerBox()!.hasAttribute('autofocus'), false);
+  // The four live-only fields are present, under More options.
+  const more = composerBox()!.closest('.result-note')!.querySelector('details.result-note-more') as HTMLDetailsElement;
+  assert.equal(more.open, false); assert.equal(more.querySelector('select[aria-label="Issue type"]') !== null, true);
+  assert.match(more.textContent || '', /Feedback applies to: out\/final\.mp4/);
+  await key(composerBox()!, 'm');
+  await typeBody('Typed m while writing.'); await clickButton(/^Save issue$/);
+  assert.equal((lastCreated().anchor as any).timeStartMs, 33000);
+  assert.equal(calls.filter((call) => call.body.action === 'create_issue').length, 1);
+
+  await mount({ trainingMode: false }); rigVideo(video(), { currentTime: 12 }); await media(video(), 'timeupdate');
+  await key(dom.window.document.body, 'm');
+  assert.equal(composerBox(), null, 'M is a Training shortcut only');
+  assert.equal(container.querySelector('.recording-timeline'), null, 'ordinary review keeps the native slider');
+  await clickButton(/Point comment at/);
+  assert.equal(composerBox()!.closest('aside'), null); assert.equal(composerBox()!.closest('section') !== null, true);
+  assert.equal(container.querySelector('details.result-note-more'), null);
+});
+
+test('training rail says notes and shows the time; exact position, type and screenshot progress stay reachable', async () => {
+  const training = { ...storedSpatialIssue, purpose: 'training' };
+  // The reply shape is the one the existing GATE test uses for the same endpoint.
+  evidenceReply = { ok: true, state: 'ready', issues: [{ issueId: ISSUE_ID, anchorDigest: 'f'.repeat(64), evidence: { status: 'pending', ready: false } }] };
+  await mount({ trainingMode: true, issues: [training], onTeachIssue: () => {} }); rigVideo(video()); await media(video(), 'loadedmetadata');
+  await act(async () => { await Promise.resolve(); });
+  const rail = container.querySelector('aside') as HTMLElement, row = rail.querySelector('li') as HTMLElement;
+  const heading = rail.querySelector('h2')!.parentElement!.textContent || '', group = rail.querySelector('h3')!.textContent || '';
+  assert.equal(heading, 'Your teaching notes1 note'); assert.equal(group, 'out/final.mp41 note');
+  const title = row.querySelector('button') as HTMLButtonElement;
+  assert.equal(title.textContent, '0:03'); assert.equal(title.title, 'Pin 00:03.000 (25%, 75%)');
+  assert.match(row.textContent || '', /draft/);
+  const extract = [...row.querySelectorAll('button')].find((button) => button.textContent === 'Extract training')!;
+  assert.match(extract.className, /text-state-running/); assert.doesNotMatch(extract.className, /text-action-accent/);
+  const more = row.querySelector('details.result-note-more') as HTMLDetailsElement;
+  assert.equal(more.open, false); assert.match(more.textContent || '', /Type: visual/); assert.match(more.textContent || '', /Screenshot: capturing…/);
+  assert.equal([...row.children].some((child) => child.tagName === 'P' && /Screenshot:/.test(child.textContent || '')), false, 'routine screenshot progress is not a headline');
+
+  await mount({ trainingMode: true, issues: [] });
+  assert.match(text(), /No notes yet\. Move to a moment and add feedback\./);
+
+  await mount({ issues: [{ ...storedSpatialIssue, purpose: 'revision' }] });
+  const ordinary = container.querySelector('aside') as HTMLElement;
+  assert.match(ordinary.textContent || '', /1 issue/); assert.match(ordinary.textContent || '', /Pin 00:03\.000 \(25%, 75%\)/);
+  assert.equal(ordinary.querySelector('details.result-note-more'), null);
+});
+
+test('a failed screenshot stays in plain sight on a training note', async () => {
+  evidenceReply = { ok: true, state: 'ready', issues: [{ issueId: ISSUE_ID, anchorDigest: 'f'.repeat(64), evidence: { status: 'unavailable', ready: false, reason: 'capture_failed' } }] };
+  await mount({ trainingMode: true, issues: [{ ...storedSpatialIssue, purpose: 'training' }] }); rigVideo(video()); await media(video(), 'loadedmetadata');
+  await act(async () => { await Promise.resolve(); });
+  const row = container.querySelector('aside li') as HTMLElement;
+  assert.equal([...row.children].some((child) => child.tagName === 'P' && /Screenshot: failed/.test(child.textContent || '')), true);
+  assert.doesNotMatch(row.querySelector('details.result-note-more')!.textContent || '', /Screenshot/);
+});

@@ -76,6 +76,27 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
     };
   }, [mediaRef, mediaKey]);
 
+  // Teaching pages: Space plays and pauses from anywhere on the page, except while
+  // typing or when a button, link, slider or dialog owns the key. The focused-player
+  // handler below runs first and marks the event handled, so it never toggles twice.
+  useEffect(() => {
+    if (variant !== 'teaching') return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== ' ' || event.defaultPrevented || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.isContentEditable || target.closest('input,textarea,select,button,a,summary,[role="button"],[role="slider"],[role="dialog"]'))) return;
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      const media = mediaRef.current;
+      if (!media) return;
+      event.preventDefault();
+      if (!media.paused && !media.ended) { media.pause(); return; }
+      setError(null);
+      void media.play().catch(() => setError('Playback could not start. Try Play again.'));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mediaRef, mediaKey, variant]);
+
   async function togglePlayback() {
     const media = mediaRef.current;
     if (!media) return;

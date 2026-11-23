@@ -840,3 +840,30 @@ test('the Moments rail retains readable note summaries while the note is open',a
   assert.match(row.querySelector('.recording-moment-select')!.getAttribute('title')!,/00:01\.000–00:03\.000/);
  }finally{page.cleanup();}
 });
+
+test('recording timeline (shared): drag marks a moment, the round handle scrubs, a click jumps, ends stay adjustable',async()=>{
+ const moment={momentId:M1,startMs:1000,endMs:3000,region:null,card:{...emptyCard(),whatToDo:'Saved feedback.'},createdAt:NOW};
+ const b=bridge(op=>op==='get'?{ok:true,recording:detail({},[moment])}:op==='preview'?previewOk:{ok:true});
+ const page=await render(PLAYER,{recordingId:ID,ownerId:ID,embedded:true},{bridge:b.value});
+ try{
+  const bar=page.document.querySelector('.recording-timeline') as HTMLElement,video=page.document.querySelector('video') as HTMLVideoElement;
+  const durationMs=detail({},[moment]).durationMs as number,seeks:number[]=[];let time=0;
+  Object.defineProperty(video,'currentTime',{configurable:true,get:()=>time,set:(value:number)=>{time=value;seeks.push(value);}});
+  bar.getBoundingClientRect=()=>({left:0,top:0,width:1000,height:72,right:1000,bottom:72,x:0,y:0,toJSON:()=>({})} as DOMRect);
+  const at=(ms:number)=>ms/durationMs*1000;
+  const fire=(target:Element,type:string,clientX:number)=>page.act(()=>{target.dispatchEvent(new page.window.MouseEvent(type,{bubbles:true,cancelable:true,button:0,clientX}));});
+  assert.equal(page.document.querySelectorAll('.moment-resize').length,2,'saved moments keep their draggable ends');
+  assert.match(page.text(),/Moments 1 marked/);
+  await fire(bar,'pointermove',at(4000));
+  assert.equal(page.document.querySelector('.timeline-hover')?.textContent?.endsWith('0:04'),true);
+  assert.equal(seeks.length,0,'hover previews without moving the player');
+  await fire(bar,'pointerdown',at(5000));await fire(bar,'pointerup',at(5000));
+  assert.deepEqual(seeks,[5],'a click jumps');assert.match(page.text(),/Moments 1 marked/);
+  const handle=page.document.querySelector('.timeline-playhead-handle') as HTMLElement;
+  await fire(handle,'pointerdown',at(5000));await fire(handle,'pointermove',at(6000));await fire(handle,'pointerup',at(6000));
+  assert.deepEqual(seeks,[5,6],'the handle scrubs');assert.match(page.text(),/Moments 1 marked/,'scrubbing never marks');
+  await fire(bar,'pointerdown',at(6000));await fire(bar,'pointermove',at(6500));await fire(bar,'pointermove',at(8000));await fire(bar,'pointerup',at(8000));
+  assert.match(page.text(),/Moments 2 marked/,'dragging across the bar still marks a moment');
+  assert.equal(page.document.querySelector('button[aria-label="Moment 2 at 0:06"]')!==null,true);
+ }finally{page.cleanup();}
+});
