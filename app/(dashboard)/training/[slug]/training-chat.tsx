@@ -116,6 +116,6 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
   {target&&<div className="rounded-lg border border-ink-700 p-3 text-secondary">{request?.quote&&target.id===request.target.id&&target.digest===request.target.digest&&<blockquote className="mb-3 border-l-2 border-ink-600 pl-3 text-reading ">{request.quote}</blockquote>}{target.kind==='feedback'?'Preparing a learning from the selected original feedback.':'Editing the selected teaching as a new private version.'} Nothing is sent until Send. <button type="button" disabled={sending} onClick={()=>{setTarget(null);pending.current=null;}}>Cancel</button></div>}
 
   {error&&<div role="alert" className="space-y-2"><p className="text-reading text-state-needs">{error==='training_chat_unavailable'?'This conversation couldn’t load. Try loading it again.':error.replaceAll('_',' ')}</p>
-   <button type="button" disabled={!sessionId||loading||sending} onClick={()=>load()}>Retry loading conversation</button></div>}
+   <button type="button" className="btn-outline" disabled={!sessionId||loading||sending} onClick={()=>load()}>Retry loading conversation</button></div>}
  </ChatFrame><Modal open={!!editTurn} onClose={()=>setEditTurn(null)} title="Review agent change">{editTurn&&<ImproveAgent key={editTurn.turnId} slug={slug} bare initialNote={editTurn.message} statusUnavailable={disabled||editUnavailable||!canSend||editTurn.versionId!==versionId} trainingChatBinding={{sessionId,turnId:editTurn.turnId,expectedActiveVersionId:editTurn.versionId}}/>}</Modal></>;
 }
