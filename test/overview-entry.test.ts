@@ -27,7 +27,7 @@ new Function('require', 'module', 'exports', code)((name: string) => {
 const OverviewPage = module.exports.default;
 
 test('ordinary legacy Desktop launch redirects before old Build/Today/Results reads', async () => {
-  await assert.rejects(OverviewPage(), error => (error as any).redirect === '/work');
+  await assert.rejects(OverviewPage({}), error => (error as any).redirect === '/work');
   assert.equal(legacyReads, 0);
 });
 

@@ -50,7 +50,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function OverviewPage({ searchParams }: {
   searchParams?: Record<string, string | string[] | undefined>;
-} = {}) {
+}) {
   const intent = Array.isArray(searchParams?.intent) ? searchParams.intent[0] : searchParams?.intent;
   if (!intent?.trim()) redirect(legacyDestination('/work', searchParams));
 
