@@ -352,6 +352,25 @@ export function anchorLabel(anchor: ReviewAnchor | Record<string, unknown> | nul
 }
 
 /**
+ * The Training note's title: WHEN, in player time ("0:46", or "0:46 – 0:52" for a
+ * range). The exact position and picture coordinates stay in `anchorLabel`, which
+ * the row keeps as its tooltip. Anchors with no time fall back to a plain phrase.
+ */
+export function noteTimeLabel(anchor: ReviewAnchor | Record<string, unknown> | null | undefined): string {
+  const a = anchor as Record<string, unknown> | null | undefined;
+  if (!a) return '';
+  const span = (startMs: number, endMs: unknown) => {
+    const start = formatMediaTime(startMs);
+    return endMs === null || endMs === undefined || !(Number(endMs) > startMs) ? start : `${start} – ${formatMediaTime(Number(endMs))}`;
+  };
+  if (isSpatialAnchorV2(a)) {
+    return a.temporal ? span(a.temporal.startMs, a.temporal.endMs) : a.geometry.kind === 'rect' ? 'Marked area' : 'Marked spot';
+  }
+  if (a.type === 'media_time') return span(Number(a.timeStartMs) || 0, a.timeEndMs);
+  return anchorLabel(a);
+}
+
+/**
  * Deterministic issue order for the rail: media time, then PDF page, then text
  * offset, then creation. Whole-artifact comments come last. Same ordering the
  * backend compiles the brief in, so the rail and the brief never disagree.

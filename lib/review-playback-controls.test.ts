@@ -175,3 +175,21 @@ test('teaching transport keeps readable clocks and truthful precise-step descrip
   await h.page.click(h.button('Mute'));assert.match(h.page.text(),/Sound off/);
  }finally{h.cleanup();}
 });
+
+test('teaching pages: Space plays and pauses from the page, but never while typing or on a control', async () => {
+  const h = await mount();
+  try {
+    const space = async (target: Element) => h.page.act(() => { target.dispatchEvent(new h.page.window.KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })); });
+    await space(h.page.document.body);
+    assert.equal(h.state.plays, 0, 'ordinary review keeps Space on the focused player only');
+    await h.page.rerender({ ...h.props, variant: 'teaching' });
+    await space(h.page.document.body); assert.equal(h.state.plays, 1);
+    await space(h.page.document.body); assert.equal(h.state.pauses, 1);
+    const field = h.page.document.createElement('textarea'); h.page.document.body.appendChild(field);
+    await space(field); await space(h.button('Play'));
+    assert.deepEqual([h.state.plays, h.state.pauses], [1, 1], 'typing a space or pressing a focused button is not a transport command');
+    const player = h.page.document.querySelector('[data-testid="review-playback"]')!;
+    await space(player);
+    assert.deepEqual([h.state.plays, h.state.pauses], [2, 1], 'the focused player toggles once, not twice');
+  } finally { h.cleanup(); }
+});

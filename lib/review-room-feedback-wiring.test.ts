@@ -153,7 +153,9 @@ test('an edit updates in place — it is never a second create', () => {
 });
 
 test('the composer renders from the draft, so it cannot exist without a frozen anchor', () => {
-  assert.match(source, /\{draft && !frozen && !accepted && \(/,
+  // Item 16: the composer became one `composer` value so Training can place it in the
+  // notes column; it is still derived from the draft and nothing else.
+  assert.match(source, /const composer = draft && !frozen && !accepted \? \(/,
     'a separate open flag is how a composer ends up on screen with a position nobody snapshotted');
   assert.match(source, /\{composerHeaderLabel\(draft\)\}/);
 });
