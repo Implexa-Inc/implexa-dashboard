@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { isAuthApiError, isAuthSessionMissingError } from '@supabase/supabase-js';
+import { isAuthApiError, isAuthError, isAuthSessionMissingError } from '@supabase/supabase-js';
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -22,7 +22,7 @@ function authUnavailable(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const acceptsHtml = request.headers.get('accept')?.split(',').some(value => {
     const [type, ...parameters] = value.trim().toLowerCase().split(';');
-    return type === 'text/html' && !parameters.some(parameter => /^\s*q\s*=\s*0(?:\.0*)?\s*$/.test(parameter));
+    return type.trim() === 'text/html' && !parameters.some(parameter => /^\s*q\s*=\s*0(?:\.0*)?\s*$/.test(parameter));
   });
   const destination = request.headers.get('sec-fetch-dest');
   if (['GET', 'HEAD'].includes(request.method) && acceptsHtml
@@ -73,7 +73,7 @@ export async function middleware(request: NextRequest) {
   function unavailable(reason: 'invalid_result' | 'sdk_error' | 'aborted' | 'exception', error?: unknown) {
     controller.abort();
     try {
-      const status = isAuthApiError(error) && Number.isInteger(error.status)
+      const status = isAuthError(error) && typeof error.status === 'number' && Number.isInteger(error.status)
         && error.status >= 400 && error.status <= 599 ? error.status : null;
       // Failure-only metadata. No route/query, identity, cookies, SDK message or
       // arbitrary error fields. Diagnostics must never change the auth result.

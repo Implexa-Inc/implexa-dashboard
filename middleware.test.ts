@@ -407,6 +407,9 @@ test('failure diagnostics distinguish refresh and verification without logging S
   assert.deepEqual({ ...JSON.parse(records[0]), durationMs: 0 }, {
     event: 'auth.read_unavailable', phase: 'verify', reason: 'sdk_error', upstreamStatus: 500, durationMs: 0,
   });
+  globalThis.fetch = async () => json({ message: 'private retryable detail' }, 503);
+  await unavailable(await middleware(request()));
+  assert.equal(JSON.parse(records.at(-1)!).upstreamStatus, 503, 'retryable SDK errors retain only their numeric status too');
   t.mock.method(Date, 'now', () => new Date().getTime() + 7200000);
   // A real SDK refresh refuses this non-retryable unexpected response.
   globalThis.fetch = async () => json({ message: 'private refresh detail', code: 'unexpected' }, 400);
