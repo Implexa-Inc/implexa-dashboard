@@ -41,7 +41,7 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
  const identity=`${conversationIdentity}:${guided?'scoped':'legacy'}`,latest=useRef(identity);latest.current=identity;
  const pending=useRef<{identity:string;message:string;turnId:string;targetKey:string;scopeContract?:'training-direction-scope.v1'}|null>(null);
  const load=async(signal?:AbortSignal)=>{
-  if(!sessionId)return;const captured=identity;setLoading(true);setError('');
+  if(!sessionId)return;const captured=identity;setLoading(true);setCanSend(false);setError('');
   try{
    const q=new URLSearchParams({sessionId,...(selectedSourceId?{sourceId:selectedSourceId}:{}),...(guided?{directionScopeContract:'training-direction-scope.v1'}:{})});
    const r=await fetch(`/api/agent-training/chat?${q}`,{cache:'no-store',signal});const v:Reply=await r.json();
@@ -112,9 +112,10 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
      <button type="button" disabled={!actionable||sending} onClick={()=>onAction(t.action,{versionId:t.versionId,sourceId:t.sourceId,sourceSha256:t.sourceSha256})}>{names[t.action]}</button>)}
    </li>;
   })}</ol>
-  {!canSend&&sessionId&&!loading&&<p>Sending is unavailable until this session matches the active agent version.</p>}
+  {!canSend&&sessionId&&!loading&&!error&&<p>Sending is unavailable for this conversation. Refresh saved messages to recheck.</p>}
   {target&&<div className="rounded-lg border border-ink-700 p-3 text-secondary">{request?.quote&&target.id===request.target.id&&target.digest===request.target.digest&&<blockquote className="mb-3 border-l-2 border-ink-600 pl-3 text-reading ">{request.quote}</blockquote>}{target.kind==='feedback'?'Preparing a learning from the selected original feedback.':'Editing the selected teaching as a new private version.'} Nothing is sent until Send. <button type="button" disabled={sending} onClick={()=>{setTarget(null);pending.current=null;}}>Cancel</button></div>}
 
-  {error&&<p role="alert" className="text-reading text-state-needs">{error.replaceAll('_',' ')}</p>}
+  {error&&<div role="alert" className="space-y-2"><p className="text-reading text-state-needs">{error==='training_chat_unavailable'?'This conversation couldn’t load. Try loading it again.':error.replaceAll('_',' ')}</p>
+   <button type="button" className="btn-outline" disabled={!sessionId||loading||sending} onClick={()=>load()}>Retry loading conversation</button></div>}
  </ChatFrame><Modal open={!!editTurn} onClose={()=>setEditTurn(null)} title="Review agent change">{editTurn&&<ImproveAgent key={editTurn.turnId} slug={slug} bare initialNote={editTurn.message} statusUnavailable={disabled||editUnavailable||!canSend||editTurn.versionId!==versionId} trainingChatBinding={{sessionId,turnId:editTurn.turnId,expectedActiveVersionId:editTurn.versionId}}/>}</Modal></>;
 }

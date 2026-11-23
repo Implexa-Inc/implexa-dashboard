@@ -180,5 +180,75 @@
     }
   ],
   "networkForbiddenByThrowingFetch": true,
-  "coachFixtureScope": "Disposable full-schema PostgreSQL every575\u2013646 migration, real service_role RPC + real backend service/GET + real Dashboard GET/server reader/validator. Existing storage platform fixture reused. Synthetic question rows with bootstrap guards disabled test projection only, not receipt validity/production authority; actual 503 from deliberately failed PostgreSQL read."
+  "coachFixtureScope": "Disposable full-schema PostgreSQL every575–646 migration, real service_role RPC + real backend service/GET + real Dashboard GET/server reader/validator. Existing storage platform fixture reused. Synthetic question rows with bootstrap guards disabled test projection only, not receipt validity/production authority; actual 503 from deliberately failed PostgreSQL read.",
+  "chatCapture": {
+    "scope": "Actual chat SQL/session projection + service + backend GET + Dashboard GET; synthetic raw rows/auth only, no provider/network/production calls",
+    "backendCommit": "35f89adf44b5801914168a36117b6c386f2afdfa",
+    "fullSchemaThroughMigration": 646,
+    "sqlRole": "service_role",
+    "sessionId": "90000000-0000-4000-8000-000000000020",
+    "producers": [
+      {
+        "file": "src/routes/agent-training.js",
+        "sha256": "f82ee5e8d96a863bfed81767f04f4648edeb697423c425e3fbb370e3d0343ac0"
+      },
+      {
+        "file": "src/services/training-local.service.js",
+        "sha256": "1982c0931e0ccd320955fc4a1cd67e78bd1175abba844b2837653f74d32012d2"
+      },
+      {
+        "file": "src/services/agent-training.service.js",
+        "sha256": "d4a21f4d56255452b3cab0674d7effb706830fc29ab990ef52e808b10013735f"
+      },
+      {
+        "file": "src/lib/agent-training.js",
+        "sha256": "3fca848501ca84dce8be0f667d46626ccc4e9d0ab1832c95ebc1b8a474fdc925"
+      },
+      {
+        "file": "src/lib/training-chat.js",
+        "sha256": "3c1a6321d8357fd78b50b4651ae03f764954112150c6ec0c7a786cb7bcb1cb5e"
+      },
+      {
+        "file": "supabase/migrations/0206_agent_training_foundation.sql",
+        "sha256": "631d6380ba9edb39894d37b360a73a643860e5fe498c9ec5661a98a984960a75"
+      },
+      {
+        "file": "supabase/migrations/0539_agent_training_chat.sql",
+        "sha256": "c0f6baa217906974322e7b2c8052bf3dba2e519fe02ef86e388715a845978640"
+      },
+      {
+        "file": "scripts/smoke-execution-lifecycle-full-schema.js",
+        "sha256": "87dcf6f6d171fdf2dfa73344ad1f434f62255eb9b9ce870b5956ce124c1903b5"
+      },
+      {
+        "file": "scripts/lib/segmented-postgres-replay.js",
+        "sha256": "a36c017638e2e3c8928e527ec81c72a4e572cb3768cc3e2f716d0035768bf985"
+      }
+    ],
+    "dashboardProducers": [
+      {
+        "file": "app/api/agent-training/chat/route.ts",
+        "sha256": "c693e90b947333b213f145ce303afd387ab38a9bcdf6b0f3d02934bbff6663e2"
+      },
+      {
+        "file": "lib/trainer-questions.ts",
+        "sha256": "71ab547cc7c95640e058d0756a0ebea524336f77a2e9746cb01a9cba1f714894"
+      },
+      {
+        "file": "lib/test/fixtures/training-owner-context/generate.cjs",
+        "sha256": "653dc9b0187425deb304f987e2381fdde980ae29366d6c79a6d4602bcb73ada6"
+      }
+    ],
+    "fixtureFiles": [
+      {
+        "file": "backend-chat-ready.json",
+        "sha256": "eaed761d1b667ae67225254165b425d3c365cd2576ef051ec761120585456376"
+      },
+      {
+        "file": "chat-ready.json",
+        "sha256": "62985f5ee42cbc9f3e557a710142d61de1ef35197e53fbdeb6a74c0856c4215d"
+      }
+    ],
+    "networkForbiddenByThrowingFetch": true
+  }
 }

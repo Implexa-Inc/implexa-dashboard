@@ -1,0 +1,36 @@
+{
+  "status": 200,
+  "headers": {
+    "cache-control": "no-store",
+    "content-type": "application/json"
+  },
+  "body": {
+    "ok": true,
+    "contractVersion": "training-chat.v1",
+    "baseVersionId": "90000000-0000-4000-8000-000000000003",
+    "activeVersionId": "90000000-0000-4000-8000-000000000003",
+    "canSend": true,
+    "turns": [],
+    "totalTurns": 0,
+    "context": {
+      "agent": {
+        "id": "90000000-0000-4000-8000-000000000002",
+        "name": "owned",
+        "slug": "owned",
+        "versionId": "90000000-0000-4000-8000-000000000003"
+      },
+      "boundMethods": [],
+      "researchMethodPresent": false,
+      "availableGuidanceStages": [],
+      "stages": [],
+      "setupExcerpted": false,
+      "source": null,
+      "recordingProposal": null,
+      "availableActions": [
+        "none",
+        "review_method",
+        "test_agent"
+      ]
+    }
+  }
+}
