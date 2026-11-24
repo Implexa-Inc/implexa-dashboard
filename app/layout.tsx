@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { JetBrains_Mono, Shippori_Mincho, Zen_Kaku_Gothic_New } from 'next/font/google';
 import { themeBootScript, themeMode } from '@/lib/theme';
+import { WebAnalytics } from '@/components/web-analytics';
 
 // Tukido type system (Implexa/tukido-app-design/DESIGN_SYSTEM.md):
 //   UI       → Zen Kaku Gothic New (everything you read and click)
@@ -54,7 +55,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript(mode) }} />
       </head>
-      <body className="min-h-screen antialiased">{children}</body>
+      <body className="min-h-screen antialiased">
+        {children}
+        <WebAnalytics />
+      </body>
     </html>
   );
 }
