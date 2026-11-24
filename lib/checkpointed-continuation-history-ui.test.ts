@@ -16,7 +16,9 @@ test('run page renders exact continuation identity and stage history', () => {
   }
   assert.match(page, /checkpointedContinuations/);
   assert.match(page, /CheckpointedContinuationHistoryCard/);
-  assert.match(page, /<CheckpointedContinuationHistoryCard history={checkpointedContinuations} \/>/);
+  // Intentional owner-recovery behavior: the existing history control now
+  // receives its actual run identity for the disjoint Desktop variant.
+  assert.match(page, /<CheckpointedContinuationHistoryCard history={checkpointedContinuations} runId={r.id} \/>/);
   assert.match(component, /short\(item\.checkpointId\)/);
 });
 

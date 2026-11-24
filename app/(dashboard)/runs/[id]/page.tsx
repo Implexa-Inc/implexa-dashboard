@@ -1476,7 +1476,7 @@ export default async function RunDetailPage({
           </div>
         )}
 
-        <CheckpointedContinuationHistoryCard history={checkpointedContinuations} />
+        <CheckpointedContinuationHistoryCard history={checkpointedContinuations} runId={r.id} />
 
         {!showFinishedReview&&brollAction}
 

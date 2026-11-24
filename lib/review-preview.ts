@@ -43,6 +43,8 @@ type DesktopBridge = {
   createStagePreview?: (runId: string, preparationId: string) => Promise<unknown>;
   approveStagePreview?: (runId: string, preparationId: string, decisionDigest: string, ownerSessionToken: string) => Promise<unknown>;
   reviseStagePreview?: (runId: string, preparationId: string, decisionDigest: string, ownerSessionToken: string) => Promise<unknown>;
+  createCheckpointRecovery?:(runId:string,requestId:string,launchAttemptId:string)=>Promise<unknown>;
+  resumeCheckpointRecovery?:(runId:string,requestId:string,launchAttemptId:string,decisionDigest:string,ownerSessionToken:string)=>Promise<unknown>;
   resumeStagePreview?: (runId: string, preparationId: string, decisionDigest: string, ownerSessionToken: string) => Promise<unknown>;
   revokeArtifactPreview?: (token: string) => Promise<unknown>;
 };
@@ -451,4 +453,24 @@ async function stagePreviewDecision(runId:string,preparationId:string,decisionDi
   if(typeof action!=='function')return {ok:false,error:'update_required'};
   try{return await action(runId,preparationId,decisionDigest,ownerSessionToken);}
   catch{return {ok:false,error:'scene_preview_owner_approval_unconfirmed'};}
+}
+
+// Ordinary checkpoint recovery uses the existing transient owner-session
+// bridge, with a disjoint typed variant. No file path or witness enters React.
+export async function requestCheckpointRecovery(runId:string,requestId:string,launchAttemptId:string):Promise<unknown>{
+  if(![runId,requestId,launchAttemptId].every(id=>RUN_ID_RE.test(id)))return {ok:false,error:'bad_request'};
+  const w=(typeof window!=='undefined'?window:undefined) as WindowWithBridge|undefined;
+  if(!w?.implexaDesktop)return {ok:false,error:'desktop_required'};
+  if(typeof w.implexaDesktop.createCheckpointRecovery!=='function')return {ok:false,error:'update_required'};
+  try{return await w.implexaDesktop.createCheckpointRecovery(runId,requestId,launchAttemptId);}
+  catch{return {ok:false,error:'checkpoint_prelaunch_recovery_unavailable'};}
+}
+export async function resumeCheckpointRecovery(runId:string,requestId:string,launchAttemptId:string,decisionDigest:string,ownerSessionToken:string):Promise<unknown>{
+  if(![runId,requestId,launchAttemptId].every(id=>RUN_ID_RE.test(id))||!HASH_RE.test(decisionDigest)
+    ||typeof ownerSessionToken!=='string'||ownerSessionToken.length<16||ownerSessionToken.length>16384)return {ok:false,error:'bad_request'};
+  const w=(typeof window!=='undefined'?window:undefined) as WindowWithBridge|undefined;
+  if(!w?.implexaDesktop)return {ok:false,error:'desktop_required'};
+  if(typeof w.implexaDesktop.resumeCheckpointRecovery!=='function')return {ok:false,error:'update_required'};
+  try{return await w.implexaDesktop.resumeCheckpointRecovery(runId,requestId,launchAttemptId,decisionDigest,ownerSessionToken);}
+  catch{return {ok:false,error:'checkpoint_prelaunch_recovery_unconfirmed'};}
 }
