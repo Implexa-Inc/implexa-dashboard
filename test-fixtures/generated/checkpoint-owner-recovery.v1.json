@@ -1,0 +1,270 @@
+{
+  "contractVersion": "checkpoint-owner-recovery-producer.v1",
+  "scope": "Real disposable PostgreSQL through0652+0653; real Backend and Desktop main/bridge/custody producers; controlled OS process/custody bytes and owner-session verification seam; no provider/network or actual OS executor.",
+  "producers": {
+    "backend/supabase/migrations/0653_checkpoint_prelaunch_owner_recovery.sql": "8bc60b49e5478c0367c5ab516c9e2b8d9b8b3bb07caaa41cbc4604503865cfa7",
+    "backend/src/services/run-launch-attempt.service.js": "eef1ccd835bef47ae78bafb0ebfbe9dacde091818e1db47fbadd4a9ff5ab0dbe",
+    "backend/src/services/execution-engine.service.js": "3d048c181e178e02c41f6cb5ff3460dac4a60e1970cc1bffa4d238309eb8c53c",
+    "backend/scripts/checkpoint-owner-recovery.postgres.test.js": "44b27a9dddd7eded2e9bb532457eb831ea22da7d89b1768c545b14d1143c0f79",
+    "desktop/src/main.js": "21edb0afc67a2b005bfc7dfb35f17c6e1c41f0f73c5268a69dcc8700257ee149",
+    "desktop/src/artifact-preview.js": "450902b54fc50c2bf4a952760b6d56033bcc4cfdb8827cdacb661806fdb9a5da",
+    "desktop/src/execution/managed-process-group-absence.js": "6a66a026a069a47460cabca3da32d757991ba086146c84aca14f68ce226b7c53",
+    "desktop/src/execution/execution-checkpoint-store.js": "9176b0d5b211b59475691d6662d3b989f78d1102ef4eaa88c6a7ee82b85500b3"
+  },
+  "captures": [
+    {
+      "kind": "run",
+      "serverOffer": {
+        "runId": "ec120000-0000-4000-8000-000000006901",
+        "contextId": "81577dfd-05eb-4168-bd28-6b367240a827",
+        "machineId": "ec120000-0000-4000-8000-000000006002",
+        "requestId": "ec120000-0000-4000-8000-000000006900",
+        "workspace": "/private/tmp/implexa-checkpoint-owner-xnG3Aq/909561b6-351f-4e53-a1d2-9895e11cf71a",
+        "checkpoint": {
+          "runId": "ec120000-0000-4000-8000-000000006901",
+          "receipts": {},
+          "artifacts": [],
+          "requestId": "ec120000-0000-4000-8000-000000006900",
+          "snapshots": [
+            {
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "sizeBytes": 0,
+              "outputName": "source_manifest",
+              "snapshotId": "83a04d56-ef33-5c4c-b2ef-3ed34c741bb1",
+              "producerStep": 1,
+              "relativePath": "out/source.json"
+            }
+          ],
+          "stageCount": 4,
+          "stageIndex": 1,
+          "fencingEpoch": 1,
+          "contractVersion": "desktop-execution-checkpoint.v2",
+          "drainRetryEpoch": 0,
+          "launchAttemptId": "ec120000-0000-4000-8000-000000006902",
+          "checkpointDigest": "a18900219f7b9bd56095619b503d937ee63dbd96af7314131bc457dca9211f8f",
+          "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
+          "inputManifestDigest": "a05758b09550658bfb0137e5bba03bd5a97bab0242c78fbfeee2ab081ee1573e",
+          "recoveryPolicyDigest": "0a7322f711cdfe982abe38c5ffaaa68f5d79bd07415aefb02ae067637c7e614a",
+          "hardeningManifestDigest": "4454b79c7d592630768cd99ac7e46bcd7990667b797f5851b6dcfe93b58764c9",
+          "lifecycleContractDigest": "43924ac4c3bdc10119739c103b0bfdc67ebede93d0e3ae9dfd1d845423ff89b3"
+        },
+        "disclosure": "Server-fenced; local actions between bind and retirement are unverified.",
+        "fencingEpoch": 2,
+        "inputManifest": [
+          {
+            "sha256": "17a57ea3b170d0cd40778006a61f9d08a812e579dcb48e563e262580c2b51692",
+            "artifactId": "ec120000-0000-4000-8000-000000006006",
+            "semanticKey": "source",
+            "bindingOrdinal": 1
+          }
+        ],
+        "preImageDigest": "25034dfe224ba35d5c96d5b17c1b2ce8148e320ef621e1da80df62310fa759dc",
+        "contractVersion": "checkpoint-prelaunch-offer.v1",
+        "launchAttemptId": "909561b6-351f-4e53-a1d2-9895e11cf71a",
+        "materialization": {
+          "runId": "ec120000-0000-4000-8000-000000006901",
+          "requestId": "ec120000-0000-4000-8000-000000006900",
+          "totalBytes": 0,
+          "fencingEpoch": 2,
+          "artifactCount": 0,
+          "snapshotCount": 1,
+          "contractVersion": "desktop-execution-checkpoint-materialization-proof.v2",
+          "drainRetryEpoch": 0,
+          "checkpointDigest": "a18900219f7b9bd56095619b503d937ee63dbd96af7314131bc457dca9211f8f",
+          "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
+          "inputManifestDigest": "a05758b09550658bfb0137e5bba03bd5a97bab0242c78fbfeee2ab081ee1573e",
+          "recoveryPolicyDigest": "0a7322f711cdfe982abe38c5ffaaa68f5d79bd07415aefb02ae067637c7e614a",
+          "materializationDigest": "5bec8f93da0d185085103cb6096ba01aa549501a42a1114a7c9198bfd731d003",
+          "sourceLaunchAttemptId": "ec120000-0000-4000-8000-000000006902",
+          "snapshotManifestDigest": "bb3c3a80525e89be9c960c224c550f30d61a8482173d9c9c50d14b256083b659",
+          "destinationLaunchAttemptId": "909561b6-351f-4e53-a1d2-9895e11cf71a",
+          "sourceLifecycleContractDigest": "43924ac4c3bdc10119739c103b0bfdc67ebede93d0e3ae9dfd1d845423ff89b3",
+          "destinationLifecycleContractDigest": "88763f52c813c8108830b96b2ac8161ef54b6c8d808b89d0535d725b532b3ad4"
+        },
+        "disclosureVersion": "server-fenced-local-actions-unverified.v1",
+        "lifecycleDeadlineAt": "2026-11-24T09:04:44.212-08:00"
+      },
+      "clientView": {
+        "ok": true,
+        "runId": "ec120000-0000-4000-8000-000000006901",
+        "requestId": "ec120000-0000-4000-8000-000000006900",
+        "launchAttemptId": "909561b6-351f-4e53-a1d2-9895e11cf71a",
+        "decisionDigest": "25034dfe224ba35d5c96d5b17c1b2ce8148e320ef621e1da80df62310fa759dc",
+        "disclosure": "Server-fenced; local actions between bind and retirement are unverified."
+      },
+      "clientCommand": {
+        "contractVersion": "checkpoint-prelaunch-recovery.v1",
+        "actionId": "9147b8ba-5dcc-408f-863a-ff813992f461",
+        "preImageDigest": "25034dfe224ba35d5c96d5b17c1b2ce8148e320ef621e1da80df62310fa759dc",
+        "contextId": "81577dfd-05eb-4168-bd28-6b367240a827",
+        "fencingEpoch": 2,
+        "absenceDigest": "157bf9ae36b5997d73655cd70bb2c25a1f7d8fef59e425cb2dbb914425c325ee",
+        "observedAt": "2026-11-24T05:04:44.397Z",
+        "disclosureVersion": "server-fenced-local-actions-unverified.v1"
+      },
+      "serverResult": {
+        "ok": true,
+        "reconciled": true,
+        "reason": null,
+        "requeued": true,
+        "historical": false,
+        "ownerLaunchRecovery": {
+          "requestId": "ec120000-0000-4000-8000-000000006900",
+          "launchAttemptId": "909561b6-351f-4e53-a1d2-9895e11cf71a"
+        }
+      },
+      "clientResult": {
+        "ok": true,
+        "continuationRequestId": "ec120000-0000-4000-8000-000000006900",
+        "historical": false
+      },
+      "serverHistorical": {
+        "ok": true,
+        "reconciled": true,
+        "reason": null,
+        "requeued": false,
+        "historical": true,
+        "ownerLaunchRecovery": {
+          "requestId": "ec120000-0000-4000-8000-000000006900",
+          "launchAttemptId": "909561b6-351f-4e53-a1d2-9895e11cf71a"
+        }
+      },
+      "clientHistorical": {
+        "ok": true,
+        "continuationRequestId": "ec120000-0000-4000-8000-000000006900",
+        "historical": true
+      }
+    },
+    {
+      "kind": "owner_continue",
+      "serverOffer": {
+        "runId": "426322bc-2af8-4fa8-ac6d-84d5e51db18c",
+        "contextId": "1f4b1483-6832-4fe8-9db6-fdadada160ce",
+        "machineId": "ec120000-0000-4000-8000-000000006002",
+        "requestId": "ec120000-0000-4000-8000-000000019000",
+        "workspace": "/private/tmp/implexa-checkpoint-owner-xnG3Aq/af3af611-3c1b-4fa3-a165-1df819cce6fa",
+        "checkpoint": {
+          "runId": "426322bc-2af8-4fa8-ac6d-84d5e51db18c",
+          "receipts": {},
+          "artifacts": [],
+          "requestId": "ec120000-0000-4000-8000-000000019000",
+          "snapshots": [
+            {
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "sizeBytes": 0,
+              "outputName": "timing",
+              "snapshotId": "20c89077-e3d6-5075-bcfb-82cf37308fa9",
+              "producerStep": 1,
+              "relativePath": "out/timing-contract.json"
+            },
+            {
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "sizeBytes": 0,
+              "outputName": "source_manifest",
+              "snapshotId": "8cd93a01-e7c2-536e-9387-b571573519f9",
+              "producerStep": 1,
+              "relativePath": "out/source.json"
+            }
+          ],
+          "stageCount": 4,
+          "stageIndex": 1,
+          "fencingEpoch": 1,
+          "contractVersion": "desktop-execution-checkpoint.v2",
+          "drainRetryEpoch": 0,
+          "launchAttemptId": "b81af25e-d0b9-4c03-bf80-10d34e25963c",
+          "checkpointDigest": "cdd2540b71aefa2d023845bf32cfe52e85d50b4a8c4e4b9c09f08df28f8625bf",
+          "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
+          "inputManifestDigest": "a05758b09550658bfb0137e5bba03bd5a97bab0242c78fbfeee2ab081ee1573e",
+          "recoveryPolicyDigest": "1ed030ff950ed4d4ce2465d7a816a3a4228d39eb0cd6c9884b739cff6d40a9e3",
+          "hardeningManifestDigest": "fd2896e947f577c1e6e10019fcb65f34a621eacb358609bb8b23fdd6fedbb6ac",
+          "lifecycleContractDigest": "0c3dd63056ad93c55a23704f1b70ba563e15c35e742d67707bce4facb0c44f3e"
+        },
+        "disclosure": "Server-fenced; local actions between bind and retirement are unverified.",
+        "fencingEpoch": 2,
+        "inputManifest": [
+          {
+            "sha256": "17a57ea3b170d0cd40778006a61f9d08a812e579dcb48e563e262580c2b51692",
+            "artifactId": "ec120000-0000-4000-8000-000000006006",
+            "semanticKey": "source",
+            "bindingOrdinal": 1
+          }
+        ],
+        "preImageDigest": "ce36e32680e4210d59378be78a5a56d80e83d927f0c367253359052c95974664",
+        "contractVersion": "checkpoint-prelaunch-offer.v1",
+        "launchAttemptId": "af3af611-3c1b-4fa3-a165-1df819cce6fa",
+        "materialization": {
+          "runId": "426322bc-2af8-4fa8-ac6d-84d5e51db18c",
+          "requestId": "ec120000-0000-4000-8000-000000019000",
+          "totalBytes": 0,
+          "fencingEpoch": 2,
+          "artifactCount": 0,
+          "snapshotCount": 2,
+          "contractVersion": "desktop-execution-checkpoint-materialization-proof.v2",
+          "drainRetryEpoch": 0,
+          "checkpointDigest": "cdd2540b71aefa2d023845bf32cfe52e85d50b4a8c4e4b9c09f08df28f8625bf",
+          "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
+          "inputManifestDigest": "a05758b09550658bfb0137e5bba03bd5a97bab0242c78fbfeee2ab081ee1573e",
+          "recoveryPolicyDigest": "1ed030ff950ed4d4ce2465d7a816a3a4228d39eb0cd6c9884b739cff6d40a9e3",
+          "materializationDigest": "86370ea054435aec9416a19e506198c3f8dc11921cfb3836c6011bbd39736cab",
+          "sourceLaunchAttemptId": "b81af25e-d0b9-4c03-bf80-10d34e25963c",
+          "snapshotManifestDigest": "eddc5c23ba45fcba6645cde1afdf07f28f4ec3680ecb46a941ec14344b104d83",
+          "destinationLaunchAttemptId": "af3af611-3c1b-4fa3-a165-1df819cce6fa",
+          "sourceLifecycleContractDigest": "0c3dd63056ad93c55a23704f1b70ba563e15c35e742d67707bce4facb0c44f3e",
+          "destinationLifecycleContractDigest": "af9642168f97df9559ed90aed678984588f869bc678bc75652d36f8e85f85b51"
+        },
+        "disclosureVersion": "server-fenced-local-actions-unverified.v1",
+        "lifecycleDeadlineAt": "2026-11-24T09:04:46.265-08:00"
+      },
+      "clientView": {
+        "ok": true,
+        "runId": "426322bc-2af8-4fa8-ac6d-84d5e51db18c",
+        "requestId": "ec120000-0000-4000-8000-000000019000",
+        "launchAttemptId": "af3af611-3c1b-4fa3-a165-1df819cce6fa",
+        "decisionDigest": "ce36e32680e4210d59378be78a5a56d80e83d927f0c367253359052c95974664",
+        "disclosure": "Server-fenced; local actions between bind and retirement are unverified."
+      },
+      "clientCommand": {
+        "contractVersion": "checkpoint-prelaunch-recovery.v1",
+        "actionId": "c7dafa9d-6579-4adb-adfb-9bc22303b323",
+        "preImageDigest": "ce36e32680e4210d59378be78a5a56d80e83d927f0c367253359052c95974664",
+        "contextId": "1f4b1483-6832-4fe8-9db6-fdadada160ce",
+        "fencingEpoch": 2,
+        "absenceDigest": "6e397c2152d76ec15d4937b85aa90ab11138a5cec0c7dfabe58f57895e8af85d",
+        "observedAt": "2026-11-24T05:04:46.492Z",
+        "disclosureVersion": "server-fenced-local-actions-unverified.v1"
+      },
+      "serverResult": {
+        "ok": true,
+        "reconciled": true,
+        "reason": null,
+        "requeued": true,
+        "historical": false,
+        "ownerLaunchRecovery": {
+          "requestId": "ec120000-0000-4000-8000-000000019000",
+          "launchAttemptId": "af3af611-3c1b-4fa3-a165-1df819cce6fa"
+        }
+      },
+      "clientResult": {
+        "ok": true,
+        "continuationRequestId": "ec120000-0000-4000-8000-000000019000",
+        "historical": false
+      },
+      "serverHistorical": {
+        "ok": true,
+        "reconciled": true,
+        "reason": null,
+        "requeued": false,
+        "historical": true,
+        "ownerLaunchRecovery": {
+          "requestId": "ec120000-0000-4000-8000-000000019000",
+          "launchAttemptId": "af3af611-3c1b-4fa3-a165-1df819cce6fa"
+        }
+      },
+      "clientHistorical": {
+        "ok": true,
+        "continuationRequestId": "ec120000-0000-4000-8000-000000019000",
+        "historical": true
+      }
+    }
+  ]
+}
