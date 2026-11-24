@@ -58,7 +58,7 @@ export default function CheckpointedContinuationHistoryCard({ history,runId }:
         ||r.disclosure!=='Server-fenced; local actions between bind and retirement are unverified.')
         setMessage(r.error==='update_required'?'Update Tukido on the machine holding this work, then check again. No retry is confirmed.'
           :'Recovery could not be verified here. Use the current Desktop on the machine holding this work; no retry is confirmed.');
-      else{setDecision(r.decisionDigest);setMessage(r.disclosure);}
+      else{setDecision(r.decisionDigest);setMessage('The earlier attempt was refused before launch. Any earlier local actions remain unverified.');}
     }finally{inFlight.current=false;setBusy(false);}
   }
   async function resume(){
