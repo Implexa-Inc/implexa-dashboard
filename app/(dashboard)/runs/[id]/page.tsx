@@ -464,14 +464,16 @@ export default async function RunDetailPage({
   // Desktop approval continuation control.
   let verificationStatus: VerificationStatus = null;
   let closeReason: string | null = null;
+  let artifactProvenanceAvailable = false;
   try {
-    const { data: vr } = await supabase
+    const { data: vr, error: provenanceError } = await supabase
       .from('skill_runs').select('verification_status, run_close_reason').eq('id', params.id).maybeSingle();
     const row = vr as { verification_status?: VerificationStatus; run_close_reason?: string | null } | null;
     verificationStatus = row?.verification_status ?? null;
     closeReason = row?.run_close_reason ?? null;
+    artifactProvenanceAvailable = !provenanceError && row !== null;
   } catch { /* columns not present yet — badge/reason simply don't render */ }
-  verifiedArtifacts = withOwnerExportProvenance(verifiedArtifacts, closeReason);
+  verifiedArtifacts = withOwnerExportProvenance(verifiedArtifacts, closeReason, artifactProvenanceAvailable);
 
   const localApprovalContinuationRecovery = isApprovalContinuationRecovery({
     runState: r.run_state,

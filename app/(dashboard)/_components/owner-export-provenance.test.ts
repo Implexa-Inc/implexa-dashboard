@@ -33,3 +33,13 @@ test('ordinary artifacts retain the native verification wording',async()=>{
     assert.equal(artifacts[0].provenance,undefined);
   }finally{view.cleanup();}
 });
+
+
+test('an unavailable provenance read never falls back to native verification copy',async()=>{
+  const artifacts=withOwnerExportProvenance(projectRunArtifacts(fixture.artifacts).verified,null,false);
+  const view=await render('verified-artifacts.tsx',{artifacts});
+  try{
+    assert.match(view.text(),/File provenance could not be checked/);
+    assert.doesNotMatch(view.text(),/Checked on this Mac|Verified by an owner/);
+  }finally{view.cleanup();}
+});

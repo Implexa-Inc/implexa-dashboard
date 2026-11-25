@@ -8,7 +8,7 @@
   },
   "artifacts": [
     {
-      "id": "86e009f4-8a34-4c59-bdfe-f68ad07ba210",
+      "id": "adfb7800-3039-443f-90c8-b686e76f2a55",
       "user_id": "ec120000-0000-4000-8000-000000006000",
       "organization_id": "ec120000-0000-4000-8000-000000006001",
       "run_id": "ec120000-0000-4000-8000-000000024001",
@@ -19,12 +19,12 @@
       "validated_path": "/synthetic-owner-custody/owner-export-11111111-1111-4111-8111-111111111111/owner-export-11111111-1111-4111-8111-111111111111.mp4",
       "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
       "size_bytes": "42",
-      "mtime": "2026-11-25T05:46:28.977Z",
+      "mtime": "2026-11-25T05:53:05.823Z",
       "rejection_reason": null,
-      "declared_at": "2026-11-25T05:46:29.043Z",
-      "validated_at": "2026-11-25T05:46:29.047Z",
+      "declared_at": "2026-11-25T05:53:05.885Z",
+      "validated_at": "2026-11-25T05:53:05.889Z",
       "media_duration_ms": 1000,
-      "media_duration_verified_at": "2026-11-25T05:46:29.047Z",
+      "media_duration_verified_at": "2026-11-25T05:53:05.889Z",
       "input_session_id": null,
       "media_type": "video/mp4",
       "file_extension": ".mp4",
@@ -37,7 +37,7 @@
     }
   ],
   "producer": {
-    "backendSourceSha256": "4b4ffdd41f517bdbb7a747fa7be6a34f4fd69923256426f7ecd95ab49cabac41",
+    "backendSourceSha256": "9ba7ac126beeddb4eee113d69c41f70e99382b941b6ea4c9e9092e46977a6b94",
     "boundary": "Actual full-schema operator writer and SELECT run_artifacts; real Desktop graded-preparation parent; raw synthetic operator/process/clock inputs."
   }
 }
