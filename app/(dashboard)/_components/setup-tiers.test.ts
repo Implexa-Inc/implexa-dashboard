@@ -278,8 +278,8 @@ test('saving setup answers refreshes the parent checklist and Run CTA', () => {
 // already exist.
 test('the duplicate check runs BEFORE queueing, exactly once', () => {
   const src = read('agent-actions.tsx');
-  assert.match(src, /if \(!opts\?\.force\) \{\s*\n\s*const pre = await precheckDuplicate\(note, runFiles\);/,
-    'the check must precede the queue call');
+  assert.match(src, /if \(!opts\?\.force\) \{\s*\n\s*const pre = await precheckDuplicate\(note, runFiles, opts\?\.inputBindingsOverride \?\? inputBindings\);/,
+    'the check must precede the queue call and fingerprint the same input bindings as the request');
   assert.match(src, /setDupe\(\{ message: d\.message, runId: d\.runId \?\? null, fingerprint \}\);\s*\n\s*return;/,
     'a hit must stop and ask — nothing queued yet');
   // force = the user already saw the warning. Re-asking would loop the confirm.

@@ -107,3 +107,11 @@ test('an in-flight build cannot be dismissed out from under itself', () => {
   assert.match(SRC, /const done = TERMINAL\.has\(b\.phase\);/);
   assert.match(SRC, /\{done \? \(\s*\n\s*<button[\s\S]{0,200}aria-label="Dismiss"/, 'dismiss is gated on a terminal phase');
 });
+
+test('the shared dashboard owns the build banner before page content',()=>{
+ const layout=read('../layout.tsx');
+ assert.ok(layout.includes('<BuildingAgents key={profile.id} />'));
+ assert.ok(layout.indexOf('<BuildingAgents')<layout.indexOf('{children}', layout.indexOf('<BuildingAgents')));
+ for(const path of ['../create/page.tsx','../workflows/page.tsx','../overview/page.tsx'])
+   assert.doesNotMatch(read(path),/<BuildingAgents/);
+});
