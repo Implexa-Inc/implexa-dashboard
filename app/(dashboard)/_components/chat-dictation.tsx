@@ -4,7 +4,7 @@ import {createClient} from '@/lib/supabase/client';
 
 type Bridge={chatDictationContractVersion?:string;reviewRecorder?:(operation:string,args:unknown)=>Promise<any>};
 /** Shared local dictation: edits the draft only; Send remains the caller's action. */
-export default function ChatDictation({scope,disabled,onInsert,onBusy}:{scope:string;disabled:boolean;onInsert:(text:string)=>void;onBusy:(busy:boolean)=>void}){
+export default function ChatDictation({scope,disabled,onInsert,onBusy,micIcon=false}:{micIcon?:boolean;scope:string;disabled:boolean;onInsert:(text:string)=>void;onBusy:(busy:boolean)=>void}){
  const [available,setAvailable]=useState(false),[state,setState]=useState(''),[error,setError]=useState('');
  const capture=useRef<{ownerId:string;id:string;composerId:string}|null>(null);
  const discard=()=>{const note=capture.current;capture.current=null;if(note)void (window as unknown as {implexaDesktop?:Bridge}).implexaDesktop?.reviewRecorder?.('discardChatDictation',{expectedOwnerId:note.ownerId,recordingId:note.id,composerId:note.composerId}).catch(()=>{});};
@@ -42,6 +42,16 @@ export default function ChatDictation({scope,disabled,onInsert,onBusy}:{scope:st
   }}
   finally{if(current()){discard();active.current=false;busy.current(false);}}
  }
- if(!available)return null;
- return <div className="text-secondary"><button type="button" aria-label="Dictate message" title="Dictate message" disabled={disabled||active.current} onClick={()=>void start()} className="rounded-lg border border-ink-700 px-3 py-2 text-ink-300 hover:text-ink-100 disabled:opacity-40">🎙 {active.current?'Listening…':'Voice'}</button>{error?<p role="alert" className="mt-2 text-state-needs">{error}</p>:state&&<p role="status" className="mt-2 text-ink-400">{state}</p>}</div>;
+ if(!available&&!micIcon)return null;
+ const label=available?'Dictate message':'Dictation is available in the Tukido desktop app';
+ return <div className="text-secondary">
+  <button type="button" aria-label={label} title={label} disabled={!available||disabled||active.current}
+   onClick={()=>void start()} className="inline-flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-lg border border-ink-700 px-3 py-2 text-ink-300 hover:text-ink-100 disabled:opacity-40">
+   {micIcon?<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/>
+   </svg>:'🎙'}
+   {active.current?'Listening…':!micIcon&&'Voice'}
+  </button>
+  {error?<p role="alert" className="mt-2 text-state-needs">{error}</p>:state&&<p role="status" className="mt-2 text-ink-400">{state}</p>}
+ </div>;
 }
