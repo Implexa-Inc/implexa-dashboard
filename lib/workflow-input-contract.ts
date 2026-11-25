@@ -29,9 +29,12 @@ export type WorkflowInputField = {
    * one. Identity only; nothing here or on the server infers it from labels.
    */
   replaces?: string[];
+  unit?: "seconds";
+  accessKey?: string;
+  freshEachRun?: true;
 };
 
-export type WorkflowInputContract = { version: 1; fields: WorkflowInputField[] };
+export type WorkflowInputContract = { version: 1; fields: WorkflowInputField[]; followUp?: WorkflowInputField[]; orderedIntervals?: Array<{start:string;end:string}> };
 export type LocalInputStorageMode = 'local_range_capability' | 'managed_copy';
 export type ArtifactBinding = {
   artifactId: string;
@@ -114,12 +117,37 @@ export function reusablePreferences<T extends { key: string }>(
   return fields.filter((field) => !superseded.has(field.key));
 }
 
+// A multi-route playbook uses the same keyed fields in the installed version
+// and in the immutable run request. A file is needed only on its file route.
+export function playbookFileSelected(key: string, contract: WorkflowInputContract | null, bindings: RunInputBindings): boolean | null {
+  const declared = contract?.fields.find(field=>field.key===key)?.accessKey;
+  if (!declared && !/^playbook_files_[a-f0-9]{16}$/.test(key)) return null;
+  const routeKey = declared || key.replace('playbook_files_', 'playbook_access_');
+  if (!contract?.fields.some(field => field.key === routeKey && field.kind === 'choice')) return null;
+  return bindings[routeKey] === 'Provided file';
+}
+
+export function timeInputIssue(contract:WorkflowInputContract|null, bindings:RunInputBindings) {
+  for(const field of contract?.fields||[]){
+    const raw=bindings[field.key];
+    if(field.unit==='seconds' && raw && (typeof raw!=='string'||!/^\d+(?:\.\d+)?$/.test(raw.trim())||!Number.isFinite(Number(raw))))return {message:field.label+' requires a nonnegative time in seconds.'};
+  }
+  let previousEnd=0;
+  for(const pair of contract?.orderedIntervals||[]){
+    const start=bindings[pair.start],end=bindings[pair.end];
+    if(!start||!end)continue;
+    if(Number(start)<previousEnd||Number(end)<=Number(start))return {message:'Enter nonoverlapping intervals in order, with each end later than its start.'};
+    previousEnd=Number(end);
+  }
+  return null;
+}
+
 export function missingRequiredInputs(
   contract: WorkflowInputContract | null,
   bindings: RunInputBindings,
 ): WorkflowInputField[] {
   return orderedInputFields(contract).filter((field) => {
-    if (!field.required) return false;
+    if (!(playbookFileSelected(field.key, contract, bindings) ?? field.required)) return false;
     const value = bindings[field.key];
     return value === undefined || value === null || (typeof value === 'string' && !value.trim())
       || (Array.isArray(value) && value.length === 0);

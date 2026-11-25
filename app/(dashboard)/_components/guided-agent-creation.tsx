@@ -5,7 +5,7 @@ import {ChatFrame,ChatMessage,ChatComposer,ChatChoices} from './agent-chat';
 import {creationQuestionChoices} from '@/lib/agent-creation-brief';
 import {useEffect,useRef,useState} from 'react';
 import Link from 'next/link';
-import {createAgentBuild} from '@/lib/plan-review';
+import {createAgentBuild,retrySavedBuild} from '@/lib/plan-review';
 import {AttachFiles,composeNoteWithFiles,useRunAttachments,ATTACH_BUILD_MARKER} from './run-attachments';
 import {isCreationDraftRead,type CreationDraftRead,type CreationTurn} from '@/lib/agent-creation-brief';
 
@@ -20,7 +20,7 @@ const CREATION_EXAMPLES=[
 export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:string;connected?:boolean}){
  const [draftId,setDraftId]=useState(''),[data,setData]=useState<CreationDraftRead|null>(null),[selectedId,setSelectedId]=useState<string|null>(null);
  const [text,setText]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [queued,setQueued]=useState(false);
+ const [queued,setQueued]=useState(false),[playbook,setPlaybook]=useState(false);
  const pending=useRef<{draftId:string;turnId:string;message:string;baseReplyId:string|null;baseDraftId:string|null}|null>(null),seed=useRef<{draftId:string;replyId:string}|null>(null),active=useRef(''),composer=useRef<HTMLTextAreaElement>(null);
  const {files,canAttach,canAttachFolder,attachFile,attachFolder,removeFile,reset:resetFiles,error:attachError}=useRunAttachments();
  const storageKey=`implexa-creation-draft:${ownerId}`,selectionKey=(id:string)=>`${storageKey}:${id}:selection`;
@@ -61,18 +61,24 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
   area.focus({preventScroll:true});focusedDraft.current=draftId;
  },[draftId,data?.draftId,busy,isBuilt,isPending]);
  const choose=(turn:CreationTurn)=>{setSelectedId(turn.replyId);try{sessionStorage.setItem(selectionKey(draftId),turn.replyId!);}catch{}};
- const send=async()=>{
-  if(busy||isBuilt||isPending||!draftId||!text.trim())return;
-  const identity=draftId,message=text,baseReplyId=selected?.replyId||seed.current?.replyId||null,baseDraftId=selected?null:seed.current?.draftId||null;
+ const send=async(retry?:CreationTurn)=>{
+  const message=retry?.message??text;
+  if(busy||isBuilt||isPending||!draftId||!message.trim())return;
+  const usePlan=retry?retry.mode==='playbook':playbook||message.length>2000||!!selected?.brief?.plan;
+  if(message.length>20000){setError('Shorten the playbook to 20,000 characters before sending.');return;}
+  if(new Blob([JSON.stringify(message)]).size>24000){setError('This playbook exceeds 24 KB. Shorten it before sending.');return;}
+  const identity=draftId;
+  const baseReplyId=retry?retry.baseReplyId:selected?.replyId||seed.current?.replyId||null;
+  const baseDraftId=retry?retry.baseDraftId||null:selected?null:seed.current?.draftId||null;
   const turn=pending.current&&pending.current.draftId===identity&&pending.current.message===message&&pending.current.baseReplyId===baseReplyId&&pending.current.baseDraftId===baseDraftId
    ?pending.current:{draftId:identity,turnId:crypto.randomUUID(),message,baseReplyId,baseDraftId};
   pending.current=turn;setBusy(true);setError('');setNotice('');
-  try{const r=await fetch('/api/agents/creation-draft',{method:'POST',headers:{'content-type':'application/json'},cache:'no-store',body:JSON.stringify({...turn,consent:true})});
+  try{const r=await fetch('/api/agents/creation-draft',{method:'POST',headers:{'content-type':'application/json'},cache:'no-store',body:JSON.stringify({...turn,consent:true,...(usePlan?{mode:'playbook'}:{})})});
    const v=await r.json();if(active.current!==identity)return;
    if(!r.ok||!isCreationDraftRead(v,identity))throw Error(v.reason||'creation_brief_unconfirmed');
    apply(v);const answer=v.turns.find(t=>t.turnId===turn.turnId);
    if(answer?.status==='answered'&&answer.replyId){choose(answer);setNotice(answer.brief?'Draft updated. Review it or keep chatting.':'');}
-   setText('');pending.current=null;seed.current=null;
+   if(!retry)setText('');pending.current=null;seed.current=null;
   }catch(e){if(active.current===identity)setError(`${e instanceof Error?e.message:'creation_brief_unconfirmed'}. Refresh the saved draft before sending again; no automatic retry is made.`);}
   finally{if(active.current===identity)setBusy(false);}
  };
@@ -83,7 +89,7 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
  }catch(e){if(active.current===identity)setError(e instanceof Error?e.message:'Withdrawal unconfirmed');}finally{if(active.current===identity)setBusy(false);}};
  const previousPrepared=data?.turns.find(t=>t.replyId===selected?.baseReplyId);
  const undo=()=>{if(previousPrepared){choose(previousPrepared);setNotice('Previous saved draft restored. No AI call was made.');}};
- const startNew=()=>{if(busy)return;seed.current=selected?.replyId?{draftId,replyId:selected.replyId}:null;const id=crypto.randomUUID();active.current=id;setDraftId(id);setData(null);setSelectedId(null);setText(seed.current?'Create another agent using the selected saved draft.':'');setQueued(false);resetFiles();setError('');setNotice(seed.current?'The selected cards will seed the new draft when you Send. Their private training notes stay separate. The earlier draft and build remain preserved.':'New private draft.');pending.current=null;
+ const startNew=()=>{if(busy)return;setPlaybook(false);seed.current=selected?.replyId?{draftId,replyId:selected.replyId}:null;const id=crypto.randomUUID();active.current=id;setDraftId(id);setData(null);setSelectedId(null);setText(seed.current?'Create another agent using the selected saved draft.':'');setQueued(false);resetFiles();setError('');setNotice(seed.current?'The selected cards will seed the new draft when you Send. Their private training notes stay separate. The earlier draft and build remain preserved.':'New private draft.');pending.current=null;
   try{sessionStorage.setItem(storageKey,id);}catch{};};
  const buildAgent=async()=>{
   if(!selected?.brief||!selected.replyId||!selected.replyDigest||!selected.buildIntent||busy||isPending||isBuilt)return;
@@ -91,7 +97,7 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
   if(intent.length>20000){setError('These attachments make the build request too long. Remove some before building; nothing has been truncated.');return;}
   const identity=draftId;setBusy(true);setError('');
   try{const r=await createAgentBuild({intent:'',creationDraftBinding:{draftId,replyId:selected.replyId,replyDigest:selected.replyDigest},creationDraftFiles:files});
-   if(active.current!==identity)return;if(!r.ok)throw Error(r.error||'Build unconfirmed');setQueued(true);void load(identity);
+   if(active.current!==identity)return;if(!r.ok)throw Error(r.error||'Build unconfirmed');setQueued(true);window.dispatchEvent(new window.Event('agent-build-changed'));void load(identity);
   }catch(e){if(active.current===identity)setError(e instanceof Error?e.message:'Build unconfirmed. Refresh before trying again.');}
   finally{if(active.current===identity)setBusy(false);}
  };
@@ -103,17 +109,17 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
    </select></label>}
    <p className="text-reading">Messages stay in your private history. Withdrawal stops further preparation and builds from this draft; it does not cancel queued work.</p><button type="button" className="underline" disabled={busy||data?.withdrawn||!data?.turns.length} onClick={withdraw}>Withdraw this draft from further use</button>
   </div>;
- const chatComposer=<ChatComposer micIcon voiceScope={draftId||'creation-start'} standalone={starting} details={starting?draftDetails:undefined} value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId} textareaRef={composer} placeholder={starting?CREATION_EXAMPLES[exampleIndex]:"Tell me what you’d like your agent to do…"} attachments={<fieldset disabled={busy||isBuilt}><AttachFiles hint={starting?'':undefined} files={files} canAttach={canAttach} canAttachFolder={canAttachFolder} onAttach={()=>attachFile()} onAttachFolder={()=>attachFolder()} onRemove={removeFile} error={attachError}/></fieldset>}/>;
+ const chatComposer=<ChatComposer micIcon maxLength={Infinity} voiceScope={draftId||'creation-start'} standalone={starting} details={starting?draftDetails:undefined} value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId} textareaRef={composer} placeholder={starting?(playbook?'Paste the playbook you want to teach…':CREATION_EXAMPLES[exampleIndex]):"Tell me what you’d like your agent to do…"} attachments={<fieldset disabled={busy||isBuilt}><AttachFiles hint="" files={files} canAttach={canAttach} canAttachFolder={canAttachFolder} onAttach={()=>attachFile()} onAttachFolder={()=>attachFolder()} onRemove={removeFile} error={attachError}/></fieldset>}/>;
  return <section className={starting?"mx-auto max-w-3xl space-y-4":"grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]"}>
-  <aside className={starting?"min-w-0":"min-w-0 lg:sticky lg:top-6"}>{starting?chatComposer:<ChatFrame contentSized scrollKey={data?.turns.at(-1)?.turnId+':'+data?.turns.at(-1)?.status} title="Chat with AI" subtitle="Build your agent" details={draftDetails} composer={chatComposer}>
+  <aside className={starting?"min-w-0":"min-w-0 lg:sticky lg:top-6"}>{starting?<><label className="mb-2 flex items-center gap-2 text-secondary"><input type="checkbox" checked={playbook||text.length>2000} disabled={busy||text.length>2000} onChange={e=>setPlaybook(e.target.checked)}/>Prepare a plan from a playbook</label>{chatComposer}</>:<ChatFrame contentSized scrollKey={data?.turns.at(-1)?.turnId+':'+data?.turns.at(-1)?.status} title="Chat with AI" subtitle="Build your agent" details={draftDetails} composer={chatComposer}>
    {data&&!data.withdrawn&&data.totalTurns>data.turns.length&&<p className="text-secondary text-ink-500">Showing recent exchanges. Earlier messages are saved in this draft.</p>}
    <ol aria-label="Agent creation conversation" className="space-y-6">{data?.turns.map(t=><li key={t.turnId} className="space-y-3">
-    <ChatMessage role="user"><p className="text-reading whitespace-pre-wrap">{t.message}</p></ChatMessage>{t.reply&&<ChatMessage role="assistant"><p className="text-reading whitespace-pre-wrap">{t.reply}</p></ChatMessage>}
+    <ChatMessage role="user"><>{t.mode==='playbook'&&t.message.length>600?<details><summary>View pasted playbook</summary><p className="whitespace-pre-wrap">{t.message}</p></details>:<p className="text-reading whitespace-pre-wrap">{t.message}</p>}</></ChatMessage>{t.reply&&<ChatMessage role="assistant"><p className="text-reading whitespace-pre-wrap">{t.reply}</p></ChatMessage>}
     {t.status==='pending'&&<p className="text-reading text-ink-400">Your message is saved. <button type="button" className="underline" disabled={busy} onClick={()=>load(draftId)}>Check for the reply</button></p>}
-    {t.status==='failed'&&<p role="status" className="text-reading text-state-needs">Your message is saved, but the reply couldn’t be prepared. Try a new draft.</p>}
+    {t.status==='failed'&&<p role="status" className="text-reading text-state-needs">Your message is saved. The reply couldn’t be prepared. {t===data.turns.at(-1)&&!isBuilt&&<button type="button" className="underline" disabled={busy||isPending} onClick={()=>void send(t)}>Retry message</button>}</p>}
     {t.brief&&t.replyId!==selectedId&&<button type="button" className="text-ui text-ink-400 underline" disabled={busy||isBuilt} onClick={()=>choose(t)}>Use this saved draft</button>}
    </li>)}</ol>
-   {selected?.questions?.[0]&&!isBuilt&&<ChatChoices question={selected.questions[0]} choices={creationQuestionChoices(selected.questions[0],selected.brief)} disabled={busy||isPending} onChoose={value=>{setText(value);composer.current?.focus();}}/>}
+   {selected?.questions?.[0]&&!isBuilt&&<ChatChoices question={selected.questions[0]} choices={creationQuestionChoices(selected.answerOptions)} disabled={busy||isPending} onChoose={value=>{if(value)setText(value);composer.current?.focus();}}/>}
   </ChatFrame>}</aside>
   <div className="min-w-0 space-y-5">
    {!starting&&<div className="flex items-center justify-between gap-4"><p className="text-reading uppercase tracking-[.18em] text-ink-500">Your agent, prepared with you{selected?.brief&&!isBuilt&&<span className="ml-3 rounded border border-ink-700 px-2 py-1 normal-case tracking-normal">Draft</span>}</p>
@@ -124,17 +130,38 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
     {([['The goal','goal',<><h2 className="text-lg font-medium">{selected.brief.name}</h2><p className="mt-3">{selected.brief.goal}</p></>],
      ['What it receives','inputs',<ul className="list-disc pl-4 space-y-2">{selected.brief.inputs.map((s,i)=><li key={i}>{s}</li>)}</ul>],
      ['What it delivers','outputs',<ul className="list-disc pl-4 space-y-2">{selected.brief.outputs.map((s,i)=><li key={i}>{s}</li>)}</ul>],
-     ['Tools and methods','tools',<><ul className="space-y-2">{selected.tools.map((t,i)=><li key={i}><span className="font-medium">{t.name}</span> · {t.requirement==='required'?'Required choice':'Preferred choice'}{!t.supported&&<span className="text-state-needs"> · Setup must verify support</span>}</li>)}</ul>{selected.tools.length===0&&<p>No specific tool requested.</p>}<span className="sr-only">Setup checks tool access before use.</span></>]] as const).map(([title,field,content])=><section key={field} className="rounded-xl border border-ink-800 p-5 text-secondary leading-6 text-ink-300">
+     ['Tools and methods','tools',<>
+       {selected.brief.plan?.sources.map(source=><div key={source.name} className="mb-3"><strong>{source.name}</strong><p>{source.purpose}</p><p>Recommended · {source.routes[0]}{source.domain?' · '+source.domain:''}</p>{source.routes.length>1&&<p>Users can also choose {source.routes.slice(1).join(' or ')} in Setup.</p>}</div>)}
+       <ul className="space-y-2">{selected.tools.filter(t=>!selected.brief?.plan?.sources.some(s=>s.name.toLowerCase()===t.name.toLowerCase())).map(t=><li key={t.name}><strong>{t.name}</strong> · {t.requirement==='required'?'Required':'Preferred'}{t.purpose&&<p>{t.purpose}</p>}<p>{t.method&&t.method!=='Confirm in Setup'?'Suggested access: '+t.method:t.routes?.length?'Suggested access: '+t.routes[0]:'Access method to confirm in Setup'}</p>
+       {!!t.routes?.filter(route=>route!==(t.method||t.routes?.[0])).length&&<p>Other supported methods: {t.routes.filter(route=>route!==(t.method||t.routes?.[0])).join(' or ')}</p>}
+       {t.method&&t.method!=='Provided file'&&t.method!=='Confirm in Setup'&&!t.routes?.includes(t.method)&&<p>Setup must verify this method.</p>}</li>)}</ul>
+       {!selected.tools.length&&!selected.brief.plan?.sources.length&&<p>No specific tool requested.</p>}
+       {!!selected.brief.plan?.operations?.length&&<p className="mt-3">{selected.brief.plan.operations.join(' · ')}</p>}
+     </>]] as const).map(([title,field,content])=><section key={field} className="rounded-xl border border-ink-800 p-5 text-secondary leading-6 text-ink-300">
       <div className="mb-3 flex justify-between gap-3"><h3 className="text-ui font-medium uppercase tracking-wide text-ink-500">{title}</h3><button type="button" disabled={busy||isBuilt} className="text-ui text-ink-400 underline" onClick={()=>change(field)}>Change in chat</button></div>{content}</section>)}
+    {selected.brief.plan&&<section className="space-y-3 rounded-xl border border-ink-800 p-5">
+     <div className="flex justify-between"><h3>Execution plan</h3><button type="button" className="underline" disabled={busy||isBuilt} onClick={()=>change('the plan or allowed access methods')}>Change in chat</button></div>
+     <ol className="list-decimal space-y-2 pl-5">{selected.brief.plan.steps.map((step,i)=><li key={i}>{step}</li>)}</ol>
+     {selected.brief.plan.runInputs && (['start','after_review'] as const).map(stage=>{
+       const inputs=selected.brief!.plan!.runInputs!.filter(field=>field.collection===stage);
+       return inputs.length>0 && <div key={stage}><h4>{stage==='start'?'Enter each run':'After reviewing the first result'}</h4><ul>{inputs.map(f=><li key={f.key}>{f.label}</li>)}</ul></div>;
+     })}
+     <h4>Checks before delivery</h4><ul className="list-disc pl-5">{selected.brief.plan.checks.map((check,i)=><li key={i}>{check}</li>)}</ul>
+    </section>}
     {selected.trainingNotes.length>0&&<section className="rounded-xl border border-emerald-900/70 bg-emerald-950/10 p-5 text-secondary"><h3 className="font-medium">Keep for training</h3>
      <ul className="mt-3 list-disc pl-4 space-y-2 text-ink-300">{selected.trainingNotes.map((s,i)=><li key={i}>{s}</li>)}</ul><p className="mt-3 text-reading text-ink-500">Private notes are preserved with this creation draft. They are excluded from the agent’s build instructions and have not been admitted as learnings.</p></section>}
 
     <details className="text-secondary text-ink-400"><summary className="cursor-pointer">Exact build request</summary><pre className="mt-3 whitespace-pre-wrap break-words rounded-lg border border-ink-800 p-4">{composeNoteWithFiles(selected.buildIntent||'',files,ATTACH_BUILD_MARKER)}</pre></details>
-    {!isBuilt&&<div className="flex flex-wrap items-center gap-4"><button type="button" className="btn-primary" disabled={busy||isPending} onClick={buildAgent}>Build this agent</button>
+    {!isBuilt&&<div className="flex flex-wrap items-center gap-4"><button type="button" className="btn-primary" disabled={busy||isPending} onClick={buildAgent}>{selected.brief.plan?'Approve plan and build':'Build this agent'}</button>
      <button type="button" className="text-ui text-ink-400 underline disabled:opacity-40" disabled={busy||!previousPrepared} onClick={undo}>Undo last change</button>
 </div>}
    </>}
-   {isBuilt&&!data?.withdrawn&&<div role="status" className="rounded-xl border border-emerald-800 p-5 text-secondary"><p>{connected||typeof window!=='undefined'&&!!window.implexaDesktop?.handoffAgent?'Build queued through your connected engine. This is not yet a built or tested agent. If it fails, copy these cards to a new draft.':'Your build request is saved. Connect Claude or Codex in Setup to build it. This is not yet a built or tested agent.'}</p>{!connected&&<Link className="mr-5 mt-3 inline-block underline" href="/install">Connect Claude or Codex</Link>}<Link className="mt-3 inline-block underline" href={AGENTS_RUNNING_HREF}>View your agents →</Link></div>}
+   {isBuilt&&!data?.withdrawn&&<div role="status" className="rounded-xl border border-emerald-800 p-5 text-secondary"><p>{data?.buildCanRetry?'The build failed. Your approved draft and attachments are saved.':connected||typeof window!=='undefined'&&!!window.implexaDesktop?.handoffAgent?'Follow your build at the top of the dashboard.':'Your build request is saved. Connect Claude or Codex in Setup to build it.'}</p>{data?.buildCanRetry && data.buildRequestId && <button type="button" className="btn-primary mt-3" disabled={busy} onClick={async()=>{
+     const identity=draftId;setBusy(true);setError('');
+     try{await retrySavedBuild(data.buildRequestId!);if(active.current===identity)await load(identity);}
+     catch{if(active.current===identity)setError('Could not confirm the retry. Refresh build status.');}
+     finally{if(active.current===identity)setBusy(false);}
+   }}>Retry build</button>}{!connected&&<Link className="mr-5 mt-3 inline-block underline" href="/install">Connect Claude or Codex</Link>}<Link className="mt-3 inline-block underline" href={AGENTS_RUNNING_HREF}>View your agents →</Link></div>}
    {notice&&<p role="status" className="text-reading text-ink-400">{notice}</p>}
    {error&&<p role="alert" className="rounded-lg border border-amber-700 p-3 text-reading">{error.replaceAll('_',' ')}</p>}
   </div>

@@ -33,10 +33,11 @@ import { useState } from 'react';
 const OTHER = '__other__';
 
 export default function SetupChoiceField({
-  value, options, onChange, selectClassName = '', inputClassName = '', ariaLabel,
+  value, options, onChange, allowOther=true, selectClassName = '', inputClassName = '', ariaLabel,
 }: {
   value: string;
   options: string[];
+  allowOther?: boolean;
   onChange: (next: string) => void;
   selectClassName?: string;
   inputClassName?: string;
@@ -53,7 +54,7 @@ export default function SetupChoiceField({
     <div className="space-y-2">
       <select
         aria-label={ariaLabel}
-        value={isOther ? OTHER : (value ?? '')}
+        value={allowOther && isOther ? OTHER : (value ?? '')}
         onChange={(e) => {
           const val = e.target.value;
           if (val === OTHER) {
@@ -70,9 +71,9 @@ export default function SetupChoiceField({
       >
         <option value="">Choose…</option>
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
-        <option value={OTHER}>Other (type your own)…</option>
+        {allowOther&&<option value={OTHER}>Other (type your own)…</option>}
       </select>
-      {isOther && (
+      {allowOther && isOther && (
         <input
           type="text"
           value={value ?? ''}

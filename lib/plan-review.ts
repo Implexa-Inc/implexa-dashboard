@@ -106,3 +106,13 @@ export async function createAgentBuild(input: {
 export function preferenceFor(toolLabel: string): string {
   return `use ${toolLabel}`;
 }
+
+/** Ask for a successor to a specific owner build; the server restores the approval. */
+export async function retrySavedBuild(id:string) {
+  const {createClient}=await import('@/lib/supabase/client');
+  const {callBackend}=await import('@/lib/api');
+  const {data:{session}}=await createClient().auth.getSession();
+  const response=await callBackend('/api/v2/me/build-status/'+encodeURIComponent(id)+'/retry',{jwt:session?.access_token,method:'POST'});
+  if(!response?.ok||!response.requestId) throw Error('Could not confirm the retry.');
+  window.dispatchEvent(new window.Event('agent-build-changed'));
+}

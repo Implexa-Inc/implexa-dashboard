@@ -4,7 +4,6 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
 import AgentHomeFrame from '../_components/agent-home-frame';
-import BuildingAgents from '../_components/building-agents';
 import {getMarketplaceSamples,getApprovedMarketplaceListings} from '@/lib/agent-marketplace-samples-server';
 import MarketplaceSampleGallery from '../_components/marketplace-sample-gallery';
 import {listAgentDiscovery} from '@/lib/agent-discovery';
@@ -29,5 +28,5 @@ export default async function WorkflowsPage({searchParams}:{searchParams?:{tab?:
 }
 async function FindAgents({jwt}:{jwt:string}){
  const [samples,approved,discovery]=await Promise.all([getMarketplaceSamples(),getApprovedMarketplaceListings(jwt),listAgentDiscovery(jwt)]);
- return <><BuildingAgents/><MarketplaceSampleGallery listings={samples.listings} approved={approved} discovery={discovery}/></>;
+ return <><MarketplaceSampleGallery listings={samples.listings} approved={approved} discovery={discovery}/></>;
 }

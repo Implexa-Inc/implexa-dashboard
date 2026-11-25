@@ -25,7 +25,7 @@
  */
 
 import {
-  orderedInputFields,
+  orderedInputFields, playbookFileSelected,
   type ArtifactBinding, type RunInputBindings, type RunInputValue,
   type WorkflowInputContract, type WorkflowInputField,
 } from './workflow-input-contract.ts';
@@ -85,6 +85,7 @@ export function readSavedRunInputs(
   const filesToVerify: WorkflowInputField[] = [];
   const saved = config && typeof config === 'object' ? config : {};
   for (const field of orderedInputFields(contract)) {
+    if(field.freshEachRun)continue;
     const raw = (saved as Record<string, unknown>)[field.key];
     if (typeof raw !== 'string' || !raw.trim()) continue;
     const value = raw.trim();
@@ -131,9 +132,12 @@ export function resolveEffectiveInputs(
 ): RunInputBindings {
   const effective: RunInputBindings = {};
   for (const field of orderedInputFields(contract)) {
-    const value = displayedInputValue(field.key, defaults, overrides);
+    const value = displayedInputValue(field.key, field.freshEachRun ? {} : defaults, overrides);
     if (isBlankInputValue(value)) continue;
     effective[field.key] = value as RunInputValue;
+  }
+  for (const key of Object.keys(effective)) {
+    if (playbookFileSelected(key, contract, effective) === false) delete effective[key];
   }
   return effective;
 }

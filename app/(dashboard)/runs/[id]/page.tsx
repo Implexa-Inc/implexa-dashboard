@@ -38,7 +38,8 @@ import RunActions from '../../_components/run-actions';
 import PaidActionApproval from '../../_components/paid-action-approval';
 import StagePreviewReview from '../../_components/stage-preview-review';
 import { parseStagePreviewRead, type StagePreviewRead } from '@/lib/review-preview';
-import RunContinueBox from '../../_components/run-continue-box';
+import { resultRowChoices } from '@/lib/result-row-choices';
+import RunContinueBox, { type FollowUpInput } from '../../_components/run-continue-box';
 import RunActionItems, { isRetryableApprovalAction, type RunActionItem } from '../../_components/run-action-items';
 import FinishRunButton from '../../_components/finish-run-button';
 import GrantPermissionsButton from '../../_components/grant-permissions-button';
@@ -270,6 +271,8 @@ export default async function RunDetailPage({
     status: 'unavailable', reason: 'continuation_history_unavailable',
   };
   let stagePreview: StagePreviewRead = { state: 'unavailable' };
+  let followUp: FollowUpInput[] | null = null;
+  let followUpVersionId: string | null = null;
   let supportsAudioRevision = false;
   let requiresCreativeReview = false;
   let revisionCreditChoices: number[] = [];
@@ -282,6 +285,8 @@ export default async function RunDetailPage({
     if (history?.status === 'available' && Array.isArray(history.items)) checkpointedContinuations = history;
     else if (history?.status === 'unavailable' && typeof history.reason === 'string') checkpointedContinuations = history;
     if (response?.run?.id === r.id) {
+      if (Array.isArray(response.run.followUpInputs)) followUp = response.run.followUpInputs;
+      if (typeof response.run.followUpVersionId === 'string') followUpVersionId = response.run.followUpVersionId;
       const media = response.run.continuationMedia;
       supportsAudioRevision = media?.audioEdits === true;
       requiresCreativeReview = media?.requiresCreativeReview === true;
@@ -1167,10 +1172,12 @@ export default async function RunDetailPage({
   </>;
   const cancellation = <RunStopControl key={r.id} runId={r.id} runState={r.run_state ?? null} cancelRequestedAt={run?.cancel_requested_at} />;
 
-  const continueBox = (<RunContinueBox presentation={showFinishedReview?'finished':undefined} runId={r.id}
+  const continueBox = followUp === null ? <p role="status">The inputs for this version could not be loaded. Refresh to continue.</p> : (<RunContinueBox presentation={showFinishedReview?'finished':undefined} runId={r.id}
               agentName={name}
+              followUp={followUp}
+              resultRows={followUp.some(f=>f.kind==='text') && r.output_markdown ? resultRowChoices(r.output_markdown) : []}
               slug={r.skill_slug}
-              workflowVersionId={runWorkflowVersionId}
+              workflowVersionId={runWorkflowVersionId || followUpVersionId}
               pending={false}
               audioEdits={supportsAudioRevision}
               higgsfieldCreditChoices={revisionCreditChoices}

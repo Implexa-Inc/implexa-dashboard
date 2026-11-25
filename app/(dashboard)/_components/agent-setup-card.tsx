@@ -129,7 +129,7 @@ export default function AgentSetupCard({
         // itself — a saved answer that is not one of the presets IS a custom
         // value — so there is no separate otherMode state to seed here.)
       } catch {
-        if (!cancelled) setSetup({ schema: [], answers: {}, missing: [], complete: true, needs_setup: false });
+        if (!cancelled) setError('Agent setup could not be loaded.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -137,6 +137,7 @@ export default function AgentSetupCard({
     return () => { cancelled = true; };
   }, [slug, source]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (!loading && !setup && error) return <p role="alert">{error}</p>;
   if (loading || !setup || setup.schema.length === 0) return null; // no questions -> nothing to show
 
   async function save() {
@@ -233,6 +234,7 @@ export default function AgentSetupCard({
               <SetupChoiceField
                 value={values[f.key] ?? ''}
                 options={f.options}
+                allowOther={!/^playbook_access_[a-f0-9]{16}$/.test(f.key)}
                 onChange={(next) => setValues((v) => ({ ...v, [f.key]: next }))}
                 ariaLabel={f.question}
                 selectClassName={inputCls}
