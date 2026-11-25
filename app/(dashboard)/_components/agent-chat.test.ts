@@ -37,3 +37,11 @@ test('cancelled and silent dictation show useful feedback without editing or sen
   try{await r.click(r.document.querySelector('[aria-label="Dictate message"]')!);await r.act(()=>new Promise(resolve=>setTimeout(resolve,760)));assert.equal((r.document.querySelector('textarea') as HTMLTextAreaElement).value,'My typed note.');assert.equal(changed,0);assert.equal(sent,0);assert.equal(discarded,1);assert.equal((r.document.querySelector('[aria-label="Dictate message"]') as HTMLButtonElement).disabled,false);if(reason==='recording_not_found'){assert.match(r.text(),/Dictation ended without changing your message/);assert.equal(r.document.querySelector('[role=alert]'),null);}else assert.match(r.text(),/No speech was heard. Check your microphone and try again/);}finally{r.cleanup();}
  }
 });
+
+test('builder shows the microphone with its Desktop availability before a user tries recording',async t=>{
+ const r=await render('./agent-chat.tsx',{micIcon:true,value:'',onChange:()=>{},onSend:()=>{}},{exportName:'ChatComposer'});
+ t.after(()=>r.cleanup());
+ const mic=r.document.querySelector<HTMLButtonElement>('button[aria-label="Dictation is available in the Tukido desktop app"]');
+ assert.ok(mic?.querySelector('svg'));
+ assert.equal(mic.disabled,true);
+});
