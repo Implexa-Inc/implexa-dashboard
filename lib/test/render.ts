@@ -150,7 +150,7 @@ export async function render(component: string, props: Record<string, unknown>, 
     url: 'https://dashboard.test/agents/test-agent',
   });
   const { window } = dom;
-  if(options.webCrypto){Object.defineProperty(window,'crypto',{value:options.webCrypto,configurable:true});Object.assign(window,{TextEncoder:globalThis.TextEncoder});}
+  if(options.webCrypto){Object.defineProperty(window,'crypto',{value:options.webCrypto,configurable:true});Object.assign(window,{TextEncoder:globalThis.TextEncoder,TextDecoder:globalThis.TextDecoder});}
   for(const [key,value] of Object.entries(options.initialStorage||{}))window.localStorage.setItem(key,value);
   const calls: RenderCalls = { push: [], replace: [], backend: [] };
   (window as unknown as Record<string, unknown>).__implexaCalls = calls;

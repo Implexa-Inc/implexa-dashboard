@@ -18,7 +18,7 @@ async function setup(t:any,initial:any[]=[]){
  }) as typeof fetch});t.after(()=>r.cleanup());return {r,calls};
 }
 test('creation opens with one blank chat, restores saved cards by GET and starts nothing',async t=>{
- const {r,calls}=await setup(t,[turn(2)]);assert.equal(r.document.querySelectorAll('textarea').length,1);assert.equal(r.document.querySelectorAll('input:not([type=hidden])').length,0);
+ const {r,calls}=await setup(t,[turn(2)]);assert.equal(r.document.querySelectorAll('textarea').length,1);assert.equal(r.document.querySelectorAll('input:not([type=hidden]):not([hidden])').length,0);
  assert.match(r.text(),/One raw video/);assert.match(r.text(),/Playable MP4/);assert.match(r.text(),/have not been admitted as learnings/);
  assert.equal(calls.length,1);assert.equal(calls[0].init.method,undefined);
  await r.click(r.getByText('Refresh saved draft'));assert.equal(calls.length,2);assert.equal(calls.some(c=>c.init.method==='POST'),false);
@@ -57,4 +57,18 @@ test('a follow-up question offers choices without building or silently sending t
  assert.equal(r.queryByText('Recommend tools'),null);assert.equal(r.getByText('Type manually').previousElementSibling?.textContent,'Optimize for app installs');
  await r.click(r.getByText('Ask at the start of each run (Recommended)'));assert.equal(r.document.querySelector('textarea')!.value,'Ask at the start of each run');assert.equal(calls.some(c=>c.init.method==='POST'),false);
  await r.click(r.getByText('Send'));const post=calls.find(c=>c.init.method==='POST');assert.equal(JSON.parse(post.init.body).baseReplyId,q.replyId);assert.equal(calls.some(c=>c.url==='/api/agents/create'),false);
+});
+
+test('an unsupported document leaves the typed draft editable and sends nothing',async t=>{
+ const {r,calls}=await setup(t);
+ assert.equal(r.document.querySelector('input[type=checkbox]'),null);
+ await type(r,'Use this example');
+ const picker=r.document.querySelector('input[type=file]')!;
+ await r.act(()=>{
+  Object.defineProperty(picker,'files',{value:[new r.window.File(['example'],'example.pdf')]});
+  picker.dispatchEvent(new r.window.Event('change',{bubbles:true}));
+ });
+ assert.match(r.document.querySelector('[role=alert]')!.textContent!,/paste the relevant text/);
+ assert.equal(r.document.querySelector('textarea')!.value,'Use this example');
+ assert.equal(calls.filter(c=>c.init.method==='POST').length,0);
 });
