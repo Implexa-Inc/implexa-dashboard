@@ -68,6 +68,7 @@ export type RunRow = {
   completed_at?: string | null;
   expected_duration_ms?: number | null;
   stalled_at?: string | null;
+  cancel_requested_at?: string | null;
   // ── 0080 live step trace ──
   progress?: RunProgress | null;
   // ── 0102 Completion Controller verdict (did it produce its deliverable?) ──

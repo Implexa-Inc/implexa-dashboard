@@ -21,7 +21,7 @@ export type RunArtifactRow = {
   sha256?: string | null;
 };
 
-export type VerifiedArtifactView = { relativePath: string; validatedPath: string; role: string | null; sizeBytes: number | null };
+export type VerifiedArtifactView = { relativePath: string; validatedPath: string; role: string | null; sizeBytes: number | null; provenance?: 'owner_operator' | 'unavailable' };
 export type RecoveryArtifactView = { id: string | null; role: string | null; status: string; relative_path: string; sha256: string | null };
 
 /** The exact column list the page must SELECT — a projection cannot recover a column it never read. */
@@ -52,4 +52,23 @@ export function projectRunArtifacts(rows: unknown, rolePriority: (role: string |
     sha256: typeof row.sha256 === 'string' && /^[a-f0-9]{64}$/.test(row.sha256) ? row.sha256 : null,
   }));
   return { verified, recovery };
+}
+
+/** Presentation only. This cannot promote a row to validated/final_output or
+ * grant Review/learning authority; the server's immutable close reason names
+ * the distinct operator-assisted salvage profile. */
+export function withOwnerExportProvenance(artifacts: VerifiedArtifactView[], closeReason: string | null, provenanceAvailable = true): VerifiedArtifactView[] {
+  if (!provenanceAvailable) return artifacts.map(artifact => ({ ...artifact, provenance: 'unavailable' as const }));
+  return closeReason === 'owner_verified_export'
+    ? artifacts.map(artifact => ({ ...artifact, provenance: 'owner_operator' as const }))
+    : artifacts;
+}
+
+
+/** Run-page result routing. An owner export is not an accepted Review source,
+ * even when the generic owner packet is live and has viewable attachments. */
+export function resultSurface(input:{runId:string;completed:boolean;closeReason:string|null;provenanceAvailable:boolean;reviewLive:boolean;reviewRunId?:string|null}):'owner_export'|'review'|'files'{
+  if (!input.provenanceAvailable) return 'files';
+  if (input.closeReason === 'owner_verified_export') return 'owner_export';
+  return input.completed && input.reviewLive && input.reviewRunId === input.runId ? 'review' : 'files';
 }

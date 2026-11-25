@@ -4,7 +4,7 @@ import { readMyWorkflows } from '@/lib/workflow-catalog';
 import { trainingReviewSlug,trainingReviewHref } from '@/lib/training-review-routing';
 import { createClient } from '@/lib/supabase/server';
 import { getMyAgents } from '@/lib/agents-home';
-import { getReviewPacket, unavailableSources } from '@/lib/review';
+import { getReviewPacket, unavailableSources,reviewResultProvenance } from '@/lib/review';
 import ReviewRoom from './review-room';
 import StageCompetenceProof from './stage-competence-proof';
 import StageManagerProof from './stage-manager-proof';
@@ -34,6 +34,12 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
   if (!session?.user) redirect('/login');
 
   const [packet, myAgents,owned] = await Promise.all([getReviewPacket(params.runId), getMyAgents(),readMyWorkflows(session.access_token)]);
+  const provenance=await reviewResultProvenance(packet,supabase,session.user.id);
+  if (provenance === 'owner_export') redirect(`/runs/${encodeURIComponent(params.runId)}`);
+  if (packet.live && provenance === 'unavailable') return <main className="mx-auto max-w-3xl p-10">
+    <h1>Review provenance unavailable</h1><p>We could not check how this result was recovered. Review actions are paused.</p>
+    <Link href={`/runs/${encodeURIComponent(params.runId)}`}>Open the private run page</Link>
+  </main>;
   const ownerSlug=trainingReviewSlug(packet,owned);
   if(trainingSlug){
     if(packet.live&&packet.run?.slug!==trainingSlug)notFound();

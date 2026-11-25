@@ -2,12 +2,12 @@
 
 /**
  * Files in a worker's markdown are claims. These are different: each item came
- * from run_artifacts after the desktop resolved containment/symlinks and hashed
- * the file. Keep the distinction visible in the UI so a user never has to copy
+ * from run_artifacts after the desktop or explicit owner-operator verified
+ * the file. Preserve the different provenance. Keep the distinction visible in the UI so a user never has to copy
  * a relative path from prose just to reach a delivered file.
  */
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 export type VerifiedArtifact = {
@@ -15,6 +15,7 @@ export type VerifiedArtifact = {
   validatedPath: string;
   role: string | null;
   sizeBytes: number | null;
+  provenance?: 'owner_operator' | 'unavailable';
 };
 
 type DesktopBridge = {
@@ -144,6 +145,8 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
     await copyPath(artifact);
   }, []);
 
+  const provenanceUnavailable = artifacts.some(artifact => artifact.provenance === 'unavailable');
+  const ownerRecovered = artifacts.length > 0 && artifacts.every(artifact => artifact.provenance === 'owner_operator');
   const finalCount = artifacts.filter((artifact) => artifact.role === 'final_output').length;
   const splitFinishedFiles=finished&&finalCount>0&&artifacts.length>finalCount;
   const renderFile=(artifact:VerifiedArtifact)=>(
@@ -151,7 +154,7 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
               <div className="min-w-0 flex-1">
                 <div className="truncate text-secondary text-ink-100" title={artifact.relativePath}>{artifact.relativePath.split('/').at(-1)}</div>
                 <div className="mt-0.5 truncate text-secondary text-ink-500" title={artifact.relativePath}>
-                  {roleLabel(artifact.role)}{size(artifact.sizeBytes) ? ` · ${size(artifact.sizeBytes)}` : ''}
+                  {artifact.provenance === 'owner_operator' ? 'Owner-recovered export' : artifact.provenance === 'unavailable' ? 'Saved file' : roleLabel(artifact.role)}{size(artifact.sizeBytes) ? ` · ${size(artifact.sizeBytes)}` : ''}
                 </div>
                 {progress||finished?<details className="mt-1 text-secondary text-ink-500"><summary>File details</summary><p className="break-all font-mono">{artifact.relativePath}</p></details>:<div className="mt-0.5 truncate font-mono text-micro text-ink-500" title={artifact.relativePath}>{artifact.relativePath}</div>}
               </div>
@@ -167,10 +170,10 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
       {splitFinishedFiles&&<ul className="finished-primary-files" aria-label="Finished files">{artifacts.filter(artifact=>artifact.role==='final_output').map(renderFile)}</ul>}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-ui font-semibold text-ink-50">{finished?(artifacts.length>finalCount?'Also made':'Your files'):progress?'Files so far':<>Files &amp; artifacts</>}</h2>
+          <h2 className="text-ui font-semibold text-ink-50">{ownerRecovered?'Saved export':provenanceUnavailable?'Saved files':finished?(artifacts.length>finalCount?'Also made':'Your files'):progress?'Files so far':<>Files &amp; artifacts</>}</h2>
           <p className="mt-1 text-reading text-ink-400">
             {artifacts.length
-              ? finished?`${splitFinishedFiles?artifacts.length-finalCount:artifacts.length} ${((splitFinishedFiles?artifacts.length-finalCount:artifacts.length)===1)?'file':'files'} ready to open or download.`:`Checked on this Mac by Tukido · ${finalCount} final ${finalCount === 1 ? 'output' : 'outputs'} · ${artifacts.length} total`
+              ? provenanceUnavailable?'File provenance could not be checked. Open shows the saved local file.':ownerRecovered?'Verified by an owner-authorized operator. The interrupted execution remains ungraded.':finished?`${splitFinishedFiles?artifacts.length-finalCount:artifacts.length} ${((splitFinishedFiles?artifacts.length-finalCount:artifacts.length)===1)?'file':'files'} ready to open or download.`:`Checked on this Mac by Tukido · ${finalCount} final ${finalCount === 1 ? 'output' : 'outputs'} · ${artifacts.length} total`
               : progress?'Your checked files will appear here as the agent makes them.':'No verified files yet. Refresh after this run creates or validates files.'}
           </p>
         </div>
@@ -219,4 +222,15 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
       {message && <p className="mt-2 text-secondary text-ink-300" role="status">{message}</p>}
     </section>
   );
+}
+
+
+/** Explicit owner-salvage composition. It intentionally contains files and a
+ * recovery record only: no Review, change request, Accept or public-share flow. */
+export function OwnerRecoveredExport({artifacts,runId,children}:{artifacts:VerifiedArtifact[];runId:string;children?:ReactNode}){
+  return <section aria-label="Owner-recovered export">
+    <p className="mb-4 text-reading text-ink-300">The saved video was recovered by an owner-authorized operator. The interrupted execution remains ungraded.</p>
+    <VerifiedArtifacts artifacts={artifacts} runId={runId}/>
+    {children&&<details className="proof-disclosure mb-6"><summary>Recovery record</summary><div className="mt-4">{children}</div></details>}
+  </section>;
 }
