@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getReviewPacket } from '@/lib/review';
+import { getReviewPacket,reviewResultProvenance } from '@/lib/review';
 import { readMyWorkflows } from '@/lib/workflow-catalog';
 import { trainingReviewSlug } from '@/lib/training-review-routing';
 import { UUID } from '@/lib/trainer-questions';
@@ -45,6 +45,8 @@ export async function GET(request: Request) {
     if (trainingReviewSlug(packet, owned) !== slug) {
       return respond({ ok: false, reason: 'training_review_not_found' }, 404);
     }
+    const provenance=await reviewResultProvenance(packet,supabase,session.user?.id,request.signal);
+    if(provenance!=='native')return respond({ok:false,reason:provenance==='owner_export'?'training_review_not_found':'training_review_unavailable'},provenance==='owner_export'?404:503);
     if(issueId&&!packet.issues.some(issue=>issue.id===issueId&&issue.purpose==='training'&&issue.status!=='dismissed'))return respond({ok:false,reason:'training_review_not_found'},404);
     const versions = packet.lineage.versions;
     return respond({ ok: true, contractVersion: 'training-run-review.v1', review: {

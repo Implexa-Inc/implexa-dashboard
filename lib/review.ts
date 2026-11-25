@@ -1,4 +1,5 @@
 import { parseHistoricalCandidates } from './historical-review-candidate.ts';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   COMPETENCE_PROOF_UNAVAILABLE,
   stageSkillBindingKey,
@@ -850,6 +851,25 @@ export async function getReviewPacket(runId: string): Promise<ReviewPacket> {
     return { ...PACKET_UNAVAILABLE, readFailure: error instanceof Error
       && ['TimeoutError', 'AbortError'].includes(error.name) ? 'timeout' : 'transport' };
   }
+}
+
+/** One provenance gate for Review pages and embedded Training readers. A
+ * pre-field backend may omit closeReason; only an exact owner row can fill it.
+ * A failed read never turns an operator export into native review material. */
+export async function reviewResultProvenance(packet: ReviewPacket, db: Pick<SupabaseClient,'from'>,
+  ownerId: string | undefined, signal?: AbortSignal): Promise<'native'|'owner_export'|'unavailable'> {
+  if (!packet.live || !packet.run) return 'unavailable';
+  let reason: string | null | undefined = packet.run.closeReason;
+  if (!Object.hasOwn(packet.run,'closeReason')) {
+    if (!ownerId) return 'unavailable';
+    try {
+      const {data,error}=await db.from('skill_runs').select('run_close_reason')
+        .eq('id',packet.run.id).eq('user_id',ownerId)
+        .abortSignal(signal ? AbortSignal.any([signal,AbortSignal.timeout(8000)]) : AbortSignal.timeout(8000)).maybeSingle();
+      if (!error && data && (data.run_close_reason === null || typeof data.run_close_reason === 'string')) reason=data.run_close_reason;
+    } catch { return 'unavailable'; }
+  }
+  return reason === undefined ? 'unavailable' : reason === 'owner_verified_export' ? 'owner_export' : 'native';
 }
 
 // ── honesty helpers ─────────────────────────────────────────────────────────

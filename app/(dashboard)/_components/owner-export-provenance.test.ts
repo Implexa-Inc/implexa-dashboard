@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { projectRunArtifacts, withOwnerExportProvenance, resultSurface } from '../../../lib/run-artifact-projection.ts';
-import { parseReviewPacketResponse } from '../../../lib/review.ts';
+import { parseReviewPacketResponse,reviewResultProvenance } from '../../../lib/review.ts';
 import { render } from '../../../lib/test/render.ts';
 import { buildSync } from 'esbuild';
 import { createRequire } from 'node:module';
@@ -44,18 +44,22 @@ const serverModule={exports:{}};
 const load=(name:string)=>{
   if(name==='next/navigation')return{redirect:(href:string)=>{throw Error('redirect:'+href);},notFound:()=>{throw Error('not-found');}};
   if(name==='next/link')return{__esModule:true,default:()=>null};
-  if(name==='@/lib/review')return{getReviewPacket:async()=>routePacket,unavailableSources:()=>[]};
+  if(name==='@/lib/review')return{getReviewPacket:async()=>routePacket,unavailableSources:()=>[],reviewResultProvenance};
   if(name==='@/lib/agents-home')return{getMyAgents:async()=>({status:'ready',active:[],needsActivation:[],drafts:[]})};
-  if(name==='@/lib/workflow-catalog')return{readMyWorkflows:async()=>({status:'ready',workflows:[{slug:fixture.reviewPacket.run.slug,source:'generated'}]})};
+  if(name==='@/lib/workflow-catalog')return{readMyWorkflows:async()=>({status:'ready',workflows:[{slug:fixture.reviewPacket.run.slug,source:'generated'}]}),
+    ownedGeneratedWorkflow:(owned:any,slug:string)=>owned.workflows.find((row:any)=>row.slug===slug)};
+  if(name==='@/lib/agent-detail')return{getAgentDetail:()=>{throw Error('Unexpected detail read after provenance gate');}};
+  if(name==='next/server')return{NextResponse:{json:(body:unknown,init:any)=>({body,status:init.status})}};
   if(name==='@/lib/supabase/server')return{createClient:()=>({
     auth:{getSession:async()=>({data:{session:{user:{id:'synthetic-owner'},access_token:'synthetic-session'}}})},
     from:(table:string)=>{const call={table,filters:[] as Array<[string,unknown]>};routeReads.push(call);
       const query:any={select:()=>query,eq:(key:string,value:unknown)=>{call.filters.push([key,value]);return query;},
-        abortSignal:(signal:AbortSignal)=>{assert.ok(signal);return query;},order:()=>query,limit:()=>query,
-        maybeSingle:async()=>table==='skill_runs'?{data:fallbackReason===undefined?null:{run_close_reason:fallbackReason},error:fallbackError}:{data:null,error:null}};
+        neq:()=>query,abortSignal:(signal:AbortSignal)=>{assert.ok(signal);return query;},order:()=>query,limit:()=>query,
+        maybeSingle:async()=>table==='skill_runs'?{data:fallbackReason===undefined?null:{run_close_reason:fallbackReason},error:fallbackError}:table==='run_review_issues'?{data:{run_id:fixture.runRecord.id},error:null}:{data:null,error:null}};
       return query;}
   })};
   if(name==='./review-room')return{__esModule:true,default:reviewRoom};
+  if(name==='./training-route-host')return{TrainingRouteConfig:()=>null};
   if(['./stage-competence-proof','./stage-manager-proof','./taste-fit-review'].includes(name))return{__esModule:true,default:()=>null};
   return require(name);
 };
@@ -93,6 +97,31 @@ test('explicit legacy-native provenance retains ordinary Review rendering and re
   assert.equal(containsType(result,reviewRoom),true);assert.equal(routeReads.some(x=>x.table==='skill_runs'),false);
   const malformed=structuredClone(fixture.reviewPacket);malformed.run.closeReason={unexpected:true};
   assert.equal(parseReviewPacketResponse(malformed,fixture.runRecord.id),null);
+});
+
+function actualEntry(entry:string):any{
+ const result=buildSync({entryPoints:[resolve(import.meta.dirname,'../../..',entry)],absWorkingDir:resolve(import.meta.dirname,'../../..'),
+  bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',packages:'external',
+  external:['@/lib/supabase/server','@/lib/review','@/lib/agents-home','@/lib/workflow-catalog','@/lib/agent-detail',
+   './review-room','./stage-competence-proof','./stage-manager-proof','./taste-fit-review','./training-route-host']});
+ const module={exports:{}};new Function('require','module','exports',result.outputFiles[0].text)(load,module,module.exports);return module.exports;
+}
+const trainingRoute=actualEntry('app/(dashboard)/training/[slug]/review/[runId]/page.tsx').default;
+const issueRoute=actualEntry('app/(dashboard)/training/[slug]/review/issues/[issueId]/page.tsx').default;
+const trainingRead=actualEntry('app/api/agent-training/run-review/route.ts').GET;
+test('actual default, revise and saved-mark Training entry points refuse the producer owner export',async()=>{
+ routePacket=parseReviewPacketResponse(fixture.reviewPacket,fixture.runRecord.id);
+ const params={runId:fixture.runRecord.id,slug:routePacket.run.slug},issueId='11111111-1111-4111-8111-111111111111';
+ for(const props of [{params},{params,searchParams:{mode:'revise'}}])await assert.rejects(trainingRoute(props),/redirect:\/runs\//);
+ await assert.rejects(issueRoute({params:{slug:params.slug,issueId}}),/redirect:\/runs\//);
+ for(const query of [`runId=${params.runId}`,`issueId=${issueId}`]){
+  const response=await trainingRead(new Request(`https://dashboard.test/api/agent-training/run-review?slug=${params.slug}&${query}`));
+  assert.equal(response.status,404);assert.deepEqual(response.body,{ok:false,reason:'training_review_not_found'});
+ }
+ delete routePacket.run.closeReason;fallbackReason=undefined;fallbackError={code:'outage'};
+ assert.equal((await trainingRoute({params})).type,'main');
+ const unavailable=await trainingRead(new Request(`https://dashboard.test/api/agent-training/run-review?slug=${params.slug}&runId=${params.runId}`));
+ assert.equal(unavailable.status,503);assert.equal(unavailable.body.review,undefined);
 });
 
 test('ordinary artifacts retain the native verification wording',async()=>{

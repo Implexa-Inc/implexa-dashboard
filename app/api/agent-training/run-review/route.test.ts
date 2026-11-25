@@ -33,7 +33,7 @@ function reader({ signedIn = true, owned = true, rosterUnavailable = false, stat
     require: (name: string) => name === 'next/server'
       ? { NextResponse: { json: (value: unknown, init: any = {}) => ({ value, status: init.status || 200, headers: init.headers }) } }
       : name === '@/lib/supabase/server'
-        ? { createClient: () => ({ from: (table:string)=>{assert.equal(table,'run_review_issues');const chain:any={select:()=>chain,eq:()=>chain,neq:()=>chain,abortSignal:()=>chain,maybeSingle:async()=>({error:issueReadError?{}:null,data:issueRun?{run_id:issueRun}:null})};return chain;}, auth: { getSession: async () => ({ data: { session: signedIn ? { access_token: 'server-session' } : null } }) } }) }
+        ? { createClient: () => ({ from: (table:string)=>{assert.ok(['run_review_issues','skill_runs'].includes(table));const chain:any={select:()=>chain,eq:()=>chain,neq:()=>chain,abortSignal:()=>chain,maybeSingle:async()=>table==='skill_runs'?({error:null,data:{run_close_reason:null}}):({error:issueReadError?{}:null,data:issueRun?{run_id:issueRun}:null})};return chain;}, auth: { getSession: async () => ({ data: { session: signedIn ? { access_token: 'server-session',user:{id:'synthetic-owner'} } : null } }) } }) }
         : name === '@/lib/workflow-catalog'
           ? { readMyWorkflows: async (token: string) => { rosterTokens.push(token); return rosterUnavailable
             ? { status: 'unavailable', reason: 'network' }
