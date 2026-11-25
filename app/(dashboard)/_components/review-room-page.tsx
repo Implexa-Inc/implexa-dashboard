@@ -34,6 +34,23 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
   if (!session?.user) redirect('/login');
 
   const [packet, myAgents,owned] = await Promise.all([getReviewPacket(params.runId), getMyAgents(),readMyWorkflows(session.access_token)]);
+  // Run provenance is part of the owner-scoped packet. Older deployments may
+  // omit it; use one bounded exact owner read, never interpret an outage as a
+  // native result. Gate before BOTH legacy and Training redirects/mounts.
+  let closeReason: string | null | undefined = packet.run?.closeReason;
+  if (packet.live && packet.run && !Object.hasOwn(packet.run,'closeReason')) {
+    try {
+      const {data,error} = await supabase.from('skill_runs').select('run_close_reason')
+        .eq('id',params.runId).eq('user_id',session.user.id)
+        .abortSignal(AbortSignal.timeout(8000)).maybeSingle();
+      if (!error && data && (data.run_close_reason === null || typeof data.run_close_reason === 'string')) closeReason=data.run_close_reason;
+    } catch { /* unavailable provenance is a read failure, never Review authority */ }
+  }
+  if (closeReason === 'owner_verified_export') redirect(`/runs/${encodeURIComponent(params.runId)}`);
+  if (packet.live && closeReason === undefined) return <main className="mx-auto max-w-3xl p-10">
+    <h1>Review provenance unavailable</h1><p>We could not check how this result was recovered. Review actions are paused.</p>
+    <Link href={`/runs/${encodeURIComponent(params.runId)}`}>Open the private run page</Link>
+  </main>;
   const ownerSlug=trainingReviewSlug(packet,owned);
   if(trainingSlug){
     if(packet.live&&packet.run?.slug!==trainingSlug)notFound();

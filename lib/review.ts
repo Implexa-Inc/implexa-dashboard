@@ -204,7 +204,7 @@ export type ReviewPacket = {
   ok: boolean;
   run: {
     id: string; slug: string | null; runState: string | null; status: string | null;
-    reviewStatus: string | null; holdKind: string | null; startedAt: string | null;
+    reviewStatus: string | null; holdKind: string | null; closeReason?: string | null; startedAt: string | null;
   } | null;
   lineage: { rootRunId: string | null; versions: Array<{ runId: string; label: string; runState: string | null; startedAt: string | null }> };
   artifacts: ReviewArtifact[];
@@ -661,6 +661,8 @@ export function parseReviewQueueResponse(body: unknown): ReviewQueue | null {
 export function parseReviewPacketResponse(body: unknown, expectedRunId?: string): ReviewPacket | null {
   if (!isObject(body) || body.ok !== true) return null;
   if (!isObject(body.run) || !isId(body.run.id)) return null;
+  if (body.run.closeReason !== undefined && body.run.closeReason !== null
+    && (typeof body.run.closeReason !== 'string' || body.run.closeReason.length > 200)) return null;
   // IDENTITY. A valid-looking packet for a DIFFERENT run is the worst shape here: the
   // page would render run B's artifacts, lineage and issues under run A's heading, and
   // every action the user then took would target the wrong run. Refuse rather than
