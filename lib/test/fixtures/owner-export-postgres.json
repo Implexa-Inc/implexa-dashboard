@@ -23,7 +23,7 @@
       "reviewStatus": "none",
       "closeReason": "owner_verified_export",
       "holdKind": null,
-      "startedAt": "2026-11-25T06:17:33.331Z"
+      "startedAt": "2026-11-25T06:39:25.846Z"
     },
     "lineage": {
       "rootRunId": "ec120000-0000-4000-8000-000000024001",
@@ -33,21 +33,21 @@
           "label": "Original",
           "runState": "completed",
           "status": "partial",
-          "startedAt": "2026-11-25T06:17:33.331Z"
+          "startedAt": "2026-11-25T06:39:25.846Z"
         }
       ]
     },
     "artifacts": [
       {
-        "id": "164b3903-7a95-4689-9a68-031f7b47294c",
+        "id": "19611d55-8a4e-42a9-b152-cdf80157df55",
         "runId": "ec120000-0000-4000-8000-000000024001",
         "relativePath": "owner-export-11111111-1111-4111-8111-111111111111.mp4",
         "role": "other",
         "status": "validated",
         "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
         "sizeBytes": 42,
-        "mtime": "2026-11-25T06:17:33.637Z",
-        "validatedAt": "2026-11-25T06:17:33.704Z"
+        "mtime": "2026-11-25T06:39:26.162Z",
+        "validatedAt": "2026-11-25T06:39:26.243Z"
       }
     ],
     "judgment": null,
@@ -99,7 +99,7 @@
   },
   "artifacts": [
     {
-      "id": "164b3903-7a95-4689-9a68-031f7b47294c",
+      "id": "19611d55-8a4e-42a9-b152-cdf80157df55",
       "user_id": "ec120000-0000-4000-8000-000000006000",
       "organization_id": "ec120000-0000-4000-8000-000000006001",
       "run_id": "ec120000-0000-4000-8000-000000024001",
@@ -110,12 +110,12 @@
       "validated_path": "/synthetic-owner-custody/owner-export-11111111-1111-4111-8111-111111111111/owner-export-11111111-1111-4111-8111-111111111111.mp4",
       "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
       "size_bytes": "42",
-      "mtime": "2026-11-25T06:17:33.637Z",
+      "mtime": "2026-11-25T06:39:26.162Z",
       "rejection_reason": null,
-      "declared_at": "2026-11-25T06:17:33.701Z",
-      "validated_at": "2026-11-25T06:17:33.704Z",
+      "declared_at": "2026-11-25T06:39:26.239Z",
+      "validated_at": "2026-11-25T06:39:26.243Z",
       "media_duration_ms": 1000,
-      "media_duration_verified_at": "2026-11-25T06:17:33.704Z",
+      "media_duration_verified_at": "2026-11-25T06:39:26.243Z",
       "input_session_id": null,
       "media_type": "video/mp4",
       "file_extension": ".mp4",
@@ -130,8 +130,8 @@
   "producer": {
     "runReviewSha256": "81a35fa61fe9f8bd314f65cdd3dc0bcc81fcd8326db5f42e17421169bc22faa7",
     "runShareSha256": "89e478ee6efcbffe0e11b7d262e9638517baaed49faf2530a50d48fb830cfe05",
-    "generatorSha256": "95edc1ece80110589ffca1329230c130571dfde9b91ce1019439b97429e2844a",
-    "backendSourceSha256": "9ba7ac126beeddb4eee113d69c41f70e99382b941b6ea4c9e9092e46977a6b94",
+    "generatorSha256": "fa22e53d9920abc1d06e0e29fa380a4611f62094b644654ade535c10308b0d9b",
+    "backendSourceSha256": "a6219d9b3c75669b47b3cc28736c0f597f1bc7bb5b1a58a116d86c3627419a65",
     "boundary": "Actual full-schema operator writer and SELECT run_artifacts; real Desktop graded-preparation parent; raw synthetic operator/process/clock inputs."
   }
 }
