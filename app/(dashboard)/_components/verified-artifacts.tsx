@@ -7,7 +7,7 @@
  * a relative path from prose just to reach a delivered file.
  */
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 export type VerifiedArtifact = {
@@ -222,4 +222,15 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
       {message && <p className="mt-2 text-secondary text-ink-300" role="status">{message}</p>}
     </section>
   );
+}
+
+
+/** Explicit owner-salvage composition. It intentionally contains files and a
+ * recovery record only: no Review, change request, Accept or public-share flow. */
+export function OwnerRecoveredExport({artifacts,runId,children}:{artifacts:VerifiedArtifact[];runId:string;children?:ReactNode}){
+  return <section aria-label="Owner-recovered export">
+    <p className="mb-4 text-reading text-ink-300">The saved video was recovered by an owner-authorized operator. The interrupted execution remains ungraded.</p>
+    <VerifiedArtifacts artifacts={artifacts} runId={runId}/>
+    {children&&<details className="proof-disclosure mb-6"><summary>Recovery record</summary><div className="mt-4">{children}</div></details>}
+  </section>;
 }

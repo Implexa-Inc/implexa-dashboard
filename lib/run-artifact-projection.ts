@@ -63,3 +63,12 @@ export function withOwnerExportProvenance(artifacts: VerifiedArtifactView[], clo
     ? artifacts.map(artifact => ({ ...artifact, provenance: 'owner_operator' as const }))
     : artifacts;
 }
+
+
+/** Run-page result routing. An owner export is not an accepted Review source,
+ * even when the generic owner packet is live and has viewable attachments. */
+export function resultSurface(input:{runId:string;completed:boolean;closeReason:string|null;provenanceAvailable:boolean;reviewLive:boolean;reviewRunId?:string|null}):'owner_export'|'review'|'files'{
+  if (!input.provenanceAvailable) return 'files';
+  if (input.closeReason === 'owner_verified_export') return 'owner_export';
+  return input.completed && input.reviewLive && input.reviewRunId === input.runId ? 'review' : 'files';
+}

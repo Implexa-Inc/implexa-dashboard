@@ -54,11 +54,11 @@ import { EngineOverrideBanner } from '../../_components/engine-override-banner';
 import { FinalizeRecoveredButton } from '../../_components/finalize-recovered-button';
 import PreservedWorkContinuation from '../../_components/preserved-work-continuation';
 import { deriveRecoveredWork } from '@/lib/run-recovery';
-import { RUN_ARTIFACT_COLUMNS, projectRunArtifacts, withOwnerExportProvenance, type RecoveryArtifactView } from '@/lib/run-artifact-projection';
+import { RUN_ARTIFACT_COLUMNS, projectRunArtifacts, withOwnerExportProvenance, resultSurface, type RecoveryArtifactView } from '@/lib/run-artifact-projection';
 import { RunJudgmentCard, type JudgeRepairRequest, type RunJudgment } from '../../_components/run-judgment-card';
 import { RunJudgmentPending } from '../../_components/run-judgment-pending';
 import { readJudgeReviewAge } from '@/lib/judge-repair-state';
-import VerifiedArtifacts, { type VerifiedArtifact } from '../../_components/verified-artifacts';
+import VerifiedArtifacts, { OwnerRecoveredExport, type VerifiedArtifact } from '../../_components/verified-artifacts';
 import { isValidatedVideoOutput } from '@/lib/generation-entry-eligibility';
 import StageCompetenceProof from '../../_components/stage-competence-proof';
 import StageManagerProof from '../../_components/stage-manager-proof';
@@ -184,11 +184,20 @@ export default async function RunDetailPage({
     .from('users').select('id, organization_id, email').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const { data: run } = await supabase
+  const { data: primaryRun, error: runReadError } = await supabase
     .from('skill_runs')
-    .select('id, scheduled_skill_id, orchestration_id, continued_from_run_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at, run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at, cancel_requested_at')
+    .select('id, scheduled_skill_id, orchestration_id, continued_from_run_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at, run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at, cancel_requested_at, run_close_reason')
     .eq('id', params.id)
     .maybeSingle();
+  let run = primaryRun as RunRow | null;
+  // Exact schema-compatibility fallback only; a failed read never establishes
+  // native result provenance. Current schemas keep the reason on the spine.
+  if (runReadError && ['42703','PGRST204'].includes(runReadError.code)) {
+    const legacy = await supabase.from('skill_runs')
+      .select('id, scheduled_skill_id, orchestration_id, continued_from_run_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at, run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at, cancel_requested_at')
+      .eq('id',params.id).maybeSingle();
+    run = legacy.data as RunRow | null;
+  }
 
   const r = run as RunRow | null;
 
@@ -463,15 +472,16 @@ export default async function RunDetailPage({
   // must not be classified with an undefined close reason and lose its exact
   // Desktop approval continuation control.
   let verificationStatus: VerificationStatus = null;
-  let closeReason: string | null = null;
-  let artifactProvenanceAvailable = false;
+  let closeReason: string | null = r.run_close_reason ?? null;
+  let artifactProvenanceAvailable = Object.hasOwn(r, 'run_close_reason');
   try {
     const { data: vr, error: provenanceError } = await supabase
       .from('skill_runs').select('verification_status, run_close_reason').eq('id', params.id).maybeSingle();
     const row = vr as { verification_status?: VerificationStatus; run_close_reason?: string | null } | null;
     verificationStatus = row?.verification_status ?? null;
-    closeReason = row?.run_close_reason ?? null;
-    artifactProvenanceAvailable = !provenanceError && row !== null;
+    if (!artifactProvenanceAvailable && !provenanceError && row) {
+      closeReason = row.run_close_reason ?? null; artifactProvenanceAvailable = true;
+    }
   } catch { /* columns not present yet — badge/reason simply don't render */ }
   verifiedArtifacts = withOwnerExportProvenance(verifiedArtifacts, closeReason, artifactProvenanceAvailable);
 
@@ -934,7 +944,20 @@ export default async function RunDetailPage({
     && UUID_RE.test(searchParams.superseded) ? searchParams.superseded : null;
 
   const showProgressLayout = info.state !== 'completed' || held;
-  const showFinishedReview = !showProgressLayout && competencePacket.live && competencePacket.run?.id===r.id;
+  const surface = resultSurface({ runId:r.id, completed:!showProgressLayout, closeReason, provenanceAvailable:artifactProvenanceAvailable, reviewLive:competencePacket.live, reviewRunId:competencePacket.run?.id });
+  const showFinishedReview = surface === 'review';
+  if (surface === 'owner_export') return (
+    <main className="app-page"><div className="app-content">
+      <BackLink fallback="/work" label="Work" className="text-secondary text-ink-500"/>
+      <h1 className="mt-4 text-2xl font-semibold text-ink-50">Saved export · {name}</h1>
+      <OwnerRecoveredExport artifacts={verifiedArtifacts} runId={r.id}>
+        <RunMarkdown markdown={r.output_markdown || ''} workspaceRoot={workspaceRoot}/>
+      </OwnerRecoveredExport>
+      {steps.length>0&&<details className="proof-disclosure"><summary>Interrupted execution history</summary>
+        <RunStepTrace entries={steps} live={false} attention={false} stalled={false}/>
+      </details>}
+    </div></main>
+  );
   const heldRunControls = <>
         {/* The ONE action surface for a held run — context-aware primary (Approve &
             finish / Mark as done / Answer & continue), Request-changes on demand, a
@@ -1344,14 +1367,14 @@ export default async function RunDetailPage({
 
         {!showProgressLayout&&cancellation}
         {!showFinishedReview&&<VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} progress={showProgressLayout}/>}
-        {r.output_markdown ? (verifiedArtifacts.length ? <details className="proof-disclosure mb-6"><summary>Agent’s notes</summary><div className="prose prose-sm mt-4 max-w-none"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div></details>:<div className="prose prose-sm mb-6 max-w-none rounded-lg border border-ink-700 bg-ink-900 p-5"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div>) : null}
+        {r.output_markdown ? (verifiedArtifacts.length ? <details className="proof-disclosure mb-6"><summary>{artifactProvenanceAvailable ? 'Agent’s notes' : 'Result notes'}</summary><div className="prose prose-sm mt-4 max-w-none"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div></details>:<div className="prose prose-sm mb-6 max-w-none rounded-lg border border-ink-700 bg-ink-900 p-5"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div>) : null}
 
         {!showFinishedReview&&judgmentPanel}
 
         {/* Share — prominent on ANY completed run with a deliverable, so the owner
             can turn it into a public, forkable Run Card without hunting (founder
             ask). Amber + share icon. The detailed URL/copy state expands in place. */}
-        {!showFinishedReview && r.run_state === 'completed' && r.output_markdown && (
+        {artifactProvenanceAvailable && !showFinishedReview && r.run_state === 'completed' && r.output_markdown && (
           <div className="mb-6">
             <RunShareButton runId={r.id} />
           </div>
@@ -1481,7 +1504,7 @@ export default async function RunDetailPage({
 
         <CheckpointedContinuationHistoryCard history={checkpointedContinuations} runId={r.id} />
 
-        {!showFinishedReview&&brollAction}
+        {artifactProvenanceAvailable&&!showFinishedReview&&brollAction}
 
         {/* Caught needing browser / computer-use access → one-click "Grant browser
             access" that opens Claude with a grant-only prompt (it pops the macOS
@@ -1517,7 +1540,7 @@ export default async function RunDetailPage({
           </div>
         )}
 
-        {!showFinishedReview&&suggestedActions}
+        {artifactProvenanceAvailable&&!showFinishedReview&&suggestedActions}
 
         {!showProgressLayout&&runChecklist}
 
@@ -1552,7 +1575,7 @@ export default async function RunDetailPage({
             you just read. Failed/stalled runs are already covered by "Run again" +
             <StuckRunButton> in the no-deliverable branch, so this stays scoped to a
             real deliverable and never stacks a second CTA on a failure. */}
-        {!held && r.output_markdown && !showFinishedReview && (
+        {artifactProvenanceAvailable && !held && r.output_markdown && !showFinishedReview && (
           <div className="mt-5">
             {continueBox}
           </div>
@@ -1570,7 +1593,7 @@ export default async function RunDetailPage({
           </Link>
         </div>
 
-        {!showFinishedReview&&laterActions}
+        {artifactProvenanceAvailable&&!showFinishedReview&&laterActions}
 
         </div>
         </div>

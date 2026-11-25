@@ -6,9 +6,99 @@
     "verification_status": "unverified",
     "run_close_reason": "owner_verified_export"
   },
+  "runRecord": {
+    "id": "ec120000-0000-4000-8000-000000024001",
+    "run_state": "completed",
+    "status": "partial",
+    "run_close_reason": "owner_verified_export",
+    "output_markdown": "## Owner-recovered video\n\nThe saved export was reverified by an owner-authorized operator after execution was interrupted. This is not an agent completion, native-app acceptance or quality grade. The unfinished execution and original checks remain in history.\n\nSaved video: `owner-export-11111111-1111-4111-8111-111111111111.mp4`\nSHA-256: `dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd`"
+  },
+  "reviewPacket": {
+    "ok": true,
+    "run": {
+      "id": "ec120000-0000-4000-8000-000000024001",
+      "slug": "lifecycle-source-fixture",
+      "runState": "completed",
+      "status": "partial",
+      "reviewStatus": "none",
+      "holdKind": null,
+      "startedAt": "2026-11-25T06:04:16.819Z"
+    },
+    "lineage": {
+      "rootRunId": "ec120000-0000-4000-8000-000000024001",
+      "versions": [
+        {
+          "runId": "ec120000-0000-4000-8000-000000024001",
+          "label": "Original",
+          "runState": "completed",
+          "status": "partial",
+          "startedAt": "2026-11-25T06:04:16.819Z"
+        }
+      ]
+    },
+    "artifacts": [
+      {
+        "id": "9ab2fd8d-1da7-4bad-8287-6f75db485e8b",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "relativePath": "owner-export-11111111-1111-4111-8111-111111111111.mp4",
+        "role": "other",
+        "status": "validated",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "sizeBytes": 42,
+        "mtime": "2026-11-25T06:04:17.098Z",
+        "validatedAt": "2026-11-25T06:04:17.171Z"
+      }
+    ],
+    "judgment": null,
+    "verification": {
+      "receipts": []
+    },
+    "production": null,
+    "competenceProof": {
+      "contextStatus": "none",
+      "attemptContextId": null,
+      "contextDigest": null,
+      "workflowVersionId": null,
+      "bindings": [],
+      "supplyStatus": "not_required",
+      "handlingStatus": "not_required",
+      "receipts": []
+    },
+    "managerProof": {
+      "status": "none",
+      "stageCount": 0,
+      "stages": [],
+      "verificationStatus": "not_required"
+    },
+    "historicalCandidates": [],
+    "session": null,
+    "reviewArtifacts": [],
+    "submission": null,
+    "issues": [],
+    "sources": {
+      "run": "ready",
+      "lineage": "ready",
+      "artifacts": "ready",
+      "judgment": "ready",
+      "verification": "ready",
+      "production": "ready",
+      "session": "ready",
+      "issues": "ready",
+      "evidence": "ready",
+      "submission": "ready",
+      "reviewer_resolutions": "ready",
+      "review_artifacts": "ready",
+      "competence_context": "ready",
+      "competence_handling": "ready",
+      "manager_context": "ready",
+      "manager_handling": "ready",
+      "historical_candidates": "ready",
+      "carry_membership": "ready"
+    }
+  },
   "artifacts": [
     {
-      "id": "adfb7800-3039-443f-90c8-b686e76f2a55",
+      "id": "9ab2fd8d-1da7-4bad-8287-6f75db485e8b",
       "user_id": "ec120000-0000-4000-8000-000000006000",
       "organization_id": "ec120000-0000-4000-8000-000000006001",
       "run_id": "ec120000-0000-4000-8000-000000024001",
@@ -19,12 +109,12 @@
       "validated_path": "/synthetic-owner-custody/owner-export-11111111-1111-4111-8111-111111111111/owner-export-11111111-1111-4111-8111-111111111111.mp4",
       "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
       "size_bytes": "42",
-      "mtime": "2026-11-25T05:53:05.823Z",
+      "mtime": "2026-11-25T06:04:17.098Z",
       "rejection_reason": null,
-      "declared_at": "2026-11-25T05:53:05.885Z",
-      "validated_at": "2026-11-25T05:53:05.889Z",
+      "declared_at": "2026-11-25T06:04:17.167Z",
+      "validated_at": "2026-11-25T06:04:17.171Z",
       "media_duration_ms": 1000,
-      "media_duration_verified_at": "2026-11-25T05:53:05.889Z",
+      "media_duration_verified_at": "2026-11-25T06:04:17.171Z",
       "input_session_id": null,
       "media_type": "video/mp4",
       "file_extension": ".mp4",
@@ -37,6 +127,9 @@
     }
   ],
   "producer": {
+    "runReviewSha256": "580fb6b5f4f5a8cfef2418d6bcdd118e85a0b3aed9ab5e650f3d651f1cb075b2",
+    "runShareSha256": "89e478ee6efcbffe0e11b7d262e9638517baaed49faf2530a50d48fb830cfe05",
+    "generatorSha256": "433ea627a58860d525718b03440c036d3da51218347d9e5f0d0aca0c934ef1f5",
     "backendSourceSha256": "9ba7ac126beeddb4eee113d69c41f70e99382b941b6ea4c9e9092e46977a6b94",
     "boundary": "Actual full-schema operator writer and SELECT run_artifacts; real Desktop graded-preparation parent; raw synthetic operator/process/clock inputs."
   }
