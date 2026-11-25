@@ -1,0 +1,43 @@
+{
+  "run": {
+    "run_state": "completed",
+    "status": "partial",
+    "review_status": "none",
+    "verification_status": "unverified",
+    "run_close_reason": "owner_verified_export"
+  },
+  "artifacts": [
+    {
+      "id": "86e009f4-8a34-4c59-bdfe-f68ad07ba210",
+      "user_id": "ec120000-0000-4000-8000-000000006000",
+      "organization_id": "ec120000-0000-4000-8000-000000006001",
+      "run_id": "ec120000-0000-4000-8000-000000024001",
+      "declared_workspace": "/synthetic-owner-custody/owner-export-11111111-1111-4111-8111-111111111111",
+      "relative_path": "owner-export-11111111-1111-4111-8111-111111111111.mp4",
+      "role": "other",
+      "status": "validated",
+      "validated_path": "/synthetic-owner-custody/owner-export-11111111-1111-4111-8111-111111111111/owner-export-11111111-1111-4111-8111-111111111111.mp4",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "size_bytes": "42",
+      "mtime": "2026-11-25T05:46:28.977Z",
+      "rejection_reason": null,
+      "declared_at": "2026-11-25T05:46:29.043Z",
+      "validated_at": "2026-11-25T05:46:29.047Z",
+      "media_duration_ms": 1000,
+      "media_duration_verified_at": "2026-11-25T05:46:29.047Z",
+      "input_session_id": null,
+      "media_type": "video/mp4",
+      "file_extension": ".mp4",
+      "producer_machine_id": "ec120000-0000-4000-8000-000000006002",
+      "input_materialization_mode": "managed_copy",
+      "editable_checkpoint": null,
+      "bundle_contract_observation": null,
+      "execution_lifecycle_binding": null,
+      "execution_lifecycle_validation_locator": null
+    }
+  ],
+  "producer": {
+    "backendSourceSha256": "4b4ffdd41f517bdbb7a747fa7be6a34f4fd69923256426f7ecd95ab49cabac41",
+    "boundary": "Actual full-schema operator writer and SELECT run_artifacts; real Desktop graded-preparation parent; raw synthetic operator/process/clock inputs."
+  }
+}

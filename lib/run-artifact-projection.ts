@@ -21,7 +21,7 @@ export type RunArtifactRow = {
   sha256?: string | null;
 };
 
-export type VerifiedArtifactView = { relativePath: string; validatedPath: string; role: string | null; sizeBytes: number | null };
+export type VerifiedArtifactView = { relativePath: string; validatedPath: string; role: string | null; sizeBytes: number | null; provenance?: 'owner_operator' };
 export type RecoveryArtifactView = { id: string | null; role: string | null; status: string; relative_path: string; sha256: string | null };
 
 /** The exact column list the page must SELECT — a projection cannot recover a column it never read. */
@@ -52,4 +52,13 @@ export function projectRunArtifacts(rows: unknown, rolePriority: (role: string |
     sha256: typeof row.sha256 === 'string' && /^[a-f0-9]{64}$/.test(row.sha256) ? row.sha256 : null,
   }));
   return { verified, recovery };
+}
+
+/** Presentation only. This cannot promote a row to validated/final_output or
+ * grant Review/learning authority; the server's immutable close reason names
+ * the distinct operator-assisted salvage profile. */
+export function withOwnerExportProvenance(artifacts: VerifiedArtifactView[], closeReason: string | null): VerifiedArtifactView[] {
+  return closeReason === 'owner_verified_export'
+    ? artifacts.map(artifact => ({ ...artifact, provenance: 'owner_operator' as const }))
+    : artifacts;
 }

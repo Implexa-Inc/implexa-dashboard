@@ -54,7 +54,7 @@ import { EngineOverrideBanner } from '../../_components/engine-override-banner';
 import { FinalizeRecoveredButton } from '../../_components/finalize-recovered-button';
 import PreservedWorkContinuation from '../../_components/preserved-work-continuation';
 import { deriveRecoveredWork } from '@/lib/run-recovery';
-import { RUN_ARTIFACT_COLUMNS, projectRunArtifacts, type RecoveryArtifactView } from '@/lib/run-artifact-projection';
+import { RUN_ARTIFACT_COLUMNS, projectRunArtifacts, withOwnerExportProvenance, type RecoveryArtifactView } from '@/lib/run-artifact-projection';
 import { RunJudgmentCard, type JudgeRepairRequest, type RunJudgment } from '../../_components/run-judgment-card';
 import { RunJudgmentPending } from '../../_components/run-judgment-pending';
 import { readJudgeReviewAge } from '@/lib/judge-repair-state';
@@ -471,6 +471,7 @@ export default async function RunDetailPage({
     verificationStatus = row?.verification_status ?? null;
     closeReason = row?.run_close_reason ?? null;
   } catch { /* columns not present yet — badge/reason simply don't render */ }
+  verifiedArtifacts = withOwnerExportProvenance(verifiedArtifacts, closeReason);
 
   const localApprovalContinuationRecovery = isApprovalContinuationRecovery({
     runState: r.run_state,
