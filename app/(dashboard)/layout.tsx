@@ -23,6 +23,7 @@ import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
 import { computeSetupStatus } from '@/lib/setup-status';
 import Sidebar, { MobileTopBar, ShellNavigationProvider } from './_components/sidebar';
+import BuildingAgents from './_components/building-agents';
 import UpdateBanner from './_components/update-banner';
 import AutoUpdateToast from './_components/auto-update-toast';
 import PersistIntent from './_components/persist-intent';
@@ -117,6 +118,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <div className="flex-1 flex flex-col min-w-0">
         <MobileTopBar user={userCtx} />
         <UpdateBanner />
+        <BuildingAgents key={profile.id} />
         {/* tabIndex={-1} so the skip link can actually move focus here; without
             it the browser scrolls but focus stays on the link. */}
         <main id={MAIN_CONTENT_ID} tabIndex={-1} className="flex-1 focus:outline-none">

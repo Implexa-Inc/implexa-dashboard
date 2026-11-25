@@ -38,7 +38,8 @@ import { SetupRequiredModal } from './setup-required-gate';
 import { isExactMachineOfflineSetupRefusal, isProbeOnlySetupRefusal, parseSetupRequired, parseVersionContractRefusal, type SetupRequiredCard as SetupRequiredCardData, type VersionContractRefusal } from '@/lib/setup-required';
 import {
   acceptsDirectorySnapshot, bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,
-  resolvePickerResult, revisionAuthorityIssue, serializeArtifactBindings,
+  playbookFileSelected,
+  resolvePickerResult, timeInputIssue, revisionAuthorityIssue, serializeArtifactBindings,
   type ArtifactBinding, type RunInputBindings, type WorkflowInputContract, type WorkflowInputField,
 } from '@/lib/workflow-input-contract';
 import { advanceInputRevision, inputRevisionIsCurrent, readInputRevision } from '@/lib/run-input-verification-order';
@@ -242,7 +243,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // setup was complete still opened Run now with every control blank.
   const [inputDefaults, setInputDefaults] = useState<RunInputBindings>({});
   const [inputOverrides, setInputOverrides] = useState<RunInputOverrides>({});
-  const [deferredSelections, setDeferredSelections] = useState<Record<string, DeferredRunInputSelection>>({});
+  const [allDeferredSelections, setDeferredSelections] = useState<Record<string, DeferredRunInputSelection>>({});
   const [presenterMinutes, setPresenterMinutes] = useState<{ fileId: string; value: string } | null>(null);
   /** The saved answers as text, for naming the source a file field starts from. */
   const [savedInputValues, setSavedInputValues] = useState<Record<string, string>>({});
@@ -265,6 +266,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // promise continuation can tell whether it is stale before touching UI state.
   const inputRevisionRef = useRef<Record<string, number>>({});
   const inputBindings = resolveEffectiveInputs(inputContract, inputDefaults, inputOverrides);
+  const deferredSelections = Object.fromEntries(Object.entries(allDeferredSelections)
+    .filter(([key]) => playbookFileSelected(key, inputContract, inputBindings) !== false));
   const brollHeavy = !!higgsfieldBudgetField && inputBindings.creative_direction === 'Cinematic B-roll-heavy';
   const presenter = inputBindings.presenter_video;
   const presenterFile = presenter && typeof presenter === 'object' && !Array.isArray(presenter) ? presenter : null;
@@ -274,7 +277,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const brollEstimate = brollHeavy ? brollBudgetEstimate(durationHintMs ?? Math.round(Number(enteredMinutes) * 60_000),
     higgsfieldBudgetField?.options ?? []) : null;
   const awaitingBrollBudget = brollHeavy && !inputBindings.higgsfield_credit_limit;
-  const revisionIssue = revisionAuthorityIssue(
+  const revisionIssue = timeInputIssue(inputContract,inputBindings) || revisionAuthorityIssue(
     inputContract,
     inputBindings,
     new Set(Object.keys(deferredSelections)),
@@ -711,6 +714,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // those very keys. Filtering them out of the section above without seeding
     // them here is what made the pop-up open blank on a fully-configured agent.
     const savedInputs = readSavedRunInputs(inputContract, runInputDefaults);
+    // Honor the selected access method before Desktop opens any saved path.
+    const openingBindings = resolveEffectiveInputs(inputContract, savedInputs.bindable, inputOverrides);
+    savedInputs.filesToVerify = savedInputs.filesToVerify.filter(field =>
+      playbookFileSelected(field.key, inputContract, openingBindings) !== false);
     setSavedInputValues(savedInputs.values);
     setInputDefaults(savedInputs.bindable);
     setInputErrors({});
@@ -823,7 +830,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
    * the fingerprint to stamp on the request either way, and any failure returns
    * nothing, because a backstop that can block Run is worse than no backstop.
    */
-  async function precheckDuplicate(note: string | undefined, files: string[]) {
+  async function precheckDuplicate(note: string | undefined, files: string[], bindings:RunInputBindings) {
+    // Deferred files have no content digest until Desktop completes registration.
+    if(Object.keys(deferredSelections).length)return {fingerprint:null,duplicate:null};
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const r = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/run-precheck`, {
@@ -831,7 +840,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         // Paths only for now — the desktop has no content-digest bridge yet, so the
         // server reports digestQuality:'weak' and phrases its warning accordingly
         // ("same file locations, contents not checked") rather than overclaiming.
-        body: { source, note: note || '', files: files.map((path) => ({ path })) },
+        body: { source, note: note || '', files: files.map((path) => ({ path })),
+          ...(typedFields.length ? {workflowVersionId,inputBindings:serializeArtifactBindings(bindings)} : {}) },
       });
       return { fingerprint: (r?.fingerprint as string) ?? null, duplicate: r?.duplicate ?? null };
     } catch { return { fingerprint: null, duplicate: null }; }
@@ -857,7 +867,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // fall through to null just because this call skipped the precheck.
     let fingerprint = opts?.fingerprint ?? lastFingerprint.current ?? null;
     if (!opts?.force) {
-      const pre = await precheckDuplicate(note, runFiles);
+      const pre = await precheckDuplicate(note, runFiles, opts?.inputBindingsOverride ?? inputBindings);
       fingerprint = pre.fingerprint;
       lastFingerprint.current = pre.fingerprint;
       if (pre.duplicate) {
@@ -947,7 +957,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // Freeze the complete request before its first birth attempt. If that
       // authoritative boundary races a transient Desktop probe, the one allowed
       // replay below sends this exact object — never live/mutated form state.
+      const needsFollowUpMachine = !!inputContract?.followUp?.length &&
+        [...inputContract.fields,...inputContract.followUp].some(field=>field.kind==='file');
+      if(needsFollowUpMachine&&!executionMachineId){
+        throw new Error('Open this agent on the desktop that holds the inputs so the next step can continue there.');
+      }
       const requestBody = {
+        ...(needsFollowUpMachine ? {requiredMachineId:executionMachineId} : {}),
         workflowSlug: slug, source: 'dashboard', kind: 'run',
         ...(trainingTest?{trainingTest}:{}),
         ...(note ? { note } : {}),
@@ -1639,6 +1655,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 <SetupChoiceField
                   value={setupValues[f.key] ?? ''}
                   options={f.options}
+                allowOther={!/^playbook_access_[a-f0-9]{16}$/.test(f.key)}
                   onChange={(next) => setSetupValues((v) => ({ ...v, [f.key]: next }))}
                   ariaLabel={f.question}
                   selectClassName="w-full bg-ink-900 border border-ink-700 rounded-md text-ui px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
@@ -1681,11 +1698,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           <div>
             <p className="text-secondary font-semibold uppercase tracking-wide text-ink-300">Run inputs</p>
             <p className="text-reading text-ink-500 mt-1">
-              What this run works from. These start from what you saved in Setup; change one here and it applies to
-              this run only. Files are bound to their named role, so upload order is irrelevant.
+              {typedFields.every(f=>f.freshEachRun) ? 'Choose fresh inputs for this run.' : 'Saved inputs can be changed for this run.'}
             </p>
           </div>
           {typedFields.map((field) => {
+            const selectedFile = playbookFileSelected(field.key, inputContract, inputBindings);
+            if (selectedFile === false) return null;
+            const required = selectedFile ?? field.required;
             const value = displayedInputValue(field.key, inputDefaults, inputOverrides);
             const origin = inputOrigin(field.key, inputDefaults, inputOverrides);
             const artifact = value && !Array.isArray(value) && typeof value === 'object' ? value : null;
@@ -1701,6 +1720,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             const override = (next: string | string[]) => setInputOverrides((previous) => ({ ...previous, [field.key]: next }));
             const useSaved = () => {
               setInputError(field.key, null);
+              if (selectedFile === true && !inputDefaults[field.key] && !verifying && savedPath && inputSessionId) {
+                void verifySavedFileInputs([field], inputSessionId);
+              }
               setInputOverrides((previous) => {
                 const next = { ...previous };
                 delete next[field.key];
@@ -1712,8 +1734,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
               <div key={field.key} className="rounded-md border border-ink-800 p-4">
                 <div className="min-w-0">
                   <label className="text-ui font-medium text-ink-100">{field.label}</label>
-                  <span className={field.required ? 'ml-2 text-secondary text-state-needs' : 'ml-2 text-secondary text-ink-500'}>
-                    {field.required ? 'required' : 'optional'}
+                  <span className={required ? 'ml-2 text-secondary text-state-needs' : 'ml-2 text-secondary text-ink-500'}>
+                    {required ? 'required' : 'optional'}
                   </span>
                   {/* WHICH LAYER this value came from. Without it, "kept from
                       your setup" and "changed for this run" look identical, and
@@ -1781,6 +1803,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 {field.kind === 'text' ? (
                   <input
                     aria-label={field.label}
+                    inputMode={field.unit==='seconds'?'decimal':undefined}
+                    placeholder={field.unit==='seconds'?'Seconds':undefined}
                     value={field.cardinality === 'many' ? scalarMany.join(', ') : scalar}
                     onChange={(event) => override(field.cardinality === 'many'
                       ? event.target.value.split(',').map((entry) => entry.trim()).filter(Boolean)

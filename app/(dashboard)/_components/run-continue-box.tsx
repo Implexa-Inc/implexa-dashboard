@@ -27,7 +27,10 @@ import { createClient } from '@/lib/supabase/client';
 import { callBackend, BackendError } from '@/lib/api';
 import { runRequestRefusalCopy, classifyRunRequestRefusal, type RunRequestRefusal } from '@/lib/run-request-refusal';
 import ReviewContinuationRecovery from './review-continuation-recovery';
-import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
+import type { WorkflowInputField } from '@/lib/workflow-input-contract';
+
+export type FollowUpInput = Pick<WorkflowInputField, 'key' | 'label' | 'kind' | 'required' | 'cardinality'>;
+import { desktopBridge, AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import { SetupRequiredModal } from './setup-required-gate';
 import { parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } from '@/lib/setup-required';
@@ -36,9 +39,11 @@ import { localInputRecoveryMessage, verifyContinuationSource } from '@/lib/conti
 
 export default function RunContinueBox({
   runId, agentName, pending = false, initialNote = '', slug = null, workflowVersionId = null,
-  audioEdits = false, higgsfieldCreditChoices = [], presentation,
+  audioEdits = false, higgsfieldCreditChoices = [], presentation, followUp = [], resultRows = [],
 }: {
   presentation?: 'finished';
+  followUp?: FollowUpInput[];
+  resultRows?: string[];
   runId: string;
   agentName: string;
   /** The run's agent and FROZEN version, for "Open setup" on a setup refusal. */
@@ -77,7 +82,28 @@ export default function RunContinueBox({
   const { files, canAttach, canAttachFolder, attachFile, attachFolder, removeFile, error: attachError } = useRunAttachments();
   const supabase = createClient();
 
-  const canSubmit = !!note.trim() || files.length > 0;
+  const [answers,setAnswers]=useState<Record<string,string[]>>({});
+  const [manualFields,setManualFields]=useState<string[]>([]);
+  const [answering,setAnswering]=useState(followUp.length>0);
+  const structured=answering&&followUp.length>0;
+  const submittedAnswers=Object.fromEntries(followUp.map(field=>{
+    const values=answers[field.key]||[];
+    return [field.key, field.kind==='text'&&field.cardinality==='one'&&values.length ? [values.join('\n')] : values];
+  }));
+  const answersTooLong=Object.values(submittedAnswers).some(values=>values.length>8||values.some(v=>v.length>2000));
+  const canSubmit=structured ? !answersTooLong && followUp.every(f=>!f.required||submittedAnswers[f.key].some(v=>v.trim()))
+    : !!note.trim() || files.length>0;
+  async function pickAnswer(field:FollowUpInput) {
+    const bridge=desktopBridge();
+    if(!bridge?.pickFile){setMsg('Open this run in the desktop app to choose a file.');return;}
+    try{
+      const picked=await bridge.pickFile();
+      if(picked?.ok&&picked.path){
+        const path=picked.path;
+        setAnswers(old=>({...old,[field.key]:field.cardinality==='one'?[path]:[...new Set([...(old[field.key]||[]),path])]}));
+      }
+    }catch{setMsg('The file picker could not open.');}
+  }
   const showMedia = !pending && !preservePlannerIdentity && (audioEdits || higgsfieldCreditChoices.length > 0);
 
   async function submit(opts?: { force?: boolean; executionMachineId?: string | null }) {
@@ -91,7 +117,7 @@ export default function RunContinueBox({
     try {
       // The prompt + any attached file PATHS, combined into the one-off note the
       // run-request carries (read back by the drainer from the request's `intent`).
-      const composed = composeNoteWithFiles(note, files);
+      const feedback=structured ? {playbookFollowUp:submittedAnswers} : {note:composeNoteWithFiles(note,files)};
       let revisionClaimScope;
       if (preservePlannerIdentity && completePointClaims) {
         try { revisionClaimScope = JSON.parse(claimScope); }
@@ -127,11 +153,11 @@ export default function RunContinueBox({
         jwt: session?.access_token,
         method: 'POST',
         body: {
-          kind: 'continue', runId, note: composed, source: 'dashboard',
-          ...(preservePlannerIdentity ? { revisionPreservation: completePointClaims
+          kind: 'continue', runId, ...feedback, source: 'dashboard',
+          ...(!structured && preservePlannerIdentity ? { revisionPreservation: completePointClaims
             ? 'planner-bundle-point-claim-revision.v1' : 'planner-bundle-identity-preservation.v1' } : {}),
           ...(preservePlannerIdentity && completePointClaims ? { revisionClaimScope } : {}),
-          ...(showMedia ? { continuationMedia: { videoEdit,
+          ...(!structured && showMedia ? { continuationMedia: { videoEdit,
             higgsfieldCredits: higgsfieldCredits === '' ? null : Number(higgsfieldCredits) } } : {}),
           ...(opts?.force ? { force: true } : {}),
           // On a Recheck-admitted retry: the machine the admission was proven on.
@@ -174,7 +200,22 @@ export default function RunContinueBox({
         Add instructions, feedback, or the inputs it still needs{canAttach ? ' (attach files too)' : ''} — it picks up
         from this run&apos;s output and produces an updated result for <span className="text-ink-200">{agentName}</span>, hands-off.
       </p>
-      <textarea
+      {followUp.length>0&&<label className="block"><input type="checkbox" checked={answering} onChange={e=>setAnswering(e.target.checked)}/> Supply the requested follow-up inputs</label>}
+      {structured&&answersTooLong&&<p role="status">Select fewer rows or shorten your answer.</p>}
+      {structured ? followUp.map(field=><div key={field.key} className="mt-3">
+        {field.kind==='file'?<>
+          <button type="button" className="btn-outline" onClick={()=>void pickAnswer(field)}>Choose {field.label}</button>
+          {(answers[field.key]||[]).map(path=><button type="button" key={path} aria-label={'Remove '+path.split('/').at(-1)} onClick={()=>setAnswers(old=>({...old,[field.key]:old[field.key].filter(p=>p!==path)}))}>{path.split('/').at(-1)} ×</button>)}
+        </>:resultRows.length>0&&!manualFields.includes(field.key)?<fieldset className="space-y-2">
+          <legend>{field.label}</legend>
+          <div className="max-h-64 overflow-auto">{resultRows.map(row=>{
+            const selected=answers[field.key]||[];
+            return <label key={row} className="flex items-start gap-2 py-2"><input type="checkbox" checked={selected.includes(row)}
+              onChange={e=>setAnswers(old=>({...old,[field.key]:e.target.checked?[...selected,row]:selected.filter(value=>value!==row)}))}/>{row}</label>;
+          })}</div>
+          <button type="button" className="underline" onClick={()=>{setManualFields(old=>[...old,field.key]);setAnswers(old=>({...old,[field.key]:[(old[field.key]||[]).join('\n')]}));}}>Type manually</button>
+        </fieldset>:<label>{field.label}<textarea aria-label={field.label} value={answers[field.key]?.[0]||''} onChange={e=>setAnswers(old=>({...old,[field.key]:[e.target.value]}))}/></label>}
+      </div>):<><textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={3}
@@ -192,7 +233,8 @@ export default function RunContinueBox({
         error={attachError}
         hint="A screenshot, the captured footage, a doc — the run reads it as input."
       />
-      {showMedia && <details className="mt-3 rounded-md border border-ink-800 px-3 py-2 text-secondary text-ink-300">
+      </>}
+      {showMedia && !structured && <details className="mt-3 rounded-md border border-ink-800 px-3 py-2 text-secondary text-ink-300">
         <summary className="cursor-pointer font-medium text-ink-200">Media for this revision</summary>
         {audioEdits && <div className="mt-3 space-y-2">
           <label className="flex items-center gap-2">
@@ -224,7 +266,7 @@ export default function RunContinueBox({
           <p className="mt-1 text-ink-400">Set a limit for this revision. Without a selection, the agent can source free footage.</p>
         </div>}
       </details>}
-      <details className="revision-options" open={presentation==='finished'?undefined:true}><summary>Advanced revision options</summary>
+      {!structured && <details className="revision-options" open={presentation==='finished'?undefined:true}><summary>Advanced revision options</summary>
       {!pending && <label className="mt-3 flex items-start gap-2 text-ui text-ink-400">
         <input type="checkbox" checked={preservePlannerIdentity}
           onChange={(e) => setPreservePlannerIdentity(e.target.checked)} />
@@ -244,7 +286,7 @@ export default function RunContinueBox({
             className="mt-1 w-full bg-ink-900 border border-ink-700 rounded-md px-3 py-2 text-ink-100" />
         </>}
       </div>}
-      </details>
+      </details>}
       <div className="mt-3 flex items-center gap-3 flex-wrap">
         <button
           type="button"

@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * <BuildingAgents /> — live status for the "Build an agent" box, shown directly
- * BELOW it. A build is a kind='build' run_request the drainer picks up; this
+ * Live build status at the top of the authenticated dashboard. A build is a kind='build' run_request the drainer picks up; this
  * polls GET /api/v2/me/build-status and renders one card per build with its
  * REAL lifecycle.
  *
@@ -22,6 +21,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import {retrySavedBuild} from '@/lib/plan-review';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
@@ -50,6 +50,8 @@ type Build = {
   worker: string | null;
   executor: string | null;
   attempt: number;
+  canRetry?: boolean;
+  retryOf?: string | null;
   lifecycle: LifecycleEvent[];
   workflowSlug: string | null;
 };
@@ -135,31 +137,62 @@ export default function BuildingAgents() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   // Cards whose lifecycle history is expanded.
   const [open, setOpen] = useState<Set<string>>(new Set());
-  const tick = useRef(0);
+  const retrying = useRef(new Set<string>());
+  const [retryStatus,setRetryStatus] = useState<Record<string,string>>({});
+  async function retry(build: Build) {
+    if (retrying.current.has(build.id)) return;
+    retrying.current.add(build.id);
+    setRetryStatus(prev=>({...prev,[build.id]:'Queuing retry…'}));
+    try {
+      await retrySavedBuild(build.id);
+      setRetryStatus(prev=>({...prev,[build.id]:'Retry queued'}));
+    } catch {
+      setRetryStatus(prev=>({...prev,[build.id]:'Could not confirm the retry. Check build status.'}));
+    } finally {retrying.current.delete(build.id);}
+  }
 
   useEffect(() => {
     let alive = true;
+    let loading = false;
+    let interval = POLL_MS;
+    let timer: ReturnType<typeof setTimeout>;
+    function refresh() {
+      clearTimeout(timer);
+      if (!document.hidden) void load();
+    }
     async function load() {
+      if (loading) return;
+      loading = true;
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const res = await callBackend('/api/v2/me/build-status', { jwt: session?.access_token });
         if (!alive) return;
         if (res && res.ok === false) { setUnavailable(true); return; }
+        if (!Array.isArray(res?.builds)) { setUnavailable(true); return; }
         setUnavailable(false);
-        setBuilds(Array.isArray(res?.builds) ? (res.builds as Build[]) : []);
+        setBuilds(res.builds);
+        interval = res.builds.some((b:Build)=>!TERMINAL.has(b.phase)) ? POLL_MS : 30000;
       } catch {
         // Keep the last known list rather than blanking it — a single failed
         // poll must not make in-flight builds appear to vanish.
         if (alive) setUnavailable(true);
+      } finally {
+        loading = false;
+        if(alive && !document.hidden) timer = setTimeout(load,interval);
       }
     }
     load();
-    const t = setInterval(() => { tick.current += 1; load(); }, POLL_MS);
-    return () => { alive = false; clearInterval(t); };
+    window.addEventListener('agent-build-changed',refresh);
+    document.addEventListener('visibilitychange',refresh);
+    return () => {
+      alive=false;clearTimeout(timer);
+      document.removeEventListener('visibilitychange',refresh);
+      window.removeEventListener('agent-build-changed',refresh);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (unavailable && !builds) {
+  if (unavailable && !builds?.length) {
     return (
       <section className="mt-3">
         <div className="rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3 text-secondary text-ink-500">
@@ -169,11 +202,13 @@ export default function BuildingAgents() {
     );
   }
   if (!builds) return null;
-  const list = builds.filter((b) => !dismissed.has(b.id));
+  const retried=new Set(builds.map(b=>b.retryOf).filter(Boolean));
+  const list = builds.filter(b=>!dismissed.has(b.id)&&!retried.has(b.id));
   if (list.length === 0) return null;
 
   return (
-    <section className="mt-3 space-y-2">
+    <section aria-label="Agent builds" className="mx-4 mt-3 space-y-2 lg:mx-10">
+      {unavailable&&<p role="status">Build status is unavailable. Showing the last update.</p>}
       {list.map((b) => {
         const c = COPY[b.phase] || COPY.queued;
         const done = TERMINAL.has(b.phase);
@@ -199,7 +234,7 @@ export default function BuildingAgents() {
               )}
               <div className="min-w-0 flex-1">
                 <div className="text-secondary text-ink-100 truncate">
-                  {c.title}{b.intent ? <span className="text-ink-400 font-normal">: {b.intent}</span> : ''}
+                  {c.title}{b.intent ? <span className="text-ink-400 font-normal">: {b.intent.startsWith('Proposed agent name: ')?b.intent.split('\n')[0].slice('Proposed agent name: '.length):b.intent}</span> : ''}
                 </div>
                 <div className="text-secondary text-ink-500">
                   {/* A failure states its reason. "Failed" with no actionable
@@ -214,6 +249,7 @@ export default function BuildingAgents() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {b.canRetry&&<button type="button" className="btn-outline" disabled={retryStatus[b.id]==='Queuing retry…'||retryStatus[b.id]==='Retry queued'} onClick={()=>void retry(b)}>Retry build</button>}
                 {history.length > 0 ? (
                   <button
                     type="button"
@@ -246,6 +282,7 @@ export default function BuildingAgents() {
               </div>
             </div>
 
+            {retryStatus[b.id]&&<p role="status" className="text-secondary">{retryStatus[b.id]}</p>}
             {expanded && history.length > 0 ? (
               <ol className="mt-3 border-t border-ink-800/70 pt-2 space-y-1">
                 {history.map((e, i) => (

@@ -11,8 +11,11 @@ async function forward(request:Request,write:boolean){
   if((write&&[...q.keys()].length)||(!write&&(!UUID.test(id||'')||[...q.keys()].some(k=>k!=='draftId'))))return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
   let body:unknown;
   if(write){const reader=request.body?.getReader();if(!reader)return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
-   const parts:Uint8Array[]=[];let size=0;for(;;){const r=await reader.read();if(r.done)break;size+=r.value.length;if(size>10000){await reader.cancel();return NextResponse.json({ok:false,reason:'creation_brief_too_large'},{status:413});}parts.push(r.value);}
-   const bytes=new Uint8Array(size);let offset=0;for(const p of parts){bytes.set(p,offset);offset+=p.length;}body=JSON.parse(new TextDecoder().decode(bytes));}
+   const parts:Uint8Array[]=[];let size=0;for(;;){const r=await reader.read();if(r.done)break;size+=r.value.length;if(size>28000){await reader.cancel();return NextResponse.json({ok:false,reason:'creation_brief_too_large'},{status:413});}parts.push(r.value);}
+   const bytes=new Uint8Array(size);let offset=0;for(const p of parts){bytes.set(p,offset);offset+=p.length;}try {body=JSON.parse(new TextDecoder().decode(bytes));}
+   catch {return NextResponse.json({ok:false,reason:size>10000?'creation_brief_too_large':'invalid_request'},{status:size>10000?413:400});}
+   if(size>10000 && (body as {mode?:unknown} | null)?.mode!=='playbook')
+    return NextResponse.json({ok:false,reason:'creation_brief_too_large'},{status:413});}
   const r=await fetch(`${BACKEND}/api/v2/agents/creation-draft${write?'':`/${id}`}`,{method:write?'POST':'GET',
    headers:{authorization:`Bearer ${session.access_token}`,'content-type':'application/json'},...(write?{body:JSON.stringify(body)}:{}),cache:'no-store',
    signal:AbortSignal.any([request.signal,AbortSignal.timeout(write?35000:8000)])});
