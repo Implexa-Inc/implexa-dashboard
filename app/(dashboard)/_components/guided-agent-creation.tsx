@@ -113,14 +113,15 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
   area.focus({preventScroll:true});focusedDraft.current=draftId;
  },[draftId,data?.draftId,busy,isBuilt,isPending]);
  const choose=(turn:CreationTurn)=>{setSelectedId(turn.replyId);try{sessionStorage.setItem(selectionKey(draftId),turn.replyId!);}catch{}};
- const send=async(retry?:CreationTurn)=>{
-  if(busy||isBuilt||isPending||!draftId||(!retry&&!text.trim()&&!documents.length&&!files.length))return;
+ const send=async({retry,choice}:{retry?:CreationTurn;choice?:string}={})=>{
+  const fromComposer=!retry&&choice===undefined;
+  if(busy||isBuilt||isPending||!draftId||(fromComposer&&!text.trim()&&!documents.length&&!files.length))return;
   const identity=draftId;
   const usePlan=!retry||retry.mode==='playbook';
-  let message=retry?.message??text;
+  let message=retry?.message??choice??text;
   setBusy(true);setError('');
   try {
-   if(!retry&&(documents.length||files.length)){
+   if(fromComposer&&(documents.length||files.length)){
     const parts=await Promise.all(documents.map(async file=>({name:file.name,content:await readDraftDocument(file)})));
     const references=files.length
      ? `Attached references (names only; contents unavailable while drafting this plan): ${JSON.stringify(files.map(fileName))}`
@@ -141,7 +142,7 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
    if(!r.ok||!isCreationDraftRead(v,identity))throw Error(v.reason||'creation_brief_unconfirmed');
    apply(v);const answer=v.turns.find(t=>t.turnId===turn.turnId);
    if(answer?.status==='answered'&&answer.replyId){choose(answer);setNotice(answer.brief?'Draft updated. Review it or keep chatting.':'');}
-   if(!retry){setText('');setDocuments([]);setOfferReference(false);}pending.current=null;seed.current=null;
+   if(fromComposer){setText('');setDocuments([]);setOfferReference(false);}pending.current=null;seed.current=null;
   }catch(e){if(active.current===identity)setError(`${e instanceof Error?e.message:'creation_brief_unconfirmed'}. Refresh the saved draft before sending again; no automatic retry is made.`);}
   finally{if(active.current===identity)setBusy(false);}
  };
@@ -218,10 +219,10 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
    <ol aria-label="Agent creation conversation" className="space-y-6">{data?.turns.map(t=><li key={t.turnId} className="space-y-3">
     <ChatMessage role="user"><>{t.mode==='playbook'&&t.message.length>600?<details><summary>View full message</summary><p className="whitespace-pre-wrap">{t.message}</p></details>:<p className="text-reading whitespace-pre-wrap">{t.message}</p>}</></ChatMessage>{t.reply&&<ChatMessage role="assistant"><p className="text-reading whitespace-pre-wrap">{t.reply}</p></ChatMessage>}
     {t.status==='pending'&&<p className="text-reading text-ink-400">Your message is saved. <button type="button" className="underline" disabled={busy} onClick={()=>load(draftId)}>Check for the reply</button></p>}
-    {t.status==='failed'&&<p role="status" className="text-reading text-state-needs">Your message is saved. The reply couldn’t be prepared. {t===data.turns.at(-1)&&!isBuilt&&<button type="button" className="underline" disabled={busy||isPending} onClick={()=>void send(t)}>Retry message</button>}</p>}
+    {t.status==='failed'&&<p role="status" className="text-reading text-state-needs">Your message is saved. The reply couldn’t be prepared. {t===data.turns.at(-1)&&!isBuilt&&<button type="button" className="underline" disabled={busy||isPending} onClick={()=>void send({retry:t})}>Retry message</button>}</p>}
     {t.brief&&t.replyId!==selectedId&&<button type="button" className="text-ui text-ink-400 underline" disabled={busy||isBuilt} onClick={()=>choose(t)}>Use this saved draft</button>}
    </li>)}</ol>
-   {selected?.questions?.[0]&&!isBuilt&&<ChatChoices question={selected.questions[0]} choices={creationQuestionChoices(selected.answerOptions)} disabled={busy||isPending} onChoose={value=>{if(value)setText(value);composer.current?.focus();}}/>}
+   {selected?.questions?.[0]&&!isBuilt&&<ChatChoices question={selected.questions[0]} choices={creationQuestionChoices(selected.answerOptions)} disabled={busy||isPending} onChoose={value=>{if(value)void send({choice:value});else composer.current?.focus();}}/>}
   </ChatFrame>}</aside>
   <div className="min-w-0 space-y-5">
    {!starting&&<div className="flex items-center justify-between gap-4"><p className="text-reading uppercase tracking-[.18em] text-ink-500">Your agent, prepared with you{selected?.brief&&!isBuilt&&<span className="ml-3 rounded border border-ink-700 px-2 py-1 normal-case tracking-normal">Draft</span>}</p>

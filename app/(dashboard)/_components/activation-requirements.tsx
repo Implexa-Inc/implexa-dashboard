@@ -23,7 +23,7 @@
 
 import { useEffect, useState } from 'react';
 import { InlineAddKeyButton, useDesktopBridge } from './api-key-row';
-import { ProviderBrowserSignIn, requiresProviderEmail } from './provider-browser-sign-in';
+import { ProviderBrowserSignIn, usesProviderBrowserSession } from './provider-browser-sign-in';
 import type { AgentRequirementsPayload, AgentMachineTools, AgentSetupTarget, AgentMacAccess } from '@/lib/activation';
 import { apiKeyAccessReady, toolAccessReady, managedToolConnection } from '@/lib/activation-core';
 
@@ -67,7 +67,7 @@ function BrowserSessionAccess({ session, target, managed = false, onVerified }: 
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  if (session.status === 'reachable' && (managed || !requiresProviderEmail(session.domain))) {
+  if (session.status === 'reachable' && (managed || !usesProviderBrowserSession(session.domain))) {
     return (
       <span className="text-secondary text-state-ok whitespace-nowrap">
         {managed ? '✓ Browser access ready' : `✓ signed in${session.identity ? ` as ${session.identity}` : ''}`}
