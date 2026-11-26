@@ -85,8 +85,11 @@ import {
 } from '@/lib/review-timestamp-feedback';
 
 export type ReviewRoomProps = {
-  /** Finished-run summary reuses this viewer and the same session acceptance writer. */
-  finishedView?: {reviewHref:string;changes:ReactNode;afterResult?:ReactNode;checks?:ReactNode;fallbackResult?:ReactNode};
+  /** Finished-run summaries share the player and layout. Recovered exports have their own revision entry. */
+  finishedView?: {afterResult?:ReactNode;checks?:ReactNode;fallbackResult?:ReactNode} & (
+    {kind?:'regular';reviewHref:string;changes:ReactNode}
+    | {kind:'recovered';reviewHref:string|null}
+  );
   /** Reuses the same annotation writer; revision controls stay in Review Room. */
   trainingMode?: boolean;
   /** Work's revision surface can use the shared video timeline without teaching. */
@@ -887,13 +890,14 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   // enforced again server-side (the compile refuses) and at the executor (fail
   // closed). The browser's own instant pin preview is never called verified.
   const gate = evidenceGate({ draftIssues: activeIssues, status: evidenceStatus });
+  const recoveredResultView = props.finishedView?.kind === 'recovered';
 
   useEffect(() => {
     // Poll only while there is something to wait FOR: an open session, spatial drafts,
     // and a submission that has not left draft. 4s is fast enough to unlock promptly
     // and slow enough to be polite to the packet-sized read.
     const sid = session?.id;
-    if (!sid || gate.reason === 'none_required' || submissionInFlight || submission.phase !== 'draft') return;
+    if (recoveredResultView || !sid || gate.reason === 'none_required' || submissionInFlight || submission.phase !== 'draft') return;
     let cancelled = false;
     const tick = async () => {
       const { body } = await reviewAction({ action: 'evidence_status', sessionId: sid });
@@ -903,7 +907,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     void tick();
     const timer = setInterval(tick, 4000);
     return () => { cancelled = true; clearInterval(timer); };
-  }, [session?.id, gate.reason, submissionInFlight, submission.phase]);
+  }, [recoveredResultView, session?.id, gate.reason, submissionInFlight, submission.phase]);
 
   /** Retry every failed capture — re-request, then let the poll report the outcome. */
   const retryEvidence = useCallback(async () => {
@@ -1478,6 +1482,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
   if(props.finishedView){
     const view=props.finishedView;
+    const revisionRequested = submission.phase === 'revision_queued';
     const canAccept=!historicalProvenanceUnavailable&&!issuesUnavailable&&!resolutionsUnavailable&&!proxyPreview
       &&acts.canAccept&&submitView.mode==='accept_result'&&submitView.primaryEnabled;
     const canRequestChanges=!historicalProvenanceUnavailable&&!issuesUnavailable&&!resolutionsUnavailable&&activeIssues.length===0&&!['submitting','submitted'].includes(session?.state||'');
@@ -1491,7 +1496,16 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         {proxyPreview&&<p className="finished-result-name">Review proxy</p>}
       </section>
       <aside className="finished-run-rail" aria-label="Review this result">
-        <section className="finished-decision">
+        {view.kind === 'recovered' ? <section className="finished-decision">
+          <h2>{revisionRequested ? 'Feedback and revision' : 'Edit this result'}</h2>
+          {view.reviewHref ? <a className="finished-markup" href={view.reviewHref}>
+            <strong>{revisionRequested ? 'View feedback and revision' : 'Mark up the result'}</strong>
+            <span>{revisionRequested ? 'See the saved notes and revision status →'
+              : activeIssues.length ? `${noteCountLabel(activeIssues.length)} saved on this video →`
+              : props.canReviseRecoveredExport ? 'Mark exact moments and run a revision from this video →'
+              : 'Add timestamped notes or mark a frame →'}</span>
+          </a> : <p role="status">Feedback and revision details could not be loaded. Refresh to try again.</p>}
+        </section> : <section className="finished-decision">
           <h2>{accepted?'Accepted':activeIssues.length?`You have ${activeIssues.length} saved ${activeIssues.length===1?'note':'notes'}`:!canAccept?'Review this result':'Happy with it?'}</h2>
           {!accepted&&activeIssues.length===0&&<p>Accepting marks your review complete. Nothing is published anywhere.</p>}
           {error&&<p role="alert" className="text-state-fail">{error}</p>}
@@ -1500,7 +1514,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           {confirmDiscard&&<p role="alert">Your saved notes are unchanged. Open the review to decide what to keep before accepting.</p>}
           <div className="finished-changes">{canRequestChanges?view.changes:<p className="text-reading text-ink-400">Open the Review Room to keep your saved notes together and continue this review.</p>}</div>
           <a className="finished-markup" href={view.reviewHref}><strong>{canRequestChanges?'Mark up the result':'Continue editing this result'}</strong><span>{!canRequestChanges&&activeIssues.length?`${activeIssues.length} saved ${activeIssues.length===1?'note':'notes'} on this result →`:'Mark exact moments and run again with your changes →'}</span></a>
-        </section>
+        </section>}
         {view.checks}
         <section className="finished-versions"><h2>Versions</h2>{sources.lineage==='unavailable'?<p>Version history unavailable.</p>:(props.versions?.length?props.versions:[{runId,label:'This result'}]).map(version=><a key={version.runId} aria-current={version.runId===runId?'page':undefined} href={version.runId===runId?`/runs/${encodeURIComponent(runId)}?keep=1`:`/runs/${encodeURIComponent(version.runId)}`}><span>{version.label}</span>{version.runId===runId&&<small>This one</small>}</a>)}</section>
       </aside>

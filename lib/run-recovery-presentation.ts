@@ -1,3 +1,5 @@
+import type { RunStep } from './run-state';
+
 export type RecoveryPresentation = {
   hasValidatedFinalOutput: boolean;
   runState: string | null | undefined;
@@ -23,6 +25,17 @@ export function closeReasonMessage(reason: string | null | undefined): string | 
     default:
       return null;
   }
+}
+
+export function recoveredResultWarning(reason: string | null, steps: RunStep[]): string | null {
+  if (reason !== 'owner_verified_export' && reason !== 'user_finalized_recovered'
+    && reason !== 'user_finalized_brokered_recovered_artifact') return null;
+
+  const failed = steps.find(step => step.status === 'failed' && step.label)?.label;
+  const unfinished = steps.find(step => step.status === 'running' && step.label)?.label;
+  if (failed) return `The run reported a failure at “${failed}.” The saved output was recovered.`;
+  if (unfinished) return `The run was still working on “${unfinished}.” The saved output was recovered.`;
+  return 'The run did not complete its normal delivery. The saved output was recovered.';
 }
 
 export function recoveredArtifactHeadline(input: RecoveryPresentation): string | null {

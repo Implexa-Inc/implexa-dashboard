@@ -225,12 +225,10 @@ export default function VerifiedArtifacts({ artifacts, runId, progress=false, fi
 }
 
 
-/** Explicit owner-salvage composition. It intentionally contains files and a
- * recovery record only: no Review, change request, Accept or public-share flow. */
+/** The files and recovery record beneath the recovered result player. */
 export function OwnerRecoveredExport({artifacts,runId,children}:{artifacts:VerifiedArtifact[];runId:string;children?:ReactNode}){
   return <section aria-label="Owner-recovered export">
-    <p className="mb-4 text-reading text-ink-300">The saved video was recovered by an owner-authorized operator. The interrupted execution remains ungraded.</p>
-    <VerifiedArtifacts artifacts={artifacts} runId={runId}/>
+    <VerifiedArtifacts artifacts={artifacts} runId={runId} finished/>
     {children&&<details className="proof-disclosure mb-6"><summary>Recovery record</summary><div className="mt-4">{children}</div></details>}
   </section>;
 }
