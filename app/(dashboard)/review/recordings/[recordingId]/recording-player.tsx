@@ -512,7 +512,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
         {preview && (
           <ReviewPlaybackControls key={recordingId} mediaKey={recordingId} mediaRef={videoRef} onSeek={seek} variant="teaching" timeline={timeline} trailingAction={markButton}>
           <>
-          <div className="relative recording-picture">
+          <div className="review-playback-picture relative recording-picture">
             <video
               ref={videoRef}
               src={preview.url}
