@@ -64,7 +64,7 @@ import { isValidatedVideoOutput } from '@/lib/generation-entry-eligibility';
 import StageCompetenceProof from '../../_components/stage-competence-proof';
 import StageManagerProof from '../../_components/stage-manager-proof';
 import TasteFitReviewCard from '../../_components/taste-fit-review';
-import { closeReasonMessage, runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-presentation';
+import { closeReasonMessage, recoveredResultWarning, runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-presentation';
 import ReviewRoom from '../../_components/review-room';
 import RecoveredExportFeedback from '../../_components/recovered-export-feedback';
 import type {ReactNode} from 'react';
@@ -924,40 +924,32 @@ export default async function RunDetailPage({
   const showProgressLayout = info.state !== 'completed' || held || showRunProblem;
   const surface = resultSurface({ runId:r.id, completed:!showProgressLayout, closeReason, provenanceAvailable:artifactProvenanceAvailable, reviewLive:competencePacket.live, reviewRunId:competencePacket.run?.id });
   const showFinishedReview = surface === 'review';
-  if (surface === 'owner_export') {
-    const packetRun = competencePacket.run;
-    const artifact = competencePacket.live && packetRun?.id === r.id && packetRun.closeReason === 'owner_verified_export'
-      && competencePacket.artifacts.find(file => file.id === packetRun.recoveredFeedbackArtifactId);
-    const runHref = `/runs/${encodeURIComponent(r.id)}`;
-    if (searchParams?.feedback === '1') {
-      const feedbackSession = competencePacket.session;
-      const feedbackReady = artifact && competencePacket.sources.issues === 'ready'
-        && competencePacket.sources.session === 'ready'
-        && (!feedbackSession || (['draft','submitting','submitted'].includes(feedbackSession.state) && feedbackSession.selectedArtifactId === artifact.id));
-      return <main className="app-page"><div className="app-content">
-        <Link href={runHref} className="text-secondary text-ink-500">← Saved export</Link>
-        <h1 className="mt-4 text-2xl font-semibold text-ink-50">Feedback on saved video</h1>
-        {feedbackReady ? <RecoveredExportFeedback artifact={artifact} agentName={name} agentSlug={packetRun?.slug} session={feedbackSession}
-          canRevise={packetRun?.recoveredRevisionAvailable}
-          issues={competencePacket.issues.filter(issue => issue.artifactId === artifact.id && issue.purpose === 'recovered_feedback')} />
-          : <p role="alert">We couldn’t verify the saved video or load its feedback. Refresh to try again.</p>}
-      </div></main>;
-    }
-    return (
-    <main className="app-page"><div className="app-content">
-      <BackLink fallback="/work" label="Work" className="text-secondary text-ink-500"/>
-      <h1 className="mt-4 text-2xl font-semibold text-ink-50">Saved export · {name}</h1>
-      {artifact && <Link className="btn-outline mb-4 inline-flex" href={`${runHref}?feedback=1`}>
-        {competencePacket.session?.state === 'submitted' ? 'View feedback and revision' : 'Add timestamped feedback'}
-      </Link>}
-      <OwnerRecoveredExport artifacts={verifiedArtifacts} runId={r.id}>
-        <RunMarkdown markdown={r.output_markdown || ''} workspaceRoot={workspaceRoot}/>
-      </OwnerRecoveredExport>
-      {steps.length>0&&<details className="proof-disclosure"><summary>Interrupted execution history</summary>
-        <RunStepTrace entries={steps} live={false} attention={false} stalled={false}/>
-      </details>}
-    </div></main>
-    );
+  const showRecoveredResult = surface === 'owner_export';
+  const packetRun = competencePacket.run;
+  const recoveredArtifact = showRecoveredResult && competencePacket.live
+    && packetRun?.id === r.id && packetRun.closeReason === 'owner_verified_export'
+    ? competencePacket.artifacts.find(file => file.id === packetRun.recoveredFeedbackArtifactId
+      && file.runId === r.id && file.status === 'validated')
+    : undefined;
+  const feedbackSession = competencePacket.session;
+  const recoveredFeedbackReady = !!recoveredArtifact && competencePacket.sources.issues === 'ready'
+    && competencePacket.sources.session === 'ready'
+    && (!feedbackSession || (['draft','submitting','submitted'].includes(feedbackSession.state)
+      && feedbackSession.selectedArtifactId === recoveredArtifact.id));
+  const recoveredIssues = recoveredFeedbackReady
+    ? competencePacket.issues.filter(issue => issue.artifactId === recoveredArtifact?.id && issue.purpose === 'recovered_feedback')
+    : [];
+  const canReviseRecoveredExport = recoveredFeedbackReady && packetRun?.recoveredRevisionAvailable === true;
+  const runHref = `/runs/${encodeURIComponent(r.id)}`;
+  if (showRecoveredResult && searchParams?.feedback === '1') {
+    return <main className="app-page"><div className="app-content">
+      <Link href={runHref} className="text-secondary text-ink-500">← Run result</Link>
+      <h1 className="mt-4 text-2xl font-semibold text-ink-50">Feedback on saved video</h1>
+      {recoveredFeedbackReady && recoveredArtifact
+        ? <RecoveredExportFeedback artifact={recoveredArtifact} agentName={name} agentSlug={packetRun?.slug}
+          session={feedbackSession} canRevise={canReviseRecoveredExport} issues={recoveredIssues} />
+        : <p role="alert">We couldn’t verify the saved video or load its feedback. Refresh to try again.</p>}
+    </div></main>;
   }
   const heldRunControls = <>
         {/* The ONE action surface for a held run — context-aware primary (Approve &
@@ -1274,7 +1266,21 @@ export default async function RunDetailPage({
             output (recommendation engine v1). Renders nothing when there are none. */}
         <NextAgentCards runId={r.id} recommendations={recommendations} />
   </>;
-  const finishedView = showFinishedReview ? <ReviewRoom runId={r.id} agentName={name} agentSlug={r.skill_slug}
+  const finishedView = showRecoveredResult ? <ReviewRoom runId={r.id} agentName={name} agentSlug={r.skill_slug}
+    artifacts={recoveredArtifact ? [recoveredArtifact] : []} initialArtifactId={recoveredArtifact?.id}
+    production={null} issues={recoveredIssues} session={recoveredFeedbackReady ? feedbackSession : null}
+    reviewArtifacts={[]} sources={competencePacket.sources} isApprovalHold={false}
+    recoveredFeedback canReviseRecoveredExport={canReviseRecoveredExport} versions={competencePacket.lineage.versions}
+    finishedView={{kind:'recovered',reviewHref:recoveredFeedbackReady ? `${runHref}?feedback=1` : null,
+      fallbackResult:<p role="status">The video preview could not be loaded. Check the saved files below.</p>,
+      afterResult:<>
+        <OwnerRecoveredExport artifacts={verifiedArtifacts} runId={r.id}>
+          {r.output_markdown && <RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/>}
+        </OwnerRecoveredExport>
+        {steps.length>0&&<details className="proof-disclosure mt-4"><summary>Interrupted execution history</summary>
+          <RunStepTrace entries={steps} live={false} attention={false} stalled={false}/>
+        </details>}
+      </>}}/> : showFinishedReview ? <ReviewRoom runId={r.id} agentName={name} agentSlug={r.skill_slug}
     customerOwnerId={preferenceInstallationId?session.user.id:undefined} artifacts={competencePacket.artifacts}
     historicalCandidates={competencePacket.historicalCandidates} production={competencePacket.production} issues={competencePacket.issues}
     session={competencePacket.session} reviewArtifacts={competencePacket.reviewArtifacts} sources={competencePacket.sources}
@@ -1282,6 +1288,8 @@ export default async function RunDetailPage({
     finishedView={{reviewHref:`/review/${encodeURIComponent(r.id)}`,changes:continueBox,checks:judgmentPanel,
       fallbackResult:r.output_markdown?<div className="prose prose-sm max-w-none"><RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot}/></div>:undefined,
       afterResult:<VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} finished/>}}/> : null;
+  const recoveryWarning = artifactProvenanceAvailable && r.run_state === 'completed'
+    ? recoveredResultWarning(closeReason, stepsState) : null;
 
   return (
     <main className="app-page">
@@ -1339,8 +1347,8 @@ export default async function RunDetailPage({
             ) : name}
           </h1>
           <div className="flex items-center gap-2.5 mt-2 flex-wrap">
-            {showFinishedReview?<span className="finished-review-state">{competencePacket.sources.session!=='ready'?'Review status unavailable':competencePacket.session?.state==='accepted'?'Accepted':competencePacket.session?.state==='submitted'?'Changes requested':'Ready for your review'}</span>:<RunStateBadge info={info} size="xs" />}
-            {!showFinishedReview&&<RunVerificationBadge status={verificationStatus} size="xs" />}
+            {showRecoveredResult?<span className="finished-review-state">Recovered export · Ungraded</span>:showFinishedReview?<span className="finished-review-state">{competencePacket.sources.session!=='ready'?'Review status unavailable':competencePacket.session?.state==='accepted'?'Accepted':competencePacket.session?.state==='submitted'?'Changes requested':'Ready for your review'}</span>:<RunStateBadge info={info} size="xs" />}
+            {!showFinishedReview&&!showRecoveredResult&&<RunVerificationBadge status={verificationStatus} size="xs" />}
             <span className="text-secondary text-ink-500">{rel(r.ran_at)}</span>
 
             {desktopAppLive() && (
@@ -1353,7 +1361,12 @@ export default async function RunDetailPage({
           </div>
         </div>{showFinishedReview&&<details className="finished-more"><summary aria-label="More actions">⋯</summary><div><RunShareButton runId={r.id}/><Link href={`${agentHref}${agentHref.includes('?')?'&':'?'}run=1`}>Run again from scratch →</Link></div></details>}</header>
 
+        {recoveryWarning&&<section aria-label="Recovery warning" className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] px-4 py-3">
+          <h2 className="text-reading font-semibold text-state-needs">The original run was interrupted</h2>
+          <p className="mt-1 text-reading text-ink-300">{recoveryWarning}</p>
+        </section>}
         {finishedView}
+        {!showRecoveredResult&&<>
         <FinishedRunDetails collapsed={showFinishedReview}>
         <div className={showProgressLayout?'run-detail-layout':undefined} data-priority={held||showRunProblem||info.state==='stalled'?'true':undefined}>
         {showProgressLayout&&<aside className="run-detail-rail" aria-label="Run actions">
@@ -1600,6 +1613,7 @@ export default async function RunDetailPage({
         </div>
         </FinishedRunDetails>
         {showFinishedReview&&<details className="finished-what-next"><summary>What next</summary>{brollAction}{suggestedActions}{laterActions}</details>}
+        </>}
       </div>
     </main>
   );

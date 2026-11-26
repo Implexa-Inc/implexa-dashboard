@@ -1054,6 +1054,56 @@ test('saved-export revision submits the timestamped draft once and reloads the e
   }finally{await act(async()=>view.unmount());}
 });
 
+test('a recovered export uses the finished result player with only its private markup entry', async () => {
+  const fixture = JSON.parse(readFileSync(new URL('./test/fixtures/recovered-export-spatial-postgres.json', import.meta.url), 'utf8'));
+  const packet = parseReviewPacketResponse(fixture.annotatedDraft);
+  const artifact = packet?.artifacts.find(file => file.id === packet.run?.recoveredFeedbackArtifactId);
+  assert.ok(packet?.run?.recoveredRevisionAvailable && artifact);
+  const previewCalls: string[][] = [];
+  Object.defineProperty(dom.window, 'implexaDesktop', { configurable: true, value: {
+    async createArtifactPreview(...args: string[]) {
+      previewCalls.push(args);
+      return {ok: true, url: 'implexa-artifact://preview/abcdefghijklmnop1234567890'};
+    },
+    async revokeArtifactPreview() {},
+  } });
+  const view = createRoot(container);
+  const href = `/runs/${artifact.runId}?feedback=1`;
+  const render = (showArtifact: boolean) => React.createElement(ReviewRoom as never, {
+    runId: artifact.runId, agentName: 'Video studio', artifacts: showArtifact ? [artifact] : [],
+    initialArtifactId: artifact.id, issues: showArtifact ? packet.issues : [],
+    session: showArtifact ? packet.session : null, production: null, reviewArtifacts: [],
+    sources: packet.sources, isApprovalHold: false, recoveredFeedback: true,
+    canReviseRecoveredExport: showArtifact,
+    finishedView: {
+      kind: 'recovered', reviewHref: showArtifact ? href : null,
+      afterResult: React.createElement('p', null, 'Recovery record'),
+      fallbackResult: React.createElement('p', null, 'The video preview could not be loaded.'),
+    },
+  } as never);
+  try {
+    await act(async () => view.render(render(true)));
+    assert.ok(container.querySelector('.finished-run-layout [aria-label="Your result"] video'));
+    assert.deepEqual(previewCalls, [[artifact.runId, artifact.id]]);
+    const markup = container.querySelector<HTMLAnchorElement>('.finished-markup');
+    assert.equal(markup?.getAttribute('href'), href);
+    assert.match(markup?.textContent || '', /Mark up the result/);
+    assert.match(text(), /2 notes saved on this video/);
+    assert.match(text(), /Recovery record/);
+    assert.doesNotMatch(text(), /Happy with it|Accepting marks|Ask for changes|Share result/);
+    assert.equal(container.querySelector('[data-testid="spatial-overlay"]'), null, 'marking takes place in the existing editor');
+
+    await act(async () => view.render(null));
+    await act(async () => view.render(render(false)));
+    assert.match(text(), /The video preview could not be loaded/);
+    assert.match(text(), /Feedback and revision details could not be loaded/);
+    assert.equal(container.querySelector('.finished-markup'), null);
+    assert.equal(calls.length, 0, 'rendering the result must leave the saved notes alone');
+  } finally {
+    await act(async () => view.unmount());
+  }
+});
+
 test('saved video uses the shared frame markup and includes it in the revision once verified', async () => {
   const fixture = JSON.parse(readFileSync(new URL('./test/fixtures/recovered-export-spatial-postgres.json', import.meta.url), 'utf8'));
   const initial = parseReviewPacketResponse(fixture.draft);
