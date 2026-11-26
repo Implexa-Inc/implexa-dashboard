@@ -77,13 +77,14 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
  const [text,setText]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [queued,setQueued]=useState(false);
  const [documents,setDocuments]=useState<File[]>([]);
+ const [offerReference,setOfferReference]=useState(false);
  const documentPicker=useRef<HTMLInputElement>(null);
  const pending=useRef<{draftId:string;turnId:string;message:string;baseReplyId:string|null;baseDraftId:string|null}|null>(null),seed=useRef<{draftId:string;replyId:string}|null>(null),active=useRef(''),composer=useRef<HTMLTextAreaElement>(null);
  const {files,canAttach,canAttachFolder,attachFile,attachFolder,removeFile,reset:resetFiles,error:attachError}=useRunAttachments();
  const storageKey=`implexa-creation-draft:${ownerId}`,selectionKey=(id:string)=>`${storageKey}:${id}:selection`;
  useEffect(()=>{let saved:string|null=null;try{saved=sessionStorage.getItem(storageKey);}catch{}
   const id=saved&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(saved)?saved:crypto.randomUUID();
-  setData(null);setSelectedId(null);setText('');setDocuments([]);resetFiles();setQueued(false);pending.current=null;seed.current=null;
+  setData(null);setSelectedId(null);setText('');setDocuments([]);setOfferReference(false);resetFiles();setQueued(false);pending.current=null;seed.current=null;
   setDraftId(id);active.current=id;try{sessionStorage.setItem(storageKey,id);}catch{};
   return()=>{active.current='';};
  },[storageKey]);
@@ -113,15 +114,19 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
  },[draftId,data?.draftId,busy,isBuilt,isPending]);
  const choose=(turn:CreationTurn)=>{setSelectedId(turn.replyId);try{sessionStorage.setItem(selectionKey(draftId),turn.replyId!);}catch{}};
  const send=async(retry?:CreationTurn)=>{
-  if(busy||isBuilt||isPending||!draftId||(!retry&&!text.trim()&&!documents.length))return;
+  if(busy||isBuilt||isPending||!draftId||(!retry&&!text.trim()&&!documents.length&&!files.length))return;
   const identity=draftId;
   const usePlan=!retry||retry.mode==='playbook';
   let message=retry?.message??text;
   setBusy(true);setError('');
   try {
-   if(!retry&&documents.length){
+   if(!retry&&(documents.length||files.length)){
     const parts=await Promise.all(documents.map(async file=>({name:file.name,content:await readDraftDocument(file)})));
-    message=[text, ...parts.map(part=>`Attached document ${JSON.stringify(part.name)}\n${part.content}`)].filter(Boolean).join('\n\n');
+    const references=files.length
+     ? `Attached references (names only; contents unavailable while drafting this plan): ${JSON.stringify(files.map(fileName))}`
+     : '';
+    message=[text, ...parts.map(part=>`Attached document ${JSON.stringify(part.name)}\n${part.content}`),references]
+     .filter(Boolean).join('\n\n');
    }
    if(active.current!==identity)return;
    if(message.length>20000||new Blob([JSON.stringify(message)]).size>24000)throw Error('This message and its documents exceed the planner limit. Send a shorter excerpt (up to 20,000 characters and 24 KB).');
@@ -136,18 +141,18 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
    if(!r.ok||!isCreationDraftRead(v,identity))throw Error(v.reason||'creation_brief_unconfirmed');
    apply(v);const answer=v.turns.find(t=>t.turnId===turn.turnId);
    if(answer?.status==='answered'&&answer.replyId){choose(answer);setNotice(answer.brief?'Draft updated. Review it or keep chatting.':'');}
-   if(!retry){setText('');setDocuments([]);}pending.current=null;seed.current=null;
+   if(!retry){setText('');setDocuments([]);setOfferReference(false);}pending.current=null;seed.current=null;
   }catch(e){if(active.current===identity)setError(`${e instanceof Error?e.message:'creation_brief_unconfirmed'}. Refresh the saved draft before sending again; no automatic retry is made.`);}
   finally{if(active.current===identity)setBusy(false);}
  };
  const change=(field:string)=>{setText(`Change ${field}: `);composer.current?.focus();};
  const withdraw=async()=>{if(busy||!draftId)return;const identity=draftId;setBusy(true);setError('');try{
   const r=await fetch('/api/agents/creation-draft',{method:'POST',headers:{'content-type':'application/json'},cache:'no-store',body:JSON.stringify({draftId,turnId:crypto.randomUUID(),action:'withdraw'})});const v=await r.json();
-   if(active.current!==identity)return;if(!r.ok||!isCreationDraftRead(v,identity))throw Error(v.reason||'Withdrawal unconfirmed');apply(v);setText('');setDocuments([]);setNotice('Draft withdrawn from future model preparation and builds. Its raw history remains privately retained. This does not erase it, cancel a queued build or remove cards from an agent already built.');
+   if(active.current!==identity)return;if(!r.ok||!isCreationDraftRead(v,identity))throw Error(v.reason||'Withdrawal unconfirmed');apply(v);setText('');setDocuments([]);setOfferReference(false);setNotice('Draft withdrawn from future model preparation and builds. Its raw history remains privately retained. This does not erase it, cancel a queued build or remove cards from an agent already built.');
  }catch(e){if(active.current===identity)setError(e instanceof Error?e.message:'Withdrawal unconfirmed');}finally{if(active.current===identity)setBusy(false);}};
  const previousPrepared=data?.turns.find(t=>t.replyId===selected?.baseReplyId);
  const undo=()=>{if(previousPrepared){choose(previousPrepared);setNotice('Previous saved draft restored. No AI call was made.');}};
- const startNew=()=>{if(busy)return;setDocuments([]);seed.current=selected?.replyId?{draftId,replyId:selected.replyId}:null;const id=crypto.randomUUID();active.current=id;setDraftId(id);setData(null);setSelectedId(null);setText(seed.current?'Create another agent using the selected saved draft.':'');setQueued(false);resetFiles();setError('');setNotice(seed.current?'The selected cards will seed the new draft when you Send. Their private training notes stay separate. The earlier draft and build remain preserved.':'New private draft.');pending.current=null;
+ const startNew=()=>{if(busy)return;setDocuments([]);setOfferReference(false);seed.current=selected?.replyId?{draftId,replyId:selected.replyId}:null;const id=crypto.randomUUID();active.current=id;setDraftId(id);setData(null);setSelectedId(null);setText(seed.current?'Create another agent using the selected saved draft.':'');setQueued(false);resetFiles();setError('');setNotice(seed.current?'The selected cards will seed the new draft when you Send. Their private training notes stay separate. The earlier draft and build remain preserved.':'New private draft.');pending.current=null;
   try{sessionStorage.setItem(storageKey,id);}catch{};};
  const buildAgent=async()=>{
   if(!selected?.brief||!selected.replyId||!selected.replyDigest||!selected.buildIntent||busy||isPending||isBuilt)return;
@@ -160,9 +165,9 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
   finally{if(active.current===identity)setBusy(false);}
  };
  const draftDetails=<div className="space-y-3">
-   <p className="text-reading">Send shares this conversation and the prepared draft with Claude Haiku 5.5. Document text is included when you send. Files and folders selected for the build are passed to the worker when you approve.</p>
+   <p className="text-reading">Send shares this conversation and the prepared draft with Claude Haiku 5.5. Text files help Tukido draft the plan. Reference files and folders stay on your computer and are available to the builder.</p>
    <button type="button" className="underline" disabled={!draftId||busy} onClick={()=>load(draftId)}>Refresh saved draft</button>
-   {!!data?.recentDrafts?.length&&<label className="block">Private draft history<select aria-label="Private draft history" className="mt-1 w-full rounded border border-ink-700 bg-ink-950 p-2" disabled={busy} value={draftId} onChange={e=>{active.current=e.target.value;setDraftId(e.target.value);setData(null);setSelectedId(null);setQueued(false);setText('');setDocuments([]);pending.current=null;seed.current=null;resetFiles();try{sessionStorage.setItem(storageKey,e.target.value);}catch{}}}>
+   {!!data?.recentDrafts?.length&&<label className="block">Private draft history<select aria-label="Private draft history" className="mt-1 w-full rounded border border-ink-700 bg-ink-950 p-2" disabled={busy} value={draftId} onChange={e=>{active.current=e.target.value;setDraftId(e.target.value);setData(null);setSelectedId(null);setQueued(false);setText('');setDocuments([]);setOfferReference(false);pending.current=null;seed.current=null;resetFiles();try{sessionStorage.setItem(storageKey,e.target.value);}catch{}}}>
     {!data.recentDrafts.some(d=>d.draft_id===draftId)&&<option value={draftId}>Current draft</option>}{data.recentDrafts.map(d=><option key={d.draft_id} value={d.draft_id}>{new Date(d.updated_at).toLocaleString()}{d.withdrawn?' · Withdrawn':''}</option>)}
    </select></label>}
    <p className="text-reading">Messages stay in your private history. Withdrawal stops further preparation and builds from this draft; it does not cancel queued work.</p><button type="button" className="underline" disabled={busy||data?.withdrawn||!data?.turns.length} onClick={withdraw}>Withdraw this draft from further use</button>
@@ -170,42 +175,43 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
  const attachmentsDisabled=busy||isBuilt||isPending;
  const menuRow="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-ui text-ink-100 hover:bg-ink-800 focus-visible:bg-ink-800 disabled:opacity-40";
  const attachmentControls=<>
-  <input hidden ref={documentPicker} type="file" multiple aria-label="Select documents for the planner" accept=".txt,.md,.markdown,.csv,.tsv" onChange={event=>{
+  <input hidden ref={documentPicker} type="file" multiple aria-label="Select files" onChange={event=>{
    const picked=Array.from(event.currentTarget.files||[]);event.currentTarget.value='';
    if(!picked.length)return;
-   if(picked.some(file=>!documentFormats.test(file.name))){setError('Attach a text, Markdown, CSV or TSV file, or paste the relevant text.');return;}
-   const next=[...documents,...picked];
+   setOfferReference(false);
+   const readable=picked.filter(file=>documentFormats.test(file.name)&&file.size<=24000);
+   const next=[...documents,...readable];
    if(next.length>8||next.reduce((total,file)=>total+file.size,0)>24000){setError('Attach up to eight documents totaling 24 KB, or paste a shorter excerpt.');return;}
-   setDocuments(next);setError('');
+   setDocuments(next);
+   if(readable.length===picked.length){setError('');return;}
+   setOfferReference(canAttach);
+   setError(canAttach?'Paste the relevant text, or choose this file as a reference for the builder.':'Paste the relevant text, or attach a text, Markdown, CSV or TSV file up to 24 KB.');
   }}/>
   <AttachmentMenu key={draftId} disabled={attachmentsDisabled}>
    <button type="button" className={menuRow} disabled={attachmentsDisabled} onClick={()=>documentPicker.current?.click()}>
     <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M8 13.5l7-7a2.1 2.1 0 0 1 3 3l-9 9a4 4 0 1 1-5.7-5.6l9.3-9.3"/></svg>
-    <span><span>Attach file</span><small className="block text-secondary text-ink-400">Include text in this message</small></span>
+    Attach file
    </button>
-   {(canAttach||canAttachFolder)&&<div className="mt-1 border-t border-ink-700 pt-1">
-    <p className="px-3 py-1 text-secondary text-ink-400">Use after plan approval</p>
-    {canAttach&&<button type="button" className={menuRow} disabled={attachmentsDisabled||files.length>=MAX_RUN_FILES} onClick={()=>void attachFile()}>
-     <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"><path d="M5 3h9l5 5v13H5zM14 3v6h5"/></svg>Choose a file
-    </button>}
-    {canAttachFolder&&<button type="button" className={menuRow} disabled={attachmentsDisabled||files.length>=MAX_RUN_FILES} onClick={()=>void attachFolder()}>
-     <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"><path d="M3 6h6l2 2h10v12H3z"/></svg>Attach folder
-    </button>}
-   </div>}
+   {canAttachFolder&&<button type="button" className={menuRow} disabled={attachmentsDisabled||files.length>=MAX_RUN_FILES} onClick={()=>void attachFolder()}>
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"><path d="M3 6h6l2 2h10v12H3z"/></svg>Attach folder
+   </button>}
   </AttachmentMenu>
  </>;
  const selections=[
-  ...documents.map((file,i)=>({name:file.name,when:'In message',remove:()=>setDocuments(current=>current.filter((_,idx)=>idx!==i))})),
-  ...files.map((path,i)=>({name:fileName(path),when:'For build',remove:()=>removeFile(i)})),
+  ...documents.map((file,i)=>({name:file.name,when:'',remove:()=>setDocuments(current=>current.filter((_,idx)=>idx!==i))})),
+  ...files.map((path,i)=>({name:fileName(path),when:'Reference',remove:()=>removeFile(i)})),
  ];
  const attachmentPreview=<>
   {!!selections.length&&<ul className="flex flex-wrap gap-2">{selections.map((item,i)=><li key={i} className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-lg border border-ink-700 px-2 text-secondary">
-   <span className="truncate">{item.name}</span><small className="shrink-0 text-ink-400">{item.when}</small>
+   <span className="truncate">{item.name}</span>{item.when&&<small className="shrink-0 text-ink-400">{item.when}</small>}
    <button disabled={attachmentsDisabled} type="button" aria-label={`Remove ${item.name}`} onClick={item.remove}>×</button>
   </li>)}</ul>}
+  {offerReference&&<button type="button" className="text-secondary underline" disabled={attachmentsDisabled||files.length>=MAX_RUN_FILES} onClick={()=>{
+   setOfferReference(false);setError('');void attachFile();
+  }}>Choose file as reference</button>}
   {attachError&&<p role="alert" className="text-secondary text-state-needs">{attachError}</p>}
  </>;
- const chatComposer=<ChatComposer micIcon inlineAttachments attachmentPreview={attachmentPreview} attachedMessage={documents.length>0} maxLength={Infinity} voiceScope={draftId||'creation-start'} standalone={starting} details={starting?draftDetails:undefined} value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId} textareaRef={composer} placeholder={starting?'Describe the job, paste the steps, or attach a playbook…':'Add a detail or ask for a change…'} attachments={attachmentControls}/>;
+ const chatComposer=<ChatComposer micIcon inlineAttachments attachmentPreview={attachmentPreview} attachedMessage={documents.length>0||files.length>0} maxLength={Infinity} voiceScope={draftId||'creation-start'} standalone={starting} details={starting?draftDetails:undefined} value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId} textareaRef={composer} placeholder={starting?'Describe the job, paste the steps, or attach a playbook…':'Add a detail or ask for a change…'} attachments={attachmentControls}/>;
  return <section className={starting?"mx-auto max-w-3xl space-y-4":"grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]"}>
   <aside className={starting?"min-w-0":"min-w-0 lg:sticky lg:top-6"}>{starting?chatComposer:<ChatFrame contentSized scrollKey={data?.turns.at(-1)?.turnId+':'+data?.turns.at(-1)?.status} title="Chat with AI" subtitle="Build your agent" details={draftDetails} composer={chatComposer}>
    {data&&!data.withdrawn&&data.totalTurns>data.turns.length&&<p className="text-secondary text-ink-500">Showing recent exchanges. Earlier messages are saved in this draft.</p>}

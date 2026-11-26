@@ -4,11 +4,12 @@ import {createClient} from '@/lib/supabase/client';
 
 type Bridge={chatDictationContractVersion?:string;reviewRecorder?:(operation:string,args:unknown)=>Promise<any>};
 /** Shared local dictation: edits the draft only; Send remains the caller's action. */
-export default function ChatDictation({scope,disabled,onInsert,onBusy,micIcon=false}:{micIcon?:boolean;scope:string;disabled:boolean;onInsert:(text:string)=>void;onBusy:(busy:boolean)=>void}){
+export default function ChatDictation({scope,disabled,onInsert,onBusy,micIcon=false,onFeedback}:{micIcon?:boolean;scope:string;disabled:boolean;onInsert:(text:string)=>void;onBusy:(busy:boolean)=>void;onFeedback?:(status:{message:string;error:boolean}|null)=>void}){
  const [available,setAvailable]=useState(false),[state,setState]=useState(''),[error,setError]=useState('');
  const capture=useRef<{ownerId:string;id:string;composerId:string}|null>(null);
  const discard=()=>{const note=capture.current;capture.current=null;if(note)void (window as unknown as {implexaDesktop?:Bridge}).implexaDesktop?.reviewRecorder?.('discardChatDictation',{expectedOwnerId:note.ownerId,recordingId:note.id,composerId:note.composerId}).catch(()=>{});};
  const generation=useRef(0),active=useRef(false),insert=useRef(onInsert),busy=useRef(onBusy);insert.current=onInsert;busy.current=onBusy;
+ useEffect(()=>{onFeedback?.(error||state?{message:error||state,error:!!error}:null);},[error,state,onFeedback]);
  useEffect(()=>{const native=(window as unknown as {implexaDesktop?:Bridge}).implexaDesktop;setAvailable(native?.chatDictationContractVersion==='1'&&!!native.reviewRecorder);},[]);
  useEffect(()=>{generation.current++;discard();active.current=false;setState('');setError('');busy.current(false);return()=>{generation.current++;discard();busy.current(false);};},[scope]);
  async function start(){if(disabled||active.current)return;active.current=true;const seq=generation.current;setError('');setState('Opening microphone');busy.current(true);
@@ -21,7 +22,7 @@ export default function ChatDictation({scope,disabled,onInsert,onBusy,micIcon=fa
    const started=await call('startChatDictation',{composerId});if(!/^[a-f0-9-]{36}$/.test(started.voiceNoteId||''))throw Error('Could not start recording.');
    capture.current={ownerId:user.id,id:started.voiceNoteId,composerId};
    if(!current()){discard();return;}
-   setState('Use the recorder bar to start and finish speaking');
+   setState('Start and stop recording in the recorder bar. Your words appear after you stop.');
    for(let n=0;n<300&&current();n++){
     await new Promise(resolve=>setTimeout(resolve,700));if(!current())return;
     const result=await call('getVoiceNote',{recordingId:started.voiceNoteId}),note=result.voiceNote;
@@ -50,8 +51,8 @@ export default function ChatDictation({scope,disabled,onInsert,onBusy,micIcon=fa
    {micIcon?<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
     <rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/>
    </svg>:'🎙'}
-   {active.current?'Listening…':!micIcon&&'Voice'}
+   {!micIcon&&(active.current?'Dictating…':'Voice')}
   </button>
-  {error?<p role="alert" className="mt-2 text-state-needs">{error}</p>:state&&<p role="status" className="mt-2 text-ink-400">{state}</p>}
+  {!onFeedback&&(error?<p role="alert" className="mt-2 text-state-needs">{error}</p>:state&&<p role="status" className="mt-2 text-ink-400">{state}</p>)}
  </div>;
 }
