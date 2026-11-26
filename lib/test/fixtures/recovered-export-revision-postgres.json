@@ -1,0 +1,352 @@
+{
+  "draft": {
+    "ok": true,
+    "run": {
+      "id": "ec120000-0000-4000-8000-000000024001",
+      "slug": "lifecycle-source-fixture",
+      "runState": "completed",
+      "status": "partial",
+      "reviewStatus": "none",
+      "closeReason": "owner_verified_export",
+      "recoveredFeedbackArtifactId": "11563710-7c32-4e71-a1b4-65bbf147d62e",
+      "recoveredRevisionAvailable": true,
+      "holdKind": null,
+      "startedAt": "2026-11-26T20:22:16.134Z"
+    },
+    "lineage": {
+      "rootRunId": "ec120000-0000-4000-8000-000000024001",
+      "versions": [
+        {
+          "runId": "ec120000-0000-4000-8000-000000024001",
+          "label": "Original",
+          "runState": "completed",
+          "status": "partial",
+          "startedAt": "2026-11-26T20:22:16.134Z"
+        }
+      ]
+    },
+    "artifacts": [
+      {
+        "id": "11563710-7c32-4e71-a1b4-65bbf147d62e",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "relativePath": "owner-export-11111111-1111-4111-8111-111111111111.mp4",
+        "role": "other",
+        "status": "validated",
+        "sha256": "3e1a1c7b4ac909c4f8ed78d7992b620f72b9e95819cf0414b5a06a3d7af336e5",
+        "sizeBytes": 43,
+        "mtime": "2026-11-26T20:22:16.469Z",
+        "validatedAt": "2026-11-26T20:22:16.565Z"
+      }
+    ],
+    "judgment": null,
+    "verification": {
+      "receipts": []
+    },
+    "production": null,
+    "competenceProof": {
+      "contextStatus": "none",
+      "attemptContextId": null,
+      "contextDigest": null,
+      "workflowVersionId": null,
+      "bindings": [],
+      "supplyStatus": "not_required",
+      "handlingStatus": "not_required",
+      "receipts": []
+    },
+    "managerProof": {
+      "status": "none",
+      "stageCount": 0,
+      "stages": [],
+      "verificationStatus": "not_required"
+    },
+    "historicalCandidates": [],
+    "session": {
+      "id": "9ab9976e-9274-47ae-814c-f17f47025df2",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "selectedArtifactId": "11563710-7c32-4e71-a1b4-65bbf147d62e",
+      "state": "draft",
+      "submittedRequestId": null,
+      "submittedIssueIds": null,
+      "compiledBrief": null,
+      "previousSessionId": null,
+      "carriedIssueIds": [],
+      "createdAt": "2026-11-26T20:22:16.637Z",
+      "submittedAt": null,
+      "acceptedAt": null
+    },
+    "reviewArtifacts": [],
+    "submission": null,
+    "issues": [
+      {
+        "id": "faf4ca42-3833-4df6-8ff4-c9c2a4c9f5f8",
+        "sessionId": "9ab9976e-9274-47ae-814c-f17f47025df2",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "11563710-7c32-4e71-a1b4-65bbf147d62e",
+        "kind": "timing",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "media_time",
+          "version": 1,
+          "timeEndMs": 750,
+          "timeStartMs": 250,
+          "artifactSha256": "3e1a1c7b4ac909c4f8ed78d7992b620f72b9e95819cf0414b5a06a3d7af336e5"
+        },
+        "anchorDigest": null,
+        "spatial": null,
+        "body": "Hold the transition.",
+        "status": "dismissed",
+        "reviewerResolution": null,
+        "evidence": null,
+        "submittedRequestId": null,
+        "createdAt": "2026-11-26T20:22:16.658Z",
+        "updatedAt": "2026-11-26T20:22:16.686Z"
+      },
+      {
+        "id": "9a3b690b-a61a-4fdb-939e-8411c57fa182",
+        "sessionId": "9ab9976e-9274-47ae-814c-f17f47025df2",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "11563710-7c32-4e71-a1b4-65bbf147d62e",
+        "kind": "content",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "media_time",
+          "version": 1,
+          "timeEndMs": null,
+          "timeStartMs": 250,
+          "artifactSha256": "3e1a1c7b4ac909c4f8ed78d7992b620f72b9e95819cf0414b5a06a3d7af336e5"
+        },
+        "anchorDigest": null,
+        "spatial": null,
+        "body": "Use the reaction shot.",
+        "status": "draft",
+        "reviewerResolution": null,
+        "evidence": null,
+        "submittedRequestId": null,
+        "createdAt": "2026-11-26T20:22:16.672Z",
+        "updatedAt": "2026-11-26T20:22:16.672Z"
+      }
+    ],
+    "sources": {
+      "run": "ready",
+      "lineage": "ready",
+      "artifacts": "ready",
+      "judgment": "ready",
+      "verification": "ready",
+      "production": "ready",
+      "session": "ready",
+      "issues": "ready",
+      "evidence": "ready",
+      "submission": "ready",
+      "reviewer_resolutions": "ready",
+      "review_artifacts": "ready",
+      "competence_context": "ready",
+      "competence_handling": "ready",
+      "manager_context": "ready",
+      "manager_handling": "ready",
+      "historical_candidates": "ready",
+      "carry_membership": "ready"
+    }
+  },
+  "submitted": {
+    "ok": true,
+    "run": {
+      "id": "ec120000-0000-4000-8000-000000024001",
+      "slug": "lifecycle-source-fixture",
+      "runState": "completed",
+      "status": "partial",
+      "reviewStatus": "none",
+      "closeReason": "owner_verified_export",
+      "recoveredFeedbackArtifactId": "11563710-7c32-4e71-a1b4-65bbf147d62e",
+      "recoveredRevisionAvailable": true,
+      "holdKind": null,
+      "startedAt": "2026-11-26T20:22:16.134Z"
+    },
+    "lineage": {
+      "rootRunId": "ec120000-0000-4000-8000-000000024001",
+      "versions": [
+        {
+          "runId": "ec120000-0000-4000-8000-000000024001",
+          "label": "Original",
+          "runState": "completed",
+          "status": "partial",
+          "startedAt": "2026-11-26T20:22:16.134Z"
+        },
+        {
+          "runId": "0cf5f20c-43a5-4eb4-859c-71f718ef30b5",
+          "label": "Revision 1",
+          "runState": "running",
+          "status": "partial",
+          "startedAt": "2026-11-26T20:22:16.879Z"
+        }
+      ]
+    },
+    "artifacts": [
+      {
+        "id": "11563710-7c32-4e71-a1b4-65bbf147d62e",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "relativePath": "owner-export-11111111-1111-4111-8111-111111111111.mp4",
+        "role": "other",
+        "status": "validated",
+        "sha256": "3e1a1c7b4ac909c4f8ed78d7992b620f72b9e95819cf0414b5a06a3d7af336e5",
+        "sizeBytes": 43,
+        "mtime": "2026-11-26T20:22:16.469Z",
+        "validatedAt": "2026-11-26T20:22:16.565Z"
+      }
+    ],
+    "judgment": null,
+    "verification": {
+      "receipts": []
+    },
+    "production": null,
+    "competenceProof": {
+      "contextStatus": "none",
+      "attemptContextId": null,
+      "contextDigest": null,
+      "workflowVersionId": null,
+      "bindings": [],
+      "supplyStatus": "not_required",
+      "handlingStatus": "not_required",
+      "receipts": []
+    },
+    "managerProof": {
+      "status": "none",
+      "stageCount": 0,
+      "stages": [],
+      "verificationStatus": "not_required"
+    },
+    "historicalCandidates": [],
+    "session": {
+      "id": "9ab9976e-9274-47ae-814c-f17f47025df2",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "selectedArtifactId": "11563710-7c32-4e71-a1b4-65bbf147d62e",
+      "state": "submitted",
+      "submittedRequestId": "ac2ee269-376a-4222-abb4-191065d59259",
+      "submittedIssueIds": [
+        "9a3b690b-a61a-4fdb-939e-8411c57fa182"
+      ],
+      "compiledBrief": "Use the verified saved export in the review inputs as the editing base. Apply the timestamped changes to a separate revision, preserving the rest of the cut and its audio. Keep the saved export intact. Do not rebuild the edit from the original recording or generate paid media.\n\nREVIEW REVISION\n\nSource run: ec120000-0000-4000-8000-000000024001\nFiles under review:\n- owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 3e1a1c7b4ac909c4f8ed78d7992b620f72b9e95819cf0414b5a06a3d7af336e5; role other)\n\nPreserve every aspect of the prior accepted work that is not named below.\nDo not substitute a different treatment unless an issue explicitly requests it.\n\nISSUES\n[1] CONTENT at 00:00.250\nFile: owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 3e1a1c7b4ac909c4f8ed78d7992b620f72b9e95819cf0414b5a06a3d7af336e5; role other)\nUse the reaction shot.\n\nBEFORE CLOSING\n- confirm each requested anchor against the file named on that issue;\n- report which issues were resolved;\n- declare the editable sources, final output, and QA evidence;\n- if an exact requested change is infeasible, stop with Needs Input before rendering a workaround.",
+      "previousSessionId": null,
+      "carriedIssueIds": [],
+      "createdAt": "2026-11-26T20:22:16.637Z",
+      "submittedAt": "2026-11-26T20:22:16.832Z",
+      "acceptedAt": null
+    },
+    "reviewArtifacts": [],
+    "submission": {
+      "id": "5ec7d32f-010c-41da-b4be-cb5ea67d02a4",
+      "sessionId": "9ab9976e-9274-47ae-814c-f17f47025df2",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "state": "bound",
+      "contractVersion": 1,
+      "canonicalDigest": "bca5f5b103c7a291113244cc1fb4e8a32c06b79e7a6a05973107705f71db2d4c",
+      "revisionNote": "Use the verified saved export in the review inputs as the editing base. Apply the timestamped changes to a separate revision, preserving the rest of the cut and its audio. Keep the saved export intact. Do not rebuild the edit from the original recording or generate paid media.",
+      "requestId": "ac2ee269-376a-4222-abb4-191065d59259",
+      "createdAt": "2026-11-26T20:22:16.722Z",
+      "boundAt": "2026-11-26T20:22:16.832Z",
+      "reportedAt": null
+    },
+    "issues": [
+      {
+        "id": "faf4ca42-3833-4df6-8ff4-c9c2a4c9f5f8",
+        "sessionId": "9ab9976e-9274-47ae-814c-f17f47025df2",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "11563710-7c32-4e71-a1b4-65bbf147d62e",
+        "kind": "timing",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "media_time",
+          "version": 1,
+          "timeEndMs": 750,
+          "timeStartMs": 250,
+          "artifactSha256": "3e1a1c7b4ac909c4f8ed78d7992b620f72b9e95819cf0414b5a06a3d7af336e5"
+        },
+        "anchorDigest": null,
+        "spatial": null,
+        "body": "Hold the transition.",
+        "status": "dismissed",
+        "reviewerResolution": null,
+        "evidence": null,
+        "submittedRequestId": null,
+        "createdAt": "2026-11-26T20:22:16.658Z",
+        "updatedAt": "2026-11-26T20:22:16.686Z"
+      },
+      {
+        "id": "9a3b690b-a61a-4fdb-939e-8411c57fa182",
+        "sessionId": "9ab9976e-9274-47ae-814c-f17f47025df2",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "11563710-7c32-4e71-a1b4-65bbf147d62e",
+        "kind": "content",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "media_time",
+          "version": 1,
+          "timeEndMs": null,
+          "timeStartMs": 250,
+          "artifactSha256": "3e1a1c7b4ac909c4f8ed78d7992b620f72b9e95819cf0414b5a06a3d7af336e5"
+        },
+        "anchorDigest": null,
+        "spatial": null,
+        "body": "Use the reaction shot.",
+        "status": "submitted",
+        "reviewerResolution": null,
+        "evidence": null,
+        "submittedRequestId": "ac2ee269-376a-4222-abb4-191065d59259",
+        "createdAt": "2026-11-26T20:22:16.672Z",
+        "updatedAt": "2026-11-26T20:22:16.832Z"
+      }
+    ],
+    "sources": {
+      "run": "ready",
+      "lineage": "ready",
+      "artifacts": "ready",
+      "judgment": "ready",
+      "verification": "ready",
+      "production": "ready",
+      "session": "ready",
+      "issues": "ready",
+      "evidence": "ready",
+      "submission": "ready",
+      "reviewer_resolutions": "ready",
+      "review_artifacts": "ready",
+      "competence_context": "ready",
+      "competence_handling": "ready",
+      "manager_context": "ready",
+      "manager_handling": "ready",
+      "historical_candidates": "ready",
+      "carry_membership": "ready"
+    }
+  },
+  "response": {
+    "ok": true,
+    "requestId": "ac2ee269-376a-4222-abb4-191065d59259",
+    "issueCount": 1,
+    "brief": "Use the verified saved export in the review inputs as the editing base. Apply the timestamped changes to a separate revision, preserving the rest of the cut and its audio. Keep the saved export intact. Do not rebuild the edit from the original recording or generate paid media.\n\nREVIEW REVISION\n\nSource run: ec120000-0000-4000-8000-000000024001\nFiles under review:\n- owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 3e1a1c7b4ac909c4f8ed78d7992b620f72b9e95819cf0414b5a06a3d7af336e5; role other)\n\nPreserve every aspect of the prior accepted work that is not named below.\nDo not substitute a different treatment unless an issue explicitly requests it.\n\nISSUES\n[1] CONTENT at 00:00.250\nFile: owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 3e1a1c7b4ac909c4f8ed78d7992b620f72b9e95819cf0414b5a06a3d7af336e5; role other)\nUse the reaction shot.\n\nBEFORE CLOSING\n- confirm each requested anchor against the file named on that issue;\n- report which issues were resolved;\n- declare the editable sources, final output, and QA evidence;\n- if an exact requested change is infeasible, stop with Needs Input before rendering a workaround.",
+    "submissionId": "5ec7d32f-010c-41da-b4be-cb5ea67d02a4",
+    "submissionDigest": "bca5f5b103c7a291113244cc1fb4e8a32c06b79e7a6a05973107705f71db2d4c",
+    "session": {
+      "id": "9ab9976e-9274-47ae-814c-f17f47025df2",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "selectedArtifactId": "11563710-7c32-4e71-a1b4-65bbf147d62e",
+      "state": "submitted",
+      "submittedRequestId": "ac2ee269-376a-4222-abb4-191065d59259",
+      "submittedIssueIds": [
+        "9a3b690b-a61a-4fdb-939e-8411c57fa182"
+      ],
+      "compiledBrief": "Use the verified saved export in the review inputs as the editing base. Apply the timestamped changes to a separate revision, preserving the rest of the cut and its audio. Keep the saved export intact. Do not rebuild the edit from the original recording or generate paid media.\n\nREVIEW REVISION\n\nSource run: ec120000-0000-4000-8000-000000024001\nFiles under review:\n- owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 3e1a1c7b4ac909c4f8ed78d7992b620f72b9e95819cf0414b5a06a3d7af336e5; role other)\n\nPreserve every aspect of the prior accepted work that is not named below.\nDo not substitute a different treatment unless an issue explicitly requests it.\n\nISSUES\n[1] CONTENT at 00:00.250\nFile: owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 3e1a1c7b4ac909c4f8ed78d7992b620f72b9e95819cf0414b5a06a3d7af336e5; role other)\nUse the reaction shot.\n\nBEFORE CLOSING\n- confirm each requested anchor against the file named on that issue;\n- report which issues were resolved;\n- declare the editable sources, final output, and QA evidence;\n- if an exact requested change is infeasible, stop with Needs Input before rendering a workaround.",
+      "previousSessionId": null,
+      "carriedIssueIds": [],
+      "createdAt": "2026-11-26T12:22:16.637608-08:00",
+      "submittedAt": "2026-11-26T12:22:16.832343-08:00",
+      "acceptedAt": null
+    }
+  },
+  "producer": {
+    "hashes": {
+      "supabase/migrations/0672_recovered_export_revision.sql": "2b83f1e6cfc6a78d4237f714c8b63953bba2dde52a438091eee4439207fe6913",
+      "src/services/run-review.service.js": "c72b95026083a432f304387700cc8c0ef5ec40a629e71fd0c2e45b5bdf4bfb1d",
+      "src/routes/review.js": "6a9c989b550e65119d1fea4caa1e67e7c35f88ed0c6d5eb9d115cd839934ec73",
+      "src/services/review-learning.service.js": "8cb264cdf96523b877624a2a9dfbfd9115f75a36ad6a0cbd7a8dc0737a17f35e",
+      "scripts/owner-verified-export.postgres.test.js": "cefeda6b7018a664fea813e464d521936e5f39f6754d2fd8413219cf3df642b3"
+    }
+  }
+}

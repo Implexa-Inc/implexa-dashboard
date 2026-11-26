@@ -195,6 +195,10 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
     case 'submit': {
       const sessionId = id(b.sessionId);
       if (!sessionId) return 'A valid sessionId is required.';
+      if (b.recoveredExport === true) return {
+        path: `/api/v2/review/sessions/${sessionId}/submit`, method: 'POST',
+        body: { recoveredExport: true },
+      };
       // THE REVISION NOTE, under the backend's own field name and bounds — read from
       // implexa-backend@8c0f71d, src/lib/review-submission.js: the request body key is
       // `revisionNote`, it must be a string, it is `.trim()`ed, an empty result becomes

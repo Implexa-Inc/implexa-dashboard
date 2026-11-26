@@ -933,11 +933,12 @@ export default async function RunDetailPage({
       const feedbackSession = competencePacket.session;
       const feedbackReady = artifact && competencePacket.sources.issues === 'ready'
         && competencePacket.sources.session === 'ready'
-        && (!feedbackSession || (feedbackSession.state === 'draft' && feedbackSession.selectedArtifactId === artifact.id));
+        && (!feedbackSession || (['draft','submitting','submitted'].includes(feedbackSession.state) && feedbackSession.selectedArtifactId === artifact.id));
       return <main className="app-page"><div className="app-content">
         <Link href={runHref} className="text-secondary text-ink-500">← Saved export</Link>
         <h1 className="mt-4 text-2xl font-semibold text-ink-50">Feedback on saved video</h1>
-        {feedbackReady ? <RecoveredExportFeedback artifact={artifact} agentName={name} session={feedbackSession}
+        {feedbackReady ? <RecoveredExportFeedback artifact={artifact} agentName={name} agentSlug={packetRun?.slug} session={feedbackSession}
+          canRevise={packetRun?.recoveredRevisionAvailable}
           issues={competencePacket.issues.filter(issue => issue.artifactId === artifact.id && issue.purpose === 'recovered_feedback')} />
           : <p role="alert">We couldn’t verify the saved video or load its feedback. Refresh to try again.</p>}
       </div></main>;
@@ -946,7 +947,9 @@ export default async function RunDetailPage({
     <main className="app-page"><div className="app-content">
       <BackLink fallback="/work" label="Work" className="text-secondary text-ink-500"/>
       <h1 className="mt-4 text-2xl font-semibold text-ink-50">Saved export · {name}</h1>
-      {artifact && <Link className="btn-outline mb-4 inline-flex" href={`${runHref}?feedback=1`}>Add timestamped feedback</Link>}
+      {artifact && <Link className="btn-outline mb-4 inline-flex" href={`${runHref}?feedback=1`}>
+        {competencePacket.session?.state === 'submitted' ? 'View feedback and revision' : 'Add timestamped feedback'}
+      </Link>}
       <OwnerRecoveredExport artifacts={verifiedArtifacts} runId={r.id}>
         <RunMarkdown markdown={r.output_markdown || ''} workspaceRoot={workspaceRoot}/>
       </OwnerRecoveredExport>
