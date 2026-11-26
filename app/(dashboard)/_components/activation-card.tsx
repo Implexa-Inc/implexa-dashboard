@@ -117,7 +117,7 @@ function PermissionList({ items, optIns, onToggle, savingGroup }: {
 // (2026-07-18) so the requirements panel (activation-requirements.tsx) can
 // reuse the exact same bridge + key-vault UI instead of a second copy.
 
-type NeededConnection = { account?: string; label?: string; status?: string; identity?: string | null };
+type NeededConnection = { account?: string; label?: string; status?: string; identity?: string | null; registeredRead?: boolean };
 
 function ConnectionRow({ item, onChanged, onBrowserVerified, confirmed, onConfirmationChanged, workedAround, onToggleWorkAround, slug }: {
   item: NeededConnection;
@@ -157,6 +157,9 @@ function ConnectionRow({ item, onChanged, onBrowserVerified, confirmed, onConfir
     } catch { setWaiveNote('Could not remove it. Try again.'); }
     finally { setWaiving(false); }
   }
+  if (item.registeredRead) return <li className="text-secondary text-ink-400">
+    Use <a className="underline" href="#agent-access-tools">Tools</a> to verify the report on {domain}.
+  </li>;
   return (
     <li>
       <div className="flex items-start justify-between gap-3">
@@ -1003,7 +1006,7 @@ export function ActivationCard({
       <div className="mt-4">
         <MarketplaceExecutionRequirementsCard contract={checklist.executionRequirements} />
       </div>
-      <div className="mt-4">
+      <div className="mt-4" id="agent-access-tools">
         <ActivationRequirements req={checklist.requirements} slug={checklist.slug} target={setupTarget} onBrowserVerified={refreshConnectionsInPlace} />
       </div>
       {(!!checklist.machineTools?.requirements.length || !!checklist.localToolDeclarations?.length) && <div className="mt-4">

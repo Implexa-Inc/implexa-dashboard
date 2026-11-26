@@ -79,6 +79,7 @@ export type AgentRequirementsPayload = {
       required: boolean;
       domain: string;
       label: string;
+      readRoute?: { url: string; visibleText: string[] };
       status: 'reachable' | 'unreachable' | 'unknown';
       identity?: string | null;
       verifiedAt?: string | null;
