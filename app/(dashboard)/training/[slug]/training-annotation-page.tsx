@@ -26,7 +26,7 @@ export default async function TrainingAnnotationPage({slug,target}:{slug:string;
   const packet=await getReviewPacket(runId);
   if(packet.live&&packet.run?.slug!==slug)notFound();
   const provenance=await reviewResultProvenance(packet,db,session.user.id);
-  if(provenance==='owner_export')redirect(`/runs/${encodeURIComponent(runId)}`);
+  if(provenance==='owner_export'&&!packet.run?.recoveredFeedbackArtifactId)return <main className="app-page"><h1>Coaching result unavailable</h1><p>We couldn’t verify a saved video to mark up.</p><Link href={`/runs/${encodeURIComponent(runId)}`}>Open the run</Link></main>;
   if(provenance==='unavailable')return <main className="app-page"><h1>Training review unavailable</h1><p>We couldn’t check this result’s provenance.</p><Link href={`/runs/${encodeURIComponent(runId)}`}>Open the private run page</Link></main>;
   if(packet.run?.holdKind==='approval_before_action')redirect(`/review/${encodeURIComponent(runId)}`);
  }

@@ -14,6 +14,7 @@ import {reviewMarkApplied,reviewMarkContext,reviewMarkFrame,reviewMarkSuggestion
 export type RunMarkRequest={issue:ReviewIssue;artifact:ReviewArtifact};
 type Journal={version:1;sourceId?:string;phase:'prepared'|'drafting'|'ready'|'applying'|'applied';context?:ReviewMarkContext;suggestion?:ReviewMarkSuggestion;
  conflict?:{reason:'training_review_mark_already_applied';existingRecordId?:string;recordDigest?:string};ownerRelationOverride?:'accepted'|'rejected';fields?:TeachingFields;retentionUntil?:string;applyKey?:string;receipt?:{recordId:string;recordDigest:string}};
+type AppliedMark={recordId:string;recordDigest:string};
 type Proposal={request:RunMarkRequest;key:string;journal:Journal;error?:string};
 const PREFIX='implexa:review-mark-draft:v1:';
 const fieldLabels={chosen:'Example details',why:'General judgment',process:'Applies when',desiredBehavior:'For new work'};
@@ -59,17 +60,17 @@ function MarkedEvidenceImage({entry,ownerId,sessionId,currentVersionId}:{entry:P
 }
 
 /** One consent and review bundle over the existing per-mark prior-work writers. */
-export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug,requests,onClose,onApplied,onScopeCheck,applyContainer,onEligibleCountChange,onReviewReady,activeStep}:{activeStep?:TrainingStep;applyContainer?:HTMLElement|null;onEligibleCountChange?:(count:number)=>void;onReviewReady?:()=>void;
+export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug,requests,onClose,onApplied,onScopeCheck,applyContainer,onEligibleCountChange,onReviewReady,activeStep,coaching=false}:{coaching?:boolean;activeStep?:TrainingStep;applyContainer?:HTMLElement|null;onEligibleCountChange?:(count:number)=>void;onReviewReady?:()=>void;
  sessionId:string;currentVersionId:string;ownerId:string;slug:string;requests:RunMarkRequest[]|null;
- onClose:()=>void;onApplied:()=>void|Promise<void>;onScopeCheck:()=>void|Promise<void>;
+ onClose:()=>void;onApplied:(receipts:AppliedMark[])=>void|Promise<void>;onScopeCheck:()=>void|Promise<void>;
 }){
  const proposalRef=useRef<HTMLElement|null>(null),active=useRef(''),generation=useRef(0),flight=useRef(false),pause=useRef(false);
- const [busy,setBusy]=useState(false),[extracting,setExtracting]=useState(false),[error,setError]=useState(''),[entries,setEntries]=useState<Proposal[]>([]),[consented,setConsented]=useState(false),[editingId,setEditingId]=useState<string|null>(null),[note,setNote]=useState(''),[nextIndex,setNextIndex]=useState(0);
+ const [busy,setBusy]=useState(false),[extracting,setExtracting]=useState(false),[error,setError]=useState(''),[entries,setEntries]=useState<Proposal[]>([]),[consented,setConsented]=useState(false),[editingId,setEditingId]=useState<string|null>(null),[note,setNote]=useState(''),[nextIndex,setNextIndex]=useState(0),[coachingConfirmed,setCoachingConfirmed]=useState(false);
  const entriesRef=useRef(entries);entriesRef.current=entries;
  const identity=JSON.stringify({ownerId,sessionId,currentVersionId,slug,notes:requests?.map(request=>noteIdentity(ownerId,sessionId,currentVersionId,slug,request))});active.current=identity;
  function publish(next:Proposal[]){entriesRef.current=next;setEntries(next);}
  function update(entry:Proposal){publish([...entriesRef.current.filter(item=>item.request.issue.id!==entry.request.issue.id),entry]);}
- useEffect(()=>{generation.current++;setBusy(false);setExtracting(false);setError('');publish([]);setConsented(false);setEditingId(null);setNote('');setNextIndex(0);pause.current=false;},[identity]);
+ useEffect(()=>{generation.current++;setBusy(false);setExtracting(false);setError('');publish([]);setConsented(false);setEditingId(null);setNote('');setNextIndex(0);setCoachingConfirmed(false);pause.current=false;},[identity]);
  useEffect(()=>{if(!consented||!entries.length)return;proposalRef.current?.scrollIntoView?.({block:'nearest',behavior:'smooth'});proposalRef.current?.focus();},[consented,entries.length]);
  async function checked(expected:string){if(active.current!==expected)throw Error('The selected teaching changed.');await onScopeCheck();if(active.current!==expected)throw Error('The selected teaching changed.');}
  async function post(operation:'source'|'apply',body:unknown,key?:string){
@@ -116,7 +117,7 @@ export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug
   if(flight.current||!ids.length||new Set(ids).size!==ids.length)return;
   const selected=ids.map(id=>entriesRef.current.find(entry=>entry.request.issue.id===id));
   if(selected.some(entry=>!entry||!supported(entry)||!['ready','applying'].includes(entry.journal.phase)))return;
-  const expected=identity,epoch=generation.current;flight.current=true;setBusy(true);setError('');setNote('Saving selected training…');let completed=0;
+  const expected=identity,epoch=generation.current;flight.current=true;setBusy(true);setError('');setNote('Saving selected training…');const receipts:AppliedMark[]=[];
   try{for(const entry of selected as Proposal[]){
    await checked(expected);const saved=entry.journal,fields=saved.fields!,scope=saved.suggestion!.scopeSuggestion!,relation=effectiveRelation(entry);
    if(!['accepted','rejected'].includes(relation)||TEACHING_FIELDS.some(field=>!fields[field].trim()||fields[field].length>400))throw Error('Review this example’s use and keep each teaching field between 1 and 400 characters.');
@@ -131,10 +132,28 @@ export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug
      const held={...next,conflict};writeJournal(entry.key,held);update({...entry,journal:held,error:failure(conflict)});
     }throw caught;
    }await checked(expected);if(!reviewMarkApplied(result))throw Error('The saved teaching could not be confirmed. Retry this exact proposal.');
-   const applied={...next,phase:'applied' as const,receipt:{recordId:result.recordId,recordDigest:result.recordDigest}};writeJournal(entry.key,applied);update({...entry,journal:applied});completed++;
-  }setNote(`${completed} lesson${completed===1?'':'s'} saved. Apply them now or run a sample first.`);}
-  catch(caught){if(active.current===expected&&generation.current===epoch){setError(caught instanceof Error?caught.message:'Teaching could not be confirmed.');setNote(`${completed} of ${selected.length} selected lessons confirmed saved. Remaining proposals are preserved.`);}}
-  finally{if(completed&&active.current===expected)try{await onApplied();}catch{setError('Training was saved, but its refreshed status could not be loaded.');}flight.current=false;if(active.current===expected&&generation.current===epoch)setBusy(false);}
+   const receipt={recordId:result.recordId,recordDigest:result.recordDigest};
+   const applied={...next,phase:'applied' as const,receipt};writeJournal(entry.key,applied);update({...entry,journal:applied});
+   receipts.push(receipt);
+  }setNote(coaching?'Coaching saved. Applying it to future runs…':`${receipts.length} lesson${receipts.length===1?'':'s'} saved. Apply them now or run a sample first.`);}
+  catch(caught){if(active.current===expected&&generation.current===epoch){setError(caught instanceof Error?caught.message:'Teaching could not be confirmed.');setNote(`${receipts.length} of ${selected.length} selected lessons confirmed saved. Remaining proposals are preserved.`);}}
+  finally{
+   if(receipts.length&&active.current===expected)try{
+    await onApplied(receipts);
+    if(coaching&&active.current===expected){setCoachingConfirmed(receipts.length===selected.length);setNote(`${receipts.length} coaching lesson${receipts.length===1?' is':'s are'} active for future runs.`);}
+   }catch(caught){if(active.current===expected)setError(caught instanceof Error?caught.message:'Coaching was saved. Its application could not be confirmed.');}
+   flight.current=false;if(active.current===expected&&generation.current===epoch)setBusy(false);
+  }
+ }
+ async function applySavedCoaching(){
+  const receipts=entriesRef.current.flatMap(entry=>entry.journal.phase==='applied'&&entry.journal.receipt?[entry.journal.receipt]:[]);
+  if(!receipts.length||flight.current)return;
+  const expected=identity;flight.current=true;setBusy(true);setError('');
+  try{
+   await checked(expected);await onApplied(receipts);
+   if(active.current===expected){setCoachingConfirmed(true);setNote('Saved coaching is active for future runs.');}
+  }catch(caught){if(active.current===expected)setError(caught instanceof Error?caught.message:'Coaching could not be confirmed.');}
+  finally{flight.current=false;if(active.current===expected)setBusy(false);}
  }
  async function retryAfterWithdrawal(entry:Proposal){
   const conflict=entry.journal.conflict;if(!conflict?.existingRecordId||!conflict.recordDigest||flight.current)return;
@@ -157,13 +176,14 @@ export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug
  if(!requests?.length)return null;
  return <>
  {activeStep===3&&applyContainer&&createPortal(<div className="space-y-2">{note&&<p role="status" className="text-reading text-ink-300">{note}</p>}{error&&<p role="alert" className="text-reading text-state-needs">{error}</p>}</div>,applyContainer)}
- <Modal open={!consented} onClose={close} title={requests.length===1?'Extract training from this note?':`Extract training from ${requests.length} notes?`} maxWidth="max-w-3xl">
-  <p className="text-reading text-ink-300">Tukido will use your saved notes and their marked frames to suggest reusable lessons.</p><details className="mt-3 text-secondary leading-5 text-ink-500"><summary className="cursor-pointer">What gets analyzed</summary><p className="text-reading mt-2">These {requests.length} saved note{requests.length===1?'':'s'} and one saved image per note go to Claude Haiku 5.5, separately. Applying lessons approves these examples for training; it leaves the video’s acceptance and revision unchanged.</p></details><button type="button" className="btn-primary mt-5" disabled={busy} onClick={()=>void extract()}>Extract training</button>
+ <Modal open={!consented} onClose={close} title={coaching?'Review your coaching notes':requests.length===1?'Extract training from this note?':`Extract training from ${requests.length} notes?`} maxWidth="max-w-3xl">
+  <p className="text-reading text-ink-300">Tukido will use your saved notes and their marked frames to suggest reusable lessons.</p><details className="mt-3 text-secondary leading-5 text-ink-500"><summary className="cursor-pointer">What gets analyzed</summary><p className="text-reading mt-2">These {requests.length} saved note{requests.length===1?'':'s'} and one saved image per note go to Claude Haiku 5.5, separately. Applying lessons approves these examples for training; it leaves the video’s acceptance and revision unchanged.</p></details><button type="button" className="btn-primary mt-5" disabled={busy} onClick={()=>void extract()}>{coaching?'Prepare coaching':'Extract training'}</button>
  </Modal>
  {consented&&<section ref={proposalRef} tabIndex={-1} aria-label="Lessons from your marked result" className="space-y-4 outline-none"><div className="flex justify-end"><button type="button" disabled={busy} onClick={close} className="text-ui text-ink-400 underline">Close proposals</button></div>
   {activeStep!==3&&note&&<p role="status" className="text-reading text-ink-300">{note}</p>}
   {editing&&<div className="mb-4 grid gap-3 rounded-xl border border-ink-700 p-4">{editing.journal.ownerRelationOverride&&<p className="text-secondary leading-5 text-ink-400">Tukido suggested: {relationText(editing.journal.suggestion!.scopeSuggestion!.relation)}. You changed it to: <strong className="text-ink-200">{relationText(editing.journal.ownerRelationOverride)}</strong>.</p>}<label className="text-ui text-ink-400">How to use this example<select aria-label="How to use this example" value={effectiveRelation(editing)} disabled={busy||editing.journal.phase==='applying'} className="mt-1 w-full rounded-lg border border-ink-700 bg-ink-950 p-3 text-ui text-ink-100" onChange={event=>{const value=event.target.value;if(value==='accepted'||value==='rejected')edit(editing,{ownerRelationOverride:value===editing.journal.suggestion!.scopeSuggestion!.relation?undefined:value});}}><option value="accepted">Keep this example</option><option value="rejected">Avoid this example</option></select></label>{TEACHING_FIELDS.map(field=><label key={field} className="text-ui text-ink-400">{fieldLabels[field]}<textarea className="mt-1 w-full rounded-lg border border-ink-700 bg-ink-950 p-3 text-ui text-ink-100" value={editing.journal.fields![field]} maxLength={400} disabled={busy||editing.journal.phase==='applying'} onChange={event=>edit(editing,{fields:{...editing.journal.fields!,[field]:event.target.value}})}/></label>)}</div>}
-  <TrainingDraftBundle applyContainer={applyContainer} drafts={pending.flatMap(entry=>{const purpose=entry.request.issue.purpose;if(purpose==='recovered_feedback')return [];const saved=entry.journal,fields=saved.fields!,scope=saved.suggestion!.scopeSuggestion!;return {id:entry.request.issue.id,digest:JSON.stringify({fields,binding:saved.context?.binding}),judgment:fields.why,appliesWhen:fields.process,example:fields.chosen,category:scope.property.replaceAll('_',' '),relation:effectiveRelation(entry),relationOrigin:saved.ownerRelationOverride?'owner' as const:'model' as const,sourceNote:{body:entry.request.issue.body,purpose:purpose??'revision' as const},renderEvidence:<MarkedEvidenceImage entry={entry} ownerId={ownerId} sessionId={sessionId} currentVersionId={currentVersionId}/>};})} busy={busy} onApply={ids=>void applySelected(ids)} onEdit={id=>setEditingId(value=>value===id?null:id)}/>
+  <TrainingDraftBundle actionLabel={coaching?'Apply coaching':undefined} applyContainer={applyContainer} drafts={pending.flatMap(entry=>{const purpose=entry.request.issue.purpose;if(purpose==='recovered_feedback')return [];const saved=entry.journal,fields=saved.fields!,scope=saved.suggestion!.scopeSuggestion!;return {id:entry.request.issue.id,digest:JSON.stringify({fields,binding:saved.context?.binding}),judgment:fields.why,appliesWhen:fields.process,example:fields.chosen,category:scope.property.replaceAll('_',' '),relation:effectiveRelation(entry),relationOrigin:saved.ownerRelationOverride?'owner' as const:'model' as const,sourceNote:{body:entry.request.issue.body,purpose:purpose??'revision' as const},renderEvidence:<MarkedEvidenceImage entry={entry} ownerId={ownerId} sessionId={sessionId} currentVersionId={currentVersionId}/>};})} busy={busy} onApply={ids=>void applySelected(ids)} onEdit={id=>setEditingId(value=>value===id?null:id)}/>
+  {coaching&&!coachingConfirmed&&entries.some(entry=>entry.journal.phase==='applied')&&<button type="button" disabled={busy} className="btn-outline" onClick={()=>void applySavedCoaching()}>Apply saved coaching</button>}
   {held.length>0&&<details className="rounded-xl border border-amber-800/60 p-4 text-secondary"><summary className="cursor-pointer">Needs clarification ({held.length})</summary>{held.map(entry=><div key={entry.request.issue.id} className="mt-4 space-y-2"><p>{entry.request.issue.body}</p><p className="text-secondary text-ink-400">{entry.error||entry.journal.suggestion?.reason||'This example needs its category or use clarified before it can be applied. Edit its saved note, then extract again.'}</p>{entry.journal.conflict&&<button type="button" className="text-ui text-action-accent underline" disabled={busy||!entry.journal.conflict.existingRecordId||!entry.journal.conflict.recordDigest} onClick={()=>void retryAfterWithdrawal(entry)}>Retry this Apply after withdrawal</button>}</div>)}</details>}
   {activeStep!==3&&error&&<p role="alert" className="text-reading text-state-needs">{error}</p>}
   {extracting?<button type="button" className="text-ui text-ink-400 underline" onClick={()=>{pause.current=true;}}>Pause after this note</button>:!busy&&nextIndex<requests.length&&<button type="button" className="text-ui text-action-accent" onClick={()=>void extract()}>Resume extraction</button>}

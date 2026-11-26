@@ -671,7 +671,25 @@ test('ordinary review excludes training-only notes from its rail and revision co
  await mount({issues:[training],trainingMode:true,onTeachIssue:()=>{}});assert.match(text(),/Future-training-only note/);assert.ok(buttons().find(button=>button.textContent==='Extract training'));
 });
 
-test('Done teaching sends only exact active current-run visual pairs and waits for draft or voice completion',async()=>{
+test('Coach can mark a recovered video by time and saves a full-frame coaching note',async()=>{
+ const workNote={...storedSpatialIssue,body:'Keep this Work note private to its revision.',purpose:'recovered_feedback'};
+ await mount({trainingMode:true,recoveredFeedback:true,onApplyCoaching:()=>{},issues:[workNote]});
+ const state=rigVideo(video(),{currentTime:33});
+ await media(video(),'loadedmetadata');await media(video(),'timeupdate');
+ assert.doesNotMatch(text(),/Keep this Work note|Run revision from saved video|Accept result/);
+ await clickButton(/^Select a range$/);
+ state.currentTime=36;await media(video(),'timeupdate');
+ await clickButton(/Set end/);await typeBody('Teach from this example.');await clickButton(/^Save coaching note$/);
+ const saved=calls.find(call=>call.body.action==='create_issue')?.body;
+ assert.equal(saved?.purpose,'training');
+ const anchor=saved?.anchor as typeof storedSpatialAnchor;
+ assert.equal(anchor.version,2);
+ assert.deepEqual(anchor.temporal,{startMs:33000,endMs:36000});
+ assert.deepEqual(anchor.geometry,{kind:'rect',coordinateSpace:'normalized_visual_content_v1',x:0,y:0,width:1,height:1});
+ assert.equal(calls.some(call=>call.body.action==='request_evidence'),true);
+});
+
+test('Apply coaching sends only exact active current-run visual pairs and waits for draft or voice completion',async()=>{
  const secondId='dddddddd-3333-4333-8333-333333333333',dismissedId='dddddddd-4444-4444-8444-444444444444',textId='dddddddd-5555-4555-8555-555555555555',foreignId='dddddddd-6666-4666-8666-666666666666',previousRun='11111111-2222-4222-8222-222222222222';
  const first={...storedSpatialIssue,purpose:'training',body:'First exact visual note.'};
  const second={...storedSpatialIssue,id:secondId,artifactId:IMG,purpose:'training',body:'Second exact visual note.',anchor:{...storedSpatialAnchor,observedArtifactId:IMG,observedArtifactSha256:SHA_I,temporal:null,sourceFrame:{visualWidth:1080,visualHeight:1920}}};
@@ -683,9 +701,9 @@ test('Done teaching sends only exact active current-run visual pairs and waits f
  const native=(dom.window as unknown as {implexaDesktop:Record<string,unknown>}).implexaDesktop,saved={...native};
  Object.assign(native,{trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string)=>op==='listVoiceNotes'?{ok:true,voiceNotes:[]}:op==='startVoiceNote'?{ok:true,voiceNoteId:secondId}:op==='getVoiceNote'?new Promise(resolve=>release=resolve):{ok:false}});
  try{
-  await mount({trainingMode:true,trainingOwnerId:SESSION_ID,issues:[first,second,dismissed,nonvisual,foreign,stale],session:{id:SESSION_ID,runId:RUN_ID,selectedArtifactId:null,state:'draft',submittedRequestId:null,submittedIssueIds:null,compiledBrief:null,acceptedAt:null,carriedIssueIds:[foreignId]},onDoneTeaching:(pairs:any[])=>batches.push(pairs)});
+  await mount({trainingMode:true,trainingOwnerId:SESSION_ID,issues:[first,second,dismissed,nonvisual,foreign,stale],session:{id:SESSION_ID,runId:RUN_ID,selectedArtifactId:null,state:'draft',submittedRequestId:null,submittedIssueIds:null,compiledBrief:null,acceptedAt:null,carriedIssueIds:[foreignId]},onApplyCoaching:(pairs:any[])=>batches.push(pairs)});
   const state=rigVideo(video());await media(video(),'loadedmetadata');
-  const done=()=>buttons().find(button=>button.textContent==='Done teaching')!;
+  const done=()=>buttons().find(button=>button.textContent==='Apply coaching')!;
   assert.equal(done().disabled,false);await fire(done(),'click');assert.equal(batches.length,1);
   assert.deepEqual(batches[0].map((pair:any)=>pair.issue.id).sort(),[ISSUE_ID,secondId].sort());
   assert.equal(batches[0].find((pair:any)=>pair.issue.id===ISSUE_ID).issue,first);assert.equal(batches[0].find((pair:any)=>pair.issue.id===ISSUE_ID).artifact,artifacts[0]);

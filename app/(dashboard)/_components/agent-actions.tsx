@@ -108,7 +108,7 @@ const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in t
 // ./run-attachments. The per-run note rides the run-request `note` (a one-off
 // channel), never the saved standing note.
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, setupRouteClass = null, activeVersionNumber = null, inputContract = null, inputContractDigest = null, pendingUpdate = null,trainingTest:initialTrainingTest=null,presentation='agent',trainingChoices,runRequest,onQueued,openOnArrival=false,runLabel='▶ Run now' }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, setupRouteClass = null, activeVersionNumber = null, inputContract = null, inputContractDigest = null, pendingUpdate = null,trainingTest:initialTrainingTest=null,presentation='agent',trainingChoices,runRequest,onQueued,openOnArrival=false,runLabel='▶ Run now',runButtonAppearance }: {
   /** Opens the existing input/review gate only; submission remains explicit. */
   openOnArrival?:boolean;
   slug: string;
@@ -153,6 +153,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   pendingUpdate?: { version: number; state: string } | null;
   trainingTest?:PreparedTrainingTest|null;
   presentation?:'agent'|'training'|'dock';
+  runButtonAppearance?:'secondary';
   runLabel?:string;
   trainingChoices?:{pendingUnknown?:boolean;pending:boolean|null;canTest:boolean;delivered:boolean;savedAvailable:boolean;busy:boolean;onPending:()=>void;onSaved:()=>void};
   runRequest?:{nonce:string;binding:PreparedTrainingTest|null}|null;
@@ -1287,7 +1288,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           type="button"
           onClick={()=>void runNow()}
           disabled={trainingChecking || runActionBusy}
-          className="btn-success text-ui px-4 py-2 disabled:opacity-60"
+          className={`${runButtonAppearance==='secondary'?'btn-secondary':'btn-success'} text-ui px-4 py-2 disabled:opacity-60`}
         >
           {trainingChecking ? 'Checking training…'
             : state === 'queuing' ? 'Queuing…'

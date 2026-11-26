@@ -100,7 +100,8 @@ export type ReviewRoomProps = {
   initialTrainingIssueId?: string;
   customerOwnerId?: string;
   onTeachIssue?: (issue: ReviewIssue, artifact: ReviewArtifact) => void;
-  onDoneTeaching?: (notes:Array<{issue:ReviewIssue;artifact:ReviewArtifact}>)=>void;
+  onApplyCoaching?: (notes:Array<{issue:ReviewIssue;artifact:ReviewArtifact}>)=>void;
+  coachingTest?: ReactNode;
   onDirtyChange?: (dirty: boolean) => void;
   renderVoiceNote?: (binding: {artifactId:string|null;sha256:string|null;frameMs:number|null}, onText:(text:string)=>void) => ReactNode;
   trainingSlug?:string;
@@ -166,6 +167,7 @@ function formatSignedMs(ms: number): string {
 export default function ReviewRoom(props: ReviewRoomProps) {
   const router = useRouter();
   const { runId, artifacts, production, sources, isApprovalHold, recoveredFeedback } = props;
+  const coachMarkup = !!props.onApplyCoaching;
   const historicalProvenanceUnavailable = sources.historical_candidates === 'unavailable'
     || sources.carry_membership === 'unavailable';
   const supportingArtifactIds = useMemo(() => new Set(
@@ -238,7 +240,9 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   // intentionally retain their predecessor session id; current-session filtering
   // alone would make a successfully carried draft appear empty after reload.
   const carriedIssueIds = new Set(session?.carriedIssueIds ?? []);
-  const scopedIssues=allIssues.filter(issue=>recoveredFeedback
+  const scopedIssues=allIssues.filter(issue=>coachMarkup
+    ? issue.purpose==='training'
+    : recoveredFeedback
     ? issue.purpose==='recovered_feedback'
     : issue.purpose!=='recovered_feedback' && (props.trainingMode||issue.purpose!=='training'));
   const issues = historicalCandidate
@@ -755,10 +759,18 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     if (d.spatial) return spatialAnchorFromDraft(d);
     if (d.selection) return buildTextAnchor(sha, d.selection.start, d.selection.end, d.selection.quote);
     if (d.anchorMs !== null) {
+      const video = mediaRef.current;
+      if (coachMarkup && video instanceof HTMLVideoElement && preview?.artifactId === d.target.artifactId
+        && video.videoWidth > 0 && video.videoHeight > 0) {
+        return spatialAnchorFromDraft({ ...d, spatial: {
+          geometry: { kind: 'rect', x: 0, y: 0, width: 1, height: 1 },
+          sourceFrame: { visualWidth: video.videoWidth, visualHeight: video.videoHeight },
+        } });
+      }
       return buildMediaAnchor(sha, d.anchorMs / 1000, d.rangeEndMs === null ? null : d.rangeEndMs / 1000);
     }
     return buildArtifactAnchor(sha);
-  }, []);
+  }, [coachMarkup, preview?.artifactId]);
 
   /**
    * A saved spatial issue immediately asks the backend for its screenshot evidence
@@ -780,6 +792,10 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     setError(null);
     const d = draft;
     const anchor = buildAnchor(d);
+    if (coachMarkup && recoveredFeedback && !isSpatialAnchorV2(anchor)) {
+      setError('Wait for the video to load, then save your coaching note.');
+      return;
+    }
     const aErr = anchorError(anchor);
     if (aErr) { setError(aErr); return; }
     const bErr = bodyError(d?.body ?? '');
@@ -794,7 +810,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       if (editingId) {
         const { body } = await reviewAction({
           action: 'update_issue', issueId: editingId,
-          kind: d!.kind, anchor, body: d!.body.trim(), ...(props.trainingMode&&!recoveredFeedback?{purpose:'training'}:{}),
+          kind: d!.kind, anchor, body: d!.body.trim(),
         });
         if (!body?.ok) {
           setError(body?.staleAnchor
@@ -828,7 +844,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         // The FROZEN file, for the same reason as the digest above.
         action: 'create_issue', sessionId: sid, artifactId: d!.target.artifactId,
         kind: d!.kind, anchor, body: d!.body.trim(),
-        ...(recoveredFeedback ? { purpose: 'recovered_feedback' } : props.trainingMode ? { purpose: 'training' } : {}),
+        ...(coachMarkup ? { purpose: 'training' } : recoveredFeedback ? { purpose: 'recovered_feedback' } : props.trainingMode ? { purpose: 'training' } : {}),
       });
       if (!body?.ok) {
         setError(body?.staleAnchor
@@ -843,7 +859,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       if (body.issue?.id && anchor && isSpatialAnchorV2(anchor)) void requestEvidence(body.issue.id);
     } finally { setBusy(false); }
     // NOT `artifact`: every identity this path writes now comes from the draft.
-  }, [buildAnchor, draft, ensureSession, requestEvidence, props.trainingMode, recoveredFeedback]);
+  }, [buildAnchor, draft, ensureSession, requestEvidence, props.trainingMode, recoveredFeedback, coachMarkup]);
 
   const dismissIssue = useCallback(async (issueId: string) => {
     setBusy(true); setError(null);
@@ -923,6 +939,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     if (polled !== undefined) return polled ?? null;
     return (issue as { evidence?: { status?: string; ready?: boolean } | null }).evidence ?? null;
   }, [evidenceStatus]);
+  const coachingFramePending = coachMarkup && recoveredFeedback
+    && teachingNotes.some(({issue}) => evidenceForIssue(issue)?.ready !== true);
 
   // ── the annotation surface's pins ─────────────────────────────────────────
   // Numbered within THIS artifact's spatial issues, in rail order, so the pin a
@@ -1722,7 +1740,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 type="button" disabled={busy||voiceDirty} onClick={submitIssue}
                 className="rounded-md bg-ink-100 px-3 py-1.5 text-ui font-medium text-ink-950 disabled:opacity-50"
               >
-                {(recoveredFeedback || props.runMarkup) && !draft.editingIssueId ? 'Save feedback' : saveDraftLabel(draft)}
+                {coachMarkup && !draft.editingIssueId ? 'Save coaching note' :
+                  (recoveredFeedback || props.runMarkup) && !draft.editingIssueId ? 'Save feedback' : saveDraftLabel(draft)}
               </button>
               <button
                 type="button"
@@ -1911,7 +1930,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       <aside className="flex max-h-[70vh] min-h-0 flex-col rounded-lg border border-ink-800 bg-ink-900/40 lg:max-h-none">
         <div className="shrink-0 border-b border-ink-800 px-4 py-3">
           <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-ui font-medium text-ink-200">{recoveredFeedback || props.runMarkup ? 'Your feedback' : props.trainingMode?'Your teaching notes':'Review issues'}</h2>
+            <h2 className="text-ui font-medium text-ink-200">{coachMarkup ? 'Your coaching notes' : recoveredFeedback || props.runMarkup ? 'Your feedback' : props.trainingMode?'Your teaching notes':'Review issues'}</h2>
             {!issuesUnavailable && !resolutionsUnavailable && visible.length > 0 && (
               <span className="shrink-0 text-micro tabular-nums text-ink-500">{props.trainingMode ? noteCountLabel(visible.length) : groupCountLabel(visible.length)}</span>
             )}
@@ -2008,7 +2027,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                   )}
                   <p className="mt-1 whitespace-pre-wrap text-reading text-ink-200">{i.body}</p>
                   {!props.trainingMode&&props.customerOwnerId&&!stale&&isSpatialAnchorV2(i.anchor as never)&&<CustomerFeedbackSharing issue={i} ownerId={props.customerOwnerId}/>}
-                  {props.trainingMode && props.onTeachIssue && group.artifact && !stale && teachingNotes.some(note=>note.issue.id===i.id) && <button type="button" disabled={busy} className="mt-3 text-ui text-state-running hover:underline disabled:opacity-40" onClick={()=>props.onTeachIssue?.(i,group.artifact!)}>Extract training</button>}
+                  {props.trainingMode && props.onTeachIssue && group.artifact && !stale && teachingNotes.some(note=>note.issue.id===i.id) && <button type="button" disabled={busy||!!(coachMarkup&&recoveredFeedback&&evidenceForIssue(i)?.ready!==true)} className="mt-3 text-ui text-state-running hover:underline disabled:opacity-40" onClick={()=>props.onTeachIssue?.(i,group.artifact!)}>{coachMarkup?'Prepare this note':'Extract training'}</button>}
                   {!props.trainingMode && submitView.mode === 'send_changes' && patternEligibleIssueIds.has(i.id) && (
                     <label className="mt-2 flex items-start gap-2 rounded border border-violet-500/20 bg-violet-500/5 px-2 py-1.5 text-ui text-ink-300">
                       <input
@@ -2061,7 +2080,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                       A draft on ANOTHER file says so: its composer belongs over its own
                       artifact, so the affordance opens that file instead of quietly
                       attaching an editor to the one on screen. */}
-                  {!frozen && !accepted && edit && (
+                  {!frozen && !accepted && edit && (!coachMarkup || i.sessionId === session?.id) && (
                     <div className="mt-1 flex gap-3">
                       <button
                         type="button"
@@ -2116,8 +2135,13 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           {error && <p role="alert" className="text-secondary text-state-fail">{error}</p>}
           {notice && <p role="status" className="text-secondary text-ink-300">{notice}</p>}
           {accepted && <button type="button" disabled={busy} onClick={()=>void addMoreFeedback()} className="text-ui text-action-accent">Add teaching notes</button>}
-          {props.onDoneTeaching&&<button type="button" className="btn-primary" disabled={busy||!!draft||!!pendingRange||voiceDirty||!teachingNotes.length} onClick={()=>props.onDoneTeaching?.(teachingNotes)}>Done teaching</button>}
-          {recoveredFeedback ? <>
+          {coachMarkup ? <>
+            {coachingFramePending && screenshotStatus}
+            <button type="button" className="btn-primary" disabled={busy||!!draft||!!pendingRange||voiceDirty||!teachingNotes.length||!!coachingFramePending} onClick={()=>props.onApplyCoaching?.(teachingNotes)}>Apply coaching</button>
+            {props.coachingTest}
+            <p className="text-secondary text-ink-500">Review and apply your notes as lessons for future runs.</p>
+            {visible.length>teachingNotes.length&&<p className="text-secondary text-ink-400">{visible.length-teachingNotes.length} note(s) need a fresh visual mark before applying.</p>}
+          </> : recoveredFeedback ? <>
             <p className="text-secondary text-ink-500">Notes are private to this saved video.</p>
             {submitView.mode === 'queued' ? <>
               <p role="status" className="text-secondary text-state-ok">{revisionCompleted ? 'Your revision was delivered.' : 'Revision requested from this saved video.'}</p>
@@ -2136,7 +2160,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             <details><summary className="cursor-pointer text-ui text-ink-400">More options</summary><a href={props.trainingSlug?`${trainingReviewHref(props.trainingSlug,runId)}?mode=revise`:`/review/${encodeURIComponent(runId)}`} className="mt-3 inline-block text-secondary text-ink-400 underline underline-offset-4">Revise this result →</a></details>
           </>}
         </div>}
-        {!recoveredFeedback && <div className={`${props.trainingMode?'hidden ':''}sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900 px-4 py-3`}>
+        {!recoveredFeedback && !coachMarkup && <div className={`${props.trainingMode?'hidden ':''}sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900 px-4 py-3`}>
           {error && <p role="alert" className="text-secondary text-state-fail">{error}</p>}
           {notice && <p role="status" className="text-secondary text-state-ok">{notice}</p>}
 

@@ -46,15 +46,29 @@ export async function GET(request: Request) {
       return respond({ ok: false, reason: 'training_review_not_found' }, 404);
     }
     const provenance=await reviewResultProvenance(packet,supabase,session.user?.id,request.signal);
-    if(provenance!=='native')return respond({ok:false,reason:provenance==='owner_export'?'training_review_not_found':'training_review_unavailable'},provenance==='owner_export'?404:503);
-    if(issueId&&!packet.issues.some(issue=>issue.id===issueId&&issue.purpose==='training'&&issue.status!=='dismissed'))return respond({ok:false,reason:'training_review_not_found'},404);
+    if(provenance==='unavailable')return respond({ok:false,reason:'training_review_unavailable'},503);
+    const recovered=provenance==='owner_export';
+    const openSession=packet.session&&['draft','submitting'].includes(packet.session.state)?packet.session:null;
+    const recoveredArtifact=recovered&&packet.artifacts.find(artifact=>artifact.id===packet.run!.recoveredFeedbackArtifactId
+      &&artifact.runId===packet.run!.id&&artifact.status==='validated'&&artifact.sha256);
+    if(recovered&&(!recoveredArtifact||(openSession&&openSession.selectedArtifactId!==recoveredArtifact.id))){
+      return respond({ok:false,reason:'training_review_not_found'},404);
+    }
+    const issues=recoveredArtifact?packet.issues.filter(issue=>issue.purpose==='training'&&issue.artifactId===recoveredArtifact.id):packet.issues;
+    if(issueId&&!issues.some(issue=>issue.id===issueId&&issue.purpose==='training'&&issue.status!=='dismissed'))return respond({ok:false,reason:'training_review_not_found'},404);
     const versions = packet.lineage.versions;
     return respond({ ok: true, contractVersion: 'training-run-review.v1', review: {
       trainingSlug: slug, runId: packet.run.id, agentSlug: packet.run.slug,
       agentName: owned.workflows.find(agent => agent.slug === slug && agent.source === 'generated')!.name,
-      artifacts: packet.artifacts, historicalCandidates: packet.historicalCandidates,
-      production: packet.production, issues: packet.issues, session: packet.session,
-      reviewArtifacts: packet.reviewArtifacts, sources: packet.sources, isApprovalHold: false,
+      ...(recoveredArtifact ? {
+        recoveredFeedback:true, initialArtifactId:recoveredArtifact.id, artifacts:[recoveredArtifact],
+        production:null,
+        reviewArtifacts:[],
+      } : {
+        artifacts:packet.artifacts, historicalCandidates:packet.historicalCandidates,
+        production:packet.production,reviewArtifacts:packet.reviewArtifacts,
+      }),
+      issues,session:openSession,sources:packet.sources,isApprovalHold:false,
       versions, currentVersionLabel: versions.find(version => version.runId === packet.run!.id)?.label ?? null,
     } });
   } catch {

@@ -16,8 +16,8 @@ const receipt={ok:true,contractVersion:'training-review-applied.v1',created:true
 function savedChanges(state:string){return {ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:U(1),agentFamilyId:U(22),workflowVersionId:U(2),snapshotDigest:sha('snapshot')},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[{recordId:U(20),recordDigest:sha('existing'),summary:['discarded','revoked','retired','unavailable'].includes(state)?null:'The existing lesson.',state,included:state==='human_accepted',admissionOrigin:'human_decision',category:'taste',sourceKind:'legacy_evidence',policyReceiptId:null,policyReceiptDigest:null,sourceEventId:null,sourceEventDigest:null,model:null}],test:{snapshotDigest:null,scope:null,status:'not_run',runId:null,qualityScore:null,gaps:[],canTest:false},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};}
 const button=(r:any,text:string)=>[...r.document.querySelectorAll('button')].find((b:any)=>b.textContent?.trim()===text) as HTMLButtonElement;
 async function flush(r:any,condition:()=>boolean){for(let i=0;i<40&&!condition();i++)await r.act(()=>new Promise(resolve=>setTimeout(resolve,5)));assert.equal(condition(),true,r.text());}
-async function setup({native=context,reply=suggestion,providerFails=false,applyFails=false,alreadyApplied=false,initialJournal}:any={}){
- const calls:any[]=[],nativeCalls:any[]=[],applied:any[]=[],props={sessionId:U(1),currentVersionId:U(2),ownerId:U(11),slug:'video-studio',requests:[{issue,artifact}],onClose:()=>{},onApplied:()=>{applied.push(true);},onScopeCheck:async()=>{}};let applyCount=0,existingState='human_accepted';
+async function setup({native=context,reply=suggestion,providerFails=false,applyFails=false,alreadyApplied=false,initialJournal,coaching=false,onApplied}:any={}){
+ const calls:any[]=[],nativeCalls:any[]=[],applied:any[]=[],props={sessionId:U(1),currentVersionId:U(2),ownerId:U(11),slug:'video-studio',requests:[{issue,artifact}],onClose:()=>{},coaching,onApplied:onApplied??(()=>{applied.push(true);}),onScopeCheck:async()=>{}};let applyCount=0,existingState='human_accepted';
  const r=await render('../training/[slug]/run-mark-training.tsx',props,{bridge:{trainingReviewMarkContractVersion:'1',trainingLocal:async(operation:string,args:any)=>{nativeCalls.push({operation,args});return native;}},fetch:async(url:any,init:any)=>{const body=init?.body?JSON.parse(init.body):null;calls.push({url:String(url),body,init});if(String(url).includes('operation=source'))return {ok:true,json:async()=>({ok:true,sourceId:U(5)})} as Response;
   if(String(url).includes('teaching-suggestion')){if(providerFails)throw Error('network disconnected');return {ok:true,json:async()=>reply} as Response;}
   if(String(url).includes('/changes?'))return {ok:true,json:async()=>savedChanges(existingState)} as Response;
@@ -35,6 +35,31 @@ test('marked-frame teaching preserves run provenance and uses one visible batch 
   assert.equal(calls.some(c=>/accept|submit|revision|demo-annotation/.test(c.url)),false);assert.match(r.text(),/1 lesson saved/);
  }finally{r.cleanup();}
 });
+test('Coach activation receives only the exact confirmed receipt and retries without saving another mark',async()=>{
+ const activated:any[]=[];
+ const {r,calls}=await setup({coaching:true,onApplied:async(receipts:any[])=>{
+  activated.push(JSON.parse(JSON.stringify(receipts)));
+  if(activated.length===1)throw Error('Activation acknowledgement unavailable');
+ }});
+ try{
+  await r.click(button(r,'Prepare coaching'));
+  await flush(r,()=>!!button(r,'Apply coaching'));
+  assert.equal(activated.length,0);
+  await r.click(button(r,'Apply coaching'));
+  assert.equal(activated.length,0);
+  const modal=r.document.querySelector('[role="dialog"]')!;
+  await r.click(modal.querySelector('button.btn-primary')!);
+  await flush(r,()=>r.text().includes('application could not be confirmed'));
+  const expected=[{recordId:receipt.recordId,recordDigest:receipt.recordDigest}];
+  assert.deepEqual(activated,[expected]);
+  await r.click(button(r,'Apply saved coaching'));
+  await flush(r,()=>r.text().includes('Saved coaching is active for future runs.'));
+  assert.deepEqual(activated,[expected,expected]);
+  assert.equal(calls.filter(c=>c.url.includes('operation=apply')).length,1);
+  assert.equal(calls.some(c=>/submit|revision|\/run-now/.test(c.url)),false);
+ }finally{r.cleanup();}
+});
+
 test('reopening a saved proposal revalidates its PNG and skips the model call',async()=>{
  const first=await setup();let saved:any[]=[];try{await first.r.click(button(first.r,'Extract training'));await flush(first.r,()=>first.r.text().includes('Tukido suggests: avoid this'));saved=Object.entries(first.r.window.localStorage);}finally{first.r.cleanup();}
  const second=await setup({initialJournal:saved});try{await second.r.click(button(second.r,'Extract training'));await flush(second.r,()=>second.r.text().includes('Tukido suggests: avoid this'));assert.equal(second.calls.filter(c=>c.url.includes('teaching-suggestion')).length,0);assert.ok(second.nativeCalls.length>=1);}finally{second.r.cleanup();}
