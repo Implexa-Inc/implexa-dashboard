@@ -105,7 +105,7 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
       const artifactId = id(b.artifactId);
       return {
         path: `/api/v2/review/runs/${runId}/session`, method: 'POST',
-        body: artifactId ? { artifactId } : {},
+        body: { ...(artifactId ? { artifactId } : {}), ...(b.recoveredFeedback === true ? { recoveredFeedback: true } : {}) },
       };
     }
     case 'create_issue': {
@@ -115,7 +115,8 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
         path: `/api/v2/review/sessions/${sessionId}/issues`, method: 'POST',
         // `anchor` is forwarded verbatim to the backend's typed validator. There is
         // deliberately no "any JSON is fine" shortcut on either side.
-        body: { artifactId: id(b.artifactId), kind: b.kind, anchor: b.anchor, body: b.body, ...(b.purpose === 'training' ? {purpose:'training'} : {}) },
+        body: { artifactId: id(b.artifactId), kind: b.kind, anchor: b.anchor, body: b.body,
+          ...(b.purpose === 'training' || b.purpose === 'recovered_feedback' ? { purpose: b.purpose } : {}) },
       };
     }
     case 'update_issue': {

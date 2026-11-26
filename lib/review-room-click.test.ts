@@ -16,11 +16,13 @@
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import {
   fixtureArtifacts, fixtureIssues, submitFixture, FIXTURE_RUN_ID, FIXTURE_SESSION_ID,
 } from './review-multi-file-fixture.ts';
 import { resolveReviewAction, REVISION_NOTE_MAX } from './review-actions.ts';
+import { parseReviewPacketResponse } from './review.ts';
 
 // The loader is registered for THIS process only — node:test gives every file its own,
 // so no other test's module resolution changes.
@@ -64,7 +66,7 @@ before(async () => {
   const put = (name: string, value: unknown) =>
     Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
   for (const name of ['window', 'document', 'navigator', 'HTMLElement', 'HTMLTextAreaElement',
-    'Element', 'Node', 'MouseEvent', 'Event', 'getComputedStyle']) {
+    'HTMLVideoElement', 'HTMLImageElement', 'Element', 'Node', 'MouseEvent', 'Event', 'getComputedStyle']) {
     put(name, (dom.window as unknown as Record<string, unknown>)[name]);
   }
   // React 18 reads this to pick the concurrent-safe act() implementation.
@@ -923,4 +925,79 @@ test('a session already submitted renders queued on first paint, without any cli
   assert.match(text(), /12 changes were sent as one revision/);
   assert.equal(calls.length, 0, 'rendering a submitted session transmitted something');
   root.unmount();
+});
+
+test('recovered video opens a private timestamped feedback session and reloads saved ranges', async () => {
+  // Captured from the actual Backend review service over PostgreSQL recovery rows.
+  const fixture = JSON.parse(readFileSync(new URL('./test/fixtures/recovered-export-feedback-postgres.json', import.meta.url), 'utf8'));
+  const initial = parseReviewPacketResponse(fixture.initialPacket);
+  const existing = parseReviewPacketResponse(fixture.packet);
+  assert.ok(initial?.run && existing?.session);
+  const artifact = initial.artifacts.find(file => file.id === initial.run!.recoveredFeedbackArtifactId);
+  assert.ok(artifact);
+  assert.equal(parseReviewPacketResponse({
+    ...fixture.initialPacket, run: {...fixture.initialPacket.run, recoveredFeedbackArtifactId: 'wrong-artifact'},
+  }), null);
+  const { default: Feedback } = await import('../app/(dashboard)/_components/recovered-export-feedback.tsx');
+  const previewCalls: string[][] = [];
+  Object.defineProperty(dom.window, 'implexaDesktop', {
+    configurable: true, value: {
+      async createArtifactPreview(...args: string[]) {
+        previewCalls.push(args);
+        return {ok: true, url: 'implexa-artifact://preview/abcdefghijklmnop1234567890'};
+      },
+      async revokeArtifactPreview() {},
+    },
+  });
+  dom.window.HTMLMediaElement.prototype.pause = () => {};
+  const upstream: Array<{path: string; body: unknown}> = [];
+  (globalThis as Record<string, unknown>).fetch = async (url: string, init: {body: string}) => {
+    assert.equal(url, '/api/review');
+    const payload = JSON.parse(init.body);
+    const forward = resolveReviewAction(payload.action, payload);
+    assert.ok(typeof forward !== 'string');
+    upstream.push({path: forward.path, body: forward.body});
+    const reply = upstream.length === 1 ? fixture.open : fixture.point;
+    assert.ok(upstream.length <= 2, 'annotation must never call revision, evidence or training APIs');
+    return {status: 200, json: async () => reply};
+  };
+  const client = createRoot(container);
+  const render = (packet: typeof existing | typeof initial) => React.createElement(Feedback, {
+    artifact, agentName: 'Video studio', issues: packet.issues, session: packet.session,
+  });
+  try {
+    await act(async () => client.render(render(initial)));
+    const video = container.querySelector('video');
+    assert.ok(video);
+    assert.deepEqual(previewCalls[0], [artifact.runId, artifact.id]);
+    assert.equal(buttons().some(button => button.textContent?.includes('Point comment')), false);
+    await act(async () => {
+      video.currentTime = 0.25;
+      video.dispatchEvent(new dom.window.Event('loadedmetadata'));
+    });
+    assert.ok(buttons().some(button => button.textContent === 'Select a range'));
+    await click(buttons().find(button => button.textContent?.includes('Point comment'))!);
+    await typeNote(fixture.point.issue.body);
+    await click(buttons().find(button => button.textContent === 'Save feedback')!);
+    assert.deepEqual(upstream, [
+      {path: `/api/v2/review/runs/${artifact.runId}/session`,
+        body: {artifactId: artifact.id, recoveredFeedback: true}},
+      {path: `/api/v2/review/sessions/${existing.session.id}/issues`, body: {
+        artifactId: artifact.id, kind: fixture.point.issue.kind, body: fixture.point.issue.body,
+        anchor: fixture.point.issue.anchor, purpose: 'recovered_feedback',
+      }},
+    ]);
+    assert.ok(text().includes(fixture.point.issue.body));
+    assert.match(text(), /Your feedback/);
+    assert.doesNotMatch(text(), /Accept result|Send changes|Revise this result|Done teaching|Share result/);
+    assert.equal(container.querySelector('[data-testid="spatial-hint"]'), null);
+
+    await act(async () => client.render(null));
+    await act(async () => client.render(render(existing)));
+    assert.ok(text().includes(existing.issues[0].body));
+    assert.ok(buttons().some(button => button.title === '00:00.250 – 00:00.750'));
+    assert.equal(upstream.length, 2, 'loading existing notes must be read-only');
+  } finally {
+    await act(async () => client.unmount());
+  }
 });

@@ -66,6 +66,7 @@ import StageManagerProof from '../../_components/stage-manager-proof';
 import TasteFitReviewCard from '../../_components/taste-fit-review';
 import { runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-presentation';
 import ReviewRoom from '../../_components/review-room';
+import RecoveredExportFeedback from '../../_components/recovered-export-feedback';
 import type {ReactNode} from 'react';
 import { getReviewPacket } from '@/lib/review';
 import { loadReviewAmendmentTarget } from '@/lib/review-amendment-target';
@@ -175,7 +176,7 @@ export default async function RunDetailPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams?: { superseded?: string; keep?: string };
+  searchParams?: { superseded?: string; keep?: string; feedback?: string };
 }) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
@@ -951,10 +952,29 @@ export default async function RunDetailPage({
   const showProgressLayout = info.state !== 'completed' || held;
   const surface = resultSurface({ runId:r.id, completed:!showProgressLayout, closeReason, provenanceAvailable:artifactProvenanceAvailable, reviewLive:competencePacket.live, reviewRunId:competencePacket.run?.id });
   const showFinishedReview = surface === 'review';
-  if (surface === 'owner_export') return (
+  if (surface === 'owner_export') {
+    const packetRun = competencePacket.run;
+    const artifact = competencePacket.live && packetRun?.id === r.id && packetRun.closeReason === 'owner_verified_export'
+      && competencePacket.artifacts.find(file => file.id === packetRun.recoveredFeedbackArtifactId);
+    const runHref = `/runs/${encodeURIComponent(r.id)}`;
+    if (searchParams?.feedback === '1') {
+      const feedbackSession = competencePacket.session;
+      const feedbackReady = artifact && competencePacket.sources.issues === 'ready'
+        && competencePacket.sources.session === 'ready'
+        && (!feedbackSession || (feedbackSession.state === 'draft' && feedbackSession.selectedArtifactId === artifact.id));
+      return <main className="app-page"><div className="app-content">
+        <Link href={runHref} className="text-secondary text-ink-500">← Saved export</Link>
+        <h1 className="mt-4 text-2xl font-semibold text-ink-50">Feedback on saved video</h1>
+        {feedbackReady ? <RecoveredExportFeedback artifact={artifact} agentName={name} session={feedbackSession}
+          issues={competencePacket.issues.filter(issue => issue.artifactId === artifact.id && issue.purpose === 'recovered_feedback')} />
+          : <p role="alert">We couldn’t verify the saved video or load its feedback. Refresh to try again.</p>}
+      </div></main>;
+    }
+    return (
     <main className="app-page"><div className="app-content">
       <BackLink fallback="/work" label="Work" className="text-secondary text-ink-500"/>
       <h1 className="mt-4 text-2xl font-semibold text-ink-50">Saved export · {name}</h1>
+      {artifact && <Link className="btn-outline mb-4 inline-flex" href={`${runHref}?feedback=1`}>Add timestamped feedback</Link>}
       <OwnerRecoveredExport artifacts={verifiedArtifacts} runId={r.id}>
         <RunMarkdown markdown={r.output_markdown || ''} workspaceRoot={workspaceRoot}/>
       </OwnerRecoveredExport>
@@ -962,7 +982,8 @@ export default async function RunDetailPage({
         <RunStepTrace entries={steps} live={false} attention={false} stalled={false}/>
       </details>}
     </div></main>
-  );
+    );
+  }
   const heldRunControls = <>
         {/* The ONE action surface for a held run — context-aware primary (Approve &
             finish / Mark as done / Answer & continue), Request-changes on demand, a
