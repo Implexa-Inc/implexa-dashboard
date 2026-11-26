@@ -61,39 +61,49 @@ type BrowserSession = NonNullable<AgentRequirementsPayload['services'][number]['
  * authenticated page before the server marks the domain reachable. This same
  * component works for every provider that declares browserSession metadata.
  */
-function BrowserSessionAccess({ session, target, managed = false, onVerified }: { session: BrowserSession; target?: AgentSetupTarget | null; managed?: boolean; onVerified: () => void | Promise<void> }) {
+function BrowserSessionAccess({ session, toolKey, target, managed = false, onVerified }: { session: BrowserSession; toolKey: string; target?: AgentSetupTarget | null; managed?: boolean; onVerified: () => void | Promise<void> }) {
   const bridge = useDesktopBridge();
   const [opened, setOpened] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [reportVerified, setReportVerified] = useState(false);
+  const registered = !!session.readRoute;
 
-  if (session.status === 'reachable' && (managed || !usesProviderBrowserSession(session.domain))) {
+  if (!registered && session.status === 'reachable' && (managed || !usesProviderBrowserSession(session.domain))) {
     return (
       <span className="text-secondary text-state-ok whitespace-nowrap">
         {managed ? '✓ Browser access ready' : `✓ signed in${session.identity ? ` as ${session.identity}` : ''}`}
       </span>
     );
   }
-  if (!managed) return <ProviderBrowserSignIn key={session.domain} domain={session.domain} onVerified={onVerified} />;
+  if (registered && !bridge?.registeredBrowserReadSetup) return <p className="text-secondary text-ink-500">Open Setup in the updated Tukido app to verify this report.</p>;
+  if (!registered && !managed) return <ProviderBrowserSignIn key={session.domain} domain={session.domain} onVerified={onVerified} />;
 
   const openSignIn = async () => {
     if (!target || !bridge?.connectAgentTool) { setNote('Open the updated Tukido app to connect this tool.'); return; }
-    setBusy(true); setNote(null);
+    setBusy(true); setNote(null); setReportVerified(false);
     try {
-      const out = await bridge.connectAgentTool(target, session.domain);
+      const out = await bridge.connectAgentTool(target, session.domain, registered ? toolKey : undefined);
       if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.'
         : 'Could not open this tool. Check setup and try again.'); return; }
       setOpened(true);
-      setNote('Sign in, then select Verify in Tukido. You can leave the browser open.');
+      setNote(registered ? 'Sign in and open the report, then select Verify report.' : 'Sign in, then select Verify in Tukido. You can leave the browser open.');
     } catch { setNote('Could not open the sign-in page.'); }
     finally { setBusy(false); }
   };
   const verify = async () => {
     if (!target || !bridge?.checkAgentToolConnections) { setNote('Check this tool from the updated Tukido app.'); return; }
-    setBusy(true); setNote(null);
+    setBusy(true); setNote(null); setReportVerified(false);
     try {
-      const out = await bridge.checkAgentToolConnections(target);
+      const out = registered ? await bridge.checkAgentToolConnections(target, session.domain, toolKey)
+        : await bridge.checkAgentToolConnections(target);
       if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.' : 'Connection not confirmed. Check the Tukido dialog.'); return; }
+      if (registered) {
+        setReportVerified(out.reportVerified === true);
+        setNote(out.reportVerified === true ? 'Report access verified in this browser.'
+          : 'Tukido could not read the report. Make sure you are signed in and the report is open, then try again.');
+        return;
+      }
       await onVerified();
       setNote('Connection check finished.');
     } catch { setNote('Could not verify the account. Try again.'); }
@@ -104,11 +114,11 @@ function BrowserSessionAccess({ session, target, managed = false, onVerified }: 
     <div className="flex-none text-right">
       <div className="flex items-center justify-end gap-1.5">
         <button type="button" onClick={openSignIn} disabled={busy} className="btn-outline text-ui px-2.5 py-1">
-          {opened ? 'Reopen sign-in' : 'Use signed-in account'}
+          {registered ? 'Open report' : opened ? 'Reopen sign-in' : 'Use signed-in account'}
         </button>
-        <button type="button" onClick={verify} disabled={busy} className="btn-outline text-ui px-2.5 py-1">Verify</button>
+        <button type="button" onClick={verify} disabled={busy} className="btn-outline text-ui px-2.5 py-1">{registered ? 'Verify report' : 'Verify'}</button>
       </div>
-      {note && <p className="text-secondary text-ink-500 mt-1 max-w-56 leading-snug">{note}</p>}
+      {note && <p role="status" className={`text-secondary mt-1 max-w-56 leading-snug ${reportVerified ? 'text-state-ok' : 'text-ink-500'}`}>{note}</p>}
     </div>
   );
 }
@@ -156,7 +166,7 @@ export function ActivationRequirements({ req, slug, target, onBrowserVerified }:
   if (!req) return null;
   if (req.unavailable) return <p role="status" className="text-reading text-ink-500">Tool setup status is unavailable. Refresh to check again.</p>;
   const services = (req.services ?? []).map(service => {
-    if (!structured || service.required !== false || !service.browserSession) return service;
+    if (!structured || service.required !== false || !service.browserSession || service.browserSession.readRoute) return service;
     const connection = managedToolConnection(toolReport?.key === targetKey ? toolReport.data : null, target, service.browserSession.domain);
     return { ...service, browserSession: { ...service.browserSession,
       status: connection?.status || 'unknown' as const, identity: connection?.identity || null, verifiedAt: connection?.verifiedAt || null } };
@@ -237,7 +247,7 @@ export function ActivationRequirements({ req, slug, target, onBrowserVerified }:
                   {!isReady && s.required === false && <p className="text-secondary text-ink-500 mt-0.5">If unavailable at run time, this optional tool is skipped. The agent will use its fallback.</p>}
                 </div>
                 <div className="flex-none flex items-center gap-1.5">
-                  {s.browserSession && <BrowserSessionAccess session={s.browserSession} target={target} managed={structured && s.required === false} onVerified={refreshTools} />}
+                  {s.browserSession && <BrowserSessionAccess key={`${target?.versionId}:${s.key}`} session={s.browserSession} toolKey={s.key} target={target} managed={structured && s.required === false} onVerified={refreshTools} />}
                   {s.provider && !browserOnly && !unknownAccess && !keyReady && <InlineAddKeyButton provider={s.provider} slug={slug} />}
                   {keyReady && <span className="text-secondary text-state-ok whitespace-nowrap">✓ key allowed</span>}
                   {/* Suppress "Get it" once a key exists — that was the original

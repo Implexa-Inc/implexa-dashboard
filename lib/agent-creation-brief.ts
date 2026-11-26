@@ -1,4 +1,4 @@
-export type PlaybookPlan={steps:string[];operations?:string[];runInputs?:Array<{key:string;label:string;collection:'start'|'after_review';kind:string}>;reviewAfterStep?:number;sources:Array<{name:string;purpose:string;domain:string;routes:string[]}>;checks:string[]};
+export type PlaybookPlan={steps:string[];operations?:string[];runInputs?:Array<{key:string;label:string;collection:'start'|'after_review';kind:string}>;reviewAfterStep?:number;sources:Array<{name:string;purpose:string;domain:string;routes:string[];browserRead?:{url:string;visibleText:string[]}}>;checks:string[]};
 export type CreationBrief={name:string;goal:string;inputs:string[];outputs:string[];plan?:PlaybookPlan;tools:Array<{name:string;requirement:'required'|'preferred'}>};
 export type CreationDraftBinding={draftId:string;replyId:string;replyDigest:string};
 export type CreationTurn={turnId:string;message:string;mode?:'playbook';baseReplyId:string|null;baseDraftId?:string|null;createdAt:string;status:'pending'|'answered'|'failed';
@@ -9,7 +9,7 @@ const id=(v:unknown):v is string=>typeof v==='string'&&/^[a-f0-9]{8}(-[a-f0-9]{4
 const text=(v:unknown,n:number):v is string=>typeof v==='string'&&v.length<=n;
 const strings=(v:unknown,n:number):v is string[]=>Array.isArray(v)&&v.every(x=>text(x,n));
 export function isCreationBrief(v:any):v is CreationBrief{return !!v&&typeof v==='object'&&text(v.name,80)&&text(v.goal,1200)&&strings(v.inputs,240)&&strings(v.outputs,240)
- &&(v.plan===undefined||(v.plan&&(v.plan.operations===undefined||strings(v.plan.operations,40))&&(v.plan.runInputs===undefined||(Array.isArray(v.plan.runInputs)&&v.plan.runInputs.every((f:any)=>f&&text(f.key,48)&&text(f.label,100)&&['start','after_review'].includes(f.collection))))&&strings(v.plan.steps,400)&&strings(v.plan.checks,200)&&Array.isArray(v.plan.sources)&&v.plan.sources.every((s:any)=>s&&text(s.name,60)&&text(s.purpose,160)&&text(s.domain,253)&&strings(s.routes,30))))
+ &&(v.plan===undefined||(v.plan&&(v.plan.operations===undefined||strings(v.plan.operations,40))&&(v.plan.runInputs===undefined||(Array.isArray(v.plan.runInputs)&&v.plan.runInputs.every((f:any)=>f&&text(f.key,48)&&text(f.label,100)&&['start','after_review'].includes(f.collection))))&&strings(v.plan.steps,400)&&strings(v.plan.checks,200)&&Array.isArray(v.plan.sources)&&v.plan.sources.every((s:any)=>s&&text(s.name,60)&&text(s.purpose,160)&&text(s.domain,253)&&strings(s.routes,30)&&(s.browserRead===undefined||(/^https:\/\//.test(s.browserRead?.url||'')&&text(s.browserRead.url,512)&&strings(s.browserRead.visibleText,64))))))
  &&Array.isArray(v.tools)&&v.tools.every((t:any)=>text(t.name,80)&&['required','preferred'].includes(t.requirement));}
 export function isCreationDraftRead(v:any,draftId:string):v is CreationDraftRead{
  return v?.ok===true&&v.contractVersion==='agent-creation-brief.v1'&&v.draftId===draftId&&Number.isSafeInteger(v.totalTurns)&&v.totalTurns>=0
