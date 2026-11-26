@@ -312,12 +312,12 @@ export function draftFromIssue(
   if (anchor.version === 2 && anchor.type === 'visual_spatial') {
     const g = (anchor.geometry ?? {}) as Record<string, unknown>;
     const sf = (anchor.sourceFrame ?? {}) as Record<string, unknown>;
-    const temporal = anchor.temporal as { startMs?: number } | null;
+    const temporal = anchor.temporal as { startMs?: number; endMs?: number | null } | null;
     const intent = (anchor.intent ?? {}) as Record<string, unknown>;
     return {
       target: { ...target },
       anchorMs: temporal ? Math.max(0, Math.round(Number(temporal.startMs) || 0)) : null,
-      rangeEndMs: null,
+      rangeEndMs: temporal?.endMs ?? null,
       selection: null,
       spatial: {
         geometry: {
@@ -387,6 +387,7 @@ export function spatialAnchorFromDraft(draft: FeedbackDraft | null | undefined):
       }
       : { mode: INTENT_CHANGE },
     temporalStartMs: draft.anchorMs,
+    temporalEndMs: draft.rangeEndMs,
     geometry: draft.spatial.geometry,
     sourceFrame: draft.spatial.sourceFrame,
   });

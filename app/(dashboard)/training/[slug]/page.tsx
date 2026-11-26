@@ -40,7 +40,9 @@ export default async function Page({params,searchParams}:{params:{slug:string};s
  const recent=detail?.status==='ready'&&!runsUnavailable?detail.detail.runs.filter(r=>r.slug===params.slug).sort((a,b)=>b.ran_at.localeCompare(a.ran_at)).slice(0,3):[];
  const recentRuns:TrainingRun[]=await Promise.all(recent.map(async run=>{
   const packet=await getReviewPacket(run.id);
-  const artifact=packet.live&&packet.run?.id===run.id&&packet.run.slug===params.slug?packet.artifacts.find(a=>a.runId===run.id&&a.role==='final_output'&&a.status==='validated'&&a.sha256&&/\.(mp4|png|jpe?g|webp)$/i.test(a.relativePath))||null:null;
+  const artifact=packet.live&&packet.run?.id===run.id&&packet.run.slug===params.slug?packet.artifacts.find(a=>a.runId===run.id
+   &&(packet.run?.closeReason==='owner_verified_export'?a.id===packet.run.recoveredFeedbackArtifactId:a.role==='final_output')
+   &&a.status==='validated'&&a.sha256&&/\.(mp4|png|jpe?g|webp)$/i.test(a.relativePath))||null:null;
   return {id:run.id,date:run.ran_at,status:run.state.label,artifact};
  }));
  return <TrainingRouteConfig value={{slug:params.slug,familyId,ownerId:user.id,runContext:installationId?undefined:agentActionContext(detail||{status:'unavailable'}),initialRecordingId:annotateRecording,initialChat:searchParams?.chat==='edit',lastRunId:recentRuns[0]?.id,recentRuns,runsUnavailable,installationId,forkPermission}}/>;

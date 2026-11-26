@@ -37,14 +37,16 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
   const provenance=await reviewResultProvenance(packet,supabase,session.user.id);
   const runHref=`/runs/${encodeURIComponent(params.runId)}`;
   const reviewHref=`/review/${encodeURIComponent(params.runId)}${searchParams?.artifact?`?artifact=${encodeURIComponent(searchParams.artifact)}`:''}`;
-  if (provenance === 'owner_export') redirect(runHref);
+  if (trainingSlug && packet.live && packet.run?.slug !== trainingSlug) notFound();
+  if (provenance === 'owner_export') {
+    redirect(packet.run?.recoveredFeedbackArtifactId ? `${runHref}?feedback=1` : runHref);
+  }
   if (packet.live && provenance === 'unavailable') return <main className="mx-auto max-w-3xl p-10">
     <h1>Review provenance unavailable</h1><p>We could not check how this result was recovered. Review actions are paused.</p>
     <Link href={runHref}>Open the private run page</Link>
   </main>;
   const ownerSlug=trainingReviewSlug(packet,owned);
   if(trainingSlug){
-    if(packet.live&&packet.run?.slug!==trainingSlug)notFound();
     if(packet.live&&owned.status==='ready'&&owned.workflows.some(a=>a.slug===trainingSlug&&a.source==='generated'))redirect(reviewHref);
     return <main className="mx-auto max-w-3xl p-10"><h1>Training review unavailable</h1><p>We could not verify this result belongs to an agent you train.</p><Link href="/training">Return to Training</Link><p><Link href={reviewHref}>Open run review</Link></p></main>;
   }

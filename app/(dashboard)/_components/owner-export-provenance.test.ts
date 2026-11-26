@@ -33,6 +33,7 @@ for(const finished of [false,true])test(`owner export retains truthful provenanc
 // individual raw DB reads are stubbed, as in training-owner-context.test.ts.
 const require=createRequire(import.meta.url);
 const reviewRoom=()=>null;
+const trainingRouteConfig=()=>null;
 let routePacket:any, fallbackReason:any, fallbackError:any;
 const routeReads:Array<{table:string;filters:Array<[string,unknown]>}>=[];
 const built=buildSync({entryPoints:[resolve(import.meta.dirname,'review-room-page.tsx')],
@@ -48,7 +49,7 @@ const load=(name:string)=>{
   if(name==='@/lib/agents-home')return{getMyAgents:async()=>({status:'ready',active:[],needsActivation:[],drafts:[]})};
   if(name==='@/lib/workflow-catalog')return{readMyWorkflows:async()=>({status:'ready',workflows:[{slug:routePacket.run?.slug,source:'generated'}]}),
     ownedGeneratedWorkflow:(owned:any,slug:string)=>owned.workflows.find((row:any)=>row.slug===slug)};
-  if(name==='@/lib/agent-detail')return{getAgentDetail:()=>{throw Error('Unexpected detail read after provenance gate');}};
+  if(name==='@/lib/agent-detail')return{getAgentDetail:async()=>({status:'unavailable'}),agentActionContext:()=>undefined};
   if(name==='next/server')return{NextResponse:{json:(body:unknown,init:any)=>({body,status:init.status})}};
   if(name==='@/lib/supabase/server')return{createClient:()=>({
     auth:{getSession:async()=>({data:{session:{user:{id:'synthetic-owner'},access_token:'synthetic-session'}}})},
@@ -59,7 +60,7 @@ const load=(name:string)=>{
       return query;}
   })};
   if(name==='./review-room')return{__esModule:true,default:reviewRoom};
-  if(name==='./training-route-host')return{TrainingRouteConfig:()=>null};
+  if(name==='./training-route-host')return{TrainingRouteConfig:trainingRouteConfig};
   if(['./stage-competence-proof','./stage-manager-proof','./taste-fit-review'].includes(name))return{__esModule:true,default:()=>null};
   return require(name);
 };
@@ -140,19 +141,37 @@ test('the actual Work entry opens markup on an owned native result',async()=>{
   searchParams:{mode:'revise',artifact:native.artifacts[0].id}}),
  {message:`redirect:/review/${native.run.id}?artifact=${native.artifacts[0].id}`});
 });
-test('actual default, revise and saved-mark Training entry points refuse the producer owner export',async()=>{
- routePacket=parseReviewPacketResponse(fixture.reviewPacket,fixture.runRecord.id);
- const params={runId:fixture.runRecord.id,slug:routePacket.run.slug},issueId='11111111-1111-4111-8111-111111111111';
- for(const props of [{params},{params,searchParams:{mode:'revise'}}])await assert.rejects(trainingRoute(props),/redirect:\/runs\//);
- await assert.rejects(issueRoute({params:{slug:params.slug,issueId}}),/redirect:\/runs\//);
- for(const query of [`runId=${params.runId}`,`issueId=${issueId}`]){
-  const response=await trainingRead(new Request(`https://dashboard.test/api/agent-training/run-review?slug=${params.slug}&${query}`));
-  assert.equal(response.status,404);assert.deepEqual(response.body,{ok:false,reason:'training_review_not_found'});
- }
+test('Coach opens the verified recovered video while Work routes to the revision editor',async()=>{
+ const captured=JSON.parse(readFileSync(new URL('../../../lib/test/fixtures/recovered-export-spatial-postgres.json',import.meta.url),'utf8'));
+ const raw=captured.annotatedDraft;
+ routePacket=parseReviewPacketResponse(raw,raw.run.id);
+ assert.equal(routePacket.run.closeReason,'owner_verified_export');
+ assert.ok(routePacket.issues.some((issue:any)=>issue.purpose==='recovered_feedback'));
+ const params={runId:raw.run.id,slug:raw.run.slug},issueId=routePacket.issues[0].id;
+ const coach=await trainingRoute({params});
+ assert.equal(findType(coach,trainingRouteConfig)?.props.value.annotationTarget.runId,params.runId);
+ await assert.rejects(trainingRoute({params,searchParams:{mode:'revise'}}),{message:`redirect:/runs/${params.runId}?feedback=1`});
+ await assert.rejects(workReviewRoute({params:{runId:params.runId}}),{message:`redirect:/runs/${params.runId}?feedback=1`});
+ const request=(query:string)=>trainingRead(new Request(`https://dashboard.test/api/agent-training/run-review?slug=${params.slug}&${query}`));
+ const response=await request(`runId=${params.runId}`);
+ assert.equal(response.status,200);
+ assert.equal(response.body.review.recoveredFeedback,true);
+ assert.deepEqual(response.body.review.artifacts.map((artifact:any)=>artifact.id),[routePacket.run.recoveredFeedbackArtifactId]);
+ assert.deepEqual(response.body.review.issues,[],'run-local Work notes never enter the Coach editor');
+ const wrong=await request(`issueId=${issueId}`);
+ assert.equal(wrong.status,404);assert.equal(wrong.body.review,undefined);
  delete routePacket.run.closeReason;fallbackReason=undefined;fallbackError={code:'outage'};
  assert.equal((await trainingRoute({params})).type,'main');
- const unavailable=await trainingRead(new Request(`https://dashboard.test/api/agent-training/run-review?slug=${params.slug}&runId=${params.runId}`));
+ const unavailable=await request(`runId=${params.runId}`);
  assert.equal(unavailable.status,503);assert.equal(unavailable.body.review,undefined);
+});
+
+test('saved exports without a verified feedback video offer the private run link',async()=>{
+ routePacket=parseReviewPacketResponse(fixture.reviewPacket,fixture.runRecord.id);
+ const params={runId:fixture.runRecord.id,slug:routePacket.run.slug};
+ assert.equal((await trainingRoute({params})).type,'main');
+ const response=await trainingRead(new Request(`https://dashboard.test/api/agent-training/run-review?slug=${params.slug}&runId=${params.runId}`));
+ assert.equal(response.status,404);assert.equal(response.body.review,undefined);
 });
 
 test('ordinary artifacts retain the native verification wording',async()=>{

@@ -17,7 +17,7 @@ function SavedSourceNote({note}:{note:NonNullable<VisualTeachingDraft['sourceNot
 const sameSourceNote=(a:VisualTeachingDraft['sourceNote'],b:VisualTeachingDraft['sourceNote'])=>!a&&!b||!!a&&!!b&&a.body===b.body&&a.purpose===b.purpose;
 
 /** Selection is a review choice only. Existing Desktop acceptance owns every write. */
-export default function TrainingDraftBundle({drafts,busy,onApply,onEdit,onExplain,explanationFor,applyContainer,onEligibleCountChange}:{applyContainer?:HTMLElement|null;onEligibleCountChange?:(count:number)=>void;drafts:VisualTeachingDraft[];busy:boolean;onApply:(ids:string[])=>void;onEdit:(id:string)=>void;onExplain?:(id:string)=>void;explanationFor?:(id:string)=>ReactNode}){
+export default function TrainingDraftBundle({drafts,busy,onApply,onEdit,onExplain,explanationFor,applyContainer,onEligibleCountChange,actionLabel}:{actionLabel?:string;applyContainer?:HTMLElement|null;onEligibleCountChange?:(count:number)=>void;drafts:VisualTeachingDraft[];busy:boolean;onApply:(ids:string[])=>void;onEdit:(id:string)=>void;onExplain?:(id:string)=>void;explanationFor?:(id:string)=>ReactNode}){
   const [skipped,setSkipped]=useState<Set<string>>(()=>new Set()),[review,setReview]=useState<VisualTeachingDraft[]|null>(null);
   const confirming=useRef(false);
   const keyFor=(draft:VisualTeachingDraft)=>`${draft.id}:${draft.digest}:${draft.relation||'unclassified'}:${draft.category}:${draft.relationOrigin||'model'}:${JSON.stringify(draft.sourceNote||null)}`;
@@ -29,7 +29,7 @@ export default function TrainingDraftBundle({drafts,busy,onApply,onEdit,onExplai
   function openReview(){confirming.current=false;setReview(selected.map(draft=>({...draft,...(draft.sourceNote?{sourceNote:{...draft.sourceNote}}:{})})));}
   function applyReviewed(){if(busy||!reviewCurrent||!review||confirming.current)return;confirming.current=true;onApply(review.map(draft=>draft.id));setReview(null);}
 
-  const applyAction=<div className="space-y-2"><p className="text-secondary text-ink-400">{selected.length} visual lesson{selected.length===1?'':'s'} selected</p><button type="button" className="btn-primary" disabled={busy||!selected.length} onClick={openReview}>{busy?'Saving training…':`Apply ${selected.length===1?'selected lesson':`${selected.length} selected lessons`}`}</button></div>;
+  const applyAction=<div className="space-y-2"><p className="text-secondary text-ink-400">{selected.length} visual lesson{selected.length===1?'':'s'} selected</p><button type="button" className="btn-primary" disabled={busy||!selected.length} onClick={openReview}>{busy?'Saving training…':actionLabel||`Apply ${selected.length===1?'selected lesson':`${selected.length} selected lessons`}`}</button></div>;
   if(!drafts.length&&!review)return null;
   return <section aria-label="Review proposed visual training" className="space-y-4">
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-medium">Your agent will learn</h2><p className="mt-1 text-secondary text-ink-400">Review the lesson. Keep the example as evidence.</p></div><span className="text-secondary text-ink-500">{selected.length} selected</span></header>
@@ -47,7 +47,7 @@ export default function TrainingDraftBundle({drafts,busy,onApply,onEdit,onExplai
         {draft.renderEvidence}<div className="min-w-0 flex-1"><p className="text-reading text-ink-100">{draft.judgment}</p><TrainingDirectionLabel scope={draft.creativeDirections}/><p className="mt-2 text-secondary text-ink-500">{draft.category}</p><p className="mt-1 text-secondary text-ink-300">{draft.relationOrigin==='owner'?'Your choice:':'Suggested by Tukido:'} <strong>{draft.relation?relationCopy[draft.relation]:'needs review'}</strong></p>{draft.sourceNote&&<SavedSourceNote note={draft.sourceNote}/>}</div>
       </li>)}</ul>
       {!reviewCurrent&&<p role="alert" className="mt-4 text-reading text-state-needs">A selected lesson changed. Review the current lessons before applying.</p>}
-      <div className="mt-5 flex flex-wrap items-center gap-4"><button type="button" className="btn-primary" disabled={busy||!reviewCurrent} onClick={applyReviewed}>Apply these lessons as shown</button>{!reviewCurrent&&<button type="button" className="text-ui text-ink-300 underline underline-offset-4" disabled={busy||!selected.length} onClick={openReview}>Review current lessons</button>}<button type="button" className="text-ui text-ink-400" disabled={busy} onClick={()=>setReview(null)}>Keep reviewing</button></div>
+      <div className="mt-5 flex flex-wrap items-center gap-4"><button type="button" className="btn-primary" disabled={busy||!reviewCurrent} onClick={applyReviewed}>{actionLabel||'Apply these lessons as shown'}</button>{!reviewCurrent&&<button type="button" className="text-ui text-ink-300 underline underline-offset-4" disabled={busy||!selected.length} onClick={openReview}>Review current lessons</button>}<button type="button" className="text-ui text-ink-400" disabled={busy} onClick={()=>setReview(null)}>Keep reviewing</button></div>
     </Modal>
     <p className="text-secondary text-ink-500">You can apply saved lessons directly or try them in a sample first.</p>
   </section>;

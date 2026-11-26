@@ -112,6 +112,7 @@ export function buildSpatialAnchor(args: {
   observedArtifactSha256: string;
   intent: SpatialIntent;
   temporalStartMs: number | null;
+  temporalEndMs?: number | null;
   geometry: { kind: 'point' | 'rect'; x: number; y: number; width: number | null; height: number | null };
   sourceFrame: { visualWidth: number; visualHeight: number };
 }): SpatialAnchorV2 {
@@ -130,7 +131,8 @@ export function buildSpatialAnchor(args: {
     intent,
     temporal: args.temporalStartMs === null
       ? null
-      : { startMs: Math.max(0, Math.round(args.temporalStartMs)), endMs: null },
+      : { startMs: Math.max(0, Math.round(args.temporalStartMs)),
+          endMs: args.temporalEndMs == null ? null : Math.max(0, Math.round(args.temporalEndMs)) },
     geometry: {
       kind: args.geometry.kind,
       coordinateSpace: COORDINATE_SPACE,

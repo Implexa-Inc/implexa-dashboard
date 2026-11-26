@@ -2331,7 +2331,7 @@ test('recent results navigate to full-page annotation only after selection witho
   assert.equal(requests.filter(x=>String(x.url).includes('/run-review?')).length,1);
   assert.match(requests.find(x=>String(x.url).includes('/run-review?')).url,new RegExp(`runId=${QUESTION}`));
   assert.match(r.text(),/saved feedback is unchanged/);
-  assert.equal(r.document.querySelector('#training-recent-results'),null);await r.click(r.getByText('← Train'));await r.click(r.document.querySelector('button[aria-label="Teach from result 2"]')!);await flush();
+  assert.equal(r.document.querySelector('#training-recent-results'),null);await r.click(r.getByText('← Coach'));await r.click(r.document.querySelector('button[aria-label="Teach from result 2"]')!);await flush();
   assert.equal(requests.filter(x=>String(x.url).includes('/run-review?')).length,2);
   assert.match(requests.filter(x=>String(x.url).includes('/run-review?'))[1].url,new RegExp(`runId=${RECORD}`));
   assert.equal(requests.some(x=>x.init.method==='POST'),false);
@@ -2631,13 +2631,13 @@ test('marked-result proposals stay on the full-page annotation and guard return 
  const flush=()=>r.act(()=>new Promise(resolve=>setTimeout(resolve,20)));
  try{
   await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);await flush();
-  await r.click(r.getByText('Extract training'));await flush();
-  const initial=r.document.querySelector('[role="dialog"][aria-label="Extract training from this note?"]')!;assert.ok(initial);
-  await r.click([...initial.querySelectorAll('button')].find(button=>button.textContent==='Extract training')!);await flush();
+  await r.click(r.getByText('Apply coaching'));await flush();
+  const initial=r.document.querySelector('[role="dialog"][aria-label="Review your coaching notes"]')!;assert.ok(initial);
+  await r.click([...initial.querySelectorAll('button')].find(button=>button.textContent==='Prepare coaching')!);await flush();
   assert.ok(r.queryByText('Close proposals'));const writes=h.calls.filter(call=>['select','create'].includes(call.operation)).length;
-  assert.equal(r.queryByText('↑ Upload'),null);await r.click(r.getByText('← Train'));assert.ok(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'));await r.click(r.getByText('Keep editing'));
+  assert.equal(r.queryByText('↑ Upload'),null);await r.click(r.getByText('← Coach'));assert.ok(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'));await r.click(r.getByText('Keep editing'));
   assert.match(r.text(),/Make the relationship clearer/);assert.equal(h.calls.filter(call=>['select','create'].includes(call.operation)).length,writes);
-  await r.click(r.getByText('Close proposals'));await r.click(r.getByText('← Train'));assert.equal(r.calls.push.at(-1),'/training/video-craft');
+  await r.click(r.getByText('Close proposals'));await r.click(r.getByText('← Coach'));assert.equal(r.calls.push.at(-1),'/training/video-craft');
  }finally{r.cleanup();}
 });
 
@@ -3709,7 +3709,7 @@ test('viewing canonical feedback does not create an unsaved draft or block the n
    await r.click(r.getByText('← Train'));assert.equal(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'),null,'reading an immutable saved note is not editing');
    await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);await flush();
    assert.equal(r.calls.push.at(-1),`/training/video-craft/review/${QUESTION}`);assert.ok(r.document.querySelector('#training-run-player'));assert.doesNotMatch(r.text(),/Save or cancel your current note/);
-   await r.click(r.getByText('← Train'));await r.rerender({...props,annotationTarget:target});await flush();
+   await r.click(r.getByText('← Coach'));await r.rerender({...props,annotationTarget:target});await flush();
    if(kind!=='missing-media'){
     await r.rerender({...props,annotationTarget:{kind:'recording',recordingId:RECORD,sourceId:SOURCE_ID,sessionId:SESSION}});await flush();
     assert.ok(r.document.querySelector('#recording-annotation'),'a direct transition can open the recording view');assert.doesNotMatch(r.text(),/Save or discard your current annotation/);
@@ -3827,8 +3827,8 @@ test('confirmed discard of a real result composer retires its unmounted dirty fl
  const flush=()=>r.act(()=>new Promise(resolve=>setTimeout(resolve,30)));
  try{
   await flush();await r.click(r.getByText('+ Add feedback'));await setTextarea(r,r.document.querySelector('textarea[placeholder="What should change here?"]')!,'An unfinished result correction.');
-  await r.click(r.getByText('← Train'));assert.ok(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'));await r.click(r.getByText('Keep editing'));assert.equal((r.document.querySelector('textarea[placeholder="What should change here?"]') as HTMLTextAreaElement).value,'An unfinished result correction.');
-  await r.click(r.getByText('← Train'));await r.click(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"] button.btn-danger')!);
+  await r.click(r.getByText('← Coach'));assert.ok(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'));await r.click(r.getByText('Keep editing'));assert.equal((r.document.querySelector('textarea[placeholder="What should change here?"]') as HTMLTextAreaElement).value,'An unfinished result correction.');
+  await r.click(r.getByText('← Coach'));await r.click(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"] button.btn-danger')!);
   await r.rerender({...props,annotationTarget:{kind:'feedback',annotationId:QUESTION,annotationDigest:DIGEST,sessionId:SESSION}});await flush();assert.equal((r.document.querySelector('textarea[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'Keep the route visible.');assert.doesNotMatch(r.text(),/Finish or discard/);
   await r.click(r.getByText('← Train'));assert.equal(r.document.querySelector('[role="dialog"][aria-label="Leave without saving?"]'),null);await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);await flush();assert.ok(r.document.querySelector('#training-run-player'));assert.equal(r.calls.push.at(-1),`/training/owned/review/${QUESTION}`);assert.equal(writes,0);
  }finally{r.cleanup();}

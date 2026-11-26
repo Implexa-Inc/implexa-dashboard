@@ -1232,7 +1232,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     });
   }
   async function prepareRunTeaching(notes:Array<{issue:ReviewIssue;artifact:ReviewArtifact}>){
-    if(!activeRunId||!currentVersion||!ownerId||versionChanged||runDirty||recordingDraftBlocked())return;
+    if(busy||!activeRunId||!currentVersion||!ownerId||versionChanged||runDirty||recordingDraftBlocked())return;
     const version=currentVersion,runId=activeRunId;
     if(!notes.length||notes.some(({issue,artifact})=>issue.runId!==activeRunId||artifact.runId!==activeRunId||issue.artifactId!==artifact.id||artifact.status!=='validated'||!artifact.sha256))return;
     await work('Opening your saved teaching note',async()=>{
@@ -1888,40 +1888,57 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
     }catch(caught){if(changesIdentity.current===identity)setExplanations(previous=>({...previous,[key]:{state:'error',text:caught instanceof Error?caught.message:'Explanation unavailable.'}}));}
     finally{explanationFlights.current.delete(key);}
   }
+  async function changeServingLesson(record:TrainingChangeRecord,action:'add'|'remove',version:string,identity:string){
+    let fresh=await loadChanges();if(changesIdentity.current!==identity)throw Error('The coaching session changed.');
+    let current=fresh?.records.find(r=>r.recordId===record.recordId&&r.recordDigest===record.recordDigest);
+    if(!fresh||!current||!current.summary)throw Error('This learning changed. Refresh before accepting it.');
+    if(action==='add'&&!current.included){
+      if(current.state==='removed')await mutateChanges('records',{expectedActiveVersionId:version,recordId:current.recordId,expectedRecordDigest:current.recordDigest,expectedSnapshotDigest:fresh.binding.snapshotDigest,action:'undo'},false);
+      else if(current.sourceKind==='legacy_evidence'){
+        const example=savedExample(current);if(!example?.source.token)throw Error('Open the exact saved example before accepting it.');
+        const frame=await call('decisionPreview',{token:example.source.token,recordId:current.recordId});
+        if(frame.recordId!==current.recordId||frame.recordDigest!==current.recordDigest||!frame.image||await teachingDigest(teachingFrame(frame.image))!==example.decision.content.derivatives?.[0]?.sha256
+          ||decisionImage?.id!==current.recordId||decisionImage.digest!==current.recordDigest||decisionImage.image!==frame.image)throw Error('Review the exact saved frame before accepting this learning.');
+        await call('accept',{token:example.source.token,recordId:current.recordId,expectedDigest:current.recordDigest});
+        if(changesIdentity.current!==identity)throw Error('The coaching session changed.');await load(session);
+      }else await mutateChanges('records',{expectedActiveVersionId:version,recordId:current.recordId,expectedRecordDigest:current.recordDigest,expectedSnapshotDigest:fresh.binding.snapshotDigest,action:'admit'},false);
+      fresh=await loadChanges();if(changesIdentity.current!==identity)throw Error('The coaching session changed.');
+      current=fresh?.records.find(r=>r.recordId===record.recordId&&r.recordDigest===record.recordDigest&&r.included);
+      if(!fresh||!current)throw Error('Saving this learning is unconfirmed. Refresh its status before trying again.');
+    }
+    const expected=fresh.binding.snapshotDigest;
+    const receipt=await mutateChanges('activate',{expectedActiveVersionId:version,expectedSnapshotDigest:expected,testRequestId:null,applicationMode:'without_sample',recordId:record.recordId,recordDigest:record.recordDigest,recordAction:action},false);
+    if(changesIdentity.current!==identity)throw Error('The coaching session changed.');
+    const after=await loadChanges();if(changesIdentity.current!==identity)throw Error('The coaching session changed.');
+    const live=after?.activation?.serving?.activeRecordIds;
+    const confirmed=receipt?.ok===true&&receipt.contractVersion==='training-snapshot-activation.v1'&&receipt.workflowVersionId===version&&receipt.sessionId===session
+      &&receipt.recordId===record.recordId&&receipt.recordDigest===record.recordDigest&&receipt.recordAction===action&&receipt.candidateSnapshotDigest===expected
+      &&UUID.test(receipt.activationId||'')&&/^[a-f0-9]{64}$/.test(receipt.activationDigest||'')&&/^[a-f0-9]{64}$/.test(receipt.snapshotDigest||'');
+    if(!confirmed||!live||live.includes(record.recordId)!==(action==='add'))throw Error('The change is unconfirmed. Refresh to check what is live before retrying.');
+  }
   async function applyOneLesson(record:TrainingChangeRecord,action:'add'|'remove'='add'){
     if(!session||!currentVersion||busy||changesBusy||versionChanged)return;
     const identity=changesIdentity.current,version=currentVersion;let applied=false;const next=reviewingQueue&&decisionSelection?coachAgent?.decisions[(coachAgent.decisions.findIndex(d=>d.id===decisionSelection.id))+1]:null;
     await work(action==='add'?'Adding this learning':'Removing this learning',async()=>{
-      let fresh=await loadChanges();if(changesIdentity.current!==identity)return;
-      let current=fresh?.records.find(r=>r.recordId===record.recordId&&r.recordDigest===record.recordDigest);
-      if(!fresh||!current||!current.summary)throw Error('This learning changed. Refresh before accepting it.');
-      if(action==='add'&&!current.included){
-        if(current.state==='removed')await mutateChanges('records',{expectedActiveVersionId:version,recordId:current.recordId,expectedRecordDigest:current.recordDigest,expectedSnapshotDigest:fresh.binding.snapshotDigest,action:'undo'},false);
-        else if(current.sourceKind==='legacy_evidence'){
-          const example=savedExample(current);if(!example?.source.token)throw Error('Open the exact saved example before accepting it.');
-          const frame=await call('decisionPreview',{token:example.source.token,recordId:current.recordId});
-          if(frame.recordId!==current.recordId||frame.recordDigest!==current.recordDigest||!frame.image||await teachingDigest(teachingFrame(frame.image))!==example.decision.content.derivatives?.[0]?.sha256
-            ||decisionImage?.id!==current.recordId||decisionImage.digest!==current.recordDigest||decisionImage.image!==frame.image)throw Error('Review the exact saved frame before accepting this learning.');
-          await call('accept',{token:example.source.token,recordId:current.recordId,expectedDigest:current.recordDigest});
-          if(changesIdentity.current!==identity)return;await load(session);
-        }else await mutateChanges('records',{expectedActiveVersionId:version,recordId:current.recordId,expectedRecordDigest:current.recordDigest,expectedSnapshotDigest:fresh.binding.snapshotDigest,action:'admit'},false);
-        fresh=await loadChanges();if(changesIdentity.current!==identity)return;
-        current=fresh?.records.find(r=>r.recordId===record.recordId&&r.recordDigest===record.recordDigest&&r.included);
-        if(!fresh||!current)throw Error('Saving this learning is unconfirmed. Refresh its status before trying again.');
-      }
-      const expected=fresh.binding.snapshotDigest;
-      const receipt=await mutateChanges('activate',{expectedActiveVersionId:version,expectedSnapshotDigest:expected,testRequestId:null,applicationMode:'without_sample',recordId:record.recordId,recordDigest:record.recordDigest,recordAction:action},false);
-      if(changesIdentity.current!==identity)return;
-      const after=await loadChanges();if(changesIdentity.current!==identity)return;
-      const live=after?.activation?.serving?.activeRecordIds;
-      const confirmed=receipt?.ok===true&&receipt.contractVersion==='training-snapshot-activation.v1'&&receipt.workflowVersionId===version&&receipt.sessionId===session
-        &&receipt.recordId===record.recordId&&receipt.recordDigest===record.recordDigest&&receipt.recordAction===action&&receipt.candidateSnapshotDigest===expected
-        &&UUID.test(receipt.activationId||'')&&/^[a-f0-9]{64}$/.test(receipt.activationDigest||'')&&/^[a-f0-9]{64}$/.test(receipt.snapshotDigest||'');
-      if(!confirmed||!live||live.includes(record.recordId)!==(action==='add'))throw Error('The change is unconfirmed. Refresh to check what is live before retrying.');
+      await changeServingLesson(record,action,version,identity);
       setApplyNote(action==='add'?'Added. It applies to your next run.':'Removed from your future runs. Other learnings are unchanged.');
       setChangesError('');applied=true;if(!next)setDecisionSelection(null);setCoachRefresh(n=>n+1);
     });
     if(applied&&next)await openDecision(next,true);
+  }
+  async function applyMarkedCoaching(receipts:Array<Pick<TrainingChangeRecord,'recordId'|'recordDigest'>>){
+    if(!session||!currentVersion||versionChanged||!receipts.length)throw Error('Reopen the current coaching session before applying.');
+    const identity=changesIdentity.current,version=currentVersion;
+    const fresh=await loadChanges();
+    if(!fresh||changesIdentity.current!==identity)throw Error('The saved coaching could not be checked.');
+    for(const receipt of receipts){
+      const record=fresh.records.find(item=>item.recordId===receipt.recordId&&item.recordDigest===receipt.recordDigest&&item.reviewMark);
+      if(!record)throw Error('A saved lesson changed. Reopen the notes before applying.');
+      if(!fresh.activation?.serving?.activeRecordIds?.includes(record.recordId)){
+        await changeServingLesson(record,'add',version,identity);
+      }
+    }
+    setCoachRefresh(n=>n+1);
   }
   async function openDecision(item:CoachDecision,all=reviewingQueue){
     if(busy||changesBusy||runDirty||recordingDirty||directVoiceDirty){setError('Finish your current note before reviewing another decision.');return;}
@@ -2308,7 +2325,11 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       {selected.metadata.durationMs>0&&<details className="text-secondary text-ink-400"><summary className="cursor-pointer">Choose a different frame</summary><input aria-label="Training video frame" aria-valuetext={formatTrainingTime(time)} className="mt-3 w-full" type="range" min="0" max={selected.metadata.durationMs-1} value={time} disabled={!!busy||annotationTarget?.kind==='feedback'||directVoiceDirty||!!directNote.trim()} onChange={event=>changeTime(Number(event.target.value))}/><button type="button" disabled={!!busy||annotationTarget?.kind==='feedback'||directVoiceDirty||!!directNote.trim()} onClick={()=>void showPreview()}>Open this frame</button></details>}
     </>}
 
-    {!installationId&&annotationTarget?.kind==='result'&&<TrainingRunPlayer key={annotationTarget.runId||annotationTarget.issueId} slug={slug} runId={annotationTarget.runId} issueId={annotationTarget.issueId} fullPage initialArtifactId={annotationTarget.artifactId} onLoadedRun={setRunSource} ownerId={ownerId} onTeach={(issue,artifact)=>void prepareRunTeaching([{issue,artifact}])} onDoneTeaching={()=>finishAnnotation()} onDirtyChange={setRunDirty}/>}
+    {!installationId&&annotationTarget?.kind==='result'&&<TrainingRunPlayer key={annotationTarget.runId||annotationTarget.issueId} slug={slug} runId={annotationTarget.runId} issueId={annotationTarget.issueId} fullPage initialArtifactId={annotationTarget.artifactId} onLoadedRun={setRunSource} ownerId={ownerId} onTeach={(issue,artifact)=>void prepareRunTeaching([{issue,artifact}])} onApplyCoaching={notes=>void prepareRunTeaching(notes)}
+      coachingTest={runContext&&!runDirty&&!versionChanged&&!!changes?.activation?.serving?.activeRecordIds?.length?<AgentActions {...runContext} slug={slug} name={agentName} align="start"
+        presentation="training" statusUnavailable={runContext.statusUnavailable||runContext.workflowVersionId!==currentVersion}
+        runLabel="Run again to test coaching" runButtonAppearance="secondary" onQueued={()=>void loadChanges()}/>:<button type="button" className="btn-secondary" disabled>Run again to test coaching</button>}
+      onDirtyChange={setRunDirty}/>}
     {!installationId&&activeRecordingId&&<RecordingPlayer key={activeRecordingId} recordingId={activeRecordingId} ownerId={ownerId||''} trainingSlug={slug} embedded fullPage feedbackSaveUnavailable={coachFeedbackReady?undefined:coachBusy?'Checking whether notes can be sent to Coach…':'Saving notes to Coach is not ready. Your local notes stay saved; refresh after the update.'} initialMomentId={annotationTarget?.kind==='recording'?annotationTarget.momentId:undefined} trainingReview={recordingReviewPanel} trainingFrames={activeAnalysis?.frames} trainerNarration={trainerNarration} onTrainerNarrationChange={setTrainerNarration} onDirtyChange={setRecordingDirty} onRecordingLoaded={setActiveRecordingDetail} onUseFeedback={(recordingId,moment)=>setFeedbackRequest({recordingId,moment})} onDoneTeaching={(recordingId,moments)=>setBatchFeedbackRequest({recordingId,moments})} onAnalyzeNarration={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'taste'})} onAnalyzeTool={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'agent'})} narrationUnavailable={pendingRecordingLink||pendingDemoLink||suggesting?"Finish the current teaching or pending link first.":!activeRecordingDetail?"Loading your recording…":!trainerNarration&&activeRecordingDetail.origin==='imported'?"Add voice notes, or mark this video as your narrated demonstration in More options.":!activeRecordingDetail.hasMicrophone?"This recording has no microphone narration. You can still leave feedback on the video.":!recordingSupported?"Update Desktop to find learnings in your narration.":(activeRecordingDetail.durationMs||0)>600000?"Narration analysis supports recordings up to 10 minutes. Your visual feedback is still available.":undefined} onClose={()=>{if(recordingDirty){setClosingRecording(true);setReplaceRecordingOpen(true);}else{activeRecordingRef.current=null;setAutomaticReview(null);setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(null);setActiveRecordingDetail(null);}}}/>}
         {decisionSelection?.source!=='recording_agent'&&recordingToolPanel}
     {!installationId&&recording?.purpose==='agent'&&!agentProposal&&selected?.sourceId===recording.excerpt.sourceId&&<section aria-label="Retained tool analysis" className="space-y-3 rounded-xl border border-ink-800 p-5">
@@ -2369,7 +2390,7 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       <button type="button" className="btn-primary" disabled={!!busy||versionChanged} onClick={()=>void extractDirectFeedback(undefined,directScopeReview.relation)}>Save teaching draft</button>
     </section>}
 </>;
-  const markedResultTraining=<>    {!installationId&&session&&currentVersion&&ownerId&&<RunMarkTraining applyContainer={applyContainer} onEligibleCountChange={reportRunPending} activeStep={trainingStep} onReviewReady={()=>selectTrainingStep(2)} sessionId={session} currentVersionId={currentVersion} ownerId={ownerId} slug={slug} requests={runFeedbackRequest} onClose={()=>setRunFeedbackRequest(null)} onScopeCheck={async()=>{const scoped=await requireCurrentScope(session);if(scoped.agent.currentVersionId!==currentVersion)throw new TrainingError('training_version_changed');}} onApplied={async()=>{await loadChanges();}}/>}
+  const markedResultTraining=<>    {!installationId&&session&&currentVersion&&ownerId&&<RunMarkTraining coaching={annotationTarget?.kind==='result'} applyContainer={annotationTarget?.kind==='result'?undefined:applyContainer} onEligibleCountChange={reportRunPending} activeStep={trainingStep} onReviewReady={()=>selectTrainingStep(2)} sessionId={session} currentVersionId={currentVersion} ownerId={ownerId} slug={slug} requests={runFeedbackRequest} onClose={()=>setRunFeedbackRequest(null)} onScopeCheck={async()=>{const scoped=await requireCurrentScope(session);if(scoped.agent.currentVersionId!==currentVersion)throw new TrainingError('training_version_changed');}} onApplied={async receipts=>{if(annotationTarget?.kind==='result')await applyMarkedCoaching(receipts);else await loadChanges();}}/>}
 </>;
   const operatingChanges=<>{session&&sessionVersion===currentVersion&&currentVersion&&<TrainingOperatingChanges key={`${ownerId}:${session}:${currentVersion}`} sessionId={session} versionId={currentVersion} slug={slug} refreshKey={operatingRefresh} onResume={analysis=>void resumeOperatingAnalysis(analysis).catch(()=>setExtractionNote('Your saved feedback could not be reopened. The original note is preserved.'))} disabled={!!busy||changesBusy||versionChanged||runContext?.revisePending===true||!runContext||runContext.statusUnavailable===true}/>}</>;
   const evidenceReview=<>{reviewed && reviewedIsVisible && <section className={`rounded border border-brand-500 p-4 space-y-4 ${legacyControls}`} aria-labelledby="decision-review-heading"><h2 ref={reviewHeadingRef} id="decision-review-heading" tabIndex={-1}>{reviewed.image ? 'Exact saved evidence' : 'Saved teaching'}</h2>{reviewed.readOnly&&<p className="text-secondary text-ink-400">Original example · read-only. Current training is unchanged.</p>}{reviewed.readOnly&&!reviewed.image&&<p role="status" className="text-reading text-ink-400">Saved frame unavailable on this computer. The original teaching text is preserved.</p>}{reviewed.image && <img src={reviewed.image} alt={`Saved evidence at ${formatTrainingTime(reviewed.decision.content.anchor.startMs)}`} className="w-full" />}<dl className="grid gap-2 text-secondary"><div><dt className="font-semibold">Source</dt><dd>{reviewed.source.localName || `SHA-256 ${shortId(reviewed.source.metadata.sha256)}`}</dd></div><div><dt className="font-semibold">Timestamp</dt><dd>{formatTrainingTime(reviewed.decision.content.anchor.startMs)}</dd></div><div><dt className="font-semibold">Relation</dt><dd>{relationLabel(reviewed.decision.content.relation)}</dd></div><div><dt className="font-semibold">Visual properties</dt><dd>{reviewed.decision.content.properties.map((item) => trainingPropertyLabel(item)).join(', ')}</dd></div><div><dt className="font-semibold">Eligible stages</dt><dd>{normalizeTrainingStages(reviewed.decision.content.applicability?.stages).length ? normalizeTrainingStages(reviewed.decision.content.applicability?.stages).map(trainingStageLabel).join(', ') : 'Not recorded'}</dd></div><div><dt className="font-semibold">Decision</dt><dd>{reviewed.decision.content.summary}</dd></div><div><dt className="font-semibold">Immutable digest</dt><dd className="break-all">{reviewed.decision.recordDigest}</dd></div></dl>
@@ -2414,8 +2435,8 @@ export default function TrainingSource({ slug, familyId, installationId, forkPer
       <button disabled={!!busy} onClick={() => setReviewed(null)}>Close evidence review</button>
     </section>}</>;
   if(annotationTarget)return <main id="main-content" tabIndex={-1} className="app-page training-annotation-page"><div className="app-content">
-    <Link className="training-breadcrumb" href={trainingAnnotationReturn(slug)}>← Train {agentName}</Link>
-    {annotationTarget.kind!=='recording'&&<PageHeader title="Show the agent what to change"><p className="app-page-description">{agentName}</p></PageHeader>}
+    <Link className="training-breadcrumb" href={trainingAnnotationReturn(slug)}>← {annotationTarget.kind==='result'?'Coach':'Train'} {agentName}</Link>
+    {annotationTarget.kind!=='recording'&&<PageHeader title={annotationTarget.kind==='result'?'Coach from this result':'Show the agent what to change'}><p className="app-page-description">{agentName}</p></PageHeader>}
     <AnnotationLeaveGuard onDiscard={()=>{setRunDirty(false);setRecordingDirty(false);setDirectVoiceDirty(false);setDirectNote('');setDemoText('');setChosen('');setWhy('');setProcess('');setBehavior('');}} dirty={(runDirty||recordingDirty||[directNote,demoText,chosen,why,process,behavior].some(value=>value.trim())||directVoiceDirty)||!!busy||suggesting||!!directScopeReview||!!runFeedbackRequest}/>
     {busy&&<p role="status" className="mb-4 text-reading text-ink-400">{busy}…</p>}
     {error&&<p role="alert" className="mb-4 text-reading text-state-needs">{reasonLabel(error)}</p>}
