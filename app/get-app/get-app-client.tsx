@@ -23,7 +23,7 @@ function detectMac(): boolean {
   return /mac|iphone|ipad|darwin/.test(hay) && !/windows|android/.test(hay);
 }
 
-export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; firstName: string | null }) {
+export default function GetAppClient({ dmgUrl, firstName, destination }: { dmgUrl: string; firstName: string | null; destination?: string }) {
   const router = useRouter();
   const supabase = createClient();
   const [isMac, setIsMac] = useState(true);
@@ -88,7 +88,7 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
           // Brief beat on the success state, then into the product — via the
           // state-aware landing, so a user who connected while work was already
           // waiting lands on it rather than on a page we picked here.
-          setTimeout(() => { if (alive) router.push(DEFAULT_LANDING_ROUTE); }, 1400);
+          setTimeout(() => { if (alive) router.push(destination || DEFAULT_LANDING_ROUTE); }, 1400);
         }
       } catch { /* keep polling */ }
     }
