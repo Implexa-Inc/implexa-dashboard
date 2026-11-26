@@ -123,3 +123,34 @@ test('connection warnings update their status in place after a matching browser 
     assert.equal(r.calls.refresh, 0);
   } finally { r.cleanup(); }
 });
+
+test('a cached reachable browser report does not show all accounts connected before matching', async () => {
+  const identity = 'owner@example.test';
+  const checklist = {
+    slug: 'test-agent', name: 'Test agent', state: 'created', stepsLeft: 0,
+    steps: [{ id: 'connections', status: 'done', title: 'Connections', detail: 'All needed accounts are reachable.',
+      data: { needed: [{ account: 'dev.runwayml.com', status: 'reachable' }] } }],
+  };
+  const r = await render('activation-card', {
+    checklist, surface: 'setup', runInputs: null, statusUnavailable: false, revisePending: false,
+  }, {
+    exportName: 'ActivationCard',
+    bridge: {
+      providerBrowserAccountMatching: true,
+      connectAccount: async () => ({ ok: true }),
+      verifyAccount: async () => ({ ok: true, reachable: true, accountMatched: true, identity }),
+    },
+    backend: () => null,
+  });
+  try {
+    assert.match(r.text(), /Verify the intended provider accounts/);
+    assert.doesNotMatch(r.text(), /All needed accounts are reachable/);
+    await r.click(r.getByText(/^Verify accounts$/));
+    await enterAccount(r, identity);
+    await r.click(r.getByText(/^Verify$/));
+    assert.match(r.text(), /All needed accounts are reachable/);
+    assert.match(r.text(), /Connected as owner@example\.test/);
+    await enterAccount(r, 'another@example.test');
+    assert.match(r.text(), /Verify the intended provider accounts/);
+  } finally { r.cleanup(); }
+});
