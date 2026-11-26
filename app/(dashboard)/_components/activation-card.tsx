@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { ProviderBrowserSignIn, requiresProviderEmail } from './provider-browser-sign-in';
+import { ProviderBrowserSignIn, usesProviderBrowserSession } from './provider-browser-sign-in';
 import { mapActivationChecklist } from '@/lib/activation-core';
 import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
@@ -134,8 +134,8 @@ function ConnectionRow({ item, onChanged, onBrowserVerified, confirmed, onConfir
   const bridge = useDesktopBridge();
   const supabase = createClient();
   const domain = item.account || '';
-  const needsAccountMatch = requiresProviderEmail(domain);
-  const reachable = needsAccountMatch ? confirmed : item.status === 'reachable';
+  const needsSessionCheck = usesProviderBrowserSession(domain);
+  const reachable = needsSessionCheck ? confirmed : item.status === 'reachable';
   const [waiving, setWaiving] = useState(false);
   const [waiveNote, setWaiveNote] = useState<string | null>(null);
 
@@ -164,10 +164,10 @@ function ConnectionRow({ item, onChanged, onBrowserVerified, confirmed, onConfir
           <div className="flex items-center gap-2">
             <span className="text-secondary text-ink-100">{item.label || domain}</span>
             {workedAround && !reachable && <span className="text-secondary text-state-ok">Claude will work around it</span>}
-            {!needsAccountMatch && reachable && <span className="text-secondary text-state-ok">connected{item.identity ? ` as ${item.identity}` : ''}</span>}
+            {!needsSessionCheck && reachable && <span className="text-secondary text-state-ok">connected{item.identity ? ` as ${item.identity}` : ''}</span>}
           </div>
         </div>
-        {(needsAccountMatch || !reachable) && bridge?.connectAccount && (
+        {(needsSessionCheck || !reachable) && bridge?.connectAccount && (
           <ProviderBrowserSignIn key={domain} domain={domain} onConfirmationChanged={onConfirmationChanged} onVerified={onBrowserVerified} />
         )}
       </div>
@@ -553,12 +553,12 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, onBrowserVerifi
   const needed = (step.data?.needed ?? []) as NeededConnection[];
   const [confirmations, setConfirmations] = useState<Set<string>>(() => new Set());
   const unconfirmedAccounts = step.id === 'connections'
-    ? needed.flatMap(({ account }) => account && requiresProviderEmail(account) && !confirmations.has(account) ? [account] : [])
+    ? needed.flatMap(({ account }) => account && usesProviderBrowserSession(account) && !confirmations.has(account) ? [account] : [])
     : [];
-  const waitingForAccountMatch = unconfirmedAccounts.some(account => !workedAround.has(account));
-  const stepDetail = waitingForAccountMatch ? 'Verify the intended provider accounts.'
+  const waitingForSessionCheck = unconfirmedAccounts.some(account => !workedAround.has(account));
+  const stepDetail = waitingForSessionCheck ? 'Check the provider browser sessions.'
     : unconfirmedAccounts.length ? 'Using a workaround for unverified provider accounts.' : step.detail;
-  const effectiveStatus = waitingForAccountMatch ? 'todo' : permissionLocallyComplete ? 'done' : step.status;
+  const effectiveStatus = waitingForSessionCheck ? 'todo' : permissionLocallyComplete ? 'done' : step.status;
   const isTodo = effectiveStatus === 'todo';
 
   function recordConfirmation(account: string, confirmed: boolean) {
@@ -594,7 +594,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, onBrowserVerifi
     // inline, never a navigation. Soft gate: this never blocks Activate.
     cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : (step.cta || 'Add key')}</button>;
   } else if (step.id === 'connections' && needed.length > 0) {
-    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : (waitingForAccountMatch ? 'Verify accounts' : isTodo ? step.cta || 'Connect' : 'View')}</button>;
+    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : (waitingForSessionCheck ? 'Browser sign-in' : isTodo ? step.cta || 'Connect' : 'View')}</button>;
   } else if (isTodo && step.cta) {
     cta = <button type="button" className="btn-outline text-ui px-2.5 py-1">{step.cta}</button>;
   }

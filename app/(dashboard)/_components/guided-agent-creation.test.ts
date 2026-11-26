@@ -50,13 +50,21 @@ test('Undo from a new branch selects its actual base, not the abandoned precedin
 });
 
 
-test('a follow-up question offers choices without building or silently sending the selected answer',async t=>{
+test('a follow-up choice sends one answer and preserves the unsent composer draft',async t=>{
  const q=turn(3,{brief:null,questions:['Which campaign goal should this agent use?'],answerOptions:['Ask at the start of each run','Optimize for app installs'],reply:'The account choices are saved.',buildIntent:null,trainingNotes:[],tools:[],toolPreferences:[]});
  const {r,calls}=await setup(t,[turn(2),q]);
  assert.equal(r.queryByText('Build this agent'),null);
  assert.equal(r.queryByText('Recommend tools'),null);assert.equal(r.getByText('Type manually').previousElementSibling?.textContent,'Optimize for app installs');
- await r.click(r.getByText('Ask at the start of each run (Recommended)'));assert.equal(r.document.querySelector('textarea')!.value,'Ask at the start of each run');assert.equal(calls.some(c=>c.init.method==='POST'),false);
- await r.click(r.getByText('Send'));const post=calls.find(c=>c.init.method==='POST');assert.equal(JSON.parse(post.init.body).baseReplyId,q.replyId);assert.equal(calls.some(c=>c.url==='/api/agents/create'),false);
+ await type(r,'An unsent follow-up.');
+ await r.click(r.getByText('Type manually'));
+ assert.equal(r.document.activeElement,r.document.querySelector('textarea'));
+ assert.equal(calls.some(c=>c.init.method==='POST'),false);
+ await r.click(r.getByText('Ask at the start of each run (Recommended)'));
+ const posts=calls.filter(c=>c.init.method==='POST');assert.equal(posts.length,1);
+ const body=JSON.parse(posts[0].init.body);
+ assert.equal(body.message,'Ask at the start of each run');assert.equal(body.baseReplyId,q.replyId);
+ assert.equal(r.document.querySelector('textarea')!.value,'An unsent follow-up.');
+ assert.equal(calls.some(c=>c.url==='/api/agents/create'),false);
 });
 
 test('an unsupported document leaves the typed draft editable and sends nothing',async t=>{

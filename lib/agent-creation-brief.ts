@@ -21,7 +21,7 @@ export function isCreationDraftRead(v:any,draftId:string):v is CreationDraftRead
 }
 
 
-/** Suggestions fill the composer; only the normal Send stores an answer. */
+/** A suggested answer sends its value as written; manual choice focuses the composer. */
 export function creationQuestionChoices(answers: string[] = []) {
  const choices=answers.map((answer,index)=>{
    const value=answer.replace(/\s*\(recommended\)\s*$/i,'').trim();

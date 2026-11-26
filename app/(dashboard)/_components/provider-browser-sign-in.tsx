@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useDesktopBridge } from './api-key-row';
 
-export function requiresProviderEmail(domain: string) {
+export function usesProviderBrowserSession(domain: string) {
   return /^(?:(?:[^.]+\.)*runwayml\.com|chatgpt\.com)$/i.test(domain);
 }
 
@@ -13,8 +13,7 @@ export function ProviderBrowserSignIn({ domain, onVerified, onConfirmationChange
   onConfirmationChanged?: (confirmed: boolean) => void;
 }) {
   const bridge = useDesktopBridge();
-  const matchEmail = requiresProviderEmail(domain);
-  const [email, setEmail] = useState('');
+  const sessionCheck = usesProviderBrowserSession(domain);
   const [busy, setBusy] = useState<'signin' | 'verify' | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -32,7 +31,8 @@ export function ProviderBrowserSignIn({ domain, onVerified, onConfirmationChange
         setNote(result.message || 'Could not open the provider sign-in tab.');
         return;
       }
-      setNote(result.message || 'Finish signing in in the provider tab, then select Verify.');
+      setNote(sessionCheck ? 'Sign in in the Tukido browser and keep the site signed in while it’s working.'
+        : result.message || 'Finish signing in in the provider tab, then select Verify.');
     } catch {
       setNote('Could not open the provider sign-in tab.');
     } finally {
@@ -41,56 +41,48 @@ export function ProviderBrowserSignIn({ domain, onVerified, onConfirmationChange
   }
 
   async function verify() {
-    if (!bridge?.verifyAccount || busy) return;
-    const expected = email.trim().toLowerCase();
-    if (matchEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(expected)) {
-      setNote('Enter the email address of the provider account you want to use.');
-      return;
-    }
+    if (busy || !bridge) return;
     setBusy('verify');
     setNote(null);
     setConfirmed(false);
     onConfirmationChanged?.(false);
     try {
-      const result = await bridge.verifyAccount(domain, matchEmail ? expected : undefined);
-      if (!result.ok || !result.reachable) {
-        setNote(result.message || 'Tukido could not confirm the sign-in. Check the provider tab and try again.');
-        return;
-      }
-      // Older Desktop builds ignore the expected email and may still return a
-      // positive URL-only result. Only accept the newer matching-account proof.
-      if (matchEmail && (result.accountMatched !== true || result.identity?.toLowerCase() !== expected)) {
-        setNote('Update Tukido Desktop to verify the provider account.');
-        return;
+      if (sessionCheck) {
+        const result = await bridge.inspectProviderBrowserSession?.(domain);
+        if (!result?.ok || result.sessionConfirmed !== true) {
+          setNote(result?.message || 'Tukido could not confirm the browser sign-in.');
+          return;
+        }
+        setNote('Signed-in browser session confirmed.');
+      } else {
+        const result = await bridge.verifyAccount?.(domain);
+        if (!result?.ok || !result.reachable) {
+          setNote(result?.message || 'Tukido could not confirm the sign-in. Check the provider tab and try again.');
+          return;
+        }
+        setNote('Browser access verified.');
+        void Promise.resolve().then(() => onVerified?.()).catch(() => {});
       }
       setConfirmed(true);
       onConfirmationChanged?.(true);
-      setNote(matchEmail ? `Connected as ${result.identity}.` : 'Browser access verified.');
-      void Promise.resolve().then(() => onVerified?.()).catch(() => {});
     } catch {
-      setNote('Tukido could not confirm the sign-in. Try Verify again.');
+      setNote('Tukido could not confirm the sign-in. Try again.');
     } finally {
       setBusy(null);
     }
   }
 
   if (!bridge?.connectAccount) return null;
-  if (matchEmail && bridge.providerBrowserAccountMatching !== true) {
-    return <p className="text-secondary text-ink-400">Update Tukido Desktop to verify the provider account.</p>;
-  }
+  const canCheck = sessionCheck ? !!bridge.inspectProviderBrowserSession : !!bridge.verifyAccount;
   return <div className="min-w-0 space-y-2">
-    {matchEmail && <label className="block text-secondary text-ink-400">Provider account email
-      <input type="email" value={email} maxLength={254} disabled={busy !== null}
-        className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1 text-ink-100"
-        onChange={event => { setEmail(event.target.value); setConfirmed(false); onConfirmationChanged?.(false); setNote(null); }} />
-    </label>}
+    {sessionCheck && !note && <p className="text-secondary text-ink-400">Keep this site signed in while Tukido is working.</p>}
     <div className="flex flex-wrap gap-1.5">
       <button type="button" className={buttonClass} disabled={busy !== null} onClick={signIn}>
-        {busy === 'signin' ? 'Opening…' : 'Sign in'}
+        {busy === 'signin' ? 'Opening…' : sessionCheck ? 'Open in Tukido browser' : 'Sign in'}
       </button>
-      <button type="button" className={buttonClass} disabled={!bridge.verifyAccount || busy !== null} onClick={verify}>
-        {busy === 'verify' ? 'Checking…' : 'Verify'}
-      </button>
+      {canCheck && <button type="button" className={buttonClass} disabled={busy !== null} onClick={verify}>
+        {busy === 'verify' ? 'Checking…' : sessionCheck ? 'Check sign-in' : 'Verify'}
+      </button>}
     </div>
     {note && <p role="status" className={`text-secondary ${confirmed ? 'text-state-ok' : 'text-ink-400'}`}>{note}</p>}
   </div>;

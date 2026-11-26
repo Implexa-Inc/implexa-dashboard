@@ -1,69 +1,56 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { render, type Rendered } from '../../../lib/test/render.ts';
+import { render } from '../../../lib/test/render.ts';
 import { BackendError } from '../../../lib/test/stubs/api.ts';
 
-async function enterAccount(r: Rendered, value: string) {
-  const input = r.document.querySelector('input[type="email"]')!;
-  await r.act(() => {
-    Object.getOwnPropertyDescriptor(r.window.HTMLInputElement.prototype, 'value')!.set!.call(input, value);
-    input.dispatchEvent(new r.window.Event('input', { bubbles: true }));
-  });
-}
-
-test('an older Desktop cannot report a URL-only connection through the new UI', async () => {
+test('an older Desktop can open the browser but offers no unsupported session check', async () => {
   const r = await render('provider-browser-sign-in', { domain: 'dev.runwayml.com' }, {
     exportName: 'ProviderBrowserSignIn',
-    bridge: { connectAccount() { assert.fail('used legacy sign-in'); }, verifyAccount() { assert.fail('used legacy Verify'); } },
+    bridge: { connectAccount: async () => ({ ok: true }), verifyAccount() { assert.fail('used legacy Verify'); } },
   });
   try {
-    assert.match(r.text(), /Update Tukido Desktop/);
-    assert.equal(r.queryByText(/^Verify$/), null);
+    assert.equal(r.document.querySelector('input[type="email"]'), null);
+    assert.match(r.text(), /Keep this site signed in/);
+    assert.ok(r.queryByText('Open in Tukido browser'));
+    assert.equal(r.queryByText('Check sign-in'), null);
   } finally { r.cleanup(); }
 });
 
-test('only the matching owner receives Connected in the browser setup control', async () => {
-  const identity = 'owner@example.test';
+test('Runway checks the provider session without sending an email or recording a connection', async () => {
   const requested: string[][] = [];
-  let checks = 0;
-  const options = {
+  const r = await render('provider-browser-sign-in', {
+    domain: 'dev.runwayml.com', onVerified: () => assert.fail('a session observation is not a durable connection'),
+  }, {
     exportName: 'ProviderBrowserSignIn',
     bridge: {
-      providerBrowserAccountMatching: true,
       async connectAccount(domain: string) {
         assert.equal(domain, 'dev.runwayml.com');
-        return { ok: true, message: 'Open your account menu.' };
+        return { ok: true };
       },
-      async verifyAccount(domain: string, email: string) {
-        requested.push([domain, email]);
-        if (requested.length === 1) return { ok: true, reachable: false, message: 'Switch to the intended account.' };
-        if (requested.length === 2) return { ok: true, reachable: true, identity };
-        return { ok: true, reachable: true, accountMatched: true, identity };
+      async inspectProviderBrowserSession(...args: string[]) {
+        requested.push(args);
+        if (requested.length === 1) return { ok: true, message: 'Finish signing in.' };
+        if (requested.length === 2) return { ok: true, reachable: true };
+        return { ok: true, sessionConfirmed: true };
       },
     },
-  };
-  const r = await render('provider-browser-sign-in', { domain: 'dev.runwayml.com', onVerified: () => checks++ }, options);
+  });
   try {
-    await r.click(r.getByText(/^Sign in$/));
-    assert.match(r.text(), /Open your account menu/);
-    await r.click(r.getByText(/^Verify$/));
-    assert.match(r.text(), /Enter the email/);
-    await enterAccount(r, 'OWNER@EXAMPLE.TEST');
-    await r.click(r.getByText(/^Verify$/));
-    assert.match(r.text(), /Switch to the intended account/);
-    await r.click(r.getByText(/^Verify$/));
-    assert.doesNotMatch(r.text(), /Connected as/);
-    await r.click(r.getByText(/^Verify$/));
-    assert.match(r.text(), /Connected as owner@example\.test/);
-    assert.equal(checks, 1);
-    assert.deepEqual(requested, Array(3).fill(['dev.runwayml.com', identity]));
-    await enterAccount(r, 'another@example.test');
-    assert.doesNotMatch(r.text(), /Connected as/);
+    assert.equal(r.document.querySelector('input'), null);
+    await r.click(r.getByText('Open in Tukido browser'));
+    assert.match(r.text(), /keep the site signed in/);
+    await r.click(r.getByText('Check sign-in'));
+    assert.match(r.text(), /Finish signing in/);
+    await r.click(r.getByText('Check sign-in'));
+    assert.doesNotMatch(r.text(), /session confirmed/);
+    await r.click(r.getByText('Check sign-in'));
+    assert.match(r.text(), /Signed-in browser session confirmed/);
+    assert.deepEqual(requested, Array(3).fill(['dev.runwayml.com']));
+    assert.equal(r.calls.backend.length, 0);
   } finally { r.cleanup(); }
 });
 
-test('Verify leaves Setup visible even when the checklist read returns unauthorized', async () => {
-  const identity = 'owner@example.test';
+test('ChatGPT sign-in check leaves the session and the Setup page alone', async () => {
   const checklist = {
     slug: 'test-agent', name: 'Test agent', state: 'created', stepsLeft: 1,
     steps: [{ id: 'connections', status: 'todo', label: 'Connections', data: {
@@ -75,12 +62,10 @@ test('Verify leaves Setup visible even when the checklist read returns unauthori
   }, {
     exportName: 'ActivationCard',
     bridge: {
-      providerBrowserAccountMatching: true,
       connectAccount: async () => ({ ok: true }),
-      async verifyAccount(domain: string, email: string) {
-        assert.equal(domain, 'chatgpt.com');
-        assert.equal(email, identity);
-        return { ok: true, reachable: true, accountMatched: true, identity };
+      async inspectProviderBrowserSession(...args: string[]) {
+        assert.deepEqual(args, ['chatgpt.com']);
+        return { ok: true, sessionConfirmed: true };
       },
     },
     backend(path) {
@@ -89,10 +74,9 @@ test('Verify leaves Setup visible even when the checklist read returns unauthori
     },
   });
   try {
-    await enterAccount(r, identity);
-    await r.click(r.getByText(/^Verify$/));
-    assert.match(r.text(), /Connected as owner@example\.test/);
-    assert.equal(r.calls.backend.filter(call => call.path.endsWith('/activation')).length, 1);
+    await r.click(r.getByText('Check sign-in'));
+    assert.match(r.text(), /Signed-in browser session confirmed/);
+    assert.equal(r.calls.backend.filter(call => call.path.endsWith('/activation')).length, 0);
     assert.equal(r.calls.refresh, 0);
     assert.deepEqual(r.calls.push, []);
     assert.deepEqual(r.calls.replace, []);
@@ -100,32 +84,28 @@ test('Verify leaves Setup visible even when the checklist read returns unauthori
   } finally { r.cleanup(); }
 });
 
-test('connection warnings update their status in place after a matching browser check', async () => {
-  const identity = 'owner@example.test';
+test('connection warnings update their status in place after a supported session check', async () => {
   const r = await render('connection-attention-banner', {
     warnings: [{ agent_slug: 'test-agent', agent_name: 'Test Agent', domain: 'chatgpt.com',
       label: 'ChatGPT', reason: 'Sign-in needed' }],
   }, {
     exportName: 'ConnectionAttentionBanner',
     bridge: {
-      providerBrowserAccountMatching: true,
       connectAccount: async () => ({ ok: true }),
-      verifyAccount: async () => ({ ok: true, reachable: true, accountMatched: true, identity }),
+      inspectProviderBrowserSession: async () => ({ ok: true, sessionConfirmed: true }),
     },
   });
   try {
     assert.match(r.text(), /1 connection needs a sign-in/);
-    await enterAccount(r, identity);
-    await r.click(r.getByText(/^Verify$/));
+    await r.click(r.getByText('Check sign-in'));
     assert.match(r.text(), /Browser checks complete/);
-    assert.match(r.text(), /Connected as owner@example\.test/);
+    assert.match(r.text(), /Signed-in browser session confirmed/);
     assert.doesNotMatch(r.text(), /Sign-in needed/);
     assert.equal(r.calls.refresh, 0);
   } finally { r.cleanup(); }
 });
 
-test('a cached reachable browser report does not show all accounts connected before matching', async () => {
-  const identity = 'owner@example.test';
+test('a cached reachable report does not claim a current browser session', async () => {
   const checklist = {
     slug: 'test-agent', name: 'Test agent', state: 'created', stepsLeft: 0,
     steps: [{ id: 'connections', status: 'done', title: 'Connections', detail: 'All needed accounts are reachable.',
@@ -136,21 +116,16 @@ test('a cached reachable browser report does not show all accounts connected bef
   }, {
     exportName: 'ActivationCard',
     bridge: {
-      providerBrowserAccountMatching: true,
       connectAccount: async () => ({ ok: true }),
-      verifyAccount: async () => ({ ok: true, reachable: true, accountMatched: true, identity }),
+      inspectProviderBrowserSession: async () => ({ ok: true, sessionConfirmed: true }),
     },
     backend: () => null,
   });
   try {
-    assert.match(r.text(), /Verify the intended provider accounts/);
+    assert.match(r.text(), /Check the provider browser sessions/);
     assert.doesNotMatch(r.text(), /All needed accounts are reachable/);
-    await r.click(r.getByText(/^Verify accounts$/));
-    await enterAccount(r, identity);
-    await r.click(r.getByText(/^Verify$/));
-    assert.match(r.text(), /All needed accounts are reachable/);
-    assert.match(r.text(), /Connected as owner@example\.test/);
-    await enterAccount(r, 'another@example.test');
-    assert.match(r.text(), /Verify the intended provider accounts/);
+    await r.click(r.getByText(/^Browser sign-in$/));
+    await r.click(r.getByText('Check sign-in'));
+    assert.match(r.text(), /Signed-in browser session confirmed/);
   } finally { r.cleanup(); }
 });
