@@ -26,11 +26,12 @@
  * agent (the agent detail page).
  */
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import Link from 'next/link';
 import { RECONNECT_HREF, type ConnectionWarning } from '@/lib/connection-warning-types';
 import type { ConnectionAdvisory } from '@/lib/connections';
+import { useDesktopBridge } from './api-key-row';
+import { ProviderBrowserSignIn } from './provider-browser-sign-in';
 
 function rel(iso: string | null): string {
   if (!iso) return '';
@@ -41,94 +42,24 @@ function rel(iso: string | null): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-type DesktopBridge = {
-  connectAccount?: (domain: string) => Promise<{ ok: boolean; message?: string }>;
-  verifyAccount?: (domain: string) => Promise<{ ok: boolean; reachable?: boolean; identity?: string; message?: string }>;
-};
-
-function desktopBridge(): DesktopBridge | null {
-  if (typeof window === 'undefined') return null;
-  return (window as Window & { implexaDesktop?: DesktopBridge }).implexaDesktop ?? null;
-}
-
-function useDesktopBridge(): DesktopBridge | null {
-  const [bridge, setBridge] = useState<DesktopBridge | null>(null);
-  useEffect(() => { setBridge(desktopBridge()); }, []);
-  return bridge;
-}
-
-/** One warning row's Sign in / Verify actions — its own busy/note state so
- * signing in to one account never blocks or mislabels another row. */
-function ConnectionWarningRow({ w }: { w: ConnectionWarning }) {
+function ConnectionWarningRow({ w, confirmed, onConfirmationChanged }: {
+  w: ConnectionWarning;
+  confirmed: boolean;
+  onConfirmationChanged: (confirmed: boolean) => void;
+}) {
   const bridge = useDesktopBridge();
-  const router = useRouter();
-  const [busy, setBusy] = useState<'signin' | 'verify' | null>(null);
-  const [note, setNote] = useState<string | null>(null);
-
-  const signIn = async () => {
-    if (!bridge?.connectAccount) return;
-    setBusy('signin'); setNote(null);
-    try {
-      const r = await bridge.connectAccount(w.domain);
-      setNote(r.ok ? 'Sign in in the workspace window that just opened, then hit Verify.' : (r.message || 'Could not open the sign-in page.'));
-    } catch { setNote('Could not open the sign-in page.'); }
-    setBusy(null);
-  };
-  const verify = async () => {
-    if (!bridge?.verifyAccount) return;
-    setBusy('verify'); setNote(null);
-    try {
-      const r = await bridge.verifyAccount(w.domain);
-      if (r.ok && r.reachable) {
-        setNote(r.identity ? `Connected as ${r.identity}.` : 'Connected.');
-        router.refresh(); // re-fetch server data so this warning drops once reachable
-      } else {
-        setNote(r.ok ? 'Not signed in yet. Hit Sign in, finish in the workspace window, then Verify again.' : (r.message || 'Verify could not run.'));
-      }
-    } catch { setNote('Verify could not run.'); }
-    setBusy(null);
-  };
-
   return (
-    <div className="flex items-start justify-between gap-3">
+    <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-secondary font-medium text-ink-100 truncate">{w.label}</span>
-        </div>
-        <p className="text-secondary text-ink-300 mt-0.5 line-clamp-2">{note || w.reason}</p>
+        <p className="text-secondary font-medium text-ink-100">{w.label}</p>
+        {!confirmed && <p className="text-secondary text-ink-300 mt-0.5">{w.reason}</p>}
       </div>
-      <div className="flex items-center gap-2 flex-none">
-        {w.detected_at && !note && <span className="text-secondary text-ink-500 mt-0.5">{rel(w.detected_at)}</span>}
-        {bridge?.connectAccount ? (
-          <>
-            <button
-              type="button"
-              onClick={signIn}
-              disabled={busy !== null}
-              className="text-ui font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap disabled:opacity-60"
-            >
-              {busy === 'signin' ? 'Opening…' : 'Sign in'}
-            </button>
-            <button
-              type="button"
-              onClick={verify}
-              disabled={busy !== null}
-              className="text-ui font-medium rounded-md px-2.5 py-1 border border-ink-700 text-ink-200 hover:bg-ink-800/60 transition-colors whitespace-nowrap disabled:opacity-60"
-            >
-              {busy === 'verify' ? 'Checking…' : 'Verify'}
-            </button>
-          </>
-        ) : (
-          // No desktop bridge (plain browser tab) — the connections concept only
-          // works via the Implexa desktop's dedicated Chrome, so point at the app.
-          <Link
-            href={RECONNECT_HREF}
-            className="text-secondary font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-state-fail hover:bg-rose-500/30 transition-colors whitespace-nowrap"
-          >
-            Open the app
-          </Link>
-        )}
-      </div>
+      {w.detected_at && !confirmed && <span className="text-secondary text-ink-500">{rel(w.detected_at)}</span>}
+      {bridge?.connectAccount ? (
+        <ProviderBrowserSignIn domain={w.domain} onConfirmationChanged={onConfirmationChanged} />
+      ) : (
+        <Link href={RECONNECT_HREF} className="btn-outline text-secondary px-2.5 py-1 whitespace-nowrap">Open the app</Link>
+      )}
     </div>
   );
 }
@@ -143,29 +74,32 @@ export function ConnectionAttentionBanner({
   scope?: 'global' | 'agent';
   className?: string;
 }) {
+  const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
   if (warnings.length === 0) return null;
 
-  const heading =
-    scope === 'agent'
-      ? `This agent needs ${warnings.length} account${warnings.length === 1 ? '' : 's'} you are signed out of`
-      : `${warnings.length} connection${warnings.length === 1 ? '' : 's'} need${warnings.length === 1 ? 's' : ''} a sign-in`;
+  const warningKey = (w: ConnectionWarning) => JSON.stringify([w.agent_slug, w.domain, w.detected_at]);
+  const remaining = warnings.filter(w => !confirmed[warningKey(w)]).length;
+  const heading = !remaining ? 'Browser checks complete'
+    : scope === 'agent'
+      ? `This agent needs ${remaining} account${remaining === 1 ? '' : 's'} signed in`
+      : `${remaining} connection${remaining === 1 ? '' : 's'} need${remaining === 1 ? 's' : ''} a sign-in`;
 
   return (
     <section
-      className={`rounded-lg border border-rose-500/40 bg-rose-500/10 p-4 ${className}`}
+      className={`rounded-lg border p-4 ${remaining ? 'border-rose-500/40 bg-rose-500/10' : 'border-ink-800'} ${className}`}
       role="status"
       aria-live="polite"
     >
       <div className="flex items-center gap-2">
-        <span className="text-base leading-none" aria-hidden="true">⚠</span>
+        {remaining > 0 && <span className="text-base leading-none" aria-hidden="true">⚠</span>}
         <h2 className="text-ui font-semibold text-ink-50">{heading}</h2>
       </div>
-      <p className="text-reading text-ink-300 mt-1">
-        Your agents run as you in the Tukido browser. These accounts are signed out or unreachable, so anything that needs them cannot run. Sign in once to fix it.
-      </p>
+      {remaining > 0 && <p className="text-reading text-ink-300 mt-1">
+        Sign in to the accounts your agents need in the Tukido browser.
+      </p>}
       <ul className="mt-3 space-y-2">
         {warnings.map((w, i) => (
-          <li key={`${w.agent_slug}-${w.domain}-${i}`}>
+          <li key={`${warningKey(w)}-${i}`}>
             {scope === 'global' && (
               <Link
                 href={`/workflows/${w.agent_slug}`}
@@ -174,7 +108,8 @@ export function ConnectionAttentionBanner({
                 {w.agent_name}
               </Link>
             )}
-            <ConnectionWarningRow w={w} />
+            <ConnectionWarningRow w={w} confirmed={!!confirmed[warningKey(w)]}
+              onConfirmationChanged={value => setConfirmed(current => ({ ...current, [warningKey(w)]: value }))} />
           </li>
         ))}
       </ul>

@@ -35,6 +35,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 /** Calls the stubs recorded, so a test can assert what a component asked for. */
 export type RenderCalls = {
   push: string[];
+  refresh: number;
   /** router.replace targets — how a tab switch navigates (scroll-preserving). */
   replace: string[];
   backend: Array<{ path: string; init: unknown }>;
@@ -152,7 +153,7 @@ export async function render(component: string, props: Record<string, unknown>, 
   const { window } = dom;
   if(options.webCrypto){Object.defineProperty(window,'crypto',{value:options.webCrypto,configurable:true});Object.assign(window,{TextEncoder:globalThis.TextEncoder,TextDecoder:globalThis.TextDecoder});}
   for(const [key,value] of Object.entries(options.initialStorage||{}))window.localStorage.setItem(key,value);
-  const calls: RenderCalls = { push: [], replace: [], backend: [] };
+  const calls: RenderCalls = { push: [], replace: [], refresh: 0, backend: [] };
   (window as unknown as Record<string, unknown>).__implexaCalls = calls;
   if (options.backend) (window as unknown as Record<string, unknown>).__implexaBackend = options.backend;
   if (options.bridge) (window as unknown as Record<string, unknown>).implexaDesktop = options.bridge;

@@ -98,13 +98,15 @@ test('a saved-but-ungranted row stays actionable and stops selling a second key'
 test('browser account setup is a reusable verified access method, never an unchecked claim', () => {
   const src = read('activation-requirements.tsx');
   assert.match(src, /function BrowserSessionAccess/, 'browser sign-in is a reusable service-row component');
-  assert.match(src, /bridge\.connectAccount\(session\.domain\)/, 'the provider domain is opened only through the desktop bridge');
-  assert.match(src, /bridge\.verifyAccount\(session\.domain\)/, 'the account must be verified after sign-in');
+  assert.match(src, /<ProviderBrowserSignIn[^>]*domain=\{session\.domain\}/, 'legacy browser access uses the shared sign-in and verification flow');
+  const browserSignIn = read('provider-browser-sign-in.tsx');
+  assert.match(browserSignIn, /bridge\.connectAccount\(domain\)/, 'the provider opens only through the desktop bridge');
+  assert.match(browserSignIn, /bridge\.verifyAccount\(domain, matchEmail \? expected : undefined\)/, 'the intended account is passed to desktop verification');
   assert.match(src, /managed=\{structured && s\.required === false\}/, 'only declared optional tools use the shared route; legacy consumers stay unchanged');
   assert.match(src, /bridge\.connectAgentTool\(target, session\.domain\)/);
   assert.match(src, /bridge\.checkAgentToolConnections\(target\)/);
   assert.match(src, /managedToolConnection\(/, 'only the native current-machine read can show an optional tool connected');
-  assert.match(src, /out\?\.ok && out\.reachable/, 'only a successful authenticated probe may mark the route complete');
+  assert.match(browserSignIn, /result\.accountMatched !== true/, 'required account matching gates confirmation');
   assert.match(src, /This workflow uses \{s\.name\} in your local browser — no API key needed\./,
     'browser-only work explains why the API-key prompt is absent');
   assert.match(src, /has not proved whether it uses an API key or a signed-in browser/,

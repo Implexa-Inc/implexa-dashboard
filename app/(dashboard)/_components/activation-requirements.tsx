@@ -23,6 +23,7 @@
 
 import { useEffect, useState } from 'react';
 import { InlineAddKeyButton, useDesktopBridge } from './api-key-row';
+import { ProviderBrowserSignIn, requiresProviderEmail } from './provider-browser-sign-in';
 import type { AgentRequirementsPayload, AgentMachineTools, AgentSetupTarget, AgentMacAccess } from '@/lib/activation';
 import { apiKeyAccessReady, toolAccessReady, managedToolConnection } from '@/lib/activation-core';
 
@@ -66,57 +67,35 @@ function BrowserSessionAccess({ session, target, managed = false, onVerified }: 
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  if (session.status === 'reachable') {
+  if (session.status === 'reachable' && (managed || !requiresProviderEmail(session.domain))) {
     return (
       <span className="text-secondary text-state-ok whitespace-nowrap">
-        ✓ signed in{session.identity ? ` as ${session.identity}` : ''}
+        {managed ? '✓ Browser access ready' : `✓ signed in${session.identity ? ` as ${session.identity}` : ''}`}
       </span>
     );
   }
+  if (!managed) return <ProviderBrowserSignIn key={session.domain} domain={session.domain} onVerified={onVerified} />;
 
   const openSignIn = async () => {
-    if (managed) {
-      if (!target || !bridge?.connectAgentTool) { setNote('Open the updated Tukido app to connect this tool.'); return; }
-      setBusy(true); setNote(null);
-      try {
-        const out = await bridge.connectAgentTool(target, session.domain);
-        if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.'
-          : 'Could not open this tool. Check setup and try again.'); return; }
-        setOpened(true);
-        setNote('Sign in, then select Verify in Tukido. You can leave the browser open.');
-      } catch { setNote('Could not open the sign-in page.'); }
-      finally { setBusy(false); }
-      return;
-    }
-    if (!bridge?.connectAccount) { setNote('Open the Implexa desktop app to sign in and verify this account.'); return; }
+    if (!target || !bridge?.connectAgentTool) { setNote('Open the updated Tukido app to connect this tool.'); return; }
     setBusy(true); setNote(null);
     try {
-      const out = await bridge.connectAccount(session.domain);
-      if (!out?.ok) { setNote(out?.message || 'Could not open the sign-in page.'); return; }
+      const out = await bridge.connectAgentTool(target, session.domain);
+      if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.'
+        : 'Could not open this tool. Check setup and try again.'); return; }
       setOpened(true);
-      setNote('Sign in in the Tukido browser, then select Verify.');
+      setNote('Sign in, then select Verify in Tukido. You can leave the browser open.');
     } catch { setNote('Could not open the sign-in page.'); }
     finally { setBusy(false); }
   };
   const verify = async () => {
-    if (managed) {
-      if (!target || !bridge?.checkAgentToolConnections) { setNote('Check this tool from the updated Tukido app.'); return; }
-      setBusy(true); setNote(null);
-      try {
-        const out = await bridge.checkAgentToolConnections(target);
-        if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.' : 'Connection not confirmed. Check the Tukido dialog.'); return; }
-        await onVerified();
-        setNote('Connection check finished.');
-      } catch { setNote('Could not verify the account. Try again.'); }
-      finally { setBusy(false); }
-      return;
-    }
-    if (!bridge?.verifyAccount) { setNote('Open the Implexa desktop app to verify this account.'); return; }
+    if (!target || !bridge?.checkAgentToolConnections) { setNote('Check this tool from the updated Tukido app.'); return; }
     setBusy(true); setNote(null);
     try {
-      const out = await bridge.verifyAccount(session.domain);
-      if (out?.ok && out.reachable) { onVerified(); return; }
-      setNote('Not signed in yet — finish signing in, then verify again.');
+      const out = await bridge.checkAgentToolConnections(target);
+      if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.' : 'Connection not confirmed. Check the Tukido dialog.'); return; }
+      await onVerified();
+      setNote('Connection check finished.');
     } catch { setNote('Could not verify the account. Try again.'); }
     finally { setBusy(false); }
   };
@@ -127,18 +106,18 @@ function BrowserSessionAccess({ session, target, managed = false, onVerified }: 
         <button type="button" onClick={openSignIn} disabled={busy} className="btn-outline text-ui px-2.5 py-1">
           {opened ? 'Reopen sign-in' : 'Use signed-in account'}
         </button>
-        {(opened || managed) && <button type="button" onClick={verify} disabled={busy} className="btn-outline text-ui px-2.5 py-1">Verify</button>}
+        <button type="button" onClick={verify} disabled={busy} className="btn-outline text-ui px-2.5 py-1">Verify</button>
       </div>
       {note && <p className="text-secondary text-ink-500 mt-1 max-w-56 leading-snug">{note}</p>}
     </div>
   );
 }
 
-export function ActivationRequirements({ req, slug, target, onChanged }: {
+export function ActivationRequirements({ req, slug, target, onBrowserVerified }: {
   req: AgentRequirementsPayload | undefined;
   slug: string;
   target?: AgentSetupTarget | null;
-  onChanged?: () => void;
+  onBrowserVerified?: () => Promise<void>;
 }) {
   const structured = ['machine_capability_contract', 'frozen_step_declarations'].includes(req?.source || '');
   const hasManagedOptionalTools = structured && !!req?.services.some(service => service.required === false && service.browserSession);
@@ -161,7 +140,7 @@ export function ActivationRequirements({ req, slug, target, onChanged }: {
       try { setToolReport({ key: targetKey, data: await desktop.agentSetupReadiness(target) }); }
       catch { setToolReport({ key: targetKey, data: null }); }
     }
-    onChanged?.();
+    await onBrowserVerified?.();
   };
 
   useEffect(() => {

@@ -54,8 +54,9 @@ export type DesktopBridge = OwnerBridge & {
     repairSucceeded: boolean;
   }>;
   openComputerUsePermissions?: (pane: 'screenRecording' | 'accessibility') => Promise<{ ok: boolean; code?: string }>;
+  providerBrowserAccountMatching?: true;
   connectAccount?: (domain: string) => Promise<{ ok: boolean; message?: string }>;
-  verifyAccount?: (domain: string) => Promise<{ ok: boolean; reachable?: boolean; identity?: string | null; message?: string }>;
+  verifyAccount?: (domain: string, expectedEmail?: string) => Promise<{ ok: boolean; reachable?: boolean; identity?: string | null; accountMatched?: boolean; message?: string }>;
   checkTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean }>;
   installTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean; alreadyInstalled?: boolean; message?: string }>;
   grantLocalPermissions?: (tools: string[]) => Promise<{ ok: boolean; added?: string[]; addedDirs?: string[]; error?: string }>;
