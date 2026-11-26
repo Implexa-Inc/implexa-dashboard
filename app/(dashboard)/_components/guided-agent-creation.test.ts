@@ -8,7 +8,7 @@ const turn=(n:number,patch:any={})=>({turnId:id(n),message:'Create a presenter v
 async function type(r:Rendered,s:string){const e=r.document.querySelector('textarea')!;await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLTextAreaElement.prototype,'value')!.set!.call(e,s);e.dispatchEvent(new r.window.Event('input',{bubbles:true}));});}
 async function setup(t:any,initial:any[]=[],bridge?:Record<string,unknown>){
  let turns=initial;const calls:any[]=[];let draftId='';
- const r=await render('./guided-agent-creation.tsx',{ownerId:OWNER},{bridge,fetch:(async(url:string,init:any={})=>{
+ const r=await render('./guided-agent-creation.tsx',{ownerId:OWNER},{bridge,webCrypto:globalThis.crypto,fetch:(async(url:string,init:any={})=>{
   calls.push({url,init});
   if(url==='/api/agents/plan-preview')return {ok:true,json:async()=>({ok:true,decisionMode:'direct',autoToolPreferences:['ffmpeg'],disclosures:[]})};
   if(url==='/api/agents/create')return {ok:true,json:async()=>({ok:true,request:{id:id(99)}})};
@@ -68,7 +68,7 @@ test('an unsupported document leaves the typed draft editable and sends nothing'
   Object.defineProperty(picker,'files',{value:[new r.window.File(['example'],'example.pdf')]});
   picker.dispatchEvent(new r.window.Event('change',{bubbles:true}));
  });
- assert.match(r.document.querySelector('[role=alert]')!.textContent!,/paste the relevant text/);
+ assert.match(r.document.querySelector('[role=alert]')!.textContent!,/paste the relevant text/i);
  assert.equal(r.document.querySelector('textarea')!.value,'Use this example');
  assert.equal(calls.filter(c=>c.init.method==='POST').length,0);
 });
@@ -88,4 +88,30 @@ test('the plus menu dismisses on Escape and opens the selected picker without se
  assert.equal(folderPicks,1);assert.equal(options.hidden,true);
  assert.ok(r.document.querySelector('[aria-label="Remove Footage"]'));
  assert.equal(calls.some(call=>call.init.method==='POST'),false);
+});
+
+test('a folder and a playbook use the same attachment menu and send only shareable context',async t=>{
+ const {r,calls}=await setup(t,[],{pickDirectory:async()=>({ok:true,path:'/example/private/Footage'})});
+ const add=r.document.querySelector('[aria-label="Add attachments"]')!;
+ await r.click(add);
+ const options=r.document.querySelector('[aria-label="Attachment options"]')!;
+ assert.deepEqual(Array.from(options.querySelectorAll('button'),item=>item.textContent?.trim()),['Attach file','Attach folder']);
+ await r.click(r.getByText('Attach folder'));
+ const picker=r.document.querySelector('input[type=file]')!;
+ await r.act(()=>{
+  Object.defineProperty(picker,'files',{value:[new r.window.File(['Trim the introduction.'],'playbook.md')]});
+  picker.dispatchEvent(new r.window.Event('change',{bubbles:true}));
+ });
+ await type(r,'Use the attached playbook.');
+ await r.click(r.document.querySelector('[aria-label="Send message"]')!);
+ for(let tries=0;tries<10&&!calls.some(call=>call.init.method==='POST');tries++){
+  await r.act(()=>new Promise(resolve=>setTimeout(resolve,15)));
+ }
+ const post=calls.find(c=>c.url==='/api/agents/creation-draft'&&c.init.method==='POST');
+ assert.ok(post,r.text());
+ const {message}=JSON.parse(post.init.body);
+ assert.match(message,/Use the attached playbook\./);
+ assert.match(message,/Trim the introduction\./);
+ assert.match(message,/names only.*Footage/);
+ assert.doesNotMatch(message,/\/example\/private/);
 });
