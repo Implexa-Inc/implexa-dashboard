@@ -1004,7 +1004,7 @@ test('recovered video opens a private timestamped feedback session and reloads s
     assert.ok(text().includes(fixture.point.issue.body));
     assert.match(text(), /Your feedback/);
     assert.doesNotMatch(text(), /Accept result|Send changes|Revise this result|Done teaching|Share result/);
-    assert.equal(container.querySelector('[data-testid="spatial-hint"]'), null);
+    assert.ok(container.querySelector('[data-testid="spatial-hint"]'));
 
     await act(async () => client.render(null));
     await act(async () => client.render(render(existing)));
@@ -1052,4 +1052,95 @@ test('saved-export revision submits the timestamped draft once and reloads the e
     assert.ok(!buttons().some(button=>button.textContent==='Run revision from saved video'));
     assert.equal(calls.length,1);
   }finally{await act(async()=>view.unmount());}
+});
+
+test('saved video uses the shared frame markup and includes it in the revision once verified', async () => {
+  const fixture = JSON.parse(readFileSync(new URL('./test/fixtures/recovered-export-spatial-postgres.json', import.meta.url), 'utf8'));
+  const initial = parseReviewPacketResponse(fixture.draft);
+  const annotated = parseReviewPacketResponse(fixture.annotatedDraft);
+  assert.ok(initial?.run?.recoveredRevisionAvailable && initial.session && annotated?.session);
+  const artifact = initial.artifacts.find(file => file.id === initial.run?.recoveredFeedbackArtifactId);
+  assert.ok(artifact);
+  const { default: Feedback } = await import('../app/(dashboard)/_components/recovered-export-feedback.tsx');
+  Object.defineProperty(dom.window, 'implexaDesktop', { configurable: true, value: {
+    async createArtifactPreview() { return {ok: true, url: 'implexa-artifact://preview/abcdefghijklmnop1234567890'}; },
+    async revokeArtifactPreview() {},
+  } });
+  dom.window.HTMLMediaElement.prototype.pause = () => {};
+  const mutations: unknown[] = [];
+  let verified = false;
+  (globalThis as Record<string, unknown>).fetch = async (url: string, init: {body: string}) => {
+    assert.equal(url, '/api/review');
+    const payload = JSON.parse(init.body);
+    const forward = resolveReviewAction(payload.action, payload);
+    assert.ok(typeof forward !== 'string');
+    if (forward.method !== 'GET') mutations.push(forward);
+    const response = ({
+      create_issue: fixture.spatial,
+      request_evidence: fixture.captureRequest,
+      evidence_status: verified ? fixture.validatedCapture : fixture.pendingCapture,
+      submit: fixture.response,
+    } as Record<string, unknown>)[payload.action];
+    assert.ok(response, `Unexpected action ${payload.action}`);
+    return {status: 200, json: async () => response};
+  };
+  const view = createRoot(container);
+  function render(packet: typeof initial | typeof annotated) {
+    return React.createElement(Feedback, {artifact: artifact!, agentName: 'Video studio',
+      session: packet!.session, issues: packet!.issues, canRevise: packet!.run?.recoveredRevisionAvailable});
+  }
+  async function loadFrame() {
+    const video = container.querySelector('video');
+    assert.ok(video);
+    Object.defineProperties(video, {
+      videoWidth: {value: 1920}, videoHeight: {value: 1080},
+      getBoundingClientRect: {value: () => new dom.window.DOMRect(0, 0, 192, 108)},
+    });
+    await act(async () => {
+      video.currentTime = 0.5;
+      video.dispatchEvent(new dom.window.Event('loadedmetadata'));
+    });
+    return video;
+  }
+  const runButton = () => buttons().find(button => button.textContent === 'Run revision from saved video');
+  try {
+    await act(async () => view.render(render(initial)));
+    const video = await loadFrame();
+    const overlay = container.querySelector('[data-testid="spatial-overlay"]');
+    assert.ok(overlay);
+    await act(async () => {
+      for (const [type, x, y] of [['pointerdown', 48, 27], ['pointermove', 96, 54], ['pointerup', 96, 54]] as const) {
+        overlay.dispatchEvent(new dom.window.MouseEvent(type, {bubbles: true, button: 0, clientX: x, clientY: y}));
+      }
+      video.currentTime = 0.8;
+    });
+    assert.ok(container.querySelector('[data-testid="spatial-draft-mark"]'));
+    await typeNote(fixture.spatial.issue.body);
+    await click(buttons().find(button => button.textContent === 'Save feedback')!);
+    assert.deepEqual(mutations, [
+      {path: `/api/v2/review/sessions/${initial.session.id}/issues`, method: 'POST', body: {
+        artifactId: artifact.id, kind: fixture.spatial.issue.kind, body: fixture.spatial.issue.body,
+        anchor: fixture.spatial.issue.anchor, purpose: 'recovered_feedback',
+      }},
+      {path: `/api/v2/review/issues/${fixture.spatial.issue.id}/evidence`, method: 'POST', body: {}},
+    ]);
+    assert.equal(runButton()?.disabled, true);
+    assert.match(text(), /Capturing screenshot evidence/);
+
+    verified = true;
+    await act(async () => view.render(null));
+    await act(async () => view.render(render(annotated)));
+    await loadFrame();
+    assert.ok(container.querySelector('[data-testid="spatial-pin-1"]'));
+    assert.match(text(), /Cover this part of the frame/);
+    const send = runButton();
+    assert.equal(send?.disabled, false);
+    await click(send!);
+    assert.deepEqual(mutations.at(-1), {
+      path: `/api/v2/review/sessions/${initial.session.id}/submit`, method: 'POST', body: {recoveredExport: true},
+    });
+    assert.match(text(), /Revision requested from this saved video/);
+  } finally {
+    await act(async () => view.unmount());
+  }
 });
