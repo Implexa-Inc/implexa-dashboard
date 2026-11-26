@@ -15,6 +15,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { ProviderBrowserSignIn, requiresProviderEmail } from './provider-browser-sign-in';
+import { mapActivationChecklist } from '@/lib/activation-core';
 import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
 import AgentSetupCard from './agent-setup-card';
@@ -117,9 +119,10 @@ function PermissionList({ items, optIns, onToggle, savingGroup }: {
 
 type NeededConnection = { account?: string; label?: string; status?: string; identity?: string | null };
 
-function ConnectionRow({ item, onChanged, workedAround, onToggleWorkAround, slug }: {
+function ConnectionRow({ item, onChanged, onBrowserVerified, workedAround, onToggleWorkAround, slug }: {
   item: NeededConnection;
   onChanged: () => void;
+  onBrowserVerified: () => Promise<void>;
   /** User chose "let Claude figure out an alternative" for this connection. */
   workedAround: boolean;
   onToggleWorkAround: (on: boolean) => void;
@@ -129,7 +132,9 @@ function ConnectionRow({ item, onChanged, workedAround, onToggleWorkAround, slug
   const bridge = useDesktopBridge();
   const supabase = createClient();
   const domain = item.account || '';
-  const reachable = item.status === 'reachable';
+  const needsAccountMatch = requiresProviderEmail(domain);
+  const [confirmed, setConfirmed] = useState(false);
+  const reachable = needsAccountMatch ? confirmed : item.status === 'reachable';
   const [waiving, setWaiving] = useState(false);
   const [waiveNote, setWaiveNote] = useState<string | null>(null);
 
@@ -151,56 +156,18 @@ function ConnectionRow({ item, onChanged, workedAround, onToggleWorkAround, slug
     } catch { setWaiveNote('Could not remove it. Try again.'); }
     finally { setWaiving(false); }
   }
-  const [busy, setBusy] = useState<'signin' | 'verify' | null>(null);
-  const [note, setNote] = useState<string | null>(null);
-
-  const signIn = async () => {
-    if (!bridge?.connectAccount) return;
-    setBusy('signin'); setNote(null);
-    try {
-      const r = await bridge.connectAccount(domain);
-      setNote(r.ok ? 'Sign in in the workspace window that just opened, then hit Verify.' : (r.message || 'Could not open the sign-in page.'));
-    } catch { setNote('Could not open the sign-in page.'); }
-    setBusy(null);
-  };
-  const verify = async () => {
-    if (!bridge?.verifyAccount) return;
-    setBusy('verify'); setNote(null);
-    try {
-      const r = await bridge.verifyAccount(domain);
-      if (r.ok && r.reachable) {
-        setNote(r.identity ? `Connected as ${r.identity}.` : 'Connected.');
-        onChanged(); // refresh the checklist so the step flips to done
-      } else {
-        setNote(r.ok ? 'Not signed in yet. Hit Sign in, finish in the workspace window, then Verify again.' : (r.message || 'Verify could not run.'));
-      }
-    } catch { setNote('Verify could not run.'); }
-    setBusy(null);
-  };
-
   return (
     <li>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-secondary text-ink-100">{item.label || domain}</span>
-            {reachable
-              ? <span className="text-secondary text-state-ok">connected{item.identity ? ` as ${item.identity}` : ''}</span>
-              : workedAround
-                ? <span className="text-secondary text-state-ok">Claude will work around it</span>
-                : <span className="text-secondary text-state-needs">not connected</span>}
+            {workedAround && !reachable && <span className="text-secondary text-state-ok">Claude will work around it</span>}
+            {!needsAccountMatch && reachable && <span className="text-secondary text-state-ok">connected{item.identity ? ` as ${item.identity}` : ''}</span>}
           </div>
-          {note && <p className="text-secondary text-ink-500 mt-0.5 leading-snug">{note}</p>}
         </div>
-        {!reachable && bridge?.connectAccount && (
-          <div className="flex-none flex items-center gap-1.5">
-            <button type="button" onClick={signIn} disabled={busy !== null} className="btn-outline text-ui px-2.5 py-1">
-              {busy === 'signin' ? 'Opening…' : 'Sign in'}
-            </button>
-            <button type="button" onClick={verify} disabled={busy !== null} className="btn-outline text-ui px-2.5 py-1">
-              {busy === 'verify' ? 'Checking…' : 'Verify'}
-            </button>
-          </div>
+        {(needsAccountMatch || !reachable) && bridge?.connectAccount && (
+          <ProviderBrowserSignIn key={domain} domain={domain} onConfirmationChanged={setConfirmed} onVerified={onBrowserVerified} />
         )}
       </div>
       {/* The escape hatch — when you don't have the sign-in, let Claude route around
@@ -289,9 +256,10 @@ function AgentMacSetup({ target, onReady }: { target: AgentSetupTarget | null; o
   </div>;
 }
 
-function ConnectionsList({ items, onChanged, workedAround, onToggleWorkAround, slug }: {
+function ConnectionsList({ items, onChanged, onBrowserVerified, workedAround, onToggleWorkAround, slug }: {
   items: NeededConnection[];
   onChanged: () => void;
+  onBrowserVerified: () => Promise<void>;
   workedAround: Set<string>;
   onToggleWorkAround: (key: string, on: boolean) => void;
   slug: string;
@@ -308,6 +276,7 @@ function ConnectionsList({ items, onChanged, workedAround, onToggleWorkAround, s
               item={it}
               slug={slug}
               onChanged={onChanged}
+              onBrowserVerified={onBrowserVerified}
               workedAround={workedAround.has(key)}
               onToggleWorkAround={(on) => onToggleWorkAround(key, on)}
             />
@@ -559,12 +528,13 @@ export function SchedulePicker({ slug, onSaved, initial }: { slug: string; onSav
   );
 }
 
-function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, savingGroup, workedAround, onToggleWorkAround, permissionNote }: {
+function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, onBrowserVerified, defaultOpen, savingGroup, workedAround, onToggleWorkAround, permissionNote }: {
   step: ActivationStep;
   slug: string;
   optIns: Record<string, boolean>;
   onToggleOptIn: (group: string, on: boolean) => void;
   onChanged: () => void;
+  onBrowserVerified: () => Promise<void>;
   defaultOpen?: boolean;
   savingGroup?: string | null;
   permissionNote?: string | null;
@@ -577,6 +547,8 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
   const permissionLocallyComplete = step.id === 'permissions' && requiredItems.length > 0 && requiredItems.every((it) => optIns[it.group]);
   const effectiveStatus = permissionLocallyComplete ? 'done' : step.status;
   const isTodo = effectiveStatus === 'todo';
+
+  const needed = (step.data?.needed ?? []) as NeededConnection[];
 
   // Resolve the CTA target/behavior per step.
   let cta: React.ReactNode = null;
@@ -600,17 +572,11 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
     // Expandable whether todo (Add key) or done (View) — the paste/create flow is
     // inline, never a navigation. Soft gate: this never blocks Activate.
     cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : (step.cta || 'Add key')}</button>;
+  } else if (step.id === 'connections' && needed.length > 0) {
+    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : (isTodo ? step.cta || 'Connect' : 'View')}</button>;
   } else if (isTodo && step.cta) {
-    if (step.id === 'connections') {
-      // Inline connect (no navigation): sign in + verify right here, for exactly
-      // the accounts THIS agent needs.
-      cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : step.cta}</button>;
-    } else {
-      cta = <button type="button" className="btn-outline text-ui px-2.5 py-1">{step.cta}</button>;
-    }
+    cta = <button type="button" className="btn-outline text-ui px-2.5 py-1">{step.cta}</button>;
   }
-
-  const needed = (step.data?.needed ?? []) as NeededConnection[];
 
   return (
     <li className="py-3.5">
@@ -636,7 +602,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
         </>
       )}
       {step.id === 'connections' && open && needed.length > 0 && (
-        <ConnectionsList items={needed} onChanged={onChanged} workedAround={workedAround} onToggleWorkAround={onToggleWorkAround} slug={slug} />
+        <ConnectionsList items={needed} onChanged={onChanged} onBrowserVerified={onBrowserVerified} workedAround={workedAround} onToggleWorkAround={onToggleWorkAround} slug={slug} />
       )}
       {step.id === 'tools' && open && (
         <ToolsList items={(step.data?.items ?? []) as unknown as ToolItem[]} />
@@ -664,7 +630,7 @@ const STATE_BADGE: Record<ActivationChecklist['state'], { label: string; classes
 };
 
 export function ActivationCard({
-  checklist,
+  checklist: originalChecklist,
   proficiency,
   surface = 'activation',
   runInputs,
@@ -698,6 +664,8 @@ export function ActivationCard({
   /** Existing marketplace acquisition/update must finish before native completion. */
   setupBlockedReason?:string;
 }) {
+  const [checked, setChecked] = useState<{ base: ActivationChecklist; value: ActivationChecklist } | null>(null);
+  const checklist = checked?.base === originalChecklist ? checked.value : originalChecklist;
   const setupSurface = surface === 'setup';
   const expectedVersionId=runInputs?.workflowVersionId;
   const versionedSetup=!!expectedVersionId||!!checklist.setupContext?.versionId;
@@ -748,6 +716,28 @@ export function ActivationCard({
   const [forceOnDemand, setForceOnDemand] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const latestConnectionRead = useRef(0);
+  const currentChecklist = useRef(originalChecklist);
+  currentChecklist.current = originalChecklist;
+
+  async function refreshConnectionsInPlace() {
+    const read = ++latestConnectionRead.current;
+    const base = originalChecklist;
+    const { slug, setupContext } = base;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token || (setupContext && session.user.id !== setupContext.accountId)) return;
+      const payload = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/activation`, {
+        jwt: session.access_token, signal: AbortSignal.timeout(8000),
+      });
+      const value = mapActivationChecklist(payload, slug);
+      if (!mounted.current || currentChecklist.current !== base || read !== latestConnectionRead.current || value?.slug !== slug) return;
+      if (setupContext && (value.setupContext?.accountId !== setupContext.accountId
+          || value.setupContext?.versionId !== setupContext.versionId)) return;
+      setChecked({ base, value });
+    } catch { /* Keep the visible provider result even if setup could not refresh. */ }
+  }
+
   const [activating, setActivating] = useState(false);
   const [activated, setActivated] = useState(checklist.state === 'active');
   const [savedLocally, setSavedLocally] = useState(false);
@@ -967,6 +957,7 @@ export function ActivationCard({
             optIns={optIns}
             onToggleOptIn={toggleOptIn}
             onChanged={() => router.refresh()}
+            onBrowserVerified={refreshConnectionsInPlace}
             savingGroup={savingGroup}
             permissionNote={localGrantNote}
             workedAround={workedAround}
@@ -976,7 +967,7 @@ export function ActivationCard({
         ))}
       </ul>
 
-      {setupSurface&&checklist.steps.some(step=>step.id==='notifications')&&<><h3 className="mt-6 mb-2 text-ui font-medium">Optional</h3><ul>{checklist.steps.filter(step=>step.id==='notifications').map(step=><StepRow key={step.id} step={step} slug={checklist.slug} optIns={optIns} onToggleOptIn={toggleOptIn} onChanged={()=>router.refresh()} savingGroup={savingGroup} permissionNote={localGrantNote} workedAround={workedAround} onToggleWorkAround={toggleWorkAround}/>)}</ul></>}
+      {setupSurface&&checklist.steps.some(step=>step.id==='notifications')&&<><h3 className="mt-6 mb-2 text-ui font-medium">Optional</h3><ul>{checklist.steps.filter(step=>step.id==='notifications').map(step=><StepRow key={step.id} step={step} slug={checklist.slug} optIns={optIns} onToggleOptIn={toggleOptIn} onChanged={()=>router.refresh()} onBrowserVerified={refreshConnectionsInPlace} savingGroup={savingGroup} permissionNote={localGrantNote} workedAround={workedAround} onToggleWorkAround={toggleWorkAround}/>)}</ul></>}
 
       {/* Optional quality layer at activation, where the user is deciding how
           this agent should run. It never blocks activation. The same control also
@@ -992,7 +983,7 @@ export function ActivationCard({
         <MarketplaceExecutionRequirementsCard contract={checklist.executionRequirements} />
       </div>
       <div className="mt-4">
-        <ActivationRequirements req={checklist.requirements} slug={checklist.slug} target={setupTarget} onChanged={() => router.refresh()} />
+        <ActivationRequirements req={checklist.requirements} slug={checklist.slug} target={setupTarget} onBrowserVerified={refreshConnectionsInPlace} />
       </div>
       {(!!checklist.machineTools?.requirements.length || !!checklist.localToolDeclarations?.length) && <div className="mt-4">
         <DeclaredMachineTools tools={checklist.machineTools} declarations={checklist.localToolDeclarations} />
