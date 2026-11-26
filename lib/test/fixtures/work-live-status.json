@@ -1,0 +1,147 @@
+{
+  "producerFiles": {
+    "src/routes/live-run-work-status.test.js": "7814f9dff1341b0a941ad2728ee10725ae2e4c00c38256ae160433d92fbcd87e",
+    "src/routes/scheduled-skills.js": "1649a74cf754b0cc77a2d688a92374fbb6de88e469352087400681967d2c2477",
+    "src/services/skill-run.service.js": "5c415823b65744f1467050dfbb88767993ae48b0e899f528ea966048d402253b",
+    "src/lib/run-liveness.js": "693637dfa85aef82932a9d705f1fd9c2de370ccc100a57f65ed3de76eb6cd1bb"
+  },
+  "live": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "runId": "unrelated-delivery",
+          "scheduledSkillId": null,
+          "skillSlug": "synthetic-video-agent",
+          "source": "manual",
+          "status": "finished",
+          "attention": null,
+          "runState": "completed",
+          "reviewStatus": null,
+          "executor": null,
+          "executorThreadId": null,
+          "executorWorkspace": null,
+          "since": "2026-11-26T19:35:00Z",
+          "finishedAt": "2026-11-26T19:45:00Z",
+          "lastProgressAt": null,
+          "stuck": false,
+          "liveness": null,
+          "headline": "Other video delivered",
+          "currentStepIndex": null,
+          "totalSteps": null,
+          "currentStepLabel": null,
+          "stepsState": null
+        },
+        {
+          "runId": "failed-run",
+          "scheduledSkillId": null,
+          "skillSlug": "synthetic-video-agent",
+          "source": "manual",
+          "status": "failed",
+          "attention": null,
+          "runState": "failed",
+          "failureReason": "exit_timeout",
+          "reviewStatus": null,
+          "executor": null,
+          "executorThreadId": null,
+          "executorWorkspace": null,
+          "since": "2026-11-26T18:30:00Z",
+          "finishedAt": null,
+          "lastProgressAt": null,
+          "stuck": false,
+          "liveness": null,
+          "headline": "Partial video",
+          "currentStepIndex": null,
+          "totalSteps": null,
+          "currentStepLabel": null,
+          "stepsState": null
+        },
+        {
+          "runId": "stalled-first",
+          "scheduledSkillId": null,
+          "skillSlug": "synthetic-video-agent",
+          "source": "manual",
+          "status": "needs_attention",
+          "attention": null,
+          "runState": "stalled",
+          "reviewStatus": null,
+          "executor": null,
+          "executorThreadId": null,
+          "executorWorkspace": null,
+          "since": "2026-11-26T18:15:00Z",
+          "finishedAt": null,
+          "lastProgressAt": null,
+          "stuck": false,
+          "liveness": null,
+          "headline": "Synthetic video agent",
+          "currentStepIndex": null,
+          "totalSteps": null,
+          "currentStepLabel": null,
+          "stepsState": null
+        },
+        {
+          "runId": "stalled-second",
+          "scheduledSkillId": null,
+          "skillSlug": "synthetic-video-agent",
+          "source": "manual",
+          "status": "needs_attention",
+          "attention": null,
+          "runState": "stalled",
+          "reviewStatus": null,
+          "executor": null,
+          "executorThreadId": null,
+          "executorWorkspace": null,
+          "since": "2026-11-26T18:00:00Z",
+          "finishedAt": null,
+          "lastProgressAt": null,
+          "stuck": false,
+          "liveness": null,
+          "headline": "Synthetic video agent",
+          "currentStepIndex": null,
+          "totalSteps": null,
+          "currentStepLabel": null,
+          "stepsState": null
+        },
+        {
+          "runId": "quiet-run",
+          "scheduledSkillId": null,
+          "skillSlug": "synthetic-video-agent",
+          "source": "manual",
+          "status": "running",
+          "attention": null,
+          "runState": "running",
+          "reviewStatus": null,
+          "executor": null,
+          "executorThreadId": null,
+          "executorWorkspace": null,
+          "since": "2026-11-26T17:00:00Z",
+          "finishedAt": null,
+          "lastProgressAt": "2026-11-26T17:10:00Z",
+          "stuck": true,
+          "liveness": "quiet",
+          "headline": "In progress",
+          "currentStepIndex": null,
+          "totalSteps": null,
+          "currentStepLabel": null,
+          "stepsState": null,
+          "typicalMs": null
+        }
+      ],
+      "count": 5
+    }
+  },
+  "empty": {
+    "status": 200,
+    "body": {
+      "items": [],
+      "count": 0
+    }
+  },
+  "unavailable": {
+    "status": 503,
+    "body": {
+      "code": "run_status_unavailable",
+      "error": "Live run status is unavailable. Try again."
+    }
+  }
+}

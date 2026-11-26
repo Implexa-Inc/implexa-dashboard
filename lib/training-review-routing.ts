@@ -9,12 +9,11 @@ export function trainingReviewHref(slug:string,runId:string,artifact?:string):st
  return `/training/${encodeURIComponent(slug)}/review/${encodeURIComponent(runId)}${artifact?`?artifact=${encodeURIComponent(artifact)}`:''}`;
 }
 
-/** One partition for Training's list and Work's list/badge. Unknown ownership stays in Work. */
+/** Training is an opt-in view of owned results. Work retains the entire review queue. */
 export function isTrainerFeedback(item:Pick<ReviewQueueItem,'slug'|'reason'|'holdKind'>,owned:MyWorkflowsRead):boolean{
  return item.reason!=='approval'&&item.holdKind!=='approval_before_action'&&!!trainingReviewSlug({live:true,run:item},owned);
 }
-export function reviewQueueForArea(queue:ReviewQueue,owned:MyWorkflowsRead,area:'training'|'work'):ReviewQueue{
- if(area==='work'&&owned.status!=='ready')return queue;
- const items=queue.items.filter(item=>isTrainerFeedback(item,owned)===(area==='training'));
- return {...queue,items,visibleCount:items.length,total:null,...(area==='training'&&owned.status!=='ready'?{sources:{...queue.sources,training_owner_roster:'unavailable'}}:{})};
+export function trainingReviewQueue(queue:ReviewQueue,owned:MyWorkflowsRead):ReviewQueue{
+ const items=queue.items.filter(item=>isTrainerFeedback(item,owned));
+ return {...queue,items,visibleCount:items.length,total:null,...(owned.status!=='ready'?{sources:{...queue.sources,training_owner_roster:'unavailable'}}:{})};
 }

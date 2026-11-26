@@ -31,11 +31,14 @@ export async function loadInboxItems(
   supabase: SupabaseClient,
   limit = 40,
   slug?: string,
+  { onlyDelivered = false }: { onlyDelivered?: boolean } = {},
 ): Promise<InboxItem[]> {
   const [runs, catalog] = await Promise.all([
     selectRuns(supabase, {
       limit,
       onlyWithOutput: true,
+      onlyDelivered,
+      throwOnError: onlyDelivered,
       slug,
       // The improvement-loop columns: the run's own feedback questions + the
       // user's answers, so each result can show one-tap feedback (migration 0074).

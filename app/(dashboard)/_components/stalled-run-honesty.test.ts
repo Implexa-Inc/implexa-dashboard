@@ -57,20 +57,17 @@ test('a needs_attention run points at its own diagnosis instead of guessing', ()
   // Slice to where the ELSE arm unmistakably begins (its soft-stuck copy), not to
   // the first `) : (` — the needs_attention arm now contains its own nested
   // ternary (diagnosed vs not), so the first `) : (` ends the slice far too early.
-  const branch = running.slice(i, running.indexOf('On the same step a while', i));
-  assert.match(branch, /needs you/i, 'it states the honest fact: it stopped and needs you');
+  const branch = running.slice(i, running.indexOf('Progress updates have been quiet', i));
+  assert.match(branch, /stopped or needs attention/);
   assert.match(branch, /\/runs\/\$\{c\.runId\}/, 'and links the run, where the real reason lives');
   assert.doesNotMatch(branch, /StuckRunButton/,
     'the permission shortcut must NOT be offered when something already determined a real cause');
 });
 
-test('the permission shortcut survives ONLY for the soft heartbeat-stale signal', () => {
-  // `stuck` (a running run whose heartbeat went stale) genuinely does correlate
-  // with a pending permission prompt — that offer stays. The distinction is the
-  // whole fix: guess only where there is nothing better.
-  assert.match(running, /StuckRunButton/, 'the soft-stuck path keeps the approve shortcut');
-  assert.match(running, /if it’s waiting on a permission to continue, you can approve it now/,
-    'and keeps its appropriately hedged wording');
+test('a quiet heartbeat only links to an executor with a recorded identity', () => {
+  const branch=running.slice(running.indexOf('Progress updates have been quiet'));
+  assert.match(branch,/c\.executor && \(c\.executorThreadId \|\| \(c\.executor === 'claude' && c\.claudeTaskId\)\) && <StuckRunButton/);
+  assert.doesNotMatch(branch,/permissionCapability|executor \|\| 'claude'/);
 });
 
 test('the run page links only exact continuation lineage as "the reason"', () => {
@@ -83,6 +80,12 @@ test('the run page links only exact continuation lineage as "the reason"', () =>
     'a parent resolves only children that point back to it');
   assert.doesNotMatch(block, /\.eq\('skill_slug'|\.eq\('scheduled_skill_id'/,
     'same-agent and same-schedule guesses can select unrelated historical runs');
+});
+
+test('recorded interruptions keep the recovery rail when the run wrote partial output', () => {
+  assert.match(runPage, /const showProgressLayout = info\.state !== 'completed' \|\| held \|\| showRunProblem;/);
+  assert.match(runPage, /const runProblem = <>\s*\{showRunProblem \?/);
+  assert.match(runPage, /!held && !showRunProblem && r\.output_markdown && !showFinishedReview/);
 });
 
 // ── The follow-up: SHOW the diagnosis, don't just stop guessing ───────────────
@@ -105,7 +108,7 @@ test('an UNDIAGNOSED run stays honestly unknown — it must not fall back to a g
   const i = running.indexOf("c.attention?.summary ? (");
   assert.notEqual(i, -1);
   const branch = running.slice(i, running.indexOf('{c.runId && (', i));
-  assert.match(branch, /This run stopped and needs you/,
+  assert.match(branch, /This run stopped or needs attention/,
     'no diagnosis yet → say so plainly');
   assert.doesNotMatch(branch, /most likely/i,
     'the undiagnosed path must never reintroduce a guessed cause');

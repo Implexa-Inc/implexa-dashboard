@@ -22,6 +22,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { closeReasonMessage } from '../../../../lib/run-recovery-presentation.ts';
 
 const page = readFileSync(join(import.meta.dirname, 'page.tsx'), 'utf8');
 
@@ -34,7 +35,8 @@ test('Planner preservation is owner-selected, off by default and sent as intent 
   assert.match(box,/\[completePointClaims, setCompletePointClaims\] = useState\(false\)/);
   assert.match(box,/!pending && <label/);
   assert.doesNotMatch(box,/revisionSource:|execution_lifecycle_policy:|review_artifact_manifest:/);
-  assert.match(page,/case 'continuation_successor_never_opened':\s+return 'The continuation could not start\. Earlier verified work is preserved/);
+  assert.equal(closeReasonMessage('continuation_successor_never_opened'),
+    'The continuation could not start. Earlier verified work is preserved.');
 });
 
 test('typed stage Preview replaces generic approval, including unreadable metadata', () => {
@@ -56,23 +58,8 @@ test('the run page imports RunContinueBox — the universal continue affordance'
   );
 });
 
-test('a NON-held run with a deliverable renders the continue box', () => {
-  // The gating must be `!held && r.output_markdown` — NOT held-only (that was the
-  // regression) and NOT unconditional (a failed run with no deliverable already has
-  // "Run again" + <StuckRunButton>; stacking a second CTA there was never the ask).
-  // Anchor on the RENDER form (`<RunContinueBox runId=`), never the bare tag name —
-  // the surrounding comment mentions `<RunContinueBox/>` by name, and a plain
-  // indexOf matches that prose first and silently asserts against the wrong span.
-  const idx = page.indexOf('<RunContinueBox runId=');
-  assert.ok(idx !== -1, 'RunContinueBox must be rendered on the run page');
-
-  // Walk back to the conditional that guards this render.
-  const before = page.slice(Math.max(0, idx - 400), idx);
-  assert.match(
-    before,
-    /\{!held && r\.output_markdown && \(/,
-    'the continue box must be gated on !held && r.output_markdown — a finished run with a deliverable',
-  );
+test('the general revision box requires output from a run outside hold and recovery', () => {
+  assert.match(page, /\{artifactProvenanceAvailable && !held && !showRunProblem && r\.output_markdown && !showFinishedReview && \([\s\S]*?\{continueBox\}/);
 });
 
 test('the held path still owns its own continue (no double CTA)', () => {

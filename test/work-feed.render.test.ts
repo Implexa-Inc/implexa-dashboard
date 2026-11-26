@@ -1,7 +1,9 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {render} from '../lib/test/render.ts';
 
+const liveStatusCapture=JSON.parse(readFileSync(new URL('../lib/test/fixtures/work-live-status.json',import.meta.url),'utf8'));
 const emptyNeeds={needGrant:[],missed:[],signIns:[],stalled:[],attentionItems:[],homeAttention:[],pendingReviews:0,homeCount:0,total:0,partial:false,truncated:false,unavailableSources:[]};
 const queue={items:[],truncated:false,total:0,visibleCount:0,sources:{review_endpoint:'ready'},live:true};
 const base={view:'activity',needs:emptyNeeds,queue,names:{},reviewDetails:{},warning:null};
@@ -78,22 +80,58 @@ test('live work renders while server sources are pending; later streamed actions
  }finally{r.cleanup();}
 });
 
-test('Needs-you rows sort newest first, use plain needs copy and retain bounded stalled work once',async()=>{
+test('Needs-you rows sort newest first and the live feed supersedes its startup snapshot',async()=>{
  const judge={attentionId:'old',sourceType:'judge_block',sourceId:'judgment',runId:'old-judge',agentSlug:'old-video-agent',agentName:'old-video-agent',whatHappened:'Internal verification detail with TOOL_KEY and frozen proof',requiredAction:'provide_information',actionDetail:'Raw internal detail',primaryAction:{kind:'provide_information',targetType:'judge_block',targetId:'judgment',label:'Provide information'},reasons:[],createdAt:'2026-11-20T12:00:00Z',seenAt:null,resolvedAt:null};
  const needs={...emptyNeeds,homeAttention:[judge],stalled:[{id:'new-stall',slug:'new-video-agent',name:'new-video-agent',at:'2026-11-21T12:00:00Z'},{id:'running-id',slug:'video-agent',name:'Video agent',at:'2026-11-21T12:00:00Z'}]};
  const r=await render('../work/_components/work-feed.tsx',{...base,view:'needs',needs},{exportName:'WorkList',fetch:fetchSummary,backend:path=>path.startsWith('/api/v2/scheduled-skills/live')?{items:[{...live,status:'needs_attention',since:'2026-11-21T13:00:00Z'}]}:{ok:true}});
  try{
   await flush(r);
   const titles=Array.from(r.document.querySelectorAll('[aria-label="Work items"] .work-row-title')).map(node=>node.textContent);
-  assert.deepEqual(titles,['A real run title','New Video Agent','Old Video Agent']);
-  assert.equal(titles.filter(title=>title==='New Video Agent').length,1);
-  assert.ok(r.document.querySelector('a[href="/runs/new-stall"]'));
+  assert.deepEqual(titles,['A real run title','Old Video Agent']);
+  assert.equal(r.document.querySelector('a[href="/runs/new-stall"]'),null);
   const subs=Array.from(r.document.querySelectorAll('.work-row-sub')).map(node=>node.textContent).join(' ');
   assert.doesNotMatch(subs,/TOOL_KEY|frozen proof|Raw internal detail/);
   assert.match(subs,/needs information/);
   assert.match(r.document.querySelector('.work-row-details')?.textContent||'',/Internal verification detail|This run stopped/);
   const inputAction=Array.from(r.document.querySelectorAll('button')).find(node=>node.textContent==='Provide information');
   assert.ok(inputAction?.className.includes('btn-outline'));
+ }finally{r.cleanup();}
+});
+
+test('Work renders the producer’s distinct interruptions and refreshes status after an outage',async()=>{
+ let liveReads=0;
+ const needs={...emptyNeeds,stalled:[{id:'recovered-interruption',slug:'synthetic-video-agent',name:'Video agent',at:'2026-11-26T17:45:00Z'}]};
+ // Synthetic server-component props model a review snapshot from before the
+ // failure. The live status that overrides it comes from the actual producer.
+ const outstanding={rootRunId:'failed-run',latestRunId:'failed-run',slug:'synthetic-video-agent',reason:'new_result',
+  holdKind:null,judgeVerdict:null,unresolvedIssueCount:0,versionCount:1,lineageAvailable:true,latestAt:null};
+ const r=await render('../work/_components/work-feed.tsx',{...base,needs,queue:{...queue,items:[outstanding]}},{exportName:'WorkList',fetch:fetchSummary,backend:path=>{
+  if(!path.startsWith('/api/v2/scheduled-skills/live'))throw new Error('Unexpected read '+path);
+  if(++liveReads===1)throw new Error(liveStatusCapture.unavailable.body.error);
+  return liveStatusCapture.live.body;
+ }});
+ try{
+  await flush(r);
+  assert.match(r.text(),/Live status is unavailable/);
+  assert.match(r.text(),/Last recorded as stalled/);
+  assert.ok(r.document.querySelector('a[href="/review/failed-run"]'));
+  const button=r.getByText('Try again');
+  await r.click(button);await flush(r);
+  assert.equal(liveReads,2);
+  assert.doesNotMatch(r.text(),/Live status is unavailable|Last recorded as stalled/);
+  assert.equal(r.document.querySelector('a[href="/review/failed-run"]'),null);
+  for(const id of ['stalled-first','stalled-second','failed-run','quiet-run']){
+   assert.ok(r.document.querySelector(`a[href="/runs/${id}"]`),id);
+  }
+  for(const id of ['recovered-interruption','dismissed-interruption']){
+   assert.equal(r.document.querySelector(`a[href="/runs/${id}"]`),null,id);
+  }
+  const rows=Array.from(r.document.querySelectorAll('[aria-label="Work items"] .work-item-row'));
+  for(const id of ['stalled-first','stalled-second']){
+   assert.match(rows.find(row=>row.querySelector(`a[href="/runs/${id}"]`))?.textContent||'',/Stalled/);
+  }
+  assert.match(rows.find(row=>row.querySelector('a[href="/runs/failed-run"]'))?.textContent||'',/Failed/);
+  assert.match(rows.find(row=>row.querySelector('a[href="/runs/quiet-run"]'))?.textContent||'',/No recent progress reported/);
  }finally{r.cleanup();}
 });
 

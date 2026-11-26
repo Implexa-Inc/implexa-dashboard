@@ -89,6 +89,8 @@ export type ReviewRoomProps = {
   finishedView?: {reviewHref:string;changes:ReactNode;afterResult?:ReactNode;checks?:ReactNode;fallbackResult?:ReactNode};
   /** Reuses the same annotation writer; revision controls stay in Review Room. */
   trainingMode?: boolean;
+  /** Work's revision surface can use the shared video timeline without teaching. */
+  runMarkup?: boolean;
   recoveredFeedback?: boolean;
   trainingOwnerId?: string;
   initialTrainingIssueId?: string;
@@ -1342,11 +1344,12 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     const timer=window.setTimeout(()=>{const note=teachingNoteRef.current;if(note&&note.dataset.floating!=='true')note.scrollIntoView?.({block:'nearest'});},0);
     return()=>window.clearTimeout(timer);
   },[noteFocusKey]);
+  const timelineEnabled=props.trainingMode||props.runMarkup;
   const canMarkNow=!props.finishedView&&!frozen&&!accepted&&artifact?.status==='validated'
     && (!recoveredFeedback || (preview?.artifactId===selectedId && playheadMs!==null));
   // M adds a note at the current frame — the keyboard twin of "+ Point comment".
   useEffect(()=>{
-    if(!props.trainingMode||!canMarkNow)return;
+    if(!timelineEnabled||!canMarkNow)return;
     const onKey=(event:KeyboardEvent)=>{
       const target=event.target as HTMLElement|null;
       if(target&&(target.isContentEditable||['INPUT','TEXTAREA','SELECT'].includes(target.tagName)))return;
@@ -1365,7 +1368,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     };
     window.addEventListener('keydown',onKey);
     return()=>window.removeEventListener('keydown',onKey);
-  },[props.trainingMode,canMarkNow,voiceDirty,draft,targetIdentity]);
+  },[timelineEnabled,canMarkNow,voiceDirty,draft,targetIdentity]);
   const noteCountLabel=(count:number)=>`${count} ${count===1?'note':'notes'}`;
 
   const resultSurface = (<ArtifactSurface
@@ -1390,7 +1393,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             setDraft(openDraft({ target: targetIdentity, playheadMs, selection: s }));
           }}
           onSeek={seekTo}
-          timeline={props.trainingMode?{
+          timeline={timelineEnabled?{
             onRange:canMarkNow?onTimelineRange:undefined,
             draft:draft&&draft.anchorMs!==null&&draft.target.artifactId===selectedId?{startMs:draft.anchorMs,endMs:draft.rangeEndMs,editingIssueId:draft.editingIssueId??null,resizable:draft.rangeEndMs!==null&&!draft.spatial&&!draft.selection}:null,
             onResize:(edge,ms)=>resizeDraftRange(edge,ms,0),
@@ -1478,7 +1481,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           {accepted?<p className="text-state-ok">You accepted this result.</p>:canAccept?<button type="button" className="btn-primary" disabled={busy} onClick={()=>void onPrimary()}>{busy?'Accepting…':'Accept'}</button>:<p role="status">{historicalProvenanceUnavailable||issuesUnavailable||resolutionsUnavailable?'Review details could not be verified. Open the review before accepting.':proxyPreview?'The final result is not ready for acceptance.':'Open the review to check what is needed before accepting.'}</p>}
           {confirmDiscard&&<p role="alert">Your saved notes are unchanged. Open the review to decide what to keep before accepting.</p>}
           <div className="finished-changes">{canRequestChanges?view.changes:<p className="text-reading text-ink-400">Open the Review Room to keep your saved notes together and continue this review.</p>}</div>
-          <a className="finished-markup" href={view.reviewHref}><strong>{canRequestChanges?'Mark up the result instead':'Continue reviewing this result'}</strong><span>{!canRequestChanges&&activeIssues.length?`${activeIssues.length} saved ${activeIssues.length===1?'note stays':'notes stay'} together in the Review Room →`:'Pin notes to exact moments in the Review Room →'}</span></a>
+          <a className="finished-markup" href={view.reviewHref}><strong>{canRequestChanges?'Mark up the result':'Continue editing this result'}</strong><span>{!canRequestChanges&&activeIssues.length?`${activeIssues.length} saved ${activeIssues.length===1?'note':'notes'} on this result →`:'Mark exact moments and run again with your changes →'}</span></a>
         </section>
         {view.checks}
         <section className="finished-versions"><h2>Versions</h2>{sources.lineage==='unavailable'?<p>Version history unavailable.</p>:(props.versions?.length?props.versions:[{runId,label:'This result'}]).map(version=><a key={version.runId} aria-current={version.runId===runId?'page':undefined} href={version.runId===runId?`/runs/${encodeURIComponent(runId)}?keep=1`:`/runs/${encodeURIComponent(version.runId)}`}><span>{version.label}</span>{version.runId===runId&&<small>This one</small>}</a>)}</section>
@@ -1687,7 +1690,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 type="button" disabled={busy||voiceDirty} onClick={submitIssue}
                 className="rounded-md bg-ink-100 px-3 py-1.5 text-ui font-medium text-ink-950 disabled:opacity-50"
               >
-                {recoveredFeedback && !draft.editingIssueId ? 'Save feedback' : saveDraftLabel(draft)}
+                {(recoveredFeedback || props.runMarkup) && !draft.editingIssueId ? 'Save feedback' : saveDraftLabel(draft)}
               </button>
               <button
                 type="button"
@@ -1876,7 +1879,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       <aside className="flex max-h-[70vh] min-h-0 flex-col rounded-lg border border-ink-800 bg-ink-900/40 lg:max-h-none">
         <div className="shrink-0 border-b border-ink-800 px-4 py-3">
           <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-ui font-medium text-ink-200">{recoveredFeedback ? 'Your feedback' : props.trainingMode?'Your teaching notes':'Review issues'}</h2>
+            <h2 className="text-ui font-medium text-ink-200">{recoveredFeedback || props.runMarkup ? 'Your feedback' : props.trainingMode?'Your teaching notes':'Review issues'}</h2>
             {!issuesUnavailable && !resolutionsUnavailable && visible.length > 0 && (
               <span className="shrink-0 text-micro tabular-nums text-ink-500">{props.trainingMode ? noteCountLabel(visible.length) : groupCountLabel(visible.length)}</span>
             )}
@@ -1915,7 +1918,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           <p className="text-secondary text-ink-500">
             {/* Not "pause and add feedback" any more — pausing was never the requirement,
                 and saying so is what made a stale pause position look authoritative. */}
-            {proxyPreview ? 'No parent-run issues are attached to this proxy.' : props.trainingMode ? 'No notes yet. Move to a moment and add feedback.' : 'No issues yet. Move to a moment and add feedback.'}
+            {proxyPreview ? 'No parent-run issues are attached to this proxy.' : props.trainingMode || props.runMarkup ? 'No notes yet. Move to a moment and add feedback.' : 'No issues yet. Move to a moment and add feedback.'}
           </p>
         ) : (
           groups.map((group) => (
@@ -2412,7 +2415,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 className="w-full rounded-md bg-ink-100 px-3 py-2 text-ui font-medium text-ink-950 disabled:opacity-40"
               >
                 {submitView.mode === 'send_changes'
-                  ? revisionCompositionLabel(unresolvedPrior.length, drafts.length)
+                  ? props.runMarkup ? 'Run again with these changes' : revisionCompositionLabel(unresolvedPrior.length, drafts.length)
                   : submitView.primaryLabel}
               </button>
 
