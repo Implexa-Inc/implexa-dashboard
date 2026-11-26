@@ -247,7 +247,6 @@ export function describeFolderAttachError(code: string | undefined): string {
 
 export function AttachFiles({
   files, canAttach, canAttachFolder = false, onAttach, onAttachFolder, onRemove, error = null,
-  fileLabel = 'Attach file',
   hint = 'A screenshot, file, or folder — the run reads it as context.',
 }: {
   files: string[];
@@ -257,7 +256,6 @@ export function AttachFiles({
   onAttachFolder?: () => void;
   onRemove: (i: number) => void;
   error?: string | null;
-  fileLabel?: string;
   hint?: string;
 }) {
   return (
@@ -273,7 +271,7 @@ export function AttachFiles({
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3 3 0 014.24 4.24l-9.2 9.19a1 1 0 01-1.41-1.41l8.49-8.49" />
           </svg>
-          {fileLabel}
+          Attach file
         </button>
         {canAttachFolder && onAttachFolder && <button
           type="button"

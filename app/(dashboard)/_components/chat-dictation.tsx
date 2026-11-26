@@ -46,7 +46,7 @@ export default function ChatDictation({scope,disabled,onInsert,onBusy,micIcon=fa
  const label=available?'Dictate message':'Dictation is available in the Tukido desktop app';
  return <div className="text-secondary">
   <button type="button" aria-label={label} title={label} disabled={!available||disabled||active.current}
-   onClick={()=>void start()} className="inline-flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-lg border border-ink-700 px-3 py-2 text-ink-300 hover:text-ink-100 disabled:opacity-40">
+   onClick={()=>void start()} className={micIcon?"inline-flex h-10 min-w-10 items-center justify-center rounded-full px-2 text-ink-200 hover:bg-ink-800 disabled:opacity-40":"inline-flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-lg border border-ink-700 px-3 py-2 text-ink-300 hover:text-ink-100 disabled:opacity-40"}>
    {micIcon?<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
     <rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/>
    </svg>:'🎙'}

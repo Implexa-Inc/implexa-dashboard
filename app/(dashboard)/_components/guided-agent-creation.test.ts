@@ -6,9 +6,9 @@ const turn=(n:number,patch:any={})=>({turnId:id(n),message:'Create a presenter v
  replyId:id(n+100),replyDigest:H,reply:'Prepared; nothing has started.',brief:{name:'Video studio',goal:'Edit presenter footage.',inputs:['One raw video'],outputs:['Playable MP4'],tools:[{name:'Remotion',requirement:'required'}]},
  trainingNotes:['Prefer warm, quiet layouts.'],questions:[],buildIntent:'Edit presenter footage. Deliver MP4.',toolPreferences:['remotion'],tools:[{name:'Remotion',requirement:'required',supported:true}],model:'claude-haiku-5-5',reason:null,...patch});
 async function type(r:Rendered,s:string){const e=r.document.querySelector('textarea')!;await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLTextAreaElement.prototype,'value')!.set!.call(e,s);e.dispatchEvent(new r.window.Event('input',{bubbles:true}));});}
-async function setup(t:any,initial:any[]=[]){
+async function setup(t:any,initial:any[]=[],bridge?:Record<string,unknown>){
  let turns=initial;const calls:any[]=[];let draftId='';
- const r=await render('./guided-agent-creation.tsx',{ownerId:OWNER},{fetch:(async(url:string,init:any={})=>{
+ const r=await render('./guided-agent-creation.tsx',{ownerId:OWNER},{bridge,fetch:(async(url:string,init:any={})=>{
   calls.push({url,init});
   if(url==='/api/agents/plan-preview')return {ok:true,json:async()=>({ok:true,decisionMode:'direct',autoToolPreferences:['ffmpeg'],disclosures:[]})};
   if(url==='/api/agents/create')return {ok:true,json:async()=>({ok:true,request:{id:id(99)}})};
@@ -71,4 +71,21 @@ test('an unsupported document leaves the typed draft editable and sends nothing'
  assert.match(r.document.querySelector('[role=alert]')!.textContent!,/paste the relevant text/);
  assert.equal(r.document.querySelector('textarea')!.value,'Use this example');
  assert.equal(calls.filter(c=>c.init.method==='POST').length,0);
+});
+
+test('the plus menu dismisses on Escape and opens the selected picker without sending',async t=>{
+ let folderPicks=0;
+ const {r,calls}=await setup(t,[],{pickFile:async()=>({canceled:true}),pickDirectory:async()=>{
+  folderPicks++;return {ok:true,path:'/example/Footage'};
+ }});
+ const add=r.document.querySelector<HTMLButtonElement>('[aria-label="Add attachments"]')!;
+ const options=r.document.querySelector<HTMLElement>('[aria-label="Attachment options"]')!;
+ assert.equal(options.hidden,true);
+ await r.click(add);assert.equal(options.hidden,false);
+ await r.act(()=>{options.dispatchEvent(new r.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});
+ assert.equal(options.hidden,true);assert.equal(r.document.activeElement,add);
+ await r.click(add);await r.click(r.getByText('Attach folder'));
+ assert.equal(folderPicks,1);assert.equal(options.hidden,true);
+ assert.ok(r.document.querySelector('[aria-label="Remove Footage"]'));
+ assert.equal(calls.some(call=>call.init.method==='POST'),false);
 });
