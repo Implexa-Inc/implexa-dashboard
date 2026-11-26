@@ -2563,7 +2563,7 @@ function ArtifactSurface({
     const Tag = (decision.kind === 'video' ? 'video' : 'audio') as 'video' | 'audio';
     // Relative picture wrapper only: the annotation overlay never covers transport.
     const picture = (revealOutside?: (action: () => void) => void) => (
-        <div className={decision.kind === 'video' ? 'relative' : undefined}>
+        <div className={decision.kind === 'video' ? 'review-playback-picture relative' : undefined}>
         <Tag
           // KEYED BY ARTIFACT. Without this React reuses the element across a switch and
           // loadedmetadata may never fire for the new file, so a pending seek would hang.
