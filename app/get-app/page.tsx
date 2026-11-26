@@ -16,6 +16,7 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
 import { computeSetupStatus } from '@/lib/setup-status';
+import { agentSharePath, isAgentShareId } from '@/lib/agent-share';
 import { postAuthDestination } from '@/lib/navigation';
 import { macDownloadUrl } from '@/lib/app-links';
 import PersistIntent from '../(dashboard)/_components/persist-intent';
@@ -23,17 +24,19 @@ import GetAppClient from './get-app-client';
 
 export const dynamic = 'force-dynamic';
 
-export default async function GetAppPage() {
+export default async function GetAppPage({ searchParams }: { searchParams?: { agent?: string } }) {
+  const agentId = isAgentShareId(searchParams?.agent) ? searchParams.agent : null;
+  const agentDestination = agentId ? `${agentSharePath(agentId)}?open=1` : undefined;
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) redirect('/login?next=/get-app');
+  if (!session?.user) redirect(agentId ? `/login?next=${encodeURIComponent(agentSharePath(agentId))}` : '/login?next=/get-app');
 
   const profile = await readUserProfile(supabase
     .from('users').select('display_name, last_mcp_call_at, last_hook_event_at').eq('id', session.user.id));
 
   // Already connected → the dashboard is theirs; don't hold them on the door.
   const setup = computeSetupStatus(profile?.last_mcp_call_at, profile?.last_hook_event_at);
-  if (setup.status !== 'never') redirect(postAuthDestination());
+  if (setup.status !== 'never') redirect(agentDestination || postAuthDestination());
 
   const firstName = (profile?.display_name || '').trim().split(/\s+/)[0] || null;
   return (
@@ -42,7 +45,7 @@ export default async function GetAppPage() {
           skips the dashboard (where PersistIntent normally lives), so a fresh
           user's "build X" would otherwise be lost until after they connect. */}
       <Suspense fallback={null}><PersistIntent /></Suspense>
-      <GetAppClient dmgUrl={macDownloadUrl()} firstName={firstName} />
+      <GetAppClient dmgUrl={macDownloadUrl()} firstName={firstName} destination={agentDestination} />
     </>
   );
 }

@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import Link from 'next/link';
 import AgentOverview from './agent-overview';
+import ShareAgentButton from './share-agent-button';
 import AgentPageHeader from './agent-page-header';
 import AgentTabs from './agent-tabs';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -176,6 +177,7 @@ export default function AgentResume({ agent,surface='page',detailUnavailable=fal
     <Link href="/workflows" className="text-secondary text-ink-500 hover:text-ink-200">← Agents</Link>
     <AgentPageHeader title={<h1>{agent.name}</h1>} description={agent.job}
       byline={<><span>Trained by <b>{agent.builder.name}</b></span><span>·</span><span>Version {agent.version.number}</span><span>·</span><span>{agent.ownership==='Owned'?'Built by you':agent.ownership==='Hired'?'In your agents':'Available'}</span></>}
+      actions={<ShareAgentButton key={agent.id} id={agent.id} slug={agent.slug}/>}
       more={<><Link href={setupHref}>Setup and permissions</Link>{agent.ownership==='Owned'&&<><Link href={`/training/${encodeURIComponent(agent.slug)}`}>Train this agent</Link><Link href={`/training/${encodeURIComponent(agent.slug)}?chat=edit`}>Edit agent</Link><Link href={setupHref+'#published-settings'}>Free audition settings</Link></>}{agent.acquisition&&agent.acquisition.lifecycle!=='uninstalled'&&<><button type="button" disabled={busy} onClick={()=>mutate(`/api/v2/agents/discovery/${agent.id}/${agent.acquisition?.lifecycle==='disabled'?'enable':'disable'}`)}>{agent.acquisition.lifecycle==='disabled'?'Resume agent':'Pause agent'}</button><Link href={setupHref}>Manage access</Link></>}</>}
     >{agent.readiness.reason&&<p role="status" className="agent-page-notice">{agent.readiness.reason}</p>}{error&&<p role="alert" className="text-state-fail">{error}</p>}</AgentPageHeader>
     {activeTab==='overview'&&<div className="agent-sample-placeholder" role="img" aria-label="Sample preview unavailable"><span>Sample output</span><p>A sample preview is not available here yet.</p></div>}

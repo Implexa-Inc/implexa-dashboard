@@ -19,6 +19,7 @@ const KEPT_PARAMS = [
 // Path segments that are capability tokens: anyone holding the URL can open it.
 const TOKEN_PATHS: Array<[RegExp, string]> = [
   [/^\/s\/run\/[^/]+/, '/s/run/[token]'],
+  [/^\/s\/agent\/[^/]+/, '/s/agent/[id]'],
   [/^\/s\/(?!run(?:\/|$))[^/]+/, '/s/[token]'],
 ];
 

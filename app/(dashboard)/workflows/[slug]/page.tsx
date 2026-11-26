@@ -33,6 +33,8 @@ import { loadInboxItems } from '@/lib/inbox';
 import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
 import AgentOverview,{AgentInputSummary} from '../../_components/agent-overview';
 import AgentListingCover from '../../_components/agent-listing-cover';
+import { isAgentShareId } from '@/lib/agent-share';
+import ShareAgentButton from '../../_components/share-agent-button';
 import AgentPageHeader from '../../_components/agent-page-header';
 import AgentReadiness from '../../_components/agent-readiness';
 import { missingRequiredApiKeys } from '@/lib/agent-readiness-requirements';
@@ -97,7 +99,7 @@ export default async function WorkflowDetailPage({
   searchParams,
 }: {
   params: { slug: string };
-  searchParams: { source?: string; run?:string; tab?: string; legacy?: string; trainingPreparationId?:string;trainingPreparationDigest?:string };
+  searchParams: { source?: string; shared?: string; run?:string; tab?: string; legacy?: string; trainingPreparationId?:string;trainingPreparationDigest?:string };
 }) {
   if(searchParams.legacy){const query=new URLSearchParams(Object.entries(searchParams).filter(([key,value])=>key!=='legacy'&&typeof value==='string') as Array<[string,string]>);redirect(`/workflows/${encodeURIComponent(params.slug)}${query.size?'?'+query:''}`);}
   const supabase = createClient();
@@ -117,13 +119,22 @@ export default async function WorkflowDetailPage({
   // marketplace discovery probe used to be a SERIAL hop in front of everything;
   // it now runs in parallel with the envelope and simply wins when the agent is
   // a marketplace one.
+  const sharedId = searchParams.shared;
+  if (sharedId !== undefined && !isAgentShareId(sharedId)) notFound();
   const detailPromise = getAgentDetail(params.slug, session.access_token, { source: searchParams.source });
-  const resume=trainingTest.state==='prepared'?null:await getAgentResume(params.slug,session.access_token);
+  const resume=trainingTest.state==='prepared'?null:await getAgentResume(sharedId || params.slug,session.access_token);
   const detailResult = await detailPromise;
 
   // A readable public/acquisition projection remains useful if the deeper detail is absent.
-  const readMode=agentPageReadMode(detailResult,resume);
-  if(readMode.mode==='public')return <AgentResume agent={readMode.agent} detailUnavailable/>;
+  const scopedDetail = sharedId && detailResult.status === 'ready'
+    && (detailResult.detail.workflow.id !== sharedId || detailResult.detail.workflow.source !== searchParams.source)
+    ? { status: 'not_found' as const }
+    : detailResult;
+  const readMode=agentPageReadMode(scopedDetail,resume);
+  if (readMode.mode === 'public') {
+    if (sharedId && readMode.agent.id !== sharedId) notFound();
+    return <AgentResume agent={readMode.agent} detailUnavailable/>;
+  }
   // A FAILED READ IS NOT A MISSING AGENT. 'unavailable' used to fall through to
   // the schedule-only branch below, which calls notFound() when the agent has
   // no schedule row — so a backend blip told the owner their agent had been
@@ -147,6 +158,7 @@ export default async function WorkflowDetailPage({
 
   const detail = detailResult.status === 'ready' ? detailResult.detail : null;
   const workflow = detail?.workflow ?? null;
+  if (sharedId && (workflow?.id !== sharedId || workflow.source !== searchParams.source)) notFound();
 
   // Not in the workflow catalog — but it may still be a scheduled SKILL the user
   // scheduled/paused (a skill isn't a "workflow", so the catalog read 404s). Open
@@ -576,6 +588,8 @@ export default async function WorkflowDetailPage({
           title={<AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={true}/>}
           description={workflow.job || workflow.description}
           byline={<><span>{canTrain?'Built by you':marketplaceAgent?`Trained by ${marketplaceAgent.builder.name}`:checklist?.requiresLocal?'Runs on your computer':'Agent'}</span><span>·</span><span>{workflow.activity.run_count} recorded runs</span>{typeof workflow.version==='number'&&<><span>·</span><span data-testid="active-version">Active version: v{workflow.version}</span></>}{judgePolicy==='observe'&&<><span>·</span><span title="Reviews each run without changing or rerunning it">Judge on</span></>}{judgePolicy==='every_run'&&<><span>·</span><span title="Reviews and may rerun one repair using your subscription">Judge on · may repair</span></>}{workflow.unproven&&<><span>·</span><span>Not proven by runs yet</span></>}</>}
+          actions={<ShareAgentButton key={workflow.id} id={workflow.id} slug={workflow.slug}
+            canPublish={canTrain && workflow.source === 'generated'}/>}
           more={<>
             <Link href={setupHref.replace('tab=setup','tab=overview')+'#agent-history'}>Version history</Link>
             <AgentDefinitionReview definition={workflow.revision_contract ?? null} versionSource={workflow.definition_version_source ?? null} updateAvailable={!!workflow.update_available} revisePending={revisePending} statusUnavailable={lifecycleUnavailable} slug={workflow.slug}/>
