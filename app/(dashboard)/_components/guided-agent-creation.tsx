@@ -6,7 +6,7 @@ import {creationQuestionChoices} from '@/lib/agent-creation-brief';
 import {useEffect,useRef,useState} from 'react';
 import Link from 'next/link';
 import {createAgentBuild,retrySavedBuild} from '@/lib/plan-review';
-import {AttachFiles,composeNoteWithFiles,useRunAttachments,ATTACH_BUILD_MARKER} from './run-attachments';
+import {fileName,MAX_RUN_FILES,composeNoteWithFiles,useRunAttachments,ATTACH_BUILD_MARKER} from './run-attachments';
 import {isCreationDraftRead,type CreationDraftRead,type CreationTurn} from '@/lib/agent-creation-brief';
 
 const documentFormats = /\.(txt|md|markdown|csv|tsv)$/i;
@@ -23,6 +23,51 @@ async function readDraftDocument(file: File): Promise<string> {
  catch { throw new Error(`Save ${file.name} as UTF-8 text and attach it again.`); }
  if (!content.trim() || /[\u0000-\u0008\u000e-\u001f]/.test(content)) throw new Error(`${file.name} has no readable document text.`);
  return content;
+}
+
+/** The composer can sit inside a clipped conversation. Position the disclosure
+ * in the viewport and close it when its anchor moves. */
+function AttachmentMenu({children,disabled}:{children:React.ReactNode;disabled:boolean}){
+ const trigger=useRef<HTMLButtonElement>(null), container=useRef<HTMLDivElement>(null);
+ const [position,setPosition]=useState<React.CSSProperties|null>(null);
+ const close=()=>setPosition(null);
+ useEffect(()=>{
+  if(!position)return;
+  const outside=(event:Event)=>{if(!container.current?.contains(event.target as Node))close();};
+  const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'){close();trigger.current?.focus();}};
+  const scroll=(event:Event)=>{if(!container.current?.contains(event.target as Node))close();};
+  document.addEventListener('pointerdown',outside);
+  document.addEventListener('focusin',outside);
+  document.addEventListener('keydown',escape);
+  window.addEventListener('resize',close);
+  window.addEventListener('scroll',scroll,true);
+  return ()=>{
+   document.removeEventListener('pointerdown',outside);
+   document.removeEventListener('focusin',outside);
+   document.removeEventListener('keydown',escape);
+   window.removeEventListener('resize',close);
+   window.removeEventListener('scroll',scroll,true);
+  };
+ },[position]);
+ return <div ref={container}>
+  <button ref={trigger} type="button" aria-label="Add attachments" title="Add attachments" aria-expanded={!!position} disabled={disabled}
+   className="flex h-10 w-10 items-center justify-center rounded-full text-ink-200 hover:bg-ink-800 focus-visible:ring-2 focus-visible:ring-brand-500 disabled:opacity-40"
+   onClick={event=>{
+    if(position){close();return;}
+    const rect=event.currentTarget.getBoundingClientRect();
+    const above=rect.top>=210||rect.top>window.innerHeight-rect.bottom;
+    const space=above?rect.top:window.innerHeight-rect.bottom;
+    setPosition({left:Math.max(8,Math.min(rect.left,window.innerWidth-264)),maxHeight:space-16,
+     ...(above?{bottom:window.innerHeight-rect.top+6}:{top:rect.bottom+6})});
+   }}>
+   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+  <div hidden={!position} role="group" aria-label="Attachment options" style={position??undefined}
+   className="fixed z-50 w-64 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-ink-700 bg-ink-900 p-1.5 shadow-xl"
+   onClick={event=>{if((event.target as Element).closest('button')){close();trigger.current?.focus();}}}>
+   {children}
+  </div>
+ </div>;
 }
 
 /** Prepared cards over the existing plan/build gate. This component grants no
@@ -122,7 +167,9 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
    </select></label>}
    <p className="text-reading">Messages stay in your private history. Withdrawal stops further preparation and builds from this draft; it does not cancel queued work.</p><button type="button" className="underline" disabled={busy||data?.withdrawn||!data?.turns.length} onClick={withdraw}>Withdraw this draft from further use</button>
   </div>;
- const attachmentControls=<fieldset disabled={busy||isBuilt||isPending} className="min-w-0 space-y-1">
+ const attachmentsDisabled=busy||isBuilt||isPending;
+ const menuRow="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-ui text-ink-100 hover:bg-ink-800 focus-visible:bg-ink-800 disabled:opacity-40";
+ const attachmentControls=<>
   <input hidden ref={documentPicker} type="file" multiple aria-label="Select documents for the planner" accept=".txt,.md,.markdown,.csv,.tsv" onChange={event=>{
    const picked=Array.from(event.currentTarget.files||[]);event.currentTarget.value='';
    if(!picked.length)return;
@@ -131,13 +178,34 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
    if(next.length>8||next.reduce((total,file)=>total+file.size,0)>24000){setError('Attach up to eight documents totaling 24 KB, or paste a shorter excerpt.');return;}
    setDocuments(next);setError('');
   }}/>
-  <button type="button" className="rounded-md border border-ink-700 px-2.5 py-1.5 text-ui" onClick={()=>documentPicker.current?.click()} title="Add a text, Markdown, CSV or TSV document to this message">Attach file</button>
-  {(canAttach||canAttachFolder)&&<details className="inline-block align-top px-2 text-ui"><summary className="cursor-pointer py-1.5">Build references{files.length?` (${files.length})`:''}</summary>
-   <AttachFiles files={files} canAttach={canAttach} canAttachFolder={canAttachFolder} fileLabel="Attach build file" onAttach={()=>attachFile()} onAttachFolder={()=>attachFolder()} onRemove={removeFile} error={attachError} hint="The worker opens these on your computer after approval."/>
-  </details>}
-  {!!documents.length&&<div className="space-y-1"><ul className="flex flex-wrap gap-2">{documents.map((file,i)=><li key={i} className="rounded-md border border-ink-700 px-2 text-secondary">{file.name} <button type="button" aria-label={`Remove ${file.name}`} onClick={()=>setDocuments(current=>current.filter((_,index)=>index!==i))}>×</button></li>)}</ul><p className="text-secondary text-ink-400">Send includes the document text in your private draft.</p></div>}
- </fieldset>;
- const chatComposer=<ChatComposer micIcon inlineAttachments attachedMessage={documents.length>0} maxLength={Infinity} voiceScope={draftId||'creation-start'} standalone={starting} details={starting?draftDetails:undefined} value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId} textareaRef={composer} placeholder={starting?'Describe the job, paste the steps, or attach a playbook…':'Add a detail or ask for a change…'} attachments={attachmentControls}/>;
+  <AttachmentMenu key={draftId} disabled={attachmentsDisabled}>
+   <button type="button" className={menuRow} disabled={attachmentsDisabled} onClick={()=>documentPicker.current?.click()}>
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M8 13.5l7-7a2.1 2.1 0 0 1 3 3l-9 9a4 4 0 1 1-5.7-5.6l9.3-9.3"/></svg>
+    <span><span>Attach file</span><small className="block text-secondary text-ink-400">Include text in this message</small></span>
+   </button>
+   {(canAttach||canAttachFolder)&&<div className="mt-1 border-t border-ink-700 pt-1">
+    <p className="px-3 py-1 text-secondary text-ink-400">Use after plan approval</p>
+    {canAttach&&<button type="button" className={menuRow} disabled={attachmentsDisabled||files.length>=MAX_RUN_FILES} onClick={()=>void attachFile()}>
+     <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"><path d="M5 3h9l5 5v13H5zM14 3v6h5"/></svg>Choose a file
+    </button>}
+    {canAttachFolder&&<button type="button" className={menuRow} disabled={attachmentsDisabled||files.length>=MAX_RUN_FILES} onClick={()=>void attachFolder()}>
+     <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"><path d="M3 6h6l2 2h10v12H3z"/></svg>Attach folder
+    </button>}
+   </div>}
+  </AttachmentMenu>
+ </>;
+ const selections=[
+  ...documents.map((file,i)=>({name:file.name,when:'In message',remove:()=>setDocuments(current=>current.filter((_,idx)=>idx!==i))})),
+  ...files.map((path,i)=>({name:fileName(path),when:'For build',remove:()=>removeFile(i)})),
+ ];
+ const attachmentPreview=<>
+  {!!selections.length&&<ul className="flex flex-wrap gap-2">{selections.map((item,i)=><li key={i} className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-lg border border-ink-700 px-2 text-secondary">
+   <span className="truncate">{item.name}</span><small className="shrink-0 text-ink-400">{item.when}</small>
+   <button disabled={attachmentsDisabled} type="button" aria-label={`Remove ${item.name}`} onClick={item.remove}>×</button>
+  </li>)}</ul>}
+  {attachError&&<p role="alert" className="text-secondary text-state-needs">{attachError}</p>}
+ </>;
+ const chatComposer=<ChatComposer micIcon inlineAttachments attachmentPreview={attachmentPreview} attachedMessage={documents.length>0} maxLength={Infinity} voiceScope={draftId||'creation-start'} standalone={starting} details={starting?draftDetails:undefined} value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId} textareaRef={composer} placeholder={starting?'Describe the job, paste the steps, or attach a playbook…':'Add a detail or ask for a change…'} attachments={attachmentControls}/>;
  return <section className={starting?"mx-auto max-w-3xl space-y-4":"grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]"}>
   <aside className={starting?"min-w-0":"min-w-0 lg:sticky lg:top-6"}>{starting?chatComposer:<ChatFrame contentSized scrollKey={data?.turns.at(-1)?.turnId+':'+data?.turns.at(-1)?.status} title="Chat with AI" subtitle="Build your agent" details={draftDetails} composer={chatComposer}>
    {data&&!data.withdrawn&&data.totalTurns>data.turns.length&&<p className="text-secondary text-ink-500">Showing recent exchanges. Earlier messages are saved in this draft.</p>}
