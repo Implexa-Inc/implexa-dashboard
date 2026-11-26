@@ -119,10 +119,12 @@ function PermissionList({ items, optIns, onToggle, savingGroup }: {
 
 type NeededConnection = { account?: string; label?: string; status?: string; identity?: string | null };
 
-function ConnectionRow({ item, onChanged, onBrowserVerified, workedAround, onToggleWorkAround, slug }: {
+function ConnectionRow({ item, onChanged, onBrowserVerified, confirmed, onConfirmationChanged, workedAround, onToggleWorkAround, slug }: {
   item: NeededConnection;
   onChanged: () => void;
   onBrowserVerified: () => Promise<void>;
+  confirmed: boolean;
+  onConfirmationChanged: (confirmed: boolean) => void;
   /** User chose "let Claude figure out an alternative" for this connection. */
   workedAround: boolean;
   onToggleWorkAround: (on: boolean) => void;
@@ -133,7 +135,6 @@ function ConnectionRow({ item, onChanged, onBrowserVerified, workedAround, onTog
   const supabase = createClient();
   const domain = item.account || '';
   const needsAccountMatch = requiresProviderEmail(domain);
-  const [confirmed, setConfirmed] = useState(false);
   const reachable = needsAccountMatch ? confirmed : item.status === 'reachable';
   const [waiving, setWaiving] = useState(false);
   const [waiveNote, setWaiveNote] = useState<string | null>(null);
@@ -167,7 +168,7 @@ function ConnectionRow({ item, onChanged, onBrowserVerified, workedAround, onTog
           </div>
         </div>
         {(needsAccountMatch || !reachable) && bridge?.connectAccount && (
-          <ProviderBrowserSignIn key={domain} domain={domain} onConfirmationChanged={setConfirmed} onVerified={onBrowserVerified} />
+          <ProviderBrowserSignIn key={domain} domain={domain} onConfirmationChanged={onConfirmationChanged} onVerified={onBrowserVerified} />
         )}
       </div>
       {/* The escape hatch — when you don't have the sign-in, let Claude route around
@@ -256,10 +257,12 @@ function AgentMacSetup({ target, onReady }: { target: AgentSetupTarget | null; o
   </div>;
 }
 
-function ConnectionsList({ items, onChanged, onBrowserVerified, workedAround, onToggleWorkAround, slug }: {
+function ConnectionsList({ items, onChanged, onBrowserVerified, confirmations, onConfirmationChanged, workedAround, onToggleWorkAround, slug }: {
   items: NeededConnection[];
   onChanged: () => void;
   onBrowserVerified: () => Promise<void>;
+  confirmations: ReadonlySet<string>;
+  onConfirmationChanged: (account: string, confirmed: boolean) => void;
   workedAround: Set<string>;
   onToggleWorkAround: (key: string, on: boolean) => void;
   slug: string;
@@ -277,6 +280,8 @@ function ConnectionsList({ items, onChanged, onBrowserVerified, workedAround, on
               slug={slug}
               onChanged={onChanged}
               onBrowserVerified={onBrowserVerified}
+              confirmed={confirmations.has(key)}
+              onConfirmationChanged={(confirmed) => onConfirmationChanged(key, confirmed)}
               workedAround={workedAround.has(key)}
               onToggleWorkAround={(on) => onToggleWorkAround(key, on)}
             />
@@ -545,10 +550,26 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, onBrowserVerifi
   const items = (step.data?.items ?? []) as PermissionItem[];
   const requiredItems = step.id === 'permissions' ? items.filter((it) => it.tier === 2 && !it.optional) : [];
   const permissionLocallyComplete = step.id === 'permissions' && requiredItems.length > 0 && requiredItems.every((it) => optIns[it.group]);
-  const effectiveStatus = permissionLocallyComplete ? 'done' : step.status;
+  const needed = (step.data?.needed ?? []) as NeededConnection[];
+  const [confirmations, setConfirmations] = useState<Set<string>>(() => new Set());
+  const unconfirmedAccounts = step.id === 'connections'
+    ? needed.flatMap(({ account }) => account && requiresProviderEmail(account) && !confirmations.has(account) ? [account] : [])
+    : [];
+  const waitingForAccountMatch = unconfirmedAccounts.some(account => !workedAround.has(account));
+  const stepDetail = waitingForAccountMatch ? 'Verify the intended provider accounts.'
+    : unconfirmedAccounts.length ? 'Using a workaround for unverified provider accounts.' : step.detail;
+  const effectiveStatus = waitingForAccountMatch ? 'todo' : permissionLocallyComplete ? 'done' : step.status;
   const isTodo = effectiveStatus === 'todo';
 
-  const needed = (step.data?.needed ?? []) as NeededConnection[];
+  function recordConfirmation(account: string, confirmed: boolean) {
+    setConfirmations(current => {
+      if (current.has(account) === confirmed) return current;
+      const next = new Set(current);
+      if (confirmed) next.add(account);
+      else next.delete(account);
+      return next;
+    });
+  }
 
   // Resolve the CTA target/behavior per step.
   let cta: React.ReactNode = null;
@@ -573,7 +594,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, onBrowserVerifi
     // inline, never a navigation. Soft gate: this never blocks Activate.
     cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : (step.cta || 'Add key')}</button>;
   } else if (step.id === 'connections' && needed.length > 0) {
-    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : (isTodo ? step.cta || 'Connect' : 'View')}</button>;
+    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-ui px-2.5 py-1">{open ? 'Hide' : (waitingForAccountMatch ? 'Verify accounts' : isTodo ? step.cta || 'Connect' : 'View')}</button>;
   } else if (isTodo && step.cta) {
     cta = <button type="button" className="btn-outline text-ui px-2.5 py-1">{step.cta}</button>;
   }
@@ -588,7 +609,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, onBrowserVerifi
               <span className="text-secondary font-medium text-ink-100">{step.title}</span>
               {effectiveStatus === 'auto' && <span className="text-secondary uppercase tracking-wide text-ink-500">auto</span>}
             </div>
-            <p className="text-secondary text-ink-400 mt-0.5 leading-snug">{step.detail}</p>
+            <p className="text-secondary text-ink-400 mt-0.5 leading-snug">{stepDetail}</p>
           </div>
         </div>
         {cta && <div className="flex-none">{cta}</div>}
@@ -602,7 +623,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, onBrowserVerifi
         </>
       )}
       {step.id === 'connections' && open && needed.length > 0 && (
-        <ConnectionsList items={needed} onChanged={onChanged} onBrowserVerified={onBrowserVerified} workedAround={workedAround} onToggleWorkAround={onToggleWorkAround} slug={slug} />
+        <ConnectionsList items={needed} onChanged={onChanged} onBrowserVerified={onBrowserVerified} confirmations={confirmations} onConfirmationChanged={recordConfirmation} workedAround={workedAround} onToggleWorkAround={onToggleWorkAround} slug={slug} />
       )}
       {step.id === 'tools' && open && (
         <ToolsList items={(step.data?.items ?? []) as unknown as ToolItem[]} />
@@ -951,7 +972,7 @@ export function ActivationCard({
       <ul className="divide-y divide-ink-800">
         {checklist.steps.filter((s) => s.id !== 'computer-use'&&(!setupSurface||!['schedule','notifications'].includes(s.id))).map((s) => (
           <StepRow
-            key={s.id}
+            key={`${checklist.slug}:${checklist.setupContext?.accountId || ''}:${s.id}`}
             step={s}
             slug={checklist.slug}
             optIns={optIns}
