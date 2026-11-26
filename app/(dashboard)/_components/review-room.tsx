@@ -168,6 +168,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   const router = useRouter();
   const { runId, artifacts, production, sources, isApprovalHold, recoveredFeedback } = props;
   const coachMarkup = !!props.onApplyCoaching;
+  const workCoachingHint = 'Start a reusable note with “Always” or “For future runs.” Tukido applies it to future runs after a verified revision implements it.';
   const historicalProvenanceUnavailable = sources.historical_candidates === 'unavailable'
     || sources.carry_membership === 'unavailable';
   const supportingArtifactIds = useMemo(() => new Set(
@@ -2142,7 +2143,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             <p className="text-secondary text-ink-500">Review and apply your notes as lessons for future runs.</p>
             {visible.length>teachingNotes.length&&<p className="text-secondary text-ink-400">{visible.length-teachingNotes.length} note(s) need a fresh visual mark before applying.</p>}
           </> : recoveredFeedback ? <>
-            <p className="text-secondary text-ink-500">Notes are private to this saved video.</p>
+            <p className="text-secondary text-ink-500">Your notes are private. Edit notes stay with this video.</p>
             {submitView.mode === 'queued' ? <>
               <p role="status" className="text-secondary text-state-ok">{revisionCompleted ? 'Your revision was delivered.' : 'Revision requested from this saved video.'}</p>
               <button type="button" className="btn-outline" disabled={busy} onClick={()=>void openSubmittedRevision()}>
@@ -2150,6 +2151,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               </button>
             </> : props.canReviseRecoveredExport && !issuesUnavailable && !resolutionsUnavailable && (activeIssues.length > 0 || session?.state === 'submitting') && <>
               <p className="text-secondary text-ink-500">Apply your saved notes to a separate edit of this video.</p>
+              <p className="text-secondary text-ink-500">{workCoachingHint}</p>
               {screenshotStatus}
               <button type="button" className="btn-primary" disabled={busy||submissionInFlight||!!draft||!!pendingRange||voiceDirty||gate.blocked}
                 onClick={()=>void onPrimary()}>{submissionInFlight?'Requesting revision…':session?.state==='submitting'?'Retry revision request':'Run revision from saved video'}</button>
@@ -2455,6 +2457,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                   draft holds VALIDATED evidence — the backend refuses anyway; this is
                   the honest button over that rule, with a retry for failed captures. */}
               {submitView.mode !== 'accept_result' && screenshotStatus}
+              {props.runMarkup && !props.customerOwnerId && submitView.mode === 'send_changes' &&
+                <p className="text-secondary text-ink-500">{workCoachingHint}</p>}
 
               <button
                 type="button"
