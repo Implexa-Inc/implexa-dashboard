@@ -811,7 +811,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         setDraft(null); setRangeAttempt(null);
         // An edit may have moved the pin, which revoked the old frame server-side.
         // Re-request so the issue does not sit blocked on a capture nobody re-asked for.
-        if (!recoveredFeedback && anchor && isSpatialAnchorV2(anchor)) void requestEvidence(editingId);
+        if (anchor && isSpatialAnchorV2(anchor)) void requestEvidence(editingId);
         return;
       }
 
@@ -837,7 +837,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       setDraft(null); setRangeAttempt(null);
       // A saved spatial issue starts its evidence capture NOW — waiting for submit to
       // ask would serialize every capture behind the reviewer's slowest comment.
-      if (!recoveredFeedback && body.issue?.id && anchor && isSpatialAnchorV2(anchor)) void requestEvidence(body.issue.id);
+      if (body.issue?.id && anchor && isSpatialAnchorV2(anchor)) void requestEvidence(body.issue.id);
     } finally { setBusy(false); }
     // NOT `artifact`: every identity this path writes now comes from the draft.
   }, [buildAnchor, draft, ensureSession, requestEvidence, props.trainingMode, recoveredFeedback]);
@@ -1314,6 +1314,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   const onPrimary = useCallback(async () => {
     if (historicalProvenanceUnavailable) { setError('Historical candidate provenance is unavailable. Nothing was submitted.'); return; }
     if (submitView.mode === 'accept_result') { await onAccept(false); return; }
+    if (gate.blocked) return;
     // The orchestration lives in the flow module, where every branch — refusal,
     // missing continuation, rejected request, concurrent second click — is executable
     // in a test rather than asserted by reading this file.
@@ -1324,7 +1325,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       onState: setLocalSubmission,
       flight: submitFlightRef,
     });
-  }, [submitView.mode, submission, revisionIssueIds, onAccept, onSubmit, historicalProvenanceUnavailable]);
+  }, [submitView.mode, submission, revisionIssueIds, onAccept, onSubmit, historicalProvenanceUnavailable, gate.blocked]);
 
   const issuesUnavailable = sources.issues === 'unavailable';
   const resolutionsUnavailable = sources.reviewer_resolutions !== 'ready';
@@ -1377,6 +1378,17 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     return()=>window.removeEventListener('keydown',onKey);
   },[timelineEnabled,canMarkNow,voiceDirty,draft,targetIdentity]);
   const noteCountLabel=(count:number)=>`${count} ${count===1?'note':'notes'}`;
+  const screenshotStatus = <>
+    {gate.blocked && gate.statusLine && (
+      <p role="status" className="text-secondary text-state-running">{gate.statusLine}</p>
+    )}
+    {gate.reason === 'failed' && (
+      <button type="button" disabled={busy} onClick={retryEvidence}
+        className="w-full rounded-md border border-amber-400/60 px-3 py-2 text-ui text-state-needs hover:border-amber-300 disabled:opacity-40">
+        Retry screenshot capture
+      </button>
+    )}
+  </>;
 
   const resultSurface = (<ArtifactSurface
           trainingMode={props.trainingMode}
@@ -1411,8 +1423,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           }:undefined}
           spatial={{
             readOnly:!!props.finishedView,
-            hidden: recoveredFeedback,
-            enabled: !recoveredFeedback && !props.finishedView && !voiceDirty && !frozen && !accepted && artifact?.status === 'validated',
+            enabled: canMarkNow && !voiceDirty,
             pins: overlayPins,
             draftSpatial: draft?.spatial ?? null,
             freezeMedia: freezeMediaForAnnotation,
@@ -2101,7 +2112,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               </button>
             </> : props.canReviseRecoveredExport && !issuesUnavailable && !resolutionsUnavailable && (activeIssues.length > 0 || session?.state === 'submitting') && <>
               <p className="text-secondary text-ink-500">Apply your saved notes to a separate edit of this video.</p>
-              <button type="button" className="btn-primary" disabled={busy||submissionInFlight||!!draft||!!pendingRange||voiceDirty}
+              {screenshotStatus}
+              <button type="button" className="btn-primary" disabled={busy||submissionInFlight||!!draft||!!pendingRange||voiceDirty||gate.blocked}
                 onClick={()=>void onPrimary()}>{submissionInFlight?'Requesting revision…':session?.state==='submitting'?'Retry revision request':'Run revision from saved video'}</button>
             </>}
           </> : <>
@@ -2404,19 +2416,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               {/* THE EVIDENCE GATE (Wave 2). Sending only unlocks when every spatial
                   draft holds VALIDATED evidence — the backend refuses anyway; this is
                   the honest button over that rule, with a retry for failed captures. */}
-              {submitView.mode !== 'accept_result' && gate.blocked && gate.statusLine && (
-                <p role="status" className="text-secondary text-state-running">{gate.statusLine}</p>
-              )}
-              {submitView.mode !== 'accept_result' && gate.reason === 'failed' && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={retryEvidence}
-                  className="w-full rounded-md border border-amber-400/60 px-3 py-2 text-ui text-state-needs hover:border-amber-300 disabled:opacity-40"
-                >
-                  Retry screenshot capture
-                </button>
-              )}
+              {submitView.mode !== 'accept_result' && screenshotStatus}
 
               <button
                 type="button"
@@ -2507,7 +2507,6 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
 /** Everything the spatial annotation overlay needs, threaded as one bundle. */
 type SpatialSurfaceProps = {
-  hidden?: boolean;
   readOnly?:boolean;
   enabled: boolean;
   pins: OverlayPin[];
@@ -2624,7 +2623,7 @@ function ArtifactSurface({
           <img className="recording-hover-picture" src={hoverFrame.anyImage.url} alt="Timeline preview" />
           <span className="recording-preview-badge">Preview {formatMediaTime(Math.round(hoverFrame.anyImage.second * 1000))}</span>
         </>}
-        {decision.kind === 'video' && !spatial.readOnly && !spatial.hidden && (
+        {decision.kind === 'video' && !spatial.readOnly && (
           <ReviewSpatialOverlay
             mediaKind="video"
             appearance={trainingMode?'teaching':undefined}
@@ -2661,7 +2660,7 @@ function ArtifactSurface({
         ) : picture()}
         {/* The OUTSIDE-the-player information affordance (Wave 2 discoverability):
             always visible next to the player, never floating over content. */}
-        {decision.kind === 'video' && !spatial.readOnly && !spatial.hidden && (
+        {decision.kind === 'video' && !spatial.readOnly && (
           <p className="mt-2 flex items-start gap-1.5 text-secondary text-ink-500" data-testid="spatial-hint">
             <span aria-hidden="true" className="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-ink-600 text-secondary">i</span>
             <span>{SPATIAL_HINT_COPY}</span>

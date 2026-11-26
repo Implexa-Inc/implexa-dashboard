@@ -1,0 +1,817 @@
+{
+  "draft": {
+    "ok": true,
+    "run": {
+      "id": "ec120000-0000-4000-8000-000000024001",
+      "slug": "lifecycle-source-fixture",
+      "runState": "completed",
+      "status": "partial",
+      "reviewStatus": "none",
+      "closeReason": "owner_verified_export",
+      "recoveredFeedbackArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+      "recoveredRevisionAvailable": true,
+      "holdKind": null,
+      "startedAt": "2026-11-26T21:06:46.937Z"
+    },
+    "lineage": {
+      "rootRunId": "ec120000-0000-4000-8000-000000024001",
+      "versions": [
+        {
+          "runId": "ec120000-0000-4000-8000-000000024001",
+          "label": "Original",
+          "runState": "completed",
+          "status": "partial",
+          "startedAt": "2026-11-26T21:06:46.937Z"
+        }
+      ]
+    },
+    "artifacts": [
+      {
+        "id": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "relativePath": "owner-export-11111111-1111-4111-8111-111111111111.mp4",
+        "role": "other",
+        "status": "validated",
+        "sha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+        "sizeBytes": 70041,
+        "mtime": "2026-11-26T21:06:47.298Z",
+        "validatedAt": "2026-11-26T21:06:47.405Z"
+      }
+    ],
+    "judgment": null,
+    "verification": {
+      "receipts": []
+    },
+    "production": null,
+    "competenceProof": {
+      "contextStatus": "none",
+      "attemptContextId": null,
+      "contextDigest": null,
+      "workflowVersionId": null,
+      "bindings": [],
+      "supplyStatus": "not_required",
+      "handlingStatus": "not_required",
+      "receipts": []
+    },
+    "managerProof": {
+      "status": "none",
+      "stageCount": 0,
+      "stages": [],
+      "verificationStatus": "not_required"
+    },
+    "historicalCandidates": [],
+    "session": {
+      "id": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "selectedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+      "state": "draft",
+      "submittedRequestId": null,
+      "submittedIssueIds": null,
+      "compiledBrief": null,
+      "previousSessionId": null,
+      "carriedIssueIds": [],
+      "createdAt": "2026-11-26T21:06:47.448Z",
+      "submittedAt": null,
+      "acceptedAt": null
+    },
+    "reviewArtifacts": [],
+    "submission": null,
+    "issues": [
+      {
+        "id": "9c56f2c0-27d5-44f9-9ed3-6b8e4ae916f6",
+        "sessionId": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "kind": "timing",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "media_time",
+          "version": 1,
+          "timeEndMs": 750,
+          "timeStartMs": 250,
+          "artifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709"
+        },
+        "anchorDigest": null,
+        "spatial": null,
+        "body": "Hold the transition.",
+        "status": "dismissed",
+        "reviewerResolution": null,
+        "evidence": null,
+        "submittedRequestId": null,
+        "createdAt": "2026-11-26T21:06:47.461Z",
+        "updatedAt": "2026-11-26T21:06:47.475Z"
+      },
+      {
+        "id": "57111f8e-afd2-4b3a-a96d-0f8bbfcb96c0",
+        "sessionId": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "kind": "content",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "media_time",
+          "version": 1,
+          "timeEndMs": null,
+          "timeStartMs": 250,
+          "artifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709"
+        },
+        "anchorDigest": null,
+        "spatial": null,
+        "body": "Use the reaction shot.",
+        "status": "draft",
+        "reviewerResolution": null,
+        "evidence": null,
+        "submittedRequestId": null,
+        "createdAt": "2026-11-26T21:06:47.468Z",
+        "updatedAt": "2026-11-26T21:06:47.468Z"
+      }
+    ],
+    "sources": {
+      "run": "ready",
+      "lineage": "ready",
+      "artifacts": "ready",
+      "judgment": "ready",
+      "verification": "ready",
+      "production": "ready",
+      "session": "ready",
+      "issues": "ready",
+      "evidence": "ready",
+      "submission": "ready",
+      "reviewer_resolutions": "ready",
+      "review_artifacts": "ready",
+      "competence_context": "ready",
+      "competence_handling": "ready",
+      "manager_context": "ready",
+      "manager_handling": "ready",
+      "historical_candidates": "ready",
+      "carry_membership": "ready"
+    }
+  },
+  "spatial": {
+    "ok": true,
+    "issue": {
+      "id": "c893a7d6-417e-45be-8900-b403157c8295",
+      "sessionId": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "artifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+      "kind": "content",
+      "purpose": "recovered_feedback",
+      "anchor": {
+        "type": "visual_spatial",
+        "intent": {
+          "mode": "change_observed_artifact"
+        },
+        "version": 2,
+        "geometry": {
+          "x": 0.25,
+          "y": 0.25,
+          "kind": "rect",
+          "width": 0.25,
+          "height": 0.25,
+          "coordinateSpace": "normalized_visual_content_v1"
+        },
+        "temporal": {
+          "endMs": null,
+          "startMs": 500
+        },
+        "sourceFrame": {
+          "visualWidth": 1920,
+          "visualHeight": 1080
+        },
+        "observedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "observedArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709"
+      },
+      "anchorDigest": "c7337382f587fb3054b1c709b13a74f95ba0d3cee1f90aa3584caa411afec12e",
+      "spatial": {
+        "intentMode": "change_observed_artifact",
+        "reference": false,
+        "observedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "observedArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+        "targetArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "targetArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+        "temporal": {
+          "endMs": null,
+          "startMs": 500
+        },
+        "geometry": {
+          "x": 0.25,
+          "y": 0.25,
+          "kind": "rect",
+          "width": 0.25,
+          "height": 0.25,
+          "coordinateSpace": "normalized_visual_content_v1"
+        },
+        "sourceFrame": {
+          "visualWidth": 1920,
+          "visualHeight": 1080
+        }
+      },
+      "body": "Cover this part of the frame.",
+      "status": "draft",
+      "reviewerResolution": null,
+      "submittedRequestId": null,
+      "createdAt": "2026-11-26T13:06:47.496158-08:00",
+      "updatedAt": "2026-11-26T13:06:47.496158-08:00"
+    }
+  },
+  "captureRequest": {
+    "ok": true,
+    "created": true,
+    "evidence": {
+      "id": "61a52f2c-5f8b-4ef0-adce-483885394bab",
+      "issueId": "c893a7d6-417e-45be-8900-b403157c8295",
+      "kind": "annotated_visual_frame_v1",
+      "status": "pending",
+      "ready": false,
+      "reason": null,
+      "anchorDigest": "c7337382f587fb3054b1c709b13a74f95ba0d3cee1f90aa3584caa411afec12e",
+      "observedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+      "observedArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+      "sha256": null,
+      "mimeType": null,
+      "sizeBytes": null,
+      "width": null,
+      "height": null,
+      "captureTimeMs": null,
+      "createdAt": "2026-11-26T13:06:47.498633-08:00",
+      "updatedAt": "2026-11-26T13:06:47.498633-08:00"
+    }
+  },
+  "pendingCapture": {
+    "ok": true,
+    "state": "ready",
+    "issues": [
+      {
+        "issueId": "c893a7d6-417e-45be-8900-b403157c8295",
+        "anchorDigest": "c7337382f587fb3054b1c709b13a74f95ba0d3cee1f90aa3584caa411afec12e",
+        "evidence": {
+          "id": "61a52f2c-5f8b-4ef0-adce-483885394bab",
+          "issueId": "c893a7d6-417e-45be-8900-b403157c8295",
+          "kind": "annotated_visual_frame_v1",
+          "status": "pending",
+          "ready": false,
+          "reason": null,
+          "anchorDigest": "c7337382f587fb3054b1c709b13a74f95ba0d3cee1f90aa3584caa411afec12e",
+          "observedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+          "observedArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+          "sha256": null,
+          "mimeType": null,
+          "sizeBytes": null,
+          "width": null,
+          "height": null,
+          "captureTimeMs": null,
+          "createdAt": "2026-11-26T21:06:47.498Z",
+          "updatedAt": "2026-11-26T21:06:47.498Z"
+        }
+      }
+    ]
+  },
+  "validatedCapture": {
+    "ok": true,
+    "state": "ready",
+    "issues": [
+      {
+        "issueId": "c893a7d6-417e-45be-8900-b403157c8295",
+        "anchorDigest": "c7337382f587fb3054b1c709b13a74f95ba0d3cee1f90aa3584caa411afec12e",
+        "evidence": {
+          "id": "61a52f2c-5f8b-4ef0-adce-483885394bab",
+          "issueId": "c893a7d6-417e-45be-8900-b403157c8295",
+          "kind": "annotated_visual_frame_v1",
+          "status": "validated",
+          "ready": true,
+          "reason": null,
+          "anchorDigest": "c7337382f587fb3054b1c709b13a74f95ba0d3cee1f90aa3584caa411afec12e",
+          "observedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+          "observedArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+          "sha256": "6ec164356b47e40b93187f736102259f2d26b185d8815f0ceafbb8d58420b9ac",
+          "mimeType": "image/png",
+          "sizeBytes": 8666,
+          "width": 1920,
+          "height": 1080,
+          "captureTimeMs": 500,
+          "createdAt": "2026-11-26T21:06:47.498Z",
+          "updatedAt": "2026-11-26T21:06:47.607Z"
+        }
+      }
+    ]
+  },
+  "annotatedDraft": {
+    "ok": true,
+    "run": {
+      "id": "ec120000-0000-4000-8000-000000024001",
+      "slug": "lifecycle-source-fixture",
+      "runState": "completed",
+      "status": "partial",
+      "reviewStatus": "none",
+      "closeReason": "owner_verified_export",
+      "recoveredFeedbackArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+      "recoveredRevisionAvailable": true,
+      "holdKind": null,
+      "startedAt": "2026-11-26T21:06:46.937Z"
+    },
+    "lineage": {
+      "rootRunId": "ec120000-0000-4000-8000-000000024001",
+      "versions": [
+        {
+          "runId": "ec120000-0000-4000-8000-000000024001",
+          "label": "Original",
+          "runState": "completed",
+          "status": "partial",
+          "startedAt": "2026-11-26T21:06:46.937Z"
+        }
+      ]
+    },
+    "artifacts": [
+      {
+        "id": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "relativePath": "owner-export-11111111-1111-4111-8111-111111111111.mp4",
+        "role": "other",
+        "status": "validated",
+        "sha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+        "sizeBytes": 70041,
+        "mtime": "2026-11-26T21:06:47.298Z",
+        "validatedAt": "2026-11-26T21:06:47.405Z"
+      }
+    ],
+    "judgment": null,
+    "verification": {
+      "receipts": []
+    },
+    "production": null,
+    "competenceProof": {
+      "contextStatus": "none",
+      "attemptContextId": null,
+      "contextDigest": null,
+      "workflowVersionId": null,
+      "bindings": [],
+      "supplyStatus": "not_required",
+      "handlingStatus": "not_required",
+      "receipts": []
+    },
+    "managerProof": {
+      "status": "none",
+      "stageCount": 0,
+      "stages": [],
+      "verificationStatus": "not_required"
+    },
+    "historicalCandidates": [],
+    "session": {
+      "id": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "selectedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+      "state": "draft",
+      "submittedRequestId": null,
+      "submittedIssueIds": null,
+      "compiledBrief": null,
+      "previousSessionId": null,
+      "carriedIssueIds": [],
+      "createdAt": "2026-11-26T21:06:47.448Z",
+      "submittedAt": null,
+      "acceptedAt": null
+    },
+    "reviewArtifacts": [],
+    "submission": null,
+    "issues": [
+      {
+        "id": "9c56f2c0-27d5-44f9-9ed3-6b8e4ae916f6",
+        "sessionId": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "kind": "timing",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "media_time",
+          "version": 1,
+          "timeEndMs": 750,
+          "timeStartMs": 250,
+          "artifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709"
+        },
+        "anchorDigest": null,
+        "spatial": null,
+        "body": "Hold the transition.",
+        "status": "dismissed",
+        "reviewerResolution": null,
+        "evidence": null,
+        "submittedRequestId": null,
+        "createdAt": "2026-11-26T21:06:47.461Z",
+        "updatedAt": "2026-11-26T21:06:47.475Z"
+      },
+      {
+        "id": "57111f8e-afd2-4b3a-a96d-0f8bbfcb96c0",
+        "sessionId": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "kind": "content",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "media_time",
+          "version": 1,
+          "timeEndMs": null,
+          "timeStartMs": 250,
+          "artifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709"
+        },
+        "anchorDigest": null,
+        "spatial": null,
+        "body": "Use the reaction shot.",
+        "status": "draft",
+        "reviewerResolution": null,
+        "evidence": null,
+        "submittedRequestId": null,
+        "createdAt": "2026-11-26T21:06:47.468Z",
+        "updatedAt": "2026-11-26T21:06:47.468Z"
+      },
+      {
+        "id": "c893a7d6-417e-45be-8900-b403157c8295",
+        "sessionId": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "kind": "content",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "visual_spatial",
+          "intent": {
+            "mode": "change_observed_artifact"
+          },
+          "version": 2,
+          "geometry": {
+            "x": 0.25,
+            "y": 0.25,
+            "kind": "rect",
+            "width": 0.25,
+            "height": 0.25,
+            "coordinateSpace": "normalized_visual_content_v1"
+          },
+          "temporal": {
+            "endMs": null,
+            "startMs": 500
+          },
+          "sourceFrame": {
+            "visualWidth": 1920,
+            "visualHeight": 1080
+          },
+          "observedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+          "observedArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709"
+        },
+        "anchorDigest": "c7337382f587fb3054b1c709b13a74f95ba0d3cee1f90aa3584caa411afec12e",
+        "spatial": {
+          "intentMode": "change_observed_artifact",
+          "reference": false,
+          "observedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+          "observedArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+          "targetArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+          "targetArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+          "temporal": {
+            "endMs": null,
+            "startMs": 500
+          },
+          "geometry": {
+            "x": 0.25,
+            "y": 0.25,
+            "kind": "rect",
+            "width": 0.25,
+            "height": 0.25,
+            "coordinateSpace": "normalized_visual_content_v1"
+          },
+          "sourceFrame": {
+            "visualWidth": 1920,
+            "visualHeight": 1080
+          }
+        },
+        "body": "Cover this part of the frame.",
+        "status": "draft",
+        "reviewerResolution": null,
+        "evidence": {
+          "id": "61a52f2c-5f8b-4ef0-adce-483885394bab",
+          "issueId": "c893a7d6-417e-45be-8900-b403157c8295",
+          "kind": "annotated_visual_frame_v1",
+          "status": "validated",
+          "ready": true,
+          "reason": null,
+          "anchorDigest": "c7337382f587fb3054b1c709b13a74f95ba0d3cee1f90aa3584caa411afec12e",
+          "observedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+          "observedArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+          "sha256": "6ec164356b47e40b93187f736102259f2d26b185d8815f0ceafbb8d58420b9ac",
+          "mimeType": "image/png",
+          "sizeBytes": 8666,
+          "width": 1920,
+          "height": 1080,
+          "captureTimeMs": 500,
+          "createdAt": "2026-11-26T21:06:47.498Z",
+          "updatedAt": "2026-11-26T21:06:47.607Z"
+        },
+        "submittedRequestId": null,
+        "createdAt": "2026-11-26T21:06:47.496Z",
+        "updatedAt": "2026-11-26T21:06:47.496Z"
+      }
+    ],
+    "sources": {
+      "run": "ready",
+      "lineage": "ready",
+      "artifacts": "ready",
+      "judgment": "ready",
+      "verification": "ready",
+      "production": "ready",
+      "session": "ready",
+      "issues": "ready",
+      "evidence": "ready",
+      "submission": "ready",
+      "reviewer_resolutions": "ready",
+      "review_artifacts": "ready",
+      "competence_context": "ready",
+      "competence_handling": "ready",
+      "manager_context": "ready",
+      "manager_handling": "ready",
+      "historical_candidates": "ready",
+      "carry_membership": "ready"
+    }
+  },
+  "submitted": {
+    "ok": true,
+    "run": {
+      "id": "ec120000-0000-4000-8000-000000024001",
+      "slug": "lifecycle-source-fixture",
+      "runState": "completed",
+      "status": "partial",
+      "reviewStatus": "none",
+      "closeReason": "owner_verified_export",
+      "recoveredFeedbackArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+      "recoveredRevisionAvailable": true,
+      "holdKind": null,
+      "startedAt": "2026-11-26T21:06:46.937Z"
+    },
+    "lineage": {
+      "rootRunId": "ec120000-0000-4000-8000-000000024001",
+      "versions": [
+        {
+          "runId": "ec120000-0000-4000-8000-000000024001",
+          "label": "Original",
+          "runState": "completed",
+          "status": "partial",
+          "startedAt": "2026-11-26T21:06:46.937Z"
+        },
+        {
+          "runId": "7c096bc9-9742-4596-9b10-f47dbbf403f4",
+          "label": "Revision 1",
+          "runState": "running",
+          "status": "partial",
+          "startedAt": "2026-11-26T21:06:47.814Z"
+        }
+      ]
+    },
+    "artifacts": [
+      {
+        "id": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "relativePath": "owner-export-11111111-1111-4111-8111-111111111111.mp4",
+        "role": "other",
+        "status": "validated",
+        "sha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+        "sizeBytes": 70041,
+        "mtime": "2026-11-26T21:06:47.298Z",
+        "validatedAt": "2026-11-26T21:06:47.405Z"
+      }
+    ],
+    "judgment": null,
+    "verification": {
+      "receipts": []
+    },
+    "production": null,
+    "competenceProof": {
+      "contextStatus": "none",
+      "attemptContextId": null,
+      "contextDigest": null,
+      "workflowVersionId": null,
+      "bindings": [],
+      "supplyStatus": "not_required",
+      "handlingStatus": "not_required",
+      "receipts": []
+    },
+    "managerProof": {
+      "status": "none",
+      "stageCount": 0,
+      "stages": [],
+      "verificationStatus": "not_required"
+    },
+    "historicalCandidates": [],
+    "session": {
+      "id": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "selectedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+      "state": "submitted",
+      "submittedRequestId": "74711818-cd71-4ca3-9ee0-faa234d7e859",
+      "submittedIssueIds": [
+        "57111f8e-afd2-4b3a-a96d-0f8bbfcb96c0",
+        "c893a7d6-417e-45be-8900-b403157c8295"
+      ],
+      "compiledBrief": "Use the verified saved export in the review inputs as the editing base. Apply the timestamped changes to a separate revision, preserving the rest of the cut and its audio. Keep the saved export intact. Do not rebuild the edit from the original recording or generate paid media.\n\nREVIEW REVISION\n\nSource run: ec120000-0000-4000-8000-000000024001\nFiles under review:\n- owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709; role other)\n\nPreserve every aspect of the prior accepted work that is not named below.\nDo not substitute a different treatment unless an issue explicitly requests it.\n\nISSUES\n[1] CONTENT at 00:00.250\nFile: owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709; role other)\nUse the reaction shot.\n\n[2] CONTENT\nFile: owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709; role other)\nCover this part of the frame.\n\nBEFORE CLOSING\n- confirm each requested anchor against the file named on that issue;\n- report which issues were resolved;\n- declare the editable sources, final output, and QA evidence;\n- if an exact requested change is infeasible, stop with Needs Input before rendering a workaround.",
+      "previousSessionId": null,
+      "carriedIssueIds": [],
+      "createdAt": "2026-11-26T21:06:47.448Z",
+      "submittedAt": "2026-11-26T21:06:47.752Z",
+      "acceptedAt": null
+    },
+    "reviewArtifacts": [],
+    "submission": {
+      "id": "17a7318f-81f9-46fa-8005-a205e1b05281",
+      "sessionId": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "state": "bound",
+      "contractVersion": 1,
+      "canonicalDigest": "e3586b5ec030986db2c8ba0105c1958cd43f3057da89eb962471305f5fbcbd1a",
+      "revisionNote": "Use the verified saved export in the review inputs as the editing base. Apply the timestamped changes to a separate revision, preserving the rest of the cut and its audio. Keep the saved export intact. Do not rebuild the edit from the original recording or generate paid media.",
+      "requestId": "74711818-cd71-4ca3-9ee0-faa234d7e859",
+      "createdAt": "2026-11-26T21:06:47.636Z",
+      "boundAt": "2026-11-26T21:06:47.752Z",
+      "reportedAt": null
+    },
+    "issues": [
+      {
+        "id": "9c56f2c0-27d5-44f9-9ed3-6b8e4ae916f6",
+        "sessionId": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "kind": "timing",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "media_time",
+          "version": 1,
+          "timeEndMs": 750,
+          "timeStartMs": 250,
+          "artifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709"
+        },
+        "anchorDigest": null,
+        "spatial": null,
+        "body": "Hold the transition.",
+        "status": "dismissed",
+        "reviewerResolution": null,
+        "evidence": null,
+        "submittedRequestId": null,
+        "createdAt": "2026-11-26T21:06:47.461Z",
+        "updatedAt": "2026-11-26T21:06:47.475Z"
+      },
+      {
+        "id": "57111f8e-afd2-4b3a-a96d-0f8bbfcb96c0",
+        "sessionId": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "kind": "content",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "media_time",
+          "version": 1,
+          "timeEndMs": null,
+          "timeStartMs": 250,
+          "artifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709"
+        },
+        "anchorDigest": null,
+        "spatial": null,
+        "body": "Use the reaction shot.",
+        "status": "submitted",
+        "reviewerResolution": null,
+        "evidence": null,
+        "submittedRequestId": "74711818-cd71-4ca3-9ee0-faa234d7e859",
+        "createdAt": "2026-11-26T21:06:47.468Z",
+        "updatedAt": "2026-11-26T21:06:47.752Z"
+      },
+      {
+        "id": "c893a7d6-417e-45be-8900-b403157c8295",
+        "sessionId": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+        "kind": "content",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "visual_spatial",
+          "intent": {
+            "mode": "change_observed_artifact"
+          },
+          "version": 2,
+          "geometry": {
+            "x": 0.25,
+            "y": 0.25,
+            "kind": "rect",
+            "width": 0.25,
+            "height": 0.25,
+            "coordinateSpace": "normalized_visual_content_v1"
+          },
+          "temporal": {
+            "endMs": null,
+            "startMs": 500
+          },
+          "sourceFrame": {
+            "visualWidth": 1920,
+            "visualHeight": 1080
+          },
+          "observedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+          "observedArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709"
+        },
+        "anchorDigest": "c7337382f587fb3054b1c709b13a74f95ba0d3cee1f90aa3584caa411afec12e",
+        "spatial": {
+          "intentMode": "change_observed_artifact",
+          "reference": false,
+          "observedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+          "observedArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+          "targetArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+          "targetArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+          "temporal": {
+            "endMs": null,
+            "startMs": 500
+          },
+          "geometry": {
+            "x": 0.25,
+            "y": 0.25,
+            "kind": "rect",
+            "width": 0.25,
+            "height": 0.25,
+            "coordinateSpace": "normalized_visual_content_v1"
+          },
+          "sourceFrame": {
+            "visualWidth": 1920,
+            "visualHeight": 1080
+          }
+        },
+        "body": "Cover this part of the frame.",
+        "status": "submitted",
+        "reviewerResolution": null,
+        "evidence": {
+          "id": "61a52f2c-5f8b-4ef0-adce-483885394bab",
+          "issueId": "c893a7d6-417e-45be-8900-b403157c8295",
+          "kind": "annotated_visual_frame_v1",
+          "status": "validated",
+          "ready": true,
+          "reason": null,
+          "anchorDigest": "c7337382f587fb3054b1c709b13a74f95ba0d3cee1f90aa3584caa411afec12e",
+          "observedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+          "observedArtifactSha256": "24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709",
+          "sha256": "6ec164356b47e40b93187f736102259f2d26b185d8815f0ceafbb8d58420b9ac",
+          "mimeType": "image/png",
+          "sizeBytes": 8666,
+          "width": 1920,
+          "height": 1080,
+          "captureTimeMs": 500,
+          "createdAt": "2026-11-26T21:06:47.498Z",
+          "updatedAt": "2026-11-26T21:06:47.607Z"
+        },
+        "submittedRequestId": "74711818-cd71-4ca3-9ee0-faa234d7e859",
+        "createdAt": "2026-11-26T21:06:47.496Z",
+        "updatedAt": "2026-11-26T21:06:47.752Z"
+      }
+    ],
+    "sources": {
+      "run": "ready",
+      "lineage": "ready",
+      "artifacts": "ready",
+      "judgment": "ready",
+      "verification": "ready",
+      "production": "ready",
+      "session": "ready",
+      "issues": "ready",
+      "evidence": "ready",
+      "submission": "ready",
+      "reviewer_resolutions": "ready",
+      "review_artifacts": "ready",
+      "competence_context": "ready",
+      "competence_handling": "ready",
+      "manager_context": "ready",
+      "manager_handling": "ready",
+      "historical_candidates": "ready",
+      "carry_membership": "ready"
+    }
+  },
+  "response": {
+    "ok": true,
+    "requestId": "74711818-cd71-4ca3-9ee0-faa234d7e859",
+    "issueCount": 2,
+    "brief": "Use the verified saved export in the review inputs as the editing base. Apply the timestamped changes to a separate revision, preserving the rest of the cut and its audio. Keep the saved export intact. Do not rebuild the edit from the original recording or generate paid media.\n\nREVIEW REVISION\n\nSource run: ec120000-0000-4000-8000-000000024001\nFiles under review:\n- owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709; role other)\n\nPreserve every aspect of the prior accepted work that is not named below.\nDo not substitute a different treatment unless an issue explicitly requests it.\n\nISSUES\n[1] CONTENT at 00:00.250\nFile: owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709; role other)\nUse the reaction shot.\n\n[2] CONTENT\nFile: owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709; role other)\nCover this part of the frame.\n\nBEFORE CLOSING\n- confirm each requested anchor against the file named on that issue;\n- report which issues were resolved;\n- declare the editable sources, final output, and QA evidence;\n- if an exact requested change is infeasible, stop with Needs Input before rendering a workaround.",
+    "submissionId": "17a7318f-81f9-46fa-8005-a205e1b05281",
+    "submissionDigest": "e3586b5ec030986db2c8ba0105c1958cd43f3057da89eb962471305f5fbcbd1a",
+    "session": {
+      "id": "7c2329cd-17df-4245-93ef-1fefa8785f63",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "selectedArtifactId": "b834b8d0-5069-4406-8fb0-7537929839e2",
+      "state": "submitted",
+      "submittedRequestId": "74711818-cd71-4ca3-9ee0-faa234d7e859",
+      "submittedIssueIds": [
+        "57111f8e-afd2-4b3a-a96d-0f8bbfcb96c0",
+        "c893a7d6-417e-45be-8900-b403157c8295"
+      ],
+      "compiledBrief": "Use the verified saved export in the review inputs as the editing base. Apply the timestamped changes to a separate revision, preserving the rest of the cut and its audio. Keep the saved export intact. Do not rebuild the edit from the original recording or generate paid media.\n\nREVIEW REVISION\n\nSource run: ec120000-0000-4000-8000-000000024001\nFiles under review:\n- owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709; role other)\n\nPreserve every aspect of the prior accepted work that is not named below.\nDo not substitute a different treatment unless an issue explicitly requests it.\n\nISSUES\n[1] CONTENT at 00:00.250\nFile: owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709; role other)\nUse the reaction shot.\n\n[2] CONTENT\nFile: owner-export-11111111-1111-4111-8111-111111111111.mp4 (sha256 24f57227bdcf795561205fc04ef38a84dc5700184ede59317a2e37240c9f5709; role other)\nCover this part of the frame.\n\nBEFORE CLOSING\n- confirm each requested anchor against the file named on that issue;\n- report which issues were resolved;\n- declare the editable sources, final output, and QA evidence;\n- if an exact requested change is infeasible, stop with Needs Input before rendering a workaround.",
+      "previousSessionId": null,
+      "carriedIssueIds": [],
+      "createdAt": "2026-11-26T13:06:47.448784-08:00",
+      "submittedAt": "2026-11-26T13:06:47.752744-08:00",
+      "acceptedAt": null
+    }
+  },
+  "producer": {
+    "hashes": {
+      "supabase/migrations/0672_recovered_export_revision.sql": "2b83f1e6cfc6a78d4237f714c8b63953bba2dde52a438091eee4439207fe6913",
+      "supabase/migrations/0673_recovered_export_spatial_feedback.sql": "a848d74dd792037c380a2cee59e6f0137aa0587d3772bc6cd474db9da7ac63aa",
+      "src/services/run-review.service.js": "e152a832631b762a3ab463c0eb6b5bfa5f9c63b4a19875d51bca04774e75f75d",
+      "src/routes/review.js": "6a9c989b550e65119d1fea4caa1e67e7c35f88ed0c6d5eb9d115cd839934ec73",
+      "src/services/review-learning.service.js": "8cb264cdf96523b877624a2a9dfbfd9115f75a36ad6a0cbd7a8dc0737a17f35e",
+      "scripts/owner-verified-export.postgres.test.js": "2a52921db385052d3557e9f6ad273cfb0ead287eced31916932e46c3ac038d4c"
+    }
+  }
+}
