@@ -64,7 +64,7 @@ import { isValidatedVideoOutput } from '@/lib/generation-entry-eligibility';
 import StageCompetenceProof from '../../_components/stage-competence-proof';
 import StageManagerProof from '../../_components/stage-manager-proof';
 import TasteFitReviewCard from '../../_components/taste-fit-review';
-import { runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-presentation';
+import { closeReasonMessage, runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-presentation';
 import ReviewRoom from '../../_components/review-room';
 import RecoveredExportFeedback from '../../_components/recovered-export-feedback';
 import type {ReactNode} from 'react';
@@ -101,34 +101,6 @@ const PARTIAL_RUN_RE = /(^|\n)#{0,4}\s*[^\n]*\b(what happens next|to finish|to c
 // detect it and offer a one-click "Grant browser access" that opens Claude with
 // a grant-only prompt (NOT a trip to onboarding).
 const NEEDS_BROWSER_GRANT_RE = /Needs browser access on this Mac|grant Computer Use|Screen Recording \+ Accessibility|the browser is unavailable/i;
-
-// A run that closed with NO deliverable used to just say "No deliverable recorded
-// for this run." — a dead end with zero diagnosis (founder testing hit this on a
-// run the A0 watchdog force-closed after 4h of total silence: a bare red "Failed",
-// no reason, no next step). run_close_reason (mig 0101) already carries the real
-// answer; this turns it into plain language instead of making the user go hunting
-// in Runs for an explanation we already have. NULL = a voluntary close (the agent's
-// own output IS the explanation) -> no message here.
-function closeReasonMessage(reason: string | null): string | null {
-  switch (reason) {
-    case 'continuation_successor_never_opened':
-      return 'The continuation could not start. Earlier verified work is preserved; this does not mean the source files failed verification.';
-    case 'silence_ceiling_forced':
-      return "It went silent for a long time with no update, so Tukido stopped it automatically. It's safe to run again.";
-    case 'orphaned_parent_gone':
-      return 'Its routine was paused or removed while it was still running, so Tukido closed it automatically.';
-    case 'exit_code_nonzero':
-      return 'The process exited with an error.';
-    case 'exit_signal':
-      return 'The process was terminated (killed) before it could finish.';
-    case 'exit_timeout':
-      return 'It ran past its time limit and was stopped.';
-    case 'exit_clean_no_completion_signal':
-      return 'The process exited without ever reporting whether it finished.';
-    default:
-      return null;
-  }
-}
 
 function humanize(slug: string): string {
   return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -949,7 +921,7 @@ export default async function RunDetailPage({
   const arrivedFromSupersededShell = typeof searchParams?.superseded === 'string'
     && UUID_RE.test(searchParams.superseded) ? searchParams.superseded : null;
 
-  const showProgressLayout = info.state !== 'completed' || held;
+  const showProgressLayout = info.state !== 'completed' || held || showRunProblem;
   const surface = resultSurface({ runId:r.id, completed:!showProgressLayout, closeReason, provenanceAvailable:artifactProvenanceAvailable, reviewLive:competencePacket.live, reviewRunId:competencePacket.run?.id });
   const showFinishedReview = surface === 'review';
   if (surface === 'owner_export') {
@@ -1025,12 +997,9 @@ export default async function RunDetailPage({
 
   </>;
   const runProblem = <>
-        {!r.output_markdown && (showRunProblem ? (
-          // A stalled/failed run has no deliverable. Don't dead-end at a blank
-          // "no deliverable" line: say what happened + give the one action. This
-          // also fires for a run that A0's watchdog force-closed (run_close_reason
-          // set) even when info.attention is false — the exact case that used to
-          // render a bare, unexplained "Failed" with nothing else on the page.
+        {showRunProblem ? (
+          // A run can stop after writing a partial result. Show recovery
+          // alongside that material and keep the two states distinct.
           <div className={`rounded-lg border p-5 ${
             supersededByRelated ? 'border-ink-800 bg-ink-950/40' : 'border-amber-500/40 bg-amber-500/[0.06]'
           }`}>
@@ -1130,12 +1099,13 @@ export default async function RunDetailPage({
               {/* Restarting a superseded attempt would race the run that is
                   actually carrying this production node. */}
               {!supersededByRelated
+                && executionContext?.executor && (executionContext.thread_id || (executionContext.executor === 'claude' && claudeTaskId))
                 && !(recovered.recoverable && !recovered.looksComplete)
                 && !suppressDuplicateRetry(recoveryPresentation) && (
                 <StuckRunButton
-                  engine={executionContext?.executor || 'claude'}
-                  threadId={executionContext?.thread_id}
-                  workspace={executionContext?.workspace}
+                  engine={executionContext.executor}
+                  threadId={executionContext.thread_id}
+                  workspace={executionContext.workspace}
                   runId={r.id}
                   claudeTaskId={claudeTaskId}
                   permissionCapability={info.permissionBlocked ? (NEEDS_BROWSER_GRANT_RE.test(r.output_markdown || '') ? 'computerUse' : 'browser') : null}
@@ -1145,7 +1115,7 @@ export default async function RunDetailPage({
                   as a success: it would duplicate work the production already
                   finished and already paid for. More work is ordered from the
                   production, not from a diagnostic page for one of its steps. */}
-              {!productionLineage?.suppressRunAgain && !suppressDuplicateRetry(recoveryPresentation) && (
+              {!supersededByRelated && !productionLineage?.suppressRunAgain && !suppressDuplicateRetry(recoveryPresentation) && (
                 <Link href={agentHref} className="btn-outline text-secondary px-4 py-2">Run again</Link>
               )}
               {productionLineage && (
@@ -1156,7 +1126,7 @@ export default async function RunDetailPage({
               <Link href="/work" className="btn-outline text-secondary px-4 py-2">Back to Work</Link>
             </div>
           </div>
-        ) : r.run_state === 'running' && runLiveness(r).state !== 'alive' ? (
+        ) : r.run_state === 'running' && (info.label === 'Not started' || runLiveness(r).state === 'quiet') ? (
           // A RUNNING run with no deliverable used to fall through to the bare
           // "No deliverable recorded" line below — which is true and useless. The
           // founder sat on this exact page for 20 minutes watching a spinner while
@@ -1166,7 +1136,7 @@ export default async function RunDetailPage({
             <div className="text-secondary font-semibold text-ink-50 mb-1">{info.label === 'Not started' ? 'This run has not actually started' : 'No progress reported recently'}</div>
             <p className="text-reading text-ink-300 ">{info.reason}</p>
           </div>
-        ) : (
+        ) : !r.output_markdown && (
           <p className="text-reading text-ink-400 italic">
             {approvalContinuationRecovery
               ? 'The review plan is ready; the final deliverable will be created after approval.'
@@ -1177,7 +1147,7 @@ export default async function RunDetailPage({
                 ? 'No written summary on this run — it was revised, and the delivered result is linked above.'
                 : 'No deliverable recorded for this run.'}
           </p>
-        ))}
+        )}
 
   </>;
   const runChecklist = <>
@@ -1603,7 +1573,7 @@ export default async function RunDetailPage({
             you just read. Failed/stalled runs are already covered by "Run again" +
             <StuckRunButton> in the no-deliverable branch, so this stays scoped to a
             real deliverable and never stacks a second CTA on a failure. */}
-        {artifactProvenanceAvailable && !held && r.output_markdown && !showFinishedReview && (
+        {artifactProvenanceAvailable && !held && !showRunProblem && r.output_markdown && !showFinishedReview && (
           <div className="mt-5">
             {continueBox}
           </div>

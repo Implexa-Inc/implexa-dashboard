@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseRunSummaryCursor,selectRunSummaries} from './run-state.ts';
+import {parseRunSummaryCursor,selectRuns,selectRunSummaries} from './run-state.ts';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 function client(rows:any[],hidden:string[]=[],error:any=null,classError:any=null){
  const calls:any[]=[];
@@ -30,6 +30,18 @@ test('short raw page ends pagination and primary/classification failures remain 
  assert.deepEqual(await selectRunSummaries(client([row]).db,'owner'),{rows:[row],nextCursor:null});
  await assert.rejects(selectRunSummaries(client([],[],{code:'42501'}).db,'owner'),/unavailable/);
  await assert.rejects(selectRunSummaries(client([row],[],null,{code:'42501'}).db,'owner'),/unavailable/);
+});
+
+test('the Delivered view applies the same execution, review and output filters before fetching rows',async()=>{
+ const {db,calls}=client([]);
+ await selectRuns(db,{onlyDelivered:true,limit:40,throwOnError:true});
+ assert.deepEqual(calls.filter(call=>['in','or','not'].includes(call[1])),[
+  ['skill_runs','not','output_markdown','is',null],
+  ['skill_runs','in','status',['completed','partial']],
+  ['skill_runs','or','review_status.is.null,and(review_status.neq.pending,review_status.neq.needs_input)'],
+  ['skill_runs','or','run_state.eq.completed,run_state.is.null'],
+ ]);
+ await assert.rejects(selectRuns(client([],[],{code:'08006'}).db,{onlyDelivered:true,throwOnError:true}),/unavailable/);
 });
 test('cursor rejects partial or expression-injection values and keeps timestamp precision',()=>{
  assert.equal(parseRunSummaryCursor(null,null),null);

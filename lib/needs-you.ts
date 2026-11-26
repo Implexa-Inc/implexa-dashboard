@@ -140,6 +140,7 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
       .from('skill_runs')
       .select('id, skill_slug, ran_at, stalled_at')
       .eq('run_state', 'stalled')
+      .or('review_status.is.null,review_status.neq.dismissed')
       .gte('ran_at', new Date(Date.now() - 24 * 3600 * 1000).toISOString())
       .order('ran_at', { ascending: false })
       .limit(STALL_LIMIT + 1),

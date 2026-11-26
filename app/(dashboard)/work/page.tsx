@@ -8,7 +8,6 @@ import { loadNeedsYou, type NeedsYou } from '@/lib/needs-you';
 import { loadInboxItems } from '@/lib/inbox';
 import { readMyWorkflows } from '@/lib/workflow-catalog';
 import { getReviewQueue, reviewQueueWarning, versionSummary, unresolvedIssueLabel } from '@/lib/review';
-import { reviewQueueForArea } from '@/lib/training-review-routing';
 import { resolveWorkView, AGENTS_MANAGE_HREF } from '@/lib/navigation';
 import { settleWithin } from '@/lib/landing';
 import { listOutcomeProductions } from '@/lib/outcome-production-load';
@@ -16,7 +15,6 @@ import PageHeader from '@/components/page-header';
 import WorkFeed,{WorkSource} from './_components/work-feed';
 import OutcomeProductionsList from './_components/outcome-productions-list';
 import InboxList from '../inbox/inbox-list';
-import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
 
 export const dynamic = 'force-dynamic';
 export default async function WorkPage({searchParams}: {searchParams?:Record<string,string|string[]|undefined>}) {
@@ -50,7 +48,7 @@ async function ReviewSource({jwt}:{jwt:string}){
     getReviewQueue(),
     settleWithin(readMyWorkflows(jwt),10_000,{status:'unavailable' as const,reason:'timeout' as const}),
   ]);
-  const queue=reviewQueueForArea(read??{items:[],truncated:false,total:null,visibleCount:0,sources:{review_endpoint:'unavailable'},live:false},owned,'work');
+  const queue=read??{items:[],truncated:false,total:null,visibleCount:0,sources:{review_endpoint:'unavailable'},live:false} as const;
   return <WorkSource data={{kind:'review',value:{queue,
     names:Object.fromEntries(owned.status==='ready'?owned.workflows.map(agent=>[agent.slug,agent.name]):[]),
     warning:reviewQueueWarning(queue),
@@ -59,9 +57,13 @@ async function ReviewSource({jwt}:{jwt:string}){
 }
 
 async function DeliveredView() {
-  const items=await loadInboxItems(createClient(),40);
-  const attentionItems:AttentionItem[]=items.map(item=>({id:item.id,name:item.name,info:item.state,ran_at:item.ran_at}));
-  return <><RunAttentionBanner items={attentionItems}/><InboxList initialItems={items} basePath="/work?view=delivered" heading={null} workRows/>{items.length===0&&<div className="work-empty"><h2>No results on this page yet</h2><p>Delivered work appears here after a run.</p><Link href="/workflows" className="btn-outline">Go to agents</Link></div>}</>;
+  try {
+    const items=await loadInboxItems(createClient(),40,undefined,{onlyDelivered:true});
+    if(items.length)return <InboxList initialItems={items} basePath="/work?view=delivered" heading={null} workRows/>;
+    return <div className="work-empty"><h2>No results on this page yet</h2><p>Delivered work appears here after a run.</p><Link href="/workflows" className="btn-outline">Go to agents</Link></div>;
+  } catch {
+    return <p role="status" className="work-list-notice">Couldn’t load delivered work. <a href="/work?view=delivered" className="underline">Try again</a></p>;
+  }
 }
 async function OtherWork({jwt}:{jwt:string}) {
   const load=await listOutcomeProductions(jwt);

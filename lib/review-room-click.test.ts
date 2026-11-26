@@ -611,6 +611,20 @@ test('REPRO: clicking the real button transmits exactly once', async () => {
   root.unmount();
 });
 
+test('Work markup submits the existing revision while teaching stays out of the editor', async () => {
+  await mount({ runMarkup: true });
+  assert.match(text(), /Your feedback/);
+  assert.doesNotMatch(text(), /Your teaching notes|Done teaching|Extract training/);
+  const button = buttons().find((item) => item.textContent === 'Run again with these changes');
+  assert.ok(button);
+  await click(button);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/api\/review$/);
+  assert.equal(calls[0].body.action, 'submit');
+  assert.equal(calls[0].body.sessionId, FIXTURE_SESSION_ID);
+  root.unmount();
+});
+
 test('REPRO: two clicks in the same render transmit ONCE', async () => {
   await mount();
   // Hold the first request open, so the second click genuinely lands mid-flight —

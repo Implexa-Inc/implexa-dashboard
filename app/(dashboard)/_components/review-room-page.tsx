@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect,notFound } from 'next/navigation';
 import { readMyWorkflows } from '@/lib/workflow-catalog';
-import { trainingReviewSlug,trainingReviewHref } from '@/lib/training-review-routing';
+import { trainingReviewSlug } from '@/lib/training-review-routing';
 import { createClient } from '@/lib/supabase/server';
 import { getMyAgents } from '@/lib/agents-home';
 import { getReviewPacket, unavailableSources,reviewResultProvenance } from '@/lib/review';
@@ -12,7 +12,7 @@ import TasteFitReviewCard from './taste-fit-review';
 
 
 /**
- * Shared Review Room rendering. Owned feedback uses Training; approvals and customer reviews retain Work.
+ * Review in Work edits the current result. Teaching starts in Training.
  *
  * Four DIFFERENT authorities are shown here and are never merged (spec Sec.2):
  *
@@ -24,10 +24,10 @@ import TasteFitReviewCard from './taste-fit-review';
  * Accepting a result says a human accepted it. It does not mean Judge passed, and it
  * does not mean anything was verified.
  */
-export default async function ReviewRoomPage({ params, searchParams,trainingSlug,legacy=false }: {
+export default async function ReviewRoomPage({ params, searchParams,trainingSlug }: {
   params: { runId: string };
   searchParams?: { artifact?: string };
-  trainingSlug?:string;legacy?:boolean;
+  trainingSlug?:string;
 }) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
@@ -35,19 +35,19 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
 
   const [packet, myAgents,owned] = await Promise.all([getReviewPacket(params.runId), getMyAgents(),readMyWorkflows(session.access_token)]);
   const provenance=await reviewResultProvenance(packet,supabase,session.user.id);
-  if (provenance === 'owner_export') redirect(`/runs/${encodeURIComponent(params.runId)}`);
+  const runHref=`/runs/${encodeURIComponent(params.runId)}`;
+  const reviewHref=`/review/${encodeURIComponent(params.runId)}${searchParams?.artifact?`?artifact=${encodeURIComponent(searchParams.artifact)}`:''}`;
+  if (provenance === 'owner_export') redirect(runHref);
   if (packet.live && provenance === 'unavailable') return <main className="mx-auto max-w-3xl p-10">
     <h1>Review provenance unavailable</h1><p>We could not check how this result was recovered. Review actions are paused.</p>
-    <Link href={`/runs/${encodeURIComponent(params.runId)}`}>Open the private run page</Link>
+    <Link href={runHref}>Open the private run page</Link>
   </main>;
   const ownerSlug=trainingReviewSlug(packet,owned);
   if(trainingSlug){
     if(packet.live&&packet.run?.slug!==trainingSlug)notFound();
-    if(packet.live&&packet.run?.holdKind==='approval_before_action'&&owned.status==='ready'&&owned.workflows.some(a=>a.slug===trainingSlug&&a.source==='generated'))redirect(`/review/${encodeURIComponent(params.runId)}${searchParams?.artifact?`?artifact=${encodeURIComponent(searchParams.artifact)}`:''}`);
-    if(!ownerSlug)return <main className="mx-auto max-w-3xl p-10"><h1>Training review unavailable</h1><p>We could not verify this result belongs to an agent you train.</p><Link href="/training">Return to Training</Link><p><Link href={`/review/${encodeURIComponent(params.runId)}${searchParams?.artifact?`?artifact=${encodeURIComponent(searchParams.artifact)}`:''}`}>Open existing review</Link></p></main>;
+    if(packet.live&&owned.status==='ready'&&owned.workflows.some(a=>a.slug===trainingSlug&&a.source==='generated'))redirect(reviewHref);
+    return <main className="mx-auto max-w-3xl p-10"><h1>Training review unavailable</h1><p>We could not verify this result belongs to an agent you train.</p><Link href="/training">Return to Training</Link><p><Link href={reviewHref}>Open run review</Link></p></main>;
   }
-  if(legacy&&ownerSlug)redirect(trainingReviewHref(ownerSlug,params.runId,searchParams?.artifact));
-  const backHref=trainingSlug?`/training/${encodeURIComponent(trainingSlug)}`:'/review';
 
   if (!packet.live || !packet.run) {
     // Explicitly "we could not load it", never "it does not exist".
@@ -60,8 +60,8 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
         {packet.readFailure && <p className="mt-2 text-secondary text-ink-500">
           Read failure: {packet.readFailure}{packet.httpStatus ? ` (${packet.httpStatus})` : ''}.
         </p>}
-        <Link href={backHref} className="mt-6 inline-block text-secondary text-state-running hover:underline">
-          Back to {trainingSlug?'Training':'Review'}
+        <Link href={runHref} className="mt-6 inline-block text-secondary text-state-running hover:underline">
+          Back to run
         </Link>
       </div>
     );
@@ -101,14 +101,15 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
   return (
     <div className="app-page"><div className="app-content">
       <div className="mb-4">
-        <Link href={backHref} className="text-secondary text-ink-500 hover:text-ink-300">← {trainingSlug?'Training':'Review'}</Link>
+        <Link href={runHref} className="text-secondary text-ink-500 hover:text-ink-300">← Run result</Link>
       </div>
 
       <header className="app-page-head">
         <div className="min-w-0">
           {/* Agent name is the identity; the revision label is secondary context. */}
-          <h1 className="text-ink-100">{agentName}</h1>
+          <h1 className="text-ink-100">{isApprovalHold ? 'Review and approve' : 'Edit this result'}</h1>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-secondary text-ink-400">
+            <span>{agentName}</span>
             {currentLabel && <span className="rounded bg-ink-800 px-1.5 py-0.5">{currentLabel}</span>}
             {packet.sources.judgment === 'unavailable' ? (
               <span className="text-state-needs">Judge state unavailable</span>
@@ -132,11 +133,11 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
 
       <nav aria-label="Output versions" className="mb-4 flex flex-wrap items-center gap-3 text-secondary text-ink-400">
         <span>Versions</span>
-        {packet.sources.lineage==='unavailable'?<span className="text-state-needs">Version history unavailable</span>:versions.length?versions.map(v=>v.runId===packet.run!.id?<span key={v.runId} aria-current="page" className="rounded bg-ink-800 px-2 py-1 text-ink-100">{v.label}</span>:<Link key={v.runId} href={trainingSlug?trainingReviewHref(trainingSlug,v.runId):`/review/${v.runId}`} className="hover:underline">{v.label}</Link>):<span>No revisions yet</span>}
+        {packet.sources.lineage==='unavailable'?<span className="text-state-needs">Version history unavailable</span>:versions.length?versions.map(v=>v.runId===packet.run!.id?<span key={v.runId} aria-current="page" className="rounded bg-ink-800 px-2 py-1 text-ink-100">{v.label}</span>:<Link key={v.runId} href={`/review/${encodeURIComponent(v.runId)}`} className="hover:underline">{v.label}</Link>):<span>No revisions yet</span>}
       </nav>
 
       <ReviewRoom
-        trainingSlug={trainingSlug}
+        runMarkup={!isApprovalHold}
         customerOwnerId={!ownerSlug?session.user.id:undefined}
         runId={packet.run.id}
         agentSlug={packet.run.slug}

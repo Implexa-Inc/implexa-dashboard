@@ -46,7 +46,7 @@ const load=(name:string)=>{
   if(name==='next/link')return{__esModule:true,default:()=>null};
   if(name==='@/lib/review')return{getReviewPacket:async()=>routePacket,unavailableSources:()=>[],reviewResultProvenance};
   if(name==='@/lib/agents-home')return{getMyAgents:async()=>({status:'ready',active:[],needsActivation:[],drafts:[]})};
-  if(name==='@/lib/workflow-catalog')return{readMyWorkflows:async()=>({status:'ready',workflows:[{slug:fixture.reviewPacket.run.slug,source:'generated'}]}),
+  if(name==='@/lib/workflow-catalog')return{readMyWorkflows:async()=>({status:'ready',workflows:[{slug:routePacket.run?.slug,source:'generated'}]}),
     ownedGeneratedWorkflow:(owned:any,slug:string)=>owned.workflows.find((row:any)=>row.slug===slug)};
   if(name==='@/lib/agent-detail')return{getAgentDetail:()=>{throw Error('Unexpected detail read after provenance gate');}};
   if(name==='next/server')return{NextResponse:{json:(body:unknown,init:any)=>({body,status:init.status})}};
@@ -65,12 +65,22 @@ const load=(name:string)=>{
 };
 new Function('require','module','exports',built.outputFiles[0].text)(load,serverModule,serverModule.exports);
 const sharedPage=(serverModule.exports as{default:(props:any)=>Promise<any>}).default;
-function containsType(node:any,type:any):boolean{return node?.type===type||[node?.props?.children].flat(Infinity).some(child=>child&&typeof child==='object'&&containsType(child,type));}
+function findType(node:any,type:any):any{
+  if(node?.type===type)return node;
+  for(const child of [node?.props?.children].flat(Infinity)){
+    if(child&&typeof child==='object'){
+      const found=findType(child,type);
+      if(found)return found;
+    }
+  }
+  return null;
+}
+function containsType(node:any,type:any):boolean{return !!findType(node,type);}
 
 test('both direct Review routes redirect actual owner exports before mounting writable review',async()=>{
   routePacket=parseReviewPacketResponse(fixture.reviewPacket,fixture.runRecord.id);
   assert.equal(routePacket.run.closeReason,'owner_verified_export');
-  for(const props of [{legacy:true},{trainingSlug:routePacket.run.slug}]){
+  for(const props of [{},{trainingSlug:routePacket.run.slug}]){
     routeReads.length=0;
     await assert.rejects(sharedPage({params:{runId:fixture.runRecord.id},...props}),new RegExp('redirect:/runs/'+fixture.runRecord.id));
     assert.deepEqual(routeReads,[],'canonical packet provenance requires no fallback DB read');
@@ -79,7 +89,7 @@ test('both direct Review routes redirect actual owner exports before mounting wr
 
 test('older packets use exact owner-scoped provenance, and failures never mount ReviewRoom',async()=>{
   routePacket=structuredClone(parseReviewPacketResponse(fixture.reviewPacket,fixture.runRecord.id));delete routePacket.run.closeReason;
-  for(const props of [{legacy:true},{trainingSlug:routePacket.run.slug}]){
+  for(const props of [{},{trainingSlug:routePacket.run.slug}]){
     fallbackReason='owner_verified_export';fallbackError=null;routeReads.length=0;
     await assert.rejects(sharedPage({params:{runId:fixture.runRecord.id},...props}),/redirect:\/runs\//);
     assert.deepEqual(routeReads,[{table:'skill_runs',filters:[['id',fixture.runRecord.id],['user_id','synthetic-owner']]}]);
@@ -94,7 +104,13 @@ test('explicit legacy-native provenance retains ordinary Review rendering and re
   // Mutation is a negative/compatibility input, not a successful owner integration fixture.
   routePacket.run.closeReason=null;routeReads.length=0;
   const result=await sharedPage({params:{runId:fixture.runRecord.id}});
-  assert.equal(containsType(result,reviewRoom),true);assert.equal(routeReads.some(x=>x.table==='skill_runs'),false);
+  const room=findType(result,reviewRoom);
+  assert.equal(room?.props.runMarkup,true);
+  assert.equal(room?.props.trainingMode,undefined);
+  assert.equal(routeReads.some(x=>x.table==='skill_runs'),false);
+  await assert.rejects(sharedPage({params:{runId:fixture.runRecord.id},
+    trainingSlug:routePacket.run.slug,searchParams:{artifact:'existing/clip'}}),
+  {message:`redirect:/review/${fixture.runRecord.id}?artifact=existing%2Fclip`});
   const malformed=structuredClone(fixture.reviewPacket);malformed.run.closeReason={unexpected:true};
   assert.equal(parseReviewPacketResponse(malformed,fixture.runRecord.id),null);
 });
@@ -107,8 +123,23 @@ function actualEntry(entry:string):any{
  const module={exports:{}};new Function('require','module','exports',result.outputFiles[0].text)(load,module,module.exports);return module.exports;
 }
 const trainingRoute=actualEntry('app/(dashboard)/training/[slug]/review/[runId]/page.tsx').default;
+const workReviewRoute=actualEntry('app/(dashboard)/review/[runId]/page.tsx').default;
 const issueRoute=actualEntry('app/(dashboard)/training/[slug]/review/issues/[issueId]/page.tsx').default;
 const trainingRead=actualEntry('app/api/agent-training/run-review/route.ts').GET;
+test('the actual Work entry opens markup on an owned native result',async()=>{
+ const native=JSON.parse(readFileSync(new URL('../../../lib/test/fixtures/training-owner-context/review-packet.json',import.meta.url),'utf8')).body;
+ routePacket=parseReviewPacketResponse(native,native.run.id);
+ fallbackReason=null;fallbackError=null;routeReads.length=0;
+ const result=await workReviewRoute({params:{runId:native.run.id},searchParams:{artifact:native.artifacts[0].id}});
+ const room=findType(result,reviewRoom);
+ assert.equal(room?.props.runMarkup,true);
+ assert.equal(room?.props.trainingMode,undefined);
+ assert.equal(room?.props.initialArtifactId,native.artifacts[0].id);
+ assert.equal(room?.props.runId,native.run.id);
+ await assert.rejects(trainingRoute({params:{runId:native.run.id,slug:native.run.slug},
+  searchParams:{mode:'revise',artifact:native.artifacts[0].id}}),
+ {message:`redirect:/review/${native.run.id}?artifact=${native.artifacts[0].id}`});
+});
 test('actual default, revise and saved-mark Training entry points refuse the producer owner export',async()=>{
  routePacket=parseReviewPacketResponse(fixture.reviewPacket,fixture.runRecord.id);
  const params={runId:fixture.runRecord.id,slug:routePacket.run.slug},issueId='11111111-1111-4111-8111-111111111111';

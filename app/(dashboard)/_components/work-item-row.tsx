@@ -9,12 +9,12 @@ export function WorkDisplayNames({names,children}:{names:Record<string,string>;c
 export default function WorkItemRow({title, detail, href, state, when, actions, progress, agentSlug}: {
   agentSlug?:string;
   title: string; detail?: ReactNode; href?: string | null;
-  state: 'Needs input' | 'Needs approval' | 'Ready for review' | 'Running' | 'Revising' | 'Accepted' | 'Delivered' | 'Failed' | 'Partly delivered';
+  state: 'Needs input' | 'Needs approval' | 'Needs attention' | 'Ready for review' | 'Running' | 'Revising' | 'Accepted' | 'Delivered' | 'Failed' | 'Stalled' | 'Partly delivered';
   when?: ReactNode; actions: ReactNode; progress?: {value:number;total:number};
 }) {
   const names=useContext(WorkNames);
   const displayTitle=(agentSlug&&names[agentSlug])||title;
-  const tone = state === 'Failed' ? 'fail' : (state.startsWith('Needs')||state==='Partly delivered') ? 'needs'
+  const tone = state === 'Failed' ? 'fail' : (state.startsWith('Needs')||state==='Stalled'||state==='Partly delivered') ? 'needs'
     : state === 'Ready for review' ? 'review' : state === 'Running' || state === 'Revising' ? 'running' : 'ok';
   return <div className="work-item-row group">
     {/* No thumbnail metadata is supplied by these readers yet. Never substitute a fake output. */}

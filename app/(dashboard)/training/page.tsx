@@ -4,7 +4,7 @@ import {redirect} from 'next/navigation';
 import PageHeader from '@/components/page-header';
 import {createClient} from '@/lib/supabase/server';
 import {readMyWorkflows} from '@/lib/workflow-catalog';
-import {reviewQueueForArea} from '@/lib/training-review-routing';
+import {trainingReviewQueue} from '@/lib/training-review-routing';
 import {getReviewQueue} from '@/lib/review';
 import RetryButton from '../_components/retry-button';
 import ReadyForReviewList from '../work/_components/ready-for-review-list';
@@ -25,7 +25,7 @@ async function CoachContents({jwt,review,recordingId,accountId}:{jwt:string;revi
  const feed=await readMyWorkflows(jwt);
  if(feed.status!=='ready')return <TrainingFeedUnavailable reason={feed.reason}/>;
  const owned=feed.workflows.filter(agent=>agent.source==='generated');
- const queue=review?reviewQueueForArea(await getReviewQueue(),feed,'training'):null;
+ const queue=review?trainingReviewQueue(await getReviewQueue(),feed):null;
  return <>
   {!!feed.unavailableEntries&&<p role="status" className="mb-5 text-reading text-ink-400">Some agent details couldn’t be loaded. Known agents are shown below. <RetryButton/></p>}
   {queue?<><Link href="/training" className="mb-5 inline-block text-secondary text-ink-400">← All agents you train</Link><h2 className="mb-5 text-xl">Feedback from runs</h2><ReadyForReviewList queue={queue} nameBySlug={new Map(owned.map(agent=>[agent.slug,agent.name]))} training/></>:

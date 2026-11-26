@@ -45,27 +45,35 @@ export function WorkList({view,needs,queue,names,reviewDetails,warning,delivered
   const router=useRouter();
   const [revision,setRevision]=useState(0);
   const judgeIds=new Set(needs.homeAttention.flatMap(item=>item.runId?[item.runId]:[]));
-  const reviews=queue.items.filter(item=>!judgeIds.has(item.rootRunId)&&!judgeIds.has(item.latestRunId));
-  const reviewedIds=new Set(reviews.flatMap(item=>[item.rootRunId,item.latestRunId]));
-  const approvals=reviews.filter(item=>item.reason==='approval'||item.holdKind==='approval_before_action');
-  const results=reviews.filter(item=>!approvals.includes(item));
+  const requiresApproval=(item:ReviewQueue['items'][number])=>item.reason==='approval'||item.holdKind==='approval_before_action';
   const renderReview=(item:ReviewQueue['items'][number], live?:LiveWorkRow)=><div key={item.rootRunId}><WorkItemRow agentSlug={item.slug||undefined}
     title={(item.slug&&names[item.slug])||(item.slug?humanize(item.slug):'Agent result')} href={`/review/${encodeURIComponent(item.latestRunId)}`}
     detail={<>{reviewDetails[item.rootRunId]}{item.judgeVerdict ? ` · Judge: ${item.judgeVerdict}` : ''}</>}
-    state={approvals.includes(item)?'Needs approval':'Ready for review'}
+    state={requiresApproval(item)?'Needs approval':'Ready for review'}
     when={item.latestAt ? <LocalTime iso={item.latestAt}/> : null}
-    actions={<><Link href={`/review/${encodeURIComponent(item.latestRunId)}`} className="btn-outline work-row-action">{approvals.includes(item)?'Review & approve':'Review result'}</Link>{live?.actions}</>}/>{live?.details}</div>;
+    actions={<><Link href={`/review/${encodeURIComponent(item.latestRunId)}`} className="btn-outline work-row-action">{requiresApproval(item)?'Review & approve':'Review result'}</Link>{live?.actions}</>}/>{live?.details}</div>;
   const displayNames={...names,...needs.agentNames};
-  return <WorkDisplayNames names={displayNames}><RunningAgents bare agentNames={displayNames} onFinished={()=>setRevision(value=>value+1)} renderList={(rows,status)=>{
-    // Prefer the source-specific Judge dialog and review destination for the same immutable run.
+  return <WorkDisplayNames names={displayNames}><RunningAgents bare agentNames={displayNames} onFinished={()=>setRevision(value=>value+1)} renderList={(rows,status,retryRead)=>{
+    // Keep the source-specific review action unless the exact result has a
+    // fresh interruption. A pending review snapshot must not hide that failure.
     const byRun=new Map(rows.filter(item=>item.runId).map(item=>[item.runId!,item]));
-    const live=rows.filter(item=>!item.runId||!judgeIds.has(item.runId)&&!reviewedIds.has(item.runId));
+    const reviews=queue.items.filter(item=>!judgeIds.has(item.rootRunId)&&!judgeIds.has(item.latestRunId)&&!byRun.get(item.latestRunId)?.interrupted);
+    const reviewedIds=new Set(reviews.flatMap(item=>[item.rootRunId,item.latestRunId]));
+    const approvals=reviews.filter(requiresApproval);
+    const results=reviews.filter(item=>!requiresApproval(item));
+    const reviewLive=(item:ReviewQueue['items'][number])=>{
+      const row=byRun.get(item.latestRunId)||byRun.get(item.rootRunId);
+      return row?.interrupted?undefined:row;
+    };
+    const live=rows.filter(item=>!item.runId||!judgeIds.has(item.runId)&&(item.interrupted||!reviewedIds.has(item.runId)));
     const urgent=live.filter(item=>item.needsYou);
     const ready=live.filter(item=>!item.needsYou&&item.status==='built');
     const running=live.filter(item=>!item.needsYou&&item.status!=='finished'&&item.status!=='built');
     const knownLive=status==='ready';
     const needsComplete=!loadingNeeds&&!loadingReview&&!needs.partial&&!needs.truncated&&knownLive&&!warning;
-    const stalled=needs.stalled.filter(item=>!judgeIds.has(item.id)&&!reviewedIds.has(item.id)&&!byRun.has(item.id));
+    // The live feed owns current lifecycle and exact supersession. Raw server
+    // snapshots are useful only while the live read is unavailable.
+    const stalled=knownLive?[]:needs.stalled.filter(item=>!judgeIds.has(item.id)&&!reviewedIds.has(item.id)&&!byRun.has(item.id));
     type DatedRow={key:string;at:string|null|undefined;node:ReactNode};
     const dated=(key:string,at:string|null|undefined,node:ReactNode):DatedRow=>({key,at,node});
     const newest=(items:DatedRow[])=>items.sort((a,b)=>(Date.parse(b.at||'')||0)-(Date.parse(a.at||'')||0));
@@ -74,11 +82,11 @@ export function WorkList({view,needs,queue,names,reviewDetails,warning,delivered
       ...needs.needGrant.map(item=>dated(`grant:${item.slug}`,null,<WorkItemRow agentSlug={item.slug} title={item.name===item.slug?humanize(item.slug):item.name} detail="Approve the access this agent needs before it can run." state="Needs approval" actions={<Link href={`/workflows/${encodeURIComponent(item.slug)}/activate`} className="btn-outline work-row-action">Grant access</Link>}/>)),
       ...needs.signIns.map(item=>dated(`signin:${item.domain}`,null,<WorkItemRow title={`${item.label||item.domain} needs a sign-in`} detail={`${item.who} ${item.count===1?'needs':'need'} this account. Sign in on the agent’s setup.`} state="Needs input" actions={<Link href={`/workflows/${encodeURIComponent(item.fixSlug)}/activate`} className="btn-outline work-row-action">Sign in to {item.label||item.domain}</Link>}/>)),
       ...needs.missed.map(item=>dated(`schedule:${item.id}`,null,<WorkItemRow agentSlug={item.slug} title={item.name===item.slug?humanize(item.slug):item.name} detail={item.neverArmed?`Scheduled for ${item.when}, but not started yet.`:item.failed?'Its schedule failed. Fix it to try again.':`Missed its schedule (${item.when}).`} state="Needs input" actions={<FixNowButton slug={item.slug} name={item.name} claudeTaskId={item.claudeTaskId} neverArmed={item.neverArmed}/>}/>)),
-      ...stalled.map(item=>dated(`stalled:${item.id}`,item.at,<WorkItemRow agentSlug={item.slug} title={item.name===item.slug?humanize(item.slug):item.name} detail="Progress stopped. Open the run to check what happened." href={`/runs/${encodeURIComponent(item.id)}`} state="Needs input" when={item.at?<LocalTime iso={item.at}/>:null} actions={<Link href={`/runs/${encodeURIComponent(item.id)}`} className="btn-outline work-row-action">Check run</Link>}/>)),
+      ...stalled.map(item=>dated(`stalled:${item.id}`,item.at,<WorkItemRow agentSlug={item.slug} title={item.name===item.slug?humanize(item.slug):item.name} detail="Last recorded as stalled. Live status is being checked." href={`/runs/${encodeURIComponent(item.id)}`} state="Stalled" when={item.at?<LocalTime iso={item.at}/>:null} actions={<Link href={`/runs/${encodeURIComponent(item.id)}`} className="btn-outline work-row-action">Check run</Link>}/>)),
       ...urgent.map(item=>dated(item.key,item.at,item.node)),
-      ...approvals.map(item=>dated(`review:${item.rootRunId}`,item.latestAt,renderReview(item,byRun.get(item.latestRunId)||byRun.get(item.rootRunId)))),
+      ...approvals.map(item=>dated(`review:${item.rootRunId}`,item.latestAt,renderReview(item,reviewLive(item)))),
     ]);
-    const reviewRows=newest([...results.map(item=>dated(item.rootRunId,item.latestAt,renderReview(item,byRun.get(item.latestRunId)||byRun.get(item.rootRunId)))),...ready.map(item=>dated(item.key,item.at,item.node))]);
+    const reviewRows=newest([...results.map(item=>dated(item.rootRunId,item.latestAt,renderReview(item,reviewLive(item)))),...ready.map(item=>dated(item.key,item.at,item.node))]);
     const needsCount=needRows.length;
     const reviewCount=reviewRows.length;
     const activeCount=needsCount+reviewCount+running.length;
@@ -99,7 +107,10 @@ export function WorkList({view,needs,queue,names,reviewDetails,warning,delivered
       {(status==='unavailable'||(!loadingNeeds&&(needs.partial||needs.truncated))||warning)&&<div role="status" className="work-read-warning">
         <svg aria-hidden="true"><use href="/brand/tukido-icons.svg#alert"/></svg>
         <div><strong>Some work couldn’t be checked.</strong><p>{status==='unavailable'?'Live status is unavailable. ':''}{!loadingNeeds&&(needs.partial||needs.truncated)?'Some actions may be missing. ':''}{warning?'The review queue is incomplete. ':''}Known work stays visible.</p></div>
-        <button type="button" className="btn-outline work-row-action" onClick={()=>router.refresh()}>Try again</button>
+        <button type="button" className="btn-outline work-row-action" onClick={()=>{
+          if(status==='unavailable')retryRead();
+          if(needs.partial||needs.truncated||warning)router.refresh();
+        }}>Try again</button>
       </div>}
       {view==='delivered' ? delivered : <>
         {visibleCount>0&&<div className="work-rows" aria-label="Work items">

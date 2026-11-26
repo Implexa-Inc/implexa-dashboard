@@ -464,6 +464,8 @@ export function presentationFor(info: RunStateInfo): RunPresentation {
 
 const BASE_COLUMNS = 'id, skill_slug, source, status, ran_at, output_markdown, review_status';
 const STATE_COLUMNS = 'run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at, verification_status';
+const DELIVERED_RUN_FILTER = 'run_state.eq.completed,run_state.is.null';
+const DELIVERED_REVIEW_FILTER = 'review_status.is.null,and(review_status.neq.pending,review_status.neq.needs_input)';
 
 // PostgREST raises 42703 (undefined_column) when we ask for a column that does
 // not exist yet. That, and only that, triggers the fallback.
@@ -478,6 +480,8 @@ export type SelectRunsOpts = {
   limit?: number;
   /** Only rows that produced a deliverable (output_markdown IS NOT NULL). */
   onlyWithOutput?: boolean;
+  /** Only completed execution with an output and no pending input or approval. */
+  onlyDelivered?: boolean;
   /** Extra base columns to fetch (e.g. '/runs' needs delivery, duration_ms). */
   extraColumns?: string;
   /** Scope to one agent's runs (the agent page's Runs tab). */
@@ -498,7 +502,11 @@ export async function selectRuns(
   const rich = `${base}, ${STATE_COLUMNS}`;
   const build = (cols: string) => {
     let q = supabase.from('skill_runs').select(cols).order('ran_at', { ascending: false }).limit(limit);
-    if (opts.onlyWithOutput) q = q.not('output_markdown', 'is', null);
+    if (opts.onlyWithOutput || opts.onlyDelivered) q = q.not('output_markdown', 'is', null);
+    if (opts.onlyDelivered) {
+      q = q.in('status', ['completed', 'partial'])
+        .or(DELIVERED_REVIEW_FILTER).or(DELIVERED_RUN_FILTER);
+    }
     if (opts.slug) q = q.eq('skill_slug', opts.slug);
     return q;
   };
@@ -506,16 +514,18 @@ export async function selectRuns(
 
 
   const richRes = await build(rich);
-  if (!richRes.error) return withoutManagerScaffolds(supabase, (richRes.data as unknown as RunRow[]) || []);
+  if (!richRes.error) return withoutManagerScaffolds(supabase, (richRes.data as unknown as RunRow[]) || [], opts.onlyDelivered);
   if (!isMissingColumn(richRes.error)) {
     if (opts.throwOnError) throw new Error('run_history_unavailable');
     // A real error (auth, RLS, network): surface nothing rather than throwing,
     // matching the rest of the dashboard's degrade-to-empty server reads.
     return [];
   }
-  const baseRes = await build(base);
+  // On Delivered, dropping run_state could relabel a current partial run as a
+  // result. Retry a narrow projection with run_state if another column failed.
+  const baseRes = await build(opts.onlyDelivered ? `${BASE_COLUMNS}, run_state` : base);
   if (baseRes.error && opts.throwOnError) throw new Error('run_history_unavailable');
-  return baseRes.error ? [] : withoutManagerScaffolds(supabase, (baseRes.data as unknown as RunRow[]) || []);
+  return baseRes.error ? [] : withoutManagerScaffolds(supabase, (baseRes.data as unknown as RunRow[]) || [], opts.onlyDelivered);
 }
 
 async function withoutManagerScaffolds<T extends {id: string}>(supabase: SupabaseClient, rows: T[], strict = false): Promise<T[]> {
@@ -557,8 +567,8 @@ export async function selectRunSummaries(supabase: SupabaseClient, userId: strin
     .select('id,skill_slug,status,ran_at')
     .eq('user_id', userId)
     .in('status', ['completed', 'partial'])
-    .or('run_state.eq.completed,run_state.is.null')
-    .or('review_status.is.null,and(review_status.neq.pending,review_status.neq.needs_input)')
+    .or(DELIVERED_RUN_FILTER)
+    .or(DELIVERED_REVIEW_FILTER)
     .not('output_markdown', 'is', null)
     .order('ran_at', {ascending: false}).order('id', {ascending: false}).limit(pageSize + 1);
   if (cursor) query = query.or(`ran_at.lt.${cursor.ranAt},and(ran_at.eq.${cursor.ranAt},id.lt.${cursor.id})`);

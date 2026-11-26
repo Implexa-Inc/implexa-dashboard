@@ -12,7 +12,7 @@
  * Renders nothing when there's no live activity, so it's invisible at rest.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
 import WorkItemRow from './work-item-row';
 import LocalTime from './local-time';
 import Link from 'next/link';
@@ -29,6 +29,7 @@ import {
   type Freshness,
 } from '@/lib/live-lifecycle-continuity';
 import { queuedWaitNotice } from '@/lib/queued-wait-copy';
+import { closeReasonMessage } from '@/lib/run-recovery-presentation';
 import Modal from './modal';
 import StuckRunButton from './stuck-run-button';
 import { desktopBridge } from './run-attachments';
@@ -50,6 +51,7 @@ type LiveCard = {
   skillSlug: string;
   source: string | null;
   status: LiveStatus;
+  runState?: string | null;
   /** Canonical request lifecycle for definition work without a run row. */
   lifecyclePhase?: 'queued' | 'installing_media_support' | 'preparing_inputs' | 'selecting_executor' | 'claimed' | 'starting' | 'switching_executor' | 'resuming' | 'fallback_blocked' | 'running' | 'verifying' | 'built' | 'start_failed' | 'claim_expired' | 'failed' | 'cancelled' | null;
   since: string | null;
@@ -75,9 +77,9 @@ type LiveCard = {
   /** action_available (0090): the primary ready action's label + how many open. */
   actionLabel?: string | null;
   actionCount?: number | null;
-  /** SOFT stuck signal (heartbeat stale on a running run) — likely waiting on a
-   *  permission. Drives the forever-fallback "open it in Claude & approve" nudge. */
+  /** A heartbeat gap is a quiet run, with its last confirmed state still live. */
   stuck?: boolean;
+  liveness?: 'alive' | 'quiet' | 'unborn' | 'unknown' | null;
   /** The agent's own routine task id (for the stuck deep-link when scheduled). */
   claudeTaskId?: string | null;
   executor?: 'claude' | 'codex' | null;
@@ -207,13 +209,13 @@ function elapsedMs(iso: string | null): number {
  */
 export type LiveState = { status: 'loading' | 'ready' | 'unavailable'; count: number };
 
-export type LiveWorkRow = { key: string; runId: string | null; at: string | null; status: string; needsYou: boolean; actions: ReactNode; details: ReactNode; node: ReactNode };
+export type LiveWorkRow = { key: string; runId: string | null; at: string | null; status: string; needsYou: boolean; interrupted: boolean; actions: ReactNode; details: ReactNode; node: ReactNode };
 
 export default function RunningAgents({ alertsOnly = false, bare = false, onState, compact = false, onFinished, pollMs = POLL_MS, renderList, agentNames = {} }: {
   alertsOnly?: boolean;
   agentNames?:Record<string,string>;
   /** Presentation seam only: the same poller, continuity and action handlers own every row. */
-  renderList?: (rows: LiveWorkRow[], state: LiveState['status']) => ReactNode;
+  renderList?: (rows: LiveWorkRow[], state: LiveState['status'], retryRead: () => void) => ReactNode;
   /** Compact Run rows reuse this same lifecycle, polling and action controls. */
   compact?: boolean;
   onFinished?: () => void;
@@ -241,6 +243,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
   const continuity = useRef<ContinuityState<LiveCard>>(emptyContinuityState<LiveCard>());
   /** The live read failed. Distinct from "no cards" — see the catch in load(). */
   const [failed, setFailed] = useState(false);
+  const [readRevision, retryRead] = useReducer((revision: number) => revision + 1, 0);
   const [showAll, setShowAll] = useState(false);
   // Cards the user cleared — shared key with the run detail page's "Hide from
   // alerts". Keyed by runId so a fresh run of the same agent re-appears. A ✕ on
@@ -453,7 +456,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
     const t = setInterval(load, pollMs);
     return () => { alive = false; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pollMs]);
+  }, [pollMs, readRevision]);
 
   // On Home we show only the cards that need you (yellow/red); on the Agents page
   // we show everything live. On Home (alertsOnly) we ALSO keep a just-FINISHED run
@@ -681,12 +684,9 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           // card, and with it the Cancel button bound to that card.
           const key = c.continuityKey;
           const cls = compact ? 'group flex items-center gap-3 border-b border-ink-800 px-1 py-4' : 'group flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3';
-          // FOREVER FALLBACK: a run that's stuck (soft heartbeat-stale, or hard
-          // stalled) is almost always its dispatcher session waiting on a permission
-          // prompt. Offer a guaranteed one-click "open it in Claude & approve" so a
-          // fresh agent that hits an un-granted tool/site never dead-ends. Rendered
-          // as a SIBLING (can't nest an <a> inside the card's <Link>).
-          const showStuck = (c.stuck || c.status === 'needs_attention') && c.status !== 'finished' && c.status !== 'failed';
+          const hardStall = c.status === 'needs_attention' && c.runState === 'stalled';
+          const quietRun = c.status === 'running' && c.stuck && c.liveness !== 'unknown';
+          const showStuck = c.status === 'needs_attention' || quietRun;
           // A queued run that's sat unclaimed for a while isn't "broken" — but it is
           // ALSO not "waiting for Claude". This box used to say exactly that for every
           // queued run, including the auto-routed ones that are the default: it named
@@ -712,14 +712,19 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           const showPreparationRetry = c.status === 'failed' && !c.runId && !!c.requestId
             && (String(c.failureReason || '').startsWith('desktop_preparation_')
               || c.failureReason === 'run_enqueue_interrupted');
-          const plainStatus = c.status==='needs_attention' ? 'Open this run to review what your agent needs.'
+          const failureDetail = c.status === 'failed' && c.runId
+            ? closeReasonMessage(c.failureReason) : visibleFailure(c.failureReason);
+          const plainStatus = hardStall
+            ? c.attention?.blockerMessage || 'The run stopped reporting progress. Open it to check recovery.'
+            : c.status==='needs_attention' ? 'Open this run to see what needs attention.'
             : c.status==='waiting_approval' ? 'Approve the next action before your agent continues.'
             : c.status==='action_available' ? c.actionLabel||'A prepared action is ready for your review.'
             : c.status==='fallback_blocked' ? 'Check the previous attempt before your agent continues.'
-            : ['failed','start_failed','claim_expired'].includes(c.status) ? 'This run could not finish. Open it to review the next step.'
+            : ['failed','start_failed','claim_expired'].includes(c.status) ? (failureDetail || 'This run could not finish. Open it to check recovery.')
             : c.status==='built' ? 'Your updated agent is ready to review.'
             : c.status==='finished' ? 'Delivered · open to review'
             : c.status==='verifying' ? 'Checking the result.'
+            : quietRun ? (c.liveness === 'unborn' ? 'Waiting for the first progress update.' : 'No recent progress reported.')
             : c.status==='running' ? 'Working on your request.' : 'Getting ready to start.';
           // Runtime status prose is diagnostic detail, not the name of the work.
           const statusHeadline = !!c.headline && /^(?:needs? (?:you|attention|input|approval)|waiting (?:for|on)|(?:run |build |start )?failed|error|approval (?:needed|required))\s*[:—-]/i.test(c.headline);
@@ -727,7 +732,9 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           const card = renderList ? (
             <WorkItemRow agentSlug={workHeadline?undefined:c.skillSlug} title={workHeadline || agentNames[c.skillSlug] || humanize(c.skillSlug) || 'Agent'}
               href={href} state={c.status === 'waiting_approval' || c.status === 'action_available' ? 'Needs approval'
-                : NOTIFY.has(c.status) ? (c.status === 'needs_attention' ? 'Needs input' : 'Failed')
+                : hardStall ? 'Stalled'
+                : c.status === 'needs_attention' || c.status === 'fallback_blocked' ? (c.attention?.blockerMessage ? 'Needs input' : 'Needs attention')
+                : NOTIFY.has(c.status) ? 'Failed'
                 : c.status === 'finished' ? 'Delivered' : c.status === 'built' ? 'Ready for review' : 'Running'}
               detail={<>{workHeadline ? `${agentNames[c.skillSlug]||humanize(c.skillSlug)} · ` : ''}{c.freshness !== 'fresh' ? freshnessNotice(c.freshness)
                 : c.runId && stoppingRunIds.has(c.runId) ? 'Stopping…' : plainStatus}
@@ -738,7 +745,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               </>}
               progress={c.status === 'running' && c.currentStepIndex != null && c.totalSteps ? {value:Math.max(0,c.currentStepIndex-1),total:c.totalSteps} : undefined}
               when={c.finishedAt||c.since?<LocalTime iso={(c.finishedAt||c.since)!}/>:null}
-              actions={<>{href && <Link href={href} prefetch={false} className="btn-outline work-row-action">{c.status === 'waiting_approval' || c.status === 'action_available' ? 'Review & approve' : NOTIFY.has(c.status) ? 'Open & resolve' : c.status === 'finished' || c.status === 'built' ? 'Open' : 'View progress'}</Link>}{controls}</>}/>
+              actions={<>{href && <Link href={href} prefetch={false} className="btn-outline work-row-action">{c.status === 'waiting_approval' || c.status === 'action_available' ? 'Review & approve' : NOTIFY.has(c.status) ? 'Check run' : c.status === 'finished' || c.status === 'built' ? 'Open' : 'View progress'}</Link>}{controls}</>}/>
           ) : linkable ? (
             <Link href={href!} prefetch={compact ? false : undefined} className={`${cls} hover:border-ink-700 transition-colors`}>{body}</Link>
           ) : (
@@ -765,19 +772,8 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               )}
               {showStuck && (
                 <div className="mt-1.5 ml-7 rounded-md border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5">
-                  {/* HONEST STATE, NOT A GUESS (2026-07-23 incident). This box used to
-                      assert "most likely it's waiting on a permission" for EVERY
-                      needs_attention run and always offer browser permissions. A real
-                      stall was a broken Continue that never ran — Implexa Manager had
-                      diagnosed it correctly, and this hard-coded heuristic buried that
-                      behind an action that could not possibly help.
-                      The two signals are NOT the same thing:
-                        • `stuck`  — SOFT: a running run whose heartbeat went stale. A
-                          pending permission prompt genuinely is the common cause, so
-                          the approve shortcut is a fair offer.
-                        • needs_attention — HARD: something already determined this run
-                          needs a human. Guessing over that determination is how the
-                          user gets sent to the wrong place. Point at the diagnosis. */}
+                  {/* A quiet heartbeat identifies no cause. Display a diagnosis
+                      only when the run actually has one. */}
                   {c.status === 'needs_attention' ? (
                     <>
                       {/* SHOW what the Manager found, when it found something. The
@@ -802,8 +798,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                         </>
                       ) : (
                         <p className="text-reading text-state-needs ">
-                          This run stopped and needs you. Open it to see what Tukido found and what it needs —
-                          the reason is on the run itself.
+                          This run stopped or needs attention. Open the run for its recorded status and recovery options.
                         </p>
                       )}
                       {c.runId && (
@@ -818,17 +813,16 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   ) : (
                     <>
                       <p className="text-reading text-state-needs ">
-                        On the same step a while — if it’s waiting on a permission to continue, you can approve it now.
+                        Progress updates have been quiet. Check the run for its last recorded status.
                       </p>
-                      <StuckRunButton
-                        engine={c.executor || 'claude'}
+                      {c.executor && (c.executorThreadId || (c.executor === 'claude' && c.claudeTaskId)) && <StuckRunButton
+                        engine={c.executor}
                         threadId={c.executorThreadId}
                         workspace={c.executorWorkspace}
                         runId={c.runId}
                         claudeTaskId={c.claudeTaskId}
-                        permissionCapability="browser"
                         className="mt-2"
-                      />
+                      />}
                     </>
                   )}
                 </div>
@@ -851,7 +845,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           const details = renderList ? (showRetry || showPreparationRetry || showStuck || queuedWait || c.failureReason || c.fallbackReason || statusHeadline
             ? <details className="work-row-details"><summary>Run details & recovery</summary>
                 {statusHeadline && <p>{c.headline}</p>}
-                {c.failureReason && <p>{visibleFailure(c.failureReason)}</p>}
+                {failureDetail && <p>{failureDetail}</p>}
                 {c.fallbackReason && <p>{c.fallbackReason}{c.resumeStep != null ? ` · Resuming from step ${c.resumeStep}` : ''}</p>}
                 {recovery}
               </details> : null) : recovery;
@@ -866,7 +860,8 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               {details}
             </div>
           );
-          return { key, runId:c.runId, at:c.finishedAt||c.since, status:c.status, needsYou:NOTIFY.has(c.status), actions:controls, details, node };
+          return { key, runId:c.runId, at:c.finishedAt||c.since, status:c.status, needsYou:NOTIFY.has(c.status),
+            interrupted:c.freshness==='fresh'&&(c.status==='failed'||hardStall), actions:controls, details, node };
   });
 
   return (
@@ -882,7 +877,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           <h2 className="text-ui font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Alerts' : 'Active Agents'} ({list.length})</h2>
         </div>
       )}
-      {renderList ? renderList(renderedRows, liveStatus) : <div className="space-y-2">
+      {renderList ? renderList(renderedRows, liveStatus, retryRead) : <div className="space-y-2">
         {renderedRows.map(row => row.node)}
       </div>}
       {!renderList && list.length > visibleLimit && (
