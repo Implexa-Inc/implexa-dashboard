@@ -110,7 +110,7 @@ export type ReviewSessionArtifact = {
 };
 
 export type ReviewIssue = {
-  purpose?: 'revision' | 'training';
+  purpose?: 'revision' | 'training' | 'recovered_feedback';
   id: string;
   sessionId: string;
   runId: string;
@@ -206,6 +206,7 @@ export type ReviewPacket = {
   run: {
     id: string; slug: string | null; runState: string | null; status: string | null;
     reviewStatus: string | null; holdKind: string | null; closeReason?: string | null; startedAt: string | null;
+    recoveredFeedbackArtifactId?: string;
   } | null;
   lineage: { rootRunId: string | null; versions: Array<{ runId: string; label: string; runState: string | null; startedAt: string | null }> };
   artifacts: ReviewArtifact[];
@@ -678,6 +679,14 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
 
   if (!Array.isArray(body.artifacts) || !body.artifacts.every((a) => isValidArtifact(a, runId))) return null;
   const artifactIds = new Set((body.artifacts as Array<Record<string, unknown>>).map((a) => String(a.id)));
+  const recoveredFeedbackArtifactId = body.run.recoveredFeedbackArtifactId;
+  if (recoveredFeedbackArtifactId !== undefined && (
+    body.run.closeReason !== 'owner_verified_export'
+    || !isId(recoveredFeedbackArtifactId)
+    || !(body.artifacts as ReviewArtifact[]).some(a => a.id === recoveredFeedbackArtifactId
+      && a.role === 'other' && a.status === 'validated'
+      && /\.mp4$/i.test(a.relativePath) && /^[0-9a-f]{64}$/.test(a.sha256 ?? ''))
+  )) return null;
 
   if (!Array.isArray(body.reviewArtifacts) || !body.reviewArtifacts.every((entry) => {
     if (!isObject(entry) || !isId(entry.artifactId) || !isId(entry.displayName) || !isId(entry.createdAt)) return false;
@@ -702,6 +711,7 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
   // pointing at nothing.
   for (const i of body.issues as Array<Record<string, unknown>>) {
     if (i.artifactId !== null && i.artifactId !== undefined && !artifactIds.has(String(i.artifactId))) return null;
+    if (i.purpose === 'recovered_feedback' && (!recoveredFeedbackArtifactId || i.artifactId !== recoveredFeedbackArtifactId)) return null;
   }
   if (body.session !== null) {
     const sel = (body.session as Record<string, unknown>).selectedArtifactId;

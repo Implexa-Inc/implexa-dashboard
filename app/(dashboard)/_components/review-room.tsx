@@ -89,6 +89,7 @@ export type ReviewRoomProps = {
   finishedView?: {reviewHref:string;changes:ReactNode;afterResult?:ReactNode;checks?:ReactNode;fallbackResult?:ReactNode};
   /** Reuses the same annotation writer; revision controls stay in Review Room. */
   trainingMode?: boolean;
+  recoveredFeedback?: boolean;
   trainingOwnerId?: string;
   initialTrainingIssueId?: string;
   customerOwnerId?: string;
@@ -158,7 +159,7 @@ function formatSignedMs(ms: number): string {
 
 export default function ReviewRoom(props: ReviewRoomProps) {
   const router = useRouter();
-  const { runId, artifacts, production, sources, isApprovalHold } = props;
+  const { runId, artifacts, production, sources, isApprovalHold, recoveredFeedback } = props;
   const historicalProvenanceUnavailable = sources.historical_candidates === 'unavailable'
     || sources.carry_membership === 'unavailable';
   const supportingArtifactIds = useMemo(() => new Set(
@@ -231,7 +232,9 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   // intentionally retain their predecessor session id; current-session filtering
   // alone would make a successfully carried draft appear empty after reload.
   const carriedIssueIds = new Set(session?.carriedIssueIds ?? []);
-  const scopedIssues=allIssues.filter(issue=>props.trainingMode||issue.purpose!=='training');
+  const scopedIssues=allIssues.filter(issue=>recoveredFeedback
+    ? issue.purpose==='recovered_feedback'
+    : issue.purpose!=='recovered_feedback' && (props.trainingMode||issue.purpose!=='training'));
   const issues = historicalCandidate
     ? scopedIssues.filter((issue) => issue.artifactId === selectedId
       && (issue.sessionId === session?.id || carriedIssueIds.has(issue.id)))
@@ -415,7 +418,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   const frozen = proxyPreview || submissionInFlight || historicalProvenanceUnavailable
     || (!acts.canEditIssues && session?.state !== 'accepted' && !isApprovalHold);
   const accepted = session?.state === 'accepted';
-  const canAttachReviewFiles = sources.review_artifacts === 'ready'
+  const canAttachReviewFiles = !recoveredFeedback && sources.review_artifacts === 'ready'
     && (!session || session.state === 'draft') && !submissionInFlight && !accepted;
   // An externally opened review target is not part of the original run lineage. It
   // therefore cannot truthfully use `inherit`, even if the reviewer never opens the
@@ -555,11 +558,12 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       return null;
     }
     if (session?.id) return session.id;
-    const { body } = await reviewAction({ action: 'ensure_session', runId, artifactId });
+    const { body } = await reviewAction({ action: 'ensure_session', runId, artifactId,
+      ...(recoveredFeedback ? { recoveredFeedback: true } : {}) });
     if (body?.ok && body.session) { setSession(body.session); return body.session.id as string; }
     setError(body?.error || 'Could not open a review session.');
     return null;
-  }, [session, runId, props.historicalCandidates, historicalProvenanceUnavailable]);
+  }, [session, runId, props.historicalCandidates, historicalProvenanceUnavailable, recoveredFeedback]);
 
   const pickReviewArtifact = useCallback(async (
     purpose: 'review_target' | 'supporting', selection: 'file' | 'directory',
@@ -779,7 +783,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       if (editingId) {
         const { body } = await reviewAction({
           action: 'update_issue', issueId: editingId,
-          kind: d!.kind, anchor, body: d!.body.trim(), ...(props.trainingMode?{purpose:'training'}:{}),
+          kind: d!.kind, anchor, body: d!.body.trim(), ...(props.trainingMode&&!recoveredFeedback?{purpose:'training'}:{}),
         });
         if (!body?.ok) {
           setError(body?.staleAnchor
@@ -799,7 +803,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         setDraft(null); setRangeAttempt(null);
         // An edit may have moved the pin, which revoked the old frame server-side.
         // Re-request so the issue does not sit blocked on a capture nobody re-asked for.
-        if (anchor && isSpatialAnchorV2(anchor)) void requestEvidence(editingId);
+        if (!recoveredFeedback && anchor && isSpatialAnchorV2(anchor)) void requestEvidence(editingId);
         return;
       }
 
@@ -812,7 +816,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       const { body } = await reviewAction({
         // The FROZEN file, for the same reason as the digest above.
         action: 'create_issue', sessionId: sid, artifactId: d!.target.artifactId,
-        kind: d!.kind, anchor, body: d!.body.trim(), ...(props.trainingMode?{purpose:'training'}:{}),
+        kind: d!.kind, anchor, body: d!.body.trim(),
+        ...(recoveredFeedback ? { purpose: 'recovered_feedback' } : props.trainingMode ? { purpose: 'training' } : {}),
       });
       if (!body?.ok) {
         setError(body?.staleAnchor
@@ -824,10 +829,10 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       setDraft(null); setRangeAttempt(null);
       // A saved spatial issue starts its evidence capture NOW — waiting for submit to
       // ask would serialize every capture behind the reviewer's slowest comment.
-      if (body.issue?.id && anchor && isSpatialAnchorV2(anchor)) void requestEvidence(body.issue.id);
+      if (!recoveredFeedback && body.issue?.id && anchor && isSpatialAnchorV2(anchor)) void requestEvidence(body.issue.id);
     } finally { setBusy(false); }
     // NOT `artifact`: every identity this path writes now comes from the draft.
-  }, [buildAnchor, draft, ensureSession, requestEvidence, props.trainingMode]);
+  }, [buildAnchor, draft, ensureSession, requestEvidence, props.trainingMode, recoveredFeedback]);
 
   const dismissIssue = useCallback(async (issueId: string) => {
     setBusy(true); setError(null);
@@ -1337,7 +1342,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     const timer=window.setTimeout(()=>{const note=teachingNoteRef.current;if(note&&note.dataset.floating!=='true')note.scrollIntoView?.({block:'nearest'});},0);
     return()=>window.clearTimeout(timer);
   },[noteFocusKey]);
-  const canMarkNow=!props.finishedView&&!frozen&&!accepted&&artifact?.status==='validated';
+  const canMarkNow=!props.finishedView&&!frozen&&!accepted&&artifact?.status==='validated'
+    && (!recoveredFeedback || (preview?.artifactId===selectedId && playheadMs!==null));
   // M adds a note at the current frame — the keyboard twin of "+ Point comment".
   useEffect(()=>{
     if(!props.trainingMode||!canMarkNow)return;
@@ -1395,7 +1401,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           }:undefined}
           spatial={{
             readOnly:!!props.finishedView,
-            enabled: !props.finishedView && !voiceDirty && !frozen && !accepted && artifact?.status === 'validated',
+            hidden: recoveredFeedback,
+            enabled: !recoveredFeedback && !props.finishedView && !voiceDirty && !frozen && !accepted && artifact?.status === 'validated',
             pins: overlayPins,
             draftSpatial: draft?.spatial ?? null,
             freezeMedia: freezeMediaForAnnotation,
@@ -1639,7 +1646,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
               </p>
             )}
 
-            {draft.kind === 'audio' && draft.anchorMs !== null && draft.target.relativePath && (
+            {!recoveredFeedback && draft.kind === 'audio' && draft.anchorMs !== null && draft.target.relativePath && (
               <ReviewAudioEvidence
                 key={`${draft.target.artifactId}:${draft.anchorMs}:${draft.editingIssueId || 'new'}`}
                 reviewedFile={draft.target.relativePath}
@@ -1680,7 +1687,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                 type="button" disabled={busy||voiceDirty} onClick={submitIssue}
                 className="rounded-md bg-ink-100 px-3 py-1.5 text-ui font-medium text-ink-950 disabled:opacity-50"
               >
-                {saveDraftLabel(draft)}
+                {recoveredFeedback && !draft.editingIssueId ? 'Save feedback' : saveDraftLabel(draft)}
               </button>
               <button
                 type="button"
@@ -1758,21 +1765,21 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           </div>
         )}
 
-        {props.trainingMode&&!latestFinalOutput&&<p role="status" className="mb-3 text-reading text-state-needs">The latest result could not be verified. Open Result details to choose a file.</p>}
+        {props.trainingMode&&!recoveredFeedback&&!latestFinalOutput&&<p role="status" className="mb-3 text-reading text-state-needs">The latest result could not be verified. Open Result details to choose a file.</p>}
 
         {!props.trainingMode&&resultDetails}
-        {sources.review_artifacts !== 'ready' && (
+        {!recoveredFeedback && sources.review_artifacts !== 'ready' && (
           <p role="status" className="mb-3 text-secondary text-state-needs">
             Other review files are unavailable right now. Reload before attaching or sending them.
           </p>
         )}
 
         {resultSurface}
-        {props.trainingMode?resultDetails:resultIdentity}
+        {!recoveredFeedback && (props.trainingMode?resultDetails:resultIdentity)}
 
 
         {/* Persistent, keyboard-reachable. Not a modal that ambushes every pause. */}
-        {!frozen && !accepted && artifact?.status === 'validated' && (
+        {!frozen && !accepted && artifact?.status === 'validated' && (!recoveredFeedback || canMarkNow) && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {/* TWO EXPLICIT CHOICES, side by side. A range used to be reachable only
                 by opening a point comment first and noticing a "Set end here" button
@@ -1869,7 +1876,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       <aside className="flex max-h-[70vh] min-h-0 flex-col rounded-lg border border-ink-800 bg-ink-900/40 lg:max-h-none">
         <div className="shrink-0 border-b border-ink-800 px-4 py-3">
           <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-ui font-medium text-ink-200">{props.trainingMode?'Your teaching notes':'Review issues'}</h2>
+            <h2 className="text-ui font-medium text-ink-200">{recoveredFeedback ? 'Your feedback' : props.trainingMode?'Your teaching notes':'Review issues'}</h2>
             {!issuesUnavailable && !resolutionsUnavailable && visible.length > 0 && (
               <span className="shrink-0 text-micro tabular-nums text-ink-500">{props.trainingMode ? noteCountLabel(visible.length) : groupCountLabel(visible.length)}</span>
             )}
@@ -1956,7 +1963,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                       {props.trainingMode ? noteTimeLabel(i.anchor as Record<string, unknown>) : anchorLabel(i.anchor as Record<string, unknown>)}
                     </button>
                     {!props.trainingMode&&<span className="rounded bg-ink-800 px-1 py-0.5 text-ink-400">{i.kind}</span>}
-                    <span className="ml-auto text-ink-500">{i.status}</span>
+                    <span className="ml-auto text-ink-500">{recoveredFeedback ? 'Saved' : i.status}</span>
                   </div>
                   {/* WHICH FILE this issue is about is now the group heading above, so
                       the card no longer repeats it. What the heading cannot say is that
@@ -2075,11 +2082,13 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           {notice && <p role="status" className="text-secondary text-ink-300">{notice}</p>}
           {accepted && <button type="button" disabled={busy} onClick={()=>void addMoreFeedback()} className="text-ui text-action-accent">Add teaching notes</button>}
           {props.onDoneTeaching&&<button type="button" className="btn-primary" disabled={busy||!!draft||!!pendingRange||voiceDirty||!teachingNotes.length} onClick={()=>props.onDoneTeaching?.(teachingNotes)}>Done teaching</button>}
-          <p className="text-secondary text-ink-500">Your saved notes become lessons you can review before applying.</p>
-          {visible.length>teachingNotes.length&&<p className="text-secondary text-ink-400">{visible.length-teachingNotes.length} note(s) need a fresh visual mark before extraction.</p>}
-          <details><summary className="cursor-pointer text-ui text-ink-400">More options</summary><a href={props.trainingSlug?`${trainingReviewHref(props.trainingSlug,runId)}?mode=revise`:`/review/${encodeURIComponent(runId)}`} className="mt-3 inline-block text-secondary text-ink-400 underline underline-offset-4">Revise this result →</a></details>
+          {recoveredFeedback ? <p className="text-secondary text-ink-500">Notes are private to this saved video.</p> : <>
+            <p className="text-secondary text-ink-500">Your saved notes become lessons you can review before applying.</p>
+            {visible.length>teachingNotes.length&&<p className="text-secondary text-ink-400">{visible.length-teachingNotes.length} note(s) need a fresh visual mark before extraction.</p>}
+            <details><summary className="cursor-pointer text-ui text-ink-400">More options</summary><a href={props.trainingSlug?`${trainingReviewHref(props.trainingSlug,runId)}?mode=revise`:`/review/${encodeURIComponent(runId)}`} className="mt-3 inline-block text-secondary text-ink-400 underline underline-offset-4">Revise this result →</a></details>
+          </>}
         </div>}
-        <div className={`${props.trainingMode?'hidden ':''}sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900 px-4 py-3`}>
+        {!recoveredFeedback && <div className={`${props.trainingMode?'hidden ':''}sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900 px-4 py-3`}>
           {error && <p role="alert" className="text-secondary text-state-fail">{error}</p>}
           {notice && <p role="status" className="text-secondary text-state-ok">{notice}</p>}
 
@@ -2466,7 +2475,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           >
             Add more feedback
           </button>
-        </div>
+        </div>}
       </aside>
 
       {cleanupDialog}
@@ -2476,6 +2485,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
 /** Everything the spatial annotation overlay needs, threaded as one bundle. */
 type SpatialSurfaceProps = {
+  hidden?: boolean;
   readOnly?:boolean;
   enabled: boolean;
   pins: OverlayPin[];
@@ -2592,7 +2602,7 @@ function ArtifactSurface({
           <img className="recording-hover-picture" src={hoverFrame.anyImage.url} alt="Timeline preview" />
           <span className="recording-preview-badge">Preview {formatMediaTime(Math.round(hoverFrame.anyImage.second * 1000))}</span>
         </>}
-        {decision.kind === 'video' && !spatial.readOnly && (
+        {decision.kind === 'video' && !spatial.readOnly && !spatial.hidden && (
           <ReviewSpatialOverlay
             mediaKind="video"
             appearance={trainingMode?'teaching':undefined}
@@ -2629,7 +2639,7 @@ function ArtifactSurface({
         ) : picture()}
         {/* The OUTSIDE-the-player information affordance (Wave 2 discoverability):
             always visible next to the player, never floating over content. */}
-        {decision.kind === 'video' && !spatial.readOnly && (
+        {decision.kind === 'video' && !spatial.readOnly && !spatial.hidden && (
           <p className="mt-2 flex items-start gap-1.5 text-secondary text-ink-500" data-testid="spatial-hint">
             <span aria-hidden="true" className="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-ink-600 text-secondary">i</span>
             <span>{SPATIAL_HINT_COPY}</span>

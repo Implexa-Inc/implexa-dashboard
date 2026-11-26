@@ -1,0 +1,262 @@
+{
+  "initialPacket": {
+    "ok": true,
+    "run": {
+      "id": "ec120000-0000-4000-8000-000000024001",
+      "slug": "lifecycle-source-fixture",
+      "runState": "completed",
+      "status": "partial",
+      "reviewStatus": "none",
+      "closeReason": "owner_verified_export",
+      "recoveredFeedbackArtifactId": "4c4a699b-e29e-4e8d-81d6-c440d18d2556",
+      "holdKind": null,
+      "startedAt": "2026-11-26T17:40:40.740Z"
+    },
+    "lineage": {
+      "rootRunId": "ec120000-0000-4000-8000-000000024001",
+      "versions": [
+        {
+          "runId": "ec120000-0000-4000-8000-000000024001",
+          "label": "Original",
+          "runState": "completed",
+          "status": "partial",
+          "startedAt": "2026-11-26T17:40:40.740Z"
+        }
+      ]
+    },
+    "artifacts": [
+      {
+        "id": "4c4a699b-e29e-4e8d-81d6-c440d18d2556",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "relativePath": "owner-export-11111111-1111-4111-8111-111111111111.mp4",
+        "role": "other",
+        "status": "validated",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "sizeBytes": 42,
+        "mtime": "2026-11-26T17:40:41.062Z",
+        "validatedAt": "2026-11-26T17:40:41.175Z"
+      }
+    ],
+    "judgment": null,
+    "verification": {
+      "receipts": []
+    },
+    "production": null,
+    "competenceProof": {
+      "contextStatus": "none",
+      "attemptContextId": null,
+      "contextDigest": null,
+      "workflowVersionId": null,
+      "bindings": [],
+      "supplyStatus": "not_required",
+      "handlingStatus": "not_required",
+      "receipts": []
+    },
+    "managerProof": {
+      "status": "none",
+      "stageCount": 0,
+      "stages": [],
+      "verificationStatus": "not_required"
+    },
+    "historicalCandidates": [],
+    "session": null,
+    "reviewArtifacts": [],
+    "submission": null,
+    "issues": [],
+    "sources": {
+      "run": "ready",
+      "lineage": "ready",
+      "artifacts": "ready",
+      "judgment": "ready",
+      "verification": "ready",
+      "production": "ready",
+      "session": "ready",
+      "issues": "ready",
+      "evidence": "ready",
+      "submission": "ready",
+      "reviewer_resolutions": "ready",
+      "review_artifacts": "ready",
+      "competence_context": "ready",
+      "competence_handling": "ready",
+      "manager_context": "ready",
+      "manager_handling": "ready",
+      "historical_candidates": "ready",
+      "carry_membership": "ready"
+    }
+  },
+  "packet": {
+    "ok": true,
+    "run": {
+      "id": "ec120000-0000-4000-8000-000000024001",
+      "slug": "lifecycle-source-fixture",
+      "runState": "completed",
+      "status": "partial",
+      "reviewStatus": "none",
+      "closeReason": "owner_verified_export",
+      "recoveredFeedbackArtifactId": "4c4a699b-e29e-4e8d-81d6-c440d18d2556",
+      "holdKind": null,
+      "startedAt": "2026-11-26T17:40:40.740Z"
+    },
+    "lineage": {
+      "rootRunId": "ec120000-0000-4000-8000-000000024001",
+      "versions": [
+        {
+          "runId": "ec120000-0000-4000-8000-000000024001",
+          "label": "Original",
+          "runState": "completed",
+          "status": "partial",
+          "startedAt": "2026-11-26T17:40:40.740Z"
+        }
+      ]
+    },
+    "artifacts": [
+      {
+        "id": "4c4a699b-e29e-4e8d-81d6-c440d18d2556",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "relativePath": "owner-export-11111111-1111-4111-8111-111111111111.mp4",
+        "role": "other",
+        "status": "validated",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "sizeBytes": 42,
+        "mtime": "2026-11-26T17:40:41.062Z",
+        "validatedAt": "2026-11-26T17:40:41.175Z"
+      }
+    ],
+    "judgment": null,
+    "verification": {
+      "receipts": []
+    },
+    "production": null,
+    "competenceProof": {
+      "contextStatus": "none",
+      "attemptContextId": null,
+      "contextDigest": null,
+      "workflowVersionId": null,
+      "bindings": [],
+      "supplyStatus": "not_required",
+      "handlingStatus": "not_required",
+      "receipts": []
+    },
+    "managerProof": {
+      "status": "none",
+      "stageCount": 0,
+      "stages": [],
+      "verificationStatus": "not_required"
+    },
+    "historicalCandidates": [],
+    "session": {
+      "id": "fd0a5c3f-fe56-4047-97f2-bbd86c8bec2e",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "selectedArtifactId": "4c4a699b-e29e-4e8d-81d6-c440d18d2556",
+      "state": "draft",
+      "submittedRequestId": null,
+      "submittedIssueIds": null,
+      "compiledBrief": null,
+      "previousSessionId": null,
+      "carriedIssueIds": [],
+      "createdAt": "2026-11-26T17:40:41.234Z",
+      "submittedAt": null,
+      "acceptedAt": null
+    },
+    "reviewArtifacts": [],
+    "submission": null,
+    "issues": [
+      {
+        "id": "6d074df6-27c2-482e-8293-6d8ed307b4b5",
+        "sessionId": "fd0a5c3f-fe56-4047-97f2-bbd86c8bec2e",
+        "runId": "ec120000-0000-4000-8000-000000024001",
+        "artifactId": "4c4a699b-e29e-4e8d-81d6-c440d18d2556",
+        "kind": "timing",
+        "purpose": "recovered_feedback",
+        "anchor": {
+          "type": "media_time",
+          "version": 1,
+          "timeEndMs": 750,
+          "timeStartMs": 250,
+          "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        "anchorDigest": null,
+        "spatial": null,
+        "body": "Hold the cut here.",
+        "status": "draft",
+        "reviewerResolution": null,
+        "evidence": null,
+        "submittedRequestId": null,
+        "createdAt": "2026-11-26T17:40:41.251Z",
+        "updatedAt": "2026-11-26T17:40:41.251Z"
+      }
+    ],
+    "sources": {
+      "run": "ready",
+      "lineage": "ready",
+      "artifacts": "ready",
+      "judgment": "ready",
+      "verification": "ready",
+      "production": "ready",
+      "session": "ready",
+      "issues": "ready",
+      "evidence": "ready",
+      "submission": "ready",
+      "reviewer_resolutions": "ready",
+      "review_artifacts": "ready",
+      "competence_context": "ready",
+      "competence_handling": "ready",
+      "manager_context": "ready",
+      "manager_handling": "ready",
+      "historical_candidates": "ready",
+      "carry_membership": "ready"
+    }
+  },
+  "open": {
+    "ok": true,
+    "session": {
+      "id": "fd0a5c3f-fe56-4047-97f2-bbd86c8bec2e",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "selectedArtifactId": "4c4a699b-e29e-4e8d-81d6-c440d18d2556",
+      "state": "draft",
+      "submittedRequestId": null,
+      "submittedIssueIds": null,
+      "compiledBrief": null,
+      "previousSessionId": null,
+      "carriedIssueIds": [],
+      "createdAt": "2026-11-26T17:40:41.234Z",
+      "submittedAt": null,
+      "acceptedAt": null
+    },
+    "created": true
+  },
+  "point": {
+    "ok": true,
+    "issue": {
+      "id": "8daf956a-813b-4502-9855-978afc897110",
+      "sessionId": "fd0a5c3f-fe56-4047-97f2-bbd86c8bec2e",
+      "runId": "ec120000-0000-4000-8000-000000024001",
+      "artifactId": "4c4a699b-e29e-4e8d-81d6-c440d18d2556",
+      "kind": "content",
+      "purpose": "recovered_feedback",
+      "anchor": {
+        "type": "media_time",
+        "version": 1,
+        "timeEndMs": null,
+        "timeStartMs": 250,
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "anchorDigest": null,
+      "spatial": null,
+      "body": "Use the reaction shot.",
+      "status": "draft",
+      "reviewerResolution": null,
+      "submittedRequestId": null,
+      "createdAt": "2026-11-26T09:40:41.259788-08:00",
+      "updatedAt": "2026-11-26T09:40:41.259788-08:00"
+    }
+  },
+  "producer": {
+    "hashes": {
+      "supabase/migrations/0660_owner_verified_export_recovery.sql": "a6219d9b3c75669b47b3cc28736c0f597f1bc7bb5b1a58a116d86c3627419a65",
+      "supabase/migrations/0671_recovered_export_feedback.sql": "4d395529f4657ec785d083f4a939de8b3d017b5c1a7f90c1403079783b8bbb31",
+      "src/services/run-review.service.js": "fd53ab7dd142e0cf2f135f239874d044909434dec79f71f35dbeb73f8e557288",
+      "scripts/owner-verified-export.postgres.test.js": "9f2a6b3bffd5c57fd4d9e7d2c74349962e4c19bfe3b72f63a5faaea9e5809466"
+    }
+  }
+}
