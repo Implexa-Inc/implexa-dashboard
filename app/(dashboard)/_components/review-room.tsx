@@ -92,6 +92,7 @@ export type ReviewRoomProps = {
   /** Work's revision surface can use the shared video timeline without teaching. */
   runMarkup?: boolean;
   recoveredFeedback?: boolean;
+  canReviseRecoveredExport?: boolean;
   trainingOwnerId?: string;
   initialTrainingIssueId?: string;
   customerOwnerId?: string;
@@ -393,7 +394,9 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   const [patternCandidateEvidenceKey, setPatternCandidateEvidenceKey] = useState<string | null>(null);
   const [patternBusy, setPatternBusy] = useState(false);
   const submission = phaseForSession({
-    sessionState: session?.state ?? null,
+    // A fresh tab can safely replay a recovered export's interrupted submission.
+    // Local flight and the exact frozen session remain the authority for edits.
+    sessionState: recoveredFeedback && session?.state === 'submitting' ? null : session?.state ?? null,
     submittedRequestId: session?.submittedRequestId ?? null,
     submittedIssueIds: session?.submittedIssueIds ?? null,
     local: localSubmission,
@@ -418,6 +421,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   // snapshotted server-side.
   const submissionInFlight = submission.phase === 'preparing' || submission.phase === 'submitting';
   const frozen = proxyPreview || submissionInFlight || historicalProvenanceUnavailable
+    || (recoveredFeedback && submission.phase === 'revision_queued')
     || (!acts.canEditIssues && session?.state !== 'accepted' && !isApprovalHold);
   const accepted = session?.state === 'accepted';
   const canAttachReviewFiles = !recoveredFeedback && sources.review_artifacts === 'ready'
@@ -616,7 +620,9 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       const { body } = await reviewAction({ action: 'continuation_status', sessionId: session.id });
       if (!body?.ok) { setError(body?.error || 'Could not locate that revision attempt.'); return; }
       if (body.resultRunId) {
-        router.push(props.trainingSlug?trainingReviewHref(props.trainingSlug,String(body.resultRunId)):`/review/${encodeURIComponent(String(body.resultRunId))}`);
+        const resultRunId=String(body.resultRunId);
+        router.push(recoveredFeedback ? `/runs/${encodeURIComponent(resultRunId)}`
+          : props.trainingSlug ? trainingReviewHref(props.trainingSlug,resultRunId) : `/review/${encodeURIComponent(resultRunId)}`);
         return;
       }
       if (props.agentSlug && body.requestId) {
@@ -629,7 +635,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
     } finally {
       setBusy(false);
     }
-  }, [session, router, props.agentSlug,props.trainingSlug]);
+  }, [session, router, props.agentSlug,props.trainingSlug,recoveredFeedback]);
 
   /**
    * Preserve the submitted round and open an editable successor only when the backend
@@ -1179,9 +1185,10 @@ export default function ReviewRoom(props: ReviewRoomProps) {
         action: 'submit', sessionId: sid,
         // The composer's live text. `resolveReviewAction` trims it and refuses an
         // over-long note before anything leaves the browser.
-        revisionNote,
-        revisionMode: effectiveRevisionMode,
-        ...(confirmedPattern ? { patternApplication: confirmedPattern } : {}),
+        ...(recoveredFeedback ? { recoveredExport: true } : {
+          revisionNote, revisionMode: effectiveRevisionMode,
+          ...(confirmedPattern ? { patternApplication: confirmedPattern } : {}),
+        }),
       });
       // 5xx is a read the service could not make, not a verdict on the review.
       const outcome = parseSubmitResponse(body, { unavailable: status >= 500 });
@@ -1207,7 +1214,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       setError(submitRefusalCopy(outcome));
       return outcome;
     } finally { setBusy(false); }
-  }, [session, router, revisionNote, effectiveRevisionMode, patternCandidate, patternCandidateEvidenceKey, patternEvidenceKey]);
+  }, [session, router, revisionNote, effectiveRevisionMode, patternCandidate, patternCandidateEvidenceKey, patternEvidenceKey, recoveredFeedback]);
 
   const togglePatternSource = useCallback((issueId: string, selected: boolean) => {
     setPatternSourceIssueIds((current) => selected
@@ -2085,7 +2092,19 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           {notice && <p role="status" className="text-secondary text-ink-300">{notice}</p>}
           {accepted && <button type="button" disabled={busy} onClick={()=>void addMoreFeedback()} className="text-ui text-action-accent">Add teaching notes</button>}
           {props.onDoneTeaching&&<button type="button" className="btn-primary" disabled={busy||!!draft||!!pendingRange||voiceDirty||!teachingNotes.length} onClick={()=>props.onDoneTeaching?.(teachingNotes)}>Done teaching</button>}
-          {recoveredFeedback ? <p className="text-secondary text-ink-500">Notes are private to this saved video.</p> : <>
+          {recoveredFeedback ? <>
+            <p className="text-secondary text-ink-500">Notes are private to this saved video.</p>
+            {submitView.mode === 'queued' ? <>
+              <p role="status" className="text-secondary text-state-ok">{revisionCompleted ? 'Your revision was delivered.' : 'Revision requested from this saved video.'}</p>
+              <button type="button" className="btn-outline" disabled={busy} onClick={()=>void openSubmittedRevision()}>
+                {revisionCompleted ? 'Open the revised video' : 'Open revision attempt'}
+              </button>
+            </> : props.canReviseRecoveredExport && !issuesUnavailable && !resolutionsUnavailable && (activeIssues.length > 0 || session?.state === 'submitting') && <>
+              <p className="text-secondary text-ink-500">Apply your saved notes to a separate edit of this video.</p>
+              <button type="button" className="btn-primary" disabled={busy||submissionInFlight||!!draft||!!pendingRange||voiceDirty}
+                onClick={()=>void onPrimary()}>{submissionInFlight?'Requesting revision…':session?.state==='submitting'?'Retry revision request':'Run revision from saved video'}</button>
+            </>}
+          </> : <>
             <p className="text-secondary text-ink-500">Your saved notes become lessons you can review before applying.</p>
             {visible.length>teachingNotes.length&&<p className="text-secondary text-ink-400">{visible.length-teachingNotes.length} note(s) need a fresh visual mark before extraction.</p>}
             <details><summary className="cursor-pointer text-ui text-ink-400">More options</summary><a href={props.trainingSlug?`${trainingReviewHref(props.trainingSlug,runId)}?mode=revise`:`/review/${encodeURIComponent(runId)}`} className="mt-3 inline-block text-secondary text-ink-400 underline underline-offset-4">Revise this result →</a></details>

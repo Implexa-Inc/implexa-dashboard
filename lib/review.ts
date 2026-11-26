@@ -207,6 +207,7 @@ export type ReviewPacket = {
     id: string; slug: string | null; runState: string | null; status: string | null;
     reviewStatus: string | null; holdKind: string | null; closeReason?: string | null; startedAt: string | null;
     recoveredFeedbackArtifactId?: string;
+    recoveredRevisionAvailable?: true;
   } | null;
   lineage: { rootRunId: string | null; versions: Array<{ runId: string; label: string; runState: string | null; startedAt: string | null }> };
   artifacts: ReviewArtifact[];
@@ -687,6 +688,8 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
       && a.role === 'other' && a.status === 'validated'
       && /\.mp4$/i.test(a.relativePath) && /^[0-9a-f]{64}$/.test(a.sha256 ?? ''))
   )) return null;
+  if (body.run.recoveredRevisionAvailable !== undefined
+      && (body.run.recoveredRevisionAvailable !== true || recoveredFeedbackArtifactId === undefined)) return null;
 
   if (!Array.isArray(body.reviewArtifacts) || !body.reviewArtifacts.every((entry) => {
     if (!isObject(entry) || !isId(entry.artifactId) || !isId(entry.displayName) || !isId(entry.createdAt)) return false;

@@ -1015,3 +1015,41 @@ test('recovered video opens a private timestamped feedback session and reloads s
     await act(async () => client.unmount());
   }
 });
+
+test('saved-export revision submits the timestamped draft once and reloads the existing request', async () => {
+  const fixture=JSON.parse(readFileSync(new URL('./test/fixtures/recovered-export-revision-postgres.json',import.meta.url),'utf8'));
+  const draft=parseReviewPacketResponse(fixture.draft);
+  const submitted=parseReviewPacketResponse(fixture.submitted);
+  assert.ok(draft?.run?.recoveredRevisionAvailable&&draft.session&&submitted?.session);
+  const artifact=draft.artifacts.find(file=>file.id===draft.run?.recoveredFeedbackArtifactId);
+  assert.ok(artifact);
+  const {default:Feedback}=await import('../app/(dashboard)/_components/recovered-export-feedback.tsx');
+  const calls:unknown[]=[];
+  (globalThis as Record<string,unknown>).fetch=async(url:string,init:{body:string})=>{
+    assert.equal(url,'/api/review');
+    const payload=JSON.parse(init.body);
+    calls.push(resolveReviewAction(payload.action,payload));
+    return {status:200,json:async()=>fixture.response};
+  };
+  const view=createRoot(container);
+  function show(packet:typeof draft|typeof submitted) {
+    return React.createElement(Feedback,{artifact:artifact!,agentName:'Video studio',
+      session:packet!.session,issues:packet!.issues,canRevise:packet!.run?.recoveredRevisionAvailable});
+  }
+  try{
+    await act(async()=>view.render(show(draft)));
+    const send=buttons().find(button=>button.textContent==='Run revision from saved video');
+    assert.ok(send);
+    await click(send);
+    assert.deepEqual(calls,[{
+      path:`/api/v2/review/sessions/${draft.session.id}/submit`,method:'POST',body:{recoveredExport:true},
+    }]);
+    assert.match(text(),/Revision requested from this saved video/);
+    await act(async()=>view.render(null));
+    await act(async()=>view.render(show(submitted)));
+    assert.match(text(),/Revision requested from this saved video/);
+    assert.ok(buttons().some(button=>button.textContent==='Open revision attempt'));
+    assert.ok(!buttons().some(button=>button.textContent==='Run revision from saved video'));
+    assert.equal(calls.length,1);
+  }finally{await act(async()=>view.unmount());}
+});
