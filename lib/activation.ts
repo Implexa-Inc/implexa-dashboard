@@ -22,8 +22,9 @@ export type PermissionItem = {
   optional?: boolean;
   /** Required high-trust access must be granted before activation/run. */
   required?: boolean;
-  /** v1 durable scope: this agent only, across runs, until explicitly revoked. */
-  grantScope?: 'agent_until_revoked' | 'automatic';
+  grantScope?: 'agent_until_revoked' | 'account_until_revoked' | 'automatic';
+  reusableCommandApproval?: boolean;
+  commandApprovalDisabledForAgent?: boolean;
 };
 export type StepStatus = 'done' | 'todo' | 'auto';
 export type ActivationStep = {
@@ -141,6 +142,7 @@ export type AgentMacAccess = {
 
 export type ActivationChecklist = {
   setupContext?: AgentSetupContext | null;
+  commandApprovalAccountId?: string;
   slug: string;
   name: string;
   summary: string | null;

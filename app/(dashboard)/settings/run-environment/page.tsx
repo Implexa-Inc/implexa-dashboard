@@ -15,6 +15,7 @@ import { readUserProfile } from '@/lib/profile-read';
 import { callBackend } from '@/lib/api';
 import RunEnvForm from './run-env-form';
 import ConnectTelegram from './connect-telegram';
+import AgentCommandApproval from './agent-command-approval';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,11 +31,15 @@ export default async function RunEnvironmentPage() {
   // Current run-env (default machine). Degrades to empty on any error so the
   // page always renders (the column/table may not be migrated yet).
   let current: { workspace_root?: string | null; chrome_profile?: string | null } = {};
+  const approval = callBackend('/api/v2/me/agent-command-approval', { jwt: session.access_token })
+    .then(result => result?.ok === true && typeof result.granted === 'boolean' ? result.granted : null)
+    .catch(() => null);
   try {
     const res = await callBackend('/api/v2/me/run-env', { jwt: session.access_token });
     const def = (res?.machines || []).find((m: { machine_label?: string }) => m.machine_label === 'default') || (res?.machines || [])[0];
     if (def) current = def;
   } catch { /* none set yet */ }
+  const commandApproval = await approval;
 
   return (
     <section className="settings-page">
@@ -46,6 +51,8 @@ export default async function RunEnvironmentPage() {
             holds your logins. Private to you; never changes the shared agent.
           </p>
         </PageHeader>
+
+        <AgentCommandApproval key={session.user.id} initialGranted={commandApproval} accountId={session.user.id} />
 
         <div className="mb-6 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-4 text-secondary">
           <div className="font-medium text-ink-50 mb-1">You usually don&apos;t need to fill this in.</div>

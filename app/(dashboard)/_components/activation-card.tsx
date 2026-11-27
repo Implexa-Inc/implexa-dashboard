@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ProviderBrowserSignIn, usesProviderBrowserSession } from './provider-browser-sign-in';
 import { mapActivationChecklist } from '@/lib/activation-core';
+import { commandApprovalAccountMatches, saveAgentCommandApproval } from '@/lib/agent-command-approval';
 import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
 import AgentSetupCard from './agent-setup-card';
@@ -50,52 +51,65 @@ function StatusDot({ status }: { status: ActivationStep['status'] }) {
   return <span className="flex-none mt-0.5 inline-flex w-5 h-5 rounded-full border-2 border-ink-600" aria-hidden />;
 }
 
-function PermissionList({ items, optIns, onToggle, savingGroup }: {
+function PermissionList({ items, optIns, onToggle, savingGroup, isActive }: {
   items: PermissionItem[];
   optIns: Record<string, boolean>;
   onToggle: (group: string, on: boolean) => void;
   savingGroup?: string | null;
+  isActive: boolean;
 }) {
   return (
     <ul className="mt-3 space-y-2 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
       {items.map((it) => {
-        const spec = TIER_PRESENTATION[it.tier];
+        const inherited = it.group === 'shell' && it.granted === true && it.grantScope === 'account_until_revoked';
+        const reusable = it.reusableCommandApproval && !it.commandApprovalDisabledForAgent;
+        const allowed = it.reusableCommandApproval ? it.granted === true : !!optIns[it.group];
+        const spec = TIER_PRESENTATION[inherited ? 0 : it.tier];
         const isOptIn = it.tier === 2;
         const required = isOptIn && !it.optional;
         return (
           <li
             key={it.group}
             data-permission-group={it.group}
-            className={`flex items-start justify-between gap-3 rounded-md p-2 ${required && !optIns[it.group] ? 'border border-amber-500/35 bg-amber-500/5' : ''}`}
+            className={`flex items-start justify-between gap-3 rounded-md p-2 ${required && !allowed ? 'border border-amber-500/35 bg-amber-500/5' : ''}`}
           >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-secondary text-ink-100">{it.label}</span>
                 <span className={`text-secondary uppercase tracking-wide px-1.5 py-0.5 rounded border ${spec.classes}`}>
-                  {required ? 'Required' : it.optional ? 'Optional' : spec.label}
+                  {inherited ? spec.label : required ? 'Required' : it.optional ? 'Optional' : spec.label}
                 </span>
                 {it.optional && <span className="text-secondary text-ink-500">{it.group === 'send' ? 'autopost only' : 'optional'}</span>}
               </div>
               {it.detail && <p className="text-secondary text-ink-500 mt-0.5 leading-snug">{it.detail}</p>}
-              {required && (
+              {inherited ? (
+                <p className="text-secondary text-ink-500 mt-1">
+                  Allowed for your account. <a className="underline" href="/settings/run-environment#agent-commands">Manage permission</a>
+                </p>
+              ) : required && (
                 <p className="text-reading text-state-needs mt-1 ">
-                  Grant once to this agent. It stays available for its future runs until you revoke it.
+                  {reusable && !allowed
+                    ? 'Allow this once to let your Tukido agents run commands when they need to.'
+                    : 'Grant once to this agent. It stays available for its future runs until you revoke it.'}
                 </p>
               )}
             </div>
-            {isOptIn ? (
+            {isOptIn && (!inherited || isActive) ? (
               <button
                 type="button"
                 data-permission-action={it.group}
                 disabled={savingGroup === it.group}
-                onClick={() => onToggle(it.group, !optIns[it.group])}
+                onClick={() => onToggle(it.group, !allowed)}
                 className={`flex-none text-ui font-medium rounded-md px-2.5 py-1 transition-colors disabled:opacity-60 ${
-                  optIns[it.group]
+                  allowed && !inherited
                     ? 'bg-amber-500/20 text-state-needs'
                     : 'border border-ink-700 text-ink-400 hover:text-ink-200'
                 }`}
               >
-                {savingGroup === it.group ? 'Saving…' : optIns[it.group] ? 'Allowed for this agent' : required ? 'Allow for this agent' : 'Allow'}
+                {savingGroup === it.group ? 'Saving…'
+                  : inherited ? 'Turn off for this agent'
+                  : allowed ? 'Allowed for this agent'
+                  : reusable ? 'Allow commands for my agents' : required ? 'Allow for this agent' : 'Allow'}
               </button>
             ) : (
               <span className="flex-none text-secondary text-state-ok mt-1">granted</span>
@@ -536,7 +550,7 @@ export function SchedulePicker({ slug, onSaved, initial }: { slug: string; onSav
   );
 }
 
-function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, onBrowserVerified, defaultOpen, savingGroup, workedAround, onToggleWorkAround, permissionNote }: {
+function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, onBrowserVerified, defaultOpen, savingGroup, workedAround, onToggleWorkAround, permissionNote, isActive = false }: {
   step: ActivationStep;
   slug: string;
   optIns: Record<string, boolean>;
@@ -546,21 +560,26 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, onBrowserVerifi
   defaultOpen?: boolean;
   savingGroup?: string | null;
   permissionNote?: string | null;
+  isActive?: boolean;
   workedAround: Set<string>;
   onToggleWorkAround: (key: string, on: boolean) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen ?? false);
   const items = (step.data?.items ?? []) as PermissionItem[];
   const requiredItems = step.id === 'permissions' ? items.filter((it) => it.tier === 2 && !it.optional) : [];
-  const permissionLocallyComplete = step.id === 'permissions' && requiredItems.length > 0 && requiredItems.every((it) => optIns[it.group]);
+  const permissionLocallyComplete = step.id === 'permissions' && requiredItems.length > 0
+    && requiredItems.every((it) => it.reusableCommandApproval ? it.granted : optIns[it.group]);
   const needed = (step.data?.needed ?? []) as NeededConnection[];
   const [confirmations, setConfirmations] = useState<Set<string>>(() => new Set());
   const unconfirmedAccounts = step.id === 'connections'
     ? needed.flatMap(({ account }) => account && usesProviderBrowserSession(account) && !confirmations.has(account) ? [account] : [])
     : [];
   const waitingForSessionCheck = unconfirmedAccounts.some(account => !workedAround.has(account));
+  const commandsAreAutomatic = step.id === 'permissions' && step.status !== 'todo' && items.some(item =>
+    item.group === 'shell' && item.granted && item.grantScope === 'account_until_revoked');
   const stepDetail = waitingForSessionCheck ? 'Check the provider browser sessions.'
-    : unconfirmedAccounts.length ? 'Using a workaround for unverified provider accounts.' : step.detail;
+    : unconfirmedAccounts.length ? 'Using a workaround for unverified provider accounts.'
+    : commandsAreAutomatic ? 'Command permission is automatic.' : step.detail;
   const effectiveStatus = waitingForSessionCheck ? 'todo' : permissionLocallyComplete ? 'done' : step.status;
   const isTodo = effectiveStatus === 'todo';
 
@@ -619,7 +638,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, onBrowserVerifi
       </div>
       {step.id === 'permissions' && open && items.length > 0 && (
         <>
-          <PermissionList items={items} optIns={optIns} onToggle={onToggleOptIn} savingGroup={savingGroup} />
+          <PermissionList items={items} optIns={optIns} onToggle={onToggleOptIn} savingGroup={savingGroup} isActive={isActive} />
           {permissionNote && (
             <p className="mt-2 text-reading text-state-ok ">{permissionNote}</p>
           )}
@@ -694,7 +713,7 @@ export function ActivationCard({
   const expectedVersionId=runInputs?.workflowVersionId;
   const versionedSetup=!!expectedVersionId||!!checklist.setupContext?.versionId;
   const boundSetupVersion=!!expectedVersionId&&/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(expectedVersionId)&&checklist.setupContext?.versionId===expectedVersionId;
-  const completionKey=JSON.stringify([checklist.setupContext?.accountId,checklist.slug,expectedVersionId]);
+  const completionKey=JSON.stringify([checklist.setupContext?.accountId || checklist.commandApprovalAccountId,checklist.slug,expectedVersionId]);
   const currentCompletion=useRef(completionKey);currentCompletion.current=completionKey;
   const mounted=useRef(true);useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
   const completionAttempts=useRef(new Set<string>());
@@ -710,7 +729,7 @@ export function ActivationCard({
   // this seed, an already-active agent that needs a new grant looked un-grantable.
   const [optIns, setOptIns] = useState<Record<string, boolean>>(() => {
     const seed: Record<string, boolean> = {};
-    for (const i of tier2) if ((i as PermissionItem & { granted?: boolean }).granted) seed[i.group] = true;
+    for (const i of tier2) if (i.granted && i.grantScope !== 'account_until_revoked') seed[i.group] = true;
     return seed;
   });
   // Connections the user chose to "let Claude figure out an alternative" for (keyed
@@ -818,8 +837,10 @@ export function ActivationCard({
   // Optional Tier-2 grants (today: unattended send/post) never block activation.
   // Manifest-declared shell/external access is required and gates activation.
   const requiredTier2 = tier2.filter((i) => !i.optional);
-  const allSavedGranted = requiredTier2.every((i) => (i as PermissionItem & { granted?: boolean }).granted) || savedLocally;
-  const allLocalGranted = requiredTier2.every((i) => optIns[i.group]); // saved + just-toggled
+  const allSavedGranted = requiredTier2.every((i) => i.granted || (savedLocally && i.group !== 'shell'));
+  const allLocalGranted = requiredTier2.every((i) => i.reusableCommandApproval ? i.granted : optIns[i.group]);
+  const firstMissingPermission = requiredTier2.find((item) => item.reusableCommandApproval ? !item.granted : !optIns[item.group]);
+  const firstMissingUsesSharedApproval = firstMissingPermission?.reusableCommandApproval && !firstMissingPermission.commandApprovalDisabledForAgent;
   const computerUseRequired = checklist.setupContext?.requiredRouteClass === 'computer_use'
     || (!checklist.setupContext && checklist.steps.some((step) => step.id === 'computer-use'));
   const showMacSetup = computerUseRequired || checklist.setupContext?.requiredRouteClass === 'browser'
@@ -845,7 +866,7 @@ export function ActivationCard({
   const anyWorkedAround = unmetConns.some((c) => workedAround.has(connKey(c)));
 
   function allowFirstRequiredPermission() {
-    const missing = requiredTier2.find((item) => !optIns[item.group]);
+    const missing = firstMissingPermission;
     if (!missing) return;
     toggleOptIn(missing.group, true);
     const selector = `[data-permission-action="${CSS.escape(missing.group)}"]`;
@@ -878,7 +899,7 @@ export function ActivationCard({
     completionAttempts.current.add(attempt);
     void activate(anyWorkedAround,true);
   },[automaticReady,completionKey,completionRetry]); // Existing activation writer, once per reviewed version or explicit retry.
-  useEffect(()=>{setActivated(checklist.state==='active');setSavedLocally(false);setError(null);setActivating(false);setOptIns(Object.fromEntries(tier2.filter(item=>item.granted).map(item=>[item.group,true])));},[completionKey]);
+  useEffect(()=>{setActivated(checklist.state==='active');setSavedLocally(false);setError(null);setActivating(false);setOptIns(Object.fromEntries(tier2.filter(item=>item.granted && item.grantScope!=='account_until_revoked').map(item=>[item.group,true])));},[completionKey]);
   const verifiedHandsFree = isActive && verification.verified && computerUseSatisfied && capabilityReady;
   const setupReadUnknown=!!statusUnavailable||checklist.setupReadAvailable!==true;
   const setupReady=!setupReadUnknown&&!setupBlockedReason&&!revisePending&&isActive&&allSavedGranted&&computerUseSatisfied&&(!showMacSetup||computerUseReady)&&checklist.readyToRun===true;
@@ -900,30 +921,72 @@ export function ActivationCard({
   // one capability through the dedicated grant endpoint. This is what makes
   // revocation real: the activation endpoint only turns an agent on and must not
   // double as a misleading grant store.
-  function toggleOptIn(group: string, on: boolean) {
+  async function toggleOptIn(group: string, on: boolean) {
     if(setupSurface&&versionedSetup&&!boundSetupVersion){setError('The agent changed. Reload Setup.');return;}
-    const next = { ...optIns, [group]: on };
     const permission = tier2.find((item) => item.group === group);
-    setOptIns(next);
-    if (isActive) {
+    if (on && permission?.reusableCommandApproval && !permission.commandApprovalDisabledForAgent) {
+      if (savingGroup) return;
       setSavingGroup(group);
       setError(null);
+      const startedFor = completionKey;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const accountId = checklist.commandApprovalAccountId;
+        if (!accountId || session?.user.id !== accountId || !mounted.current
+          || currentCompletion.current !== startedFor) throw Error('The account changed. Reload Setup.');
+        await saveAgentCommandApproval(accountId, true, session.access_token);
+        if (!mounted.current || currentCompletion.current !== startedFor) return;
+        await refreshConnectionsInPlace();
+        router.refresh();
+      } catch (error) {
+        if (mounted.current && currentCompletion.current === startedFor) {
+          setError(error instanceof Error ? error.message : 'Could not save command permission. Try again.');
+        }
+      } finally {
+        if (mounted.current && currentCompletion.current === startedFor) setSavingGroup(null);
+      }
+      return;
+    }
+    const next = { ...optIns, [group]: on };
+    setOptIns(next);
+    if (isActive || permission?.commandApprovalDisabledForAgent || permission?.grantScope === 'account_until_revoked') {
+      setSavingGroup(group);
+      setError(null);
+      const startedFor = completionKey;
       supabase.auth.getSession()
-        .then(({ data }) => callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/permissions/${encodeURIComponent(group)}`, {
-          jwt: data.session?.access_token,
-          method: 'POST',
-          body: { granted: on },
-        }))
-        .then(() => {
+        .then(async ({ data }) => {
+          if (permission?.reusableCommandApproval) {
+            const accountId = checklist.commandApprovalAccountId;
+            if (!accountId || data.session?.user.id !== accountId || !await commandApprovalAccountMatches(accountId)) {
+              throw Error('Use the same Tukido account in Desktop and Dashboard.');
+            }
+          }
+          if (!mounted.current || currentCompletion.current !== startedFor) throw Error('The account changed. Reload Setup.');
+          return callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/permissions/${encodeURIComponent(group)}`, {
+            jwt: data.session?.access_token,
+            method: 'POST',
+            body: { granted: on },
+          });
+        })
+        .then(async (res) => {
+          if (res?.ok !== true) throw Error('Permission could not be saved.');
+          if (!mounted.current || currentCompletion.current !== startedFor) return;
+          if (res.deactivated === true) setActivated(false);
           setLocalGrantNote(on
             ? 'Allowed for this agent only, across future runs, until you revoke it.'
             : permission && !permission.optional
               ? 'Revoked for this agent. The agent is now inactive, and any recurring schedule is paused until you grant it and activate again.'
               : 'Autopilot access is off for this agent. Draft-and-hold work stays active.');
+          if (group === 'shell') await refreshConnectionsInPlace();
           router.refresh();
         })
-        .catch(() => { setError('Could not save that grant. Try again.'); setOptIns((s) => ({ ...s, [group]: !on })); })
-        .finally(() => setSavingGroup(null));
+        .catch((error) => {
+          if (mounted.current && currentCompletion.current === startedFor) {
+            setError(error instanceof Error ? error.message : 'Could not save that grant. Try again.');
+            setOptIns((s) => ({ ...s, [group]: !on }));
+          }
+        })
+        .finally(() => { if (mounted.current && currentCompletion.current === startedFor) setSavingGroup(null); });
     }
   }
 
@@ -983,6 +1046,7 @@ export function ActivationCard({
             onChanged={() => router.refresh()}
             onBrowserVerified={refreshConnectionsInPlace}
             savingGroup={savingGroup}
+            isActive={isActive}
             permissionNote={localGrantNote}
             workedAround={workedAround}
             onToggleWorkAround={toggleWorkAround}
@@ -1145,12 +1209,15 @@ export function ActivationCard({
             <button
               type="button"
               onClick={allowFirstRequiredPermission}
+              disabled={!!savingGroup}
               className="btn-outline border-amber-500/50 text-state-needs"
             >
-              Allow required permission
+              {firstMissingUsesSharedApproval ? 'Allow commands for my agents' : 'Allow required permission'}
             </button>
             <span className="text-secondary text-state-needs max-w-md leading-snug">
-              This agent cannot deliver its final output without the highlighted permission. Grant it once to this agent, or leave the agent inactive.
+              {firstMissingUsesSharedApproval
+                ? 'This lets agents on your Tukido account run commands when they need to. You can turn it off in Settings.'
+                : 'This agent cannot deliver its final output without the highlighted permission. Grant it once to this agent, or leave the agent inactive.'}
             </span>
           </div>
         ) : !computerUseSatisfied ? (
