@@ -55,12 +55,18 @@ function bridge(): Bridge | null {
 
 type BrowserSession = NonNullable<AgentRequirementsPayload['services'][number]['browserSession']>;
 
-/**
- * A browser account is a REAL access method, not a checkbox the user can claim.
- * The desktop opens the provider in its dedicated local browser, then probes the
- * authenticated page before the server marks the domain reachable. This same
- * component works for every provider that declares browserSession metadata.
- */
+// Report links use ordinary browser navigation. Setup verifies only the
+// owner-bound Tukido browser session through the existing Desktop bridge.
+function reportLink(session: BrowserSession): string | null {
+  const href = session.readRoute?.url;
+  if (!href) return null;
+  try {
+    const url = new URL(href);
+    return url.href === href && url.origin === `https://${session.domain}`
+      && url.pathname !== '/' && !url.username && !url.password && !url.search && !url.hash ? href : null;
+  } catch { return null; }
+}
+
 function BrowserSessionAccess({ session, toolKey, target, managed = false, onVerified }: { session: BrowserSession; toolKey: string; target?: AgentSetupTarget | null; managed?: boolean; onVerified: () => void | Promise<void> }) {
   const bridge = useDesktopBridge();
   const [opened, setOpened] = useState(false);
@@ -68,6 +74,8 @@ function BrowserSessionAccess({ session, toolKey, target, managed = false, onVer
   const [note, setNote] = useState<string | null>(null);
   const [reportVerified, setReportVerified] = useState(false);
   const registered = !!session.readRoute;
+  const href = reportLink(session);
+  const canVerifyReport = !!bridge?.registeredBrowserReadSetup;
 
   if (!registered && session.status === 'reachable' && (managed || !usesProviderBrowserSession(session.domain))) {
     return (
@@ -76,7 +84,6 @@ function BrowserSessionAccess({ session, toolKey, target, managed = false, onVer
       </span>
     );
   }
-  if (registered && !bridge?.registeredBrowserReadSetup) return <p className="text-secondary text-ink-500">Open Setup in the updated Tukido app to verify this report.</p>;
   if (!registered && !managed) return <ProviderBrowserSignIn key={session.domain} domain={session.domain} onVerified={onVerified} />;
 
   const openSignIn = async () => {
@@ -87,7 +94,7 @@ function BrowserSessionAccess({ session, toolKey, target, managed = false, onVer
       if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.'
         : 'Could not open this tool. Check setup and try again.'); return; }
       setOpened(true);
-      setNote(registered ? 'Sign in and open the report, then select Verify report.' : 'Sign in, then select Verify in Tukido. You can leave the browser open.');
+      setNote(registered ? 'Sign in to the report in the Tukido browser, then select Verify report.' : 'Sign in, then select Verify in Tukido. You can leave the browser open.');
     } catch { setNote('Could not open the sign-in page.'); }
     finally { setBusy(false); }
   };
@@ -100,8 +107,8 @@ function BrowserSessionAccess({ session, toolKey, target, managed = false, onVer
       if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.' : 'Connection not confirmed. Check the Tukido dialog.'); return; }
       if (registered) {
         setReportVerified(out.reportVerified === true);
-        setNote(out.reportVerified === true ? 'Report access verified in this browser.'
-          : 'Tukido could not read the report. Make sure you are signed in and the report is open, then try again.');
+        setNote(out.reportVerified === true ? 'Report access verified in the Tukido browser.'
+          : 'Tukido could not read the report. Sign in and open it in the Tukido browser, then try again.');
         return;
       }
       await onVerified();
@@ -111,13 +118,21 @@ function BrowserSessionAccess({ session, toolKey, target, managed = false, onVer
   };
 
   return (
-    <div className="flex-none text-right">
-      <div className="flex items-center justify-end gap-1.5">
-        <button type="button" onClick={openSignIn} disabled={busy} className="btn-outline text-ui px-2.5 py-1">
-          {registered ? 'Open report' : opened ? 'Reopen sign-in' : 'Use signed-in account'}
-        </button>
-        <button type="button" onClick={verify} disabled={busy} className="btn-outline text-ui px-2.5 py-1">{registered ? 'Verify report' : 'Verify'}</button>
+    <div className={registered ? "min-w-0 text-right" : "flex-none text-right"}>
+      <div className="flex flex-wrap items-center justify-end gap-1.5">
+        {href && (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="btn-outline text-ui px-2.5 py-1">Open report</a>
+        )}
+        {(!registered || canVerifyReport) && (
+          <>
+            <button type="button" onClick={openSignIn} disabled={busy} className="btn-outline text-ui px-2.5 py-1">
+              {registered ? 'Open Tukido browser' : opened ? 'Reopen sign-in' : 'Use signed-in account'}
+            </button>
+            <button type="button" onClick={verify} disabled={busy} className="btn-outline text-ui px-2.5 py-1">{registered ? 'Verify report' : 'Verify'}</button>
+          </>
+        )}
       </div>
+      {registered && !canVerifyReport && <p className="text-secondary text-ink-500 mt-1">Verify from Setup in the Tukido app.</p>}
       {note && <p role="status" className={`text-secondary mt-1 max-w-56 leading-snug ${reportVerified ? 'text-state-ok' : 'text-ink-500'}`}>{note}</p>}
     </div>
   );
@@ -211,7 +226,7 @@ export function ActivationRequirements({ req, slug, target, onBrowserVerified }:
             const keyReady = !browserOnly && !unknownAccess && apiReady(s);
             const isReady = satisfied(s);
             return (
-              <li key={s.key} className="flex items-start justify-between gap-3">
+              <li key={s.key} className={`flex items-start justify-between gap-3${s.browserSession?.readRoute ? ' flex-wrap' : ''}`}>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-secondary text-ink-100">{s.name}</span>
@@ -225,7 +240,7 @@ export function ActivationRequirements({ req, slug, target, onBrowserVerified }:
                   </div>
                   {browserOnly ? (
                     <p className="text-secondary text-ink-500 mt-0.5">
-                      Uses your signed-in browser.
+                      {s.browserSession?.readRoute ? 'Open in your default browser. Verification uses the Tukido browser.' : 'Uses your signed-in browser.'}
                     </p>
                   ) : unknownAccess ? (
                     <p className="text-secondary text-ink-500 mt-0.5">
