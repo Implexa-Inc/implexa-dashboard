@@ -212,9 +212,22 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
   }}>Choose file as reference</button>}
   {attachError&&<p role="alert" className="text-secondary text-state-needs">{attachError}</p>}
  </>;
+ const buildLabel=selected?.brief?.plan?'Approve plan and build':'Build this agent';
+ // The plan cards sit in a second column that scrolls away from the chat, so the
+ // person finishing the conversation never saw the way forward. This keeps the
+ // same build action where they are looking. It builds the SELECTED saved draft,
+ // exactly like the button under the cards, and says so when that is not the
+ // newest one or when a question is still open.
+ const openQuestion=!!selected?.questions?.[0];
+ const earlierDraft=!!selected?.replyId&&prepared.length>0&&prepared[prepared.length-1].replyId!==selected.replyId;
+ const buildCue=selected?.brief&&!isBuilt?<div role="status" data-testid="chat-build-cue" className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-700 bg-ink-950 px-4 py-3">
+  <p className="min-w-[14rem] flex-1 text-ui text-ink-200"><strong className="font-medium">{isPending?'Preparing your reply…':openQuestion?'You can build now, or answer first.':'Your plan is ready.'}</strong>{' '}
+   <span className="text-ink-400">{isPending?'Build is available once the reply is saved.':earlierDraft?'This builds the earlier saved draft you selected.':openQuestion?'Building now uses the plan as it stands.':'Review the plan, or keep chatting to change it.'}</span></p>
+  <button type="button" className="btn-primary shrink-0" disabled={busy||isPending} onClick={buildAgent}>{buildLabel}</button>
+ </div>:null;
  const chatComposer=<ChatComposer micIcon inlineAttachments attachmentPreview={attachmentPreview} attachedMessage={documents.length>0||files.length>0} maxLength={Infinity} voiceScope={draftId||'creation-start'} standalone={starting} details={starting?draftDetails:undefined} value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId} textareaRef={composer} placeholder={starting?'Describe the job, paste the steps, or attach a playbook…':'Add a detail or ask for a change…'} attachments={attachmentControls}/>;
  return <section className={starting?"mx-auto max-w-3xl space-y-4":"grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]"}>
-  <aside className={starting?"min-w-0":"min-w-0 lg:sticky lg:top-6"}>{starting?chatComposer:<ChatFrame contentSized scrollKey={data?.turns.at(-1)?.turnId+':'+data?.turns.at(-1)?.status} title="Chat with AI" subtitle="Build your agent" details={draftDetails} composer={chatComposer}>
+  <aside className={starting?"min-w-0":"min-w-0 lg:sticky lg:top-6"}>{starting?chatComposer:<ChatFrame contentSized scrollKey={data?.turns.at(-1)?.turnId+':'+data?.turns.at(-1)?.status} title="Chat with AI" subtitle="Build your agent" details={draftDetails} composer={<>{buildCue}{chatComposer}</>}>
    {data&&!data.withdrawn&&data.totalTurns>data.turns.length&&<p className="text-secondary text-ink-500">Showing recent exchanges. Earlier messages are saved in this draft.</p>}
    <ol aria-label="Agent creation conversation" className="space-y-6">{data?.turns.map(t=><li key={t.turnId} className="space-y-3">
     <ChatMessage role="user"><>{t.mode==='playbook'&&t.message.length>600?<details><summary>View full message</summary><p className="whitespace-pre-wrap">{t.message}</p></details>:<p className="text-reading whitespace-pre-wrap">{t.message}</p>}</></ChatMessage>{t.reply&&<ChatMessage role="assistant"><p className="text-reading whitespace-pre-wrap">{t.reply}</p></ChatMessage>}
@@ -255,7 +268,7 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
      <ul className="mt-3 list-disc pl-4 space-y-2 text-ink-300">{selected.trainingNotes.map((s,i)=><li key={i}>{s}</li>)}</ul><p className="mt-3 text-reading text-ink-500">Private notes are preserved with this creation draft. They are excluded from the agent’s build instructions and have not been admitted as learnings.</p></section>}
 
     <details className="text-secondary text-ink-400"><summary className="cursor-pointer">Exact build request</summary><pre className="mt-3 whitespace-pre-wrap break-words rounded-lg border border-ink-800 p-4">{composeNoteWithFiles(selected.buildIntent||'',files,ATTACH_BUILD_MARKER)}</pre></details>
-    {!isBuilt&&<div className="flex flex-wrap items-center gap-4"><button type="button" className="btn-primary" disabled={busy||isPending} onClick={buildAgent}>{selected.brief.plan?'Approve plan and build':'Build this agent'}</button>
+    {!isBuilt&&<div className="flex flex-wrap items-center gap-4"><button type="button" className="btn-primary" disabled={busy||isPending} onClick={buildAgent}>{buildLabel}</button>
      <button type="button" className="text-ui text-ink-400 underline disabled:opacity-40" disabled={busy||!previousPrepared} onClick={undo}>Undo last change</button>
 </div>}
    </>}
