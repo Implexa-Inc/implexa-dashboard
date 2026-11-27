@@ -3,11 +3,22 @@
 import {AGENTS_RUNNING_HREF} from '@/lib/navigation';
 import {ChatFrame,ChatMessage,ChatComposer,ChatChoices} from './agent-chat';
 import {creationQuestionChoices} from '@/lib/agent-creation-brief';
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useId,useRef,useState} from 'react';
 import Link from 'next/link';
 import {createAgentBuild,retrySavedBuild} from '@/lib/plan-review';
 import {fileName,MAX_RUN_FILES,composeNoteWithFiles,useRunAttachments,ATTACH_BUILD_MARKER} from './run-attachments';
-import {isCreationDraftRead,type CreationDraftRead,type CreationTurn} from '@/lib/agent-creation-brief';
+import {isCreationDraftRead,type CreationDraftRead,type CreationEngine,type CreationPlanner,type CreationTurn} from '@/lib/agent-creation-brief';
+
+type PlannerEngine = {engine:CreationEngine;connected:boolean;defaultModel:string|null;models?:string[]};
+type DraftTurn = {draftId:string;turnId:string;message:string;baseReplyId:string|null;baseDraftId:string|null;consent:true;mode?:'playbook'};
+type PlannerBridge = {
+ creationPlannerOptions?: (ownerId:string) => Promise<{ok:boolean;engines?:PlannerEngine[];defaultEngine?:CreationEngine|null}>;
+ prepareCreationTurn?: (input:CreationPlanner & {ownerId:string;phase:'start'|'resume';turn:DraftTurn}) => Promise<unknown>;
+};
+const engineName = {claude:'Claude',codex:'Codex'} as const;
+function plannerBridge(): PlannerBridge | undefined {
+ return typeof window==='undefined'?undefined:(window as Window & {implexaDesktop?:PlannerBridge}).implexaDesktop;
+}
 
 const documentFormats = /\.(txt|md|markdown|csv|tsv)$/i;
 
@@ -78,6 +89,16 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
  const [queued,setQueued]=useState(false);
  const [documents,setDocuments]=useState<File[]>([]);
  const [offerReference,setOfferReference]=useState(false);
+ const [engines,setEngines]=useState<PlannerEngine[]|null>(null),[engine,setEngine]=useState<CreationEngine|null>(null),[model,setModel]=useState('');
+ const modelListId=useId();
+ const loadPlanner=async()=>{
+  try{
+   const options=await plannerBridge()?.creationPlannerOptions?.(ownerId);
+   setEngines(options?.ok&&options.engines?options.engines:[]);
+   setEngine(old=>options?.engines?.some(item=>item.engine===old&&item.connected)?old:options?.defaultEngine||null);
+  }catch{setEngines([]);setEngine(null);}
+ };
+ useEffect(()=>{setEngine(null);setModel('');void loadPlanner();},[ownerId]);
  const documentPicker=useRef<HTMLInputElement>(null);
  const pending=useRef<{draftId:string;turnId:string;message:string;baseReplyId:string|null;baseDraftId:string|null}|null>(null),seed=useRef<{draftId:string;replyId:string}|null>(null),active=useRef(''),composer=useRef<HTMLTextAreaElement>(null);
  const {files,canAttach,canAttachFolder,attachFile,attachFolder,removeFile,reset:resetFiles,error:attachError}=useRunAttachments();
@@ -103,7 +124,8 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
  useEffect(()=>{if(draftId)void load(draftId);},[draftId]);
  const selected=data?.turns.find(t=>t.replyId===selectedId&&t.status==='answered')||null;
  const prepared=data?.turns.filter(t=>t.status==='answered'&&t.brief&&t.replyId)||[];
- const isPending=data?.turns.some(t=>t.status==='pending')===true;
+ const pendingTurn=data?.turns.find(t=>t.status==='pending');
+ const isPending=!!pendingTurn;
  const isBuilt=queued||!!data?.buildRequestId||data?.withdrawn===true;
  const starting=!data?.turns.length&&!isBuilt;
  const focusedDraft=useRef('');
@@ -113,12 +135,16 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
   area.focus({preventScroll:true});focusedDraft.current=draftId;
  },[draftId,data?.draftId,busy,isBuilt,isPending]);
  const choose=(turn:CreationTurn)=>{setSelectedId(turn.replyId);try{sessionStorage.setItem(selectionKey(draftId),turn.replyId!);}catch{}};
- const send=async({retry,choice}:{retry?:CreationTurn;choice?:string}={})=>{
-  const fromComposer=!retry&&choice===undefined;
-  if(busy||isBuilt||isPending||!draftId||(fromComposer&&!text.trim()&&!documents.length&&!files.length))return;
+ const send=async({retry,choice,resume}:{retry?:CreationTurn;choice?:string;resume?:CreationTurn}={})=>{
+  const fromComposer=!retry&&!resume&&choice===undefined;
+  if(busy||isBuilt||(isPending&&!resume)||!draftId||(fromComposer&&!text.trim()&&!documents.length&&!files.length))return;
+  const run=plannerBridge()?.prepareCreationTurn;
+  const selection=resume?.planner||(engine?{engine,model:model.trim()||null}:null);
+  if(!run||!selection){setError('Open this draft in Tukido Desktop and connect Claude or Codex.');return;}
+  if(selection.model&&!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(selection.model)){setError('Enter a model ID or leave it blank to use your default.');return;}
   const identity=draftId;
-  const usePlan=!retry||retry.mode==='playbook';
-  let message=retry?.message??choice??text;
+  const usePlan=resume?resume.mode==='playbook':!retry||retry.mode==='playbook';
+  let message=resume?.message??retry?.message??choice??text;
   setBusy(true);setError('');
   try {
    if(fromComposer&&(documents.length||files.length)){
@@ -132,14 +158,15 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
    if(active.current!==identity)return;
    if(message.length>20000||new Blob([JSON.stringify(message)]).size>24000)throw Error('This message and its documents exceed the planner limit. Send a shorter excerpt (up to 20,000 characters and 24 KB).');
   }catch(e){if(active.current===identity){setError(e instanceof Error?e.message:'Could not read the document.');setBusy(false);}return;}
-  const baseReplyId=retry?retry.baseReplyId:selected?.replyId||seed.current?.replyId||null;
-  const baseDraftId=retry?retry.baseDraftId||null:selected?null:seed.current?.draftId||null;
-  const turn=pending.current&&pending.current.draftId===identity&&pending.current.message===message&&pending.current.baseReplyId===baseReplyId&&pending.current.baseDraftId===baseDraftId
+  const baseReplyId=resume?resume.requestedBaseReplyId??null:retry?retry.baseReplyId:selected?.replyId||seed.current?.replyId||null;
+  const baseDraftId=resume?resume.requestedBaseDraftId??null:retry?retry.baseDraftId||null:selected?null:seed.current?.draftId||null;
+  const turn=resume?{draftId:identity,turnId:resume.turnId,message,baseReplyId,baseDraftId}:pending.current&&pending.current.draftId===identity&&pending.current.message===message&&pending.current.baseReplyId===baseReplyId&&pending.current.baseDraftId===baseDraftId
    ?pending.current:{draftId:identity,turnId:crypto.randomUUID(),message,baseReplyId,baseDraftId};
   pending.current=turn;setBusy(true);setError('');setNotice('');
-  try{const r=await fetch('/api/agents/creation-draft',{method:'POST',headers:{'content-type':'application/json'},cache:'no-store',body:JSON.stringify({...turn,consent:true,...(usePlan?{mode:'playbook'}:{})})});
-   const v=await r.json();if(active.current!==identity)return;
-   if(!r.ok||!isCreationDraftRead(v,identity))throw Error(v.reason||'creation_brief_unconfirmed');
+  try{
+   const v=await run({...selection,ownerId,phase:resume?'resume':'start',turn:{...turn,consent:true,...(usePlan?{mode:'playbook'}:{})}});
+   if(active.current!==identity)return;
+   if(!isCreationDraftRead(v,identity))throw Error((v as {reason?:string}|null)?.reason||'creation_brief_unconfirmed');
    apply(v);const answer=v.turns.find(t=>t.turnId===turn.turnId);
    if(answer?.status==='answered'&&answer.replyId){choose(answer);setNotice(answer.brief?'Draft updated. Review it or keep chatting.':'');}
    if(fromComposer){setText('');setDocuments([]);setOfferReference(false);}pending.current=null;seed.current=null;
@@ -166,7 +193,7 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
   finally{if(active.current===identity)setBusy(false);}
  };
  const draftDetails=<div className="space-y-3">
-   <p className="text-reading">Send shares this conversation and the prepared draft with Claude Haiku 5.5. Text files help Tukido draft the plan. Reference files and folders stay on your computer and are available to the builder.</p>
+   <p className="text-reading">Your connected Claude or Codex account prepares the plan and uses that account’s included usage. Text files can inform the plan. Reference files and folders stay on this computer for the build.</p>
    <button type="button" className="underline" disabled={!draftId||busy} onClick={()=>load(draftId)}>Refresh saved draft</button>
    {!!data?.recentDrafts?.length&&<label className="block">Private draft history<select aria-label="Private draft history" className="mt-1 w-full rounded border border-ink-700 bg-ink-950 p-2" disabled={busy} value={draftId} onChange={e=>{active.current=e.target.value;setDraftId(e.target.value);setData(null);setSelectedId(null);setQueued(false);setText('');setDocuments([]);setOfferReference(false);pending.current=null;seed.current=null;resetFiles();try{sessionStorage.setItem(storageKey,e.target.value);}catch{}}}>
     {!data.recentDrafts.some(d=>d.draft_id===draftId)&&<option value={draftId}>Current draft</option>}{data.recentDrafts.map(d=><option key={d.draft_id} value={d.draft_id}>{new Date(d.updated_at).toLocaleString()}{d.withdrawn?' · Withdrawn':''}</option>)}
@@ -225,14 +252,32 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
    <span className="text-ink-400">{isPending?'Build is available once the reply is saved.':earlierDraft?'This builds the earlier saved draft you selected.':openQuestion?'Building now uses the plan as it stands.':'Review the plan, or keep chatting to change it.'}</span></p>
   <button type="button" className="btn-primary shrink-0" disabled={busy||isPending} onClick={buildAgent}>{buildLabel}</button>
  </div>:null;
- const chatComposer=<ChatComposer micIcon inlineAttachments attachmentPreview={attachmentPreview} attachedMessage={documents.length>0||files.length>0} maxLength={Infinity} voiceScope={draftId||'creation-start'} standalone={starting} details={starting?draftDetails:undefined} value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId} textareaRef={composer} placeholder={starting?'Describe the job, paste the steps, or attach a playbook…':'Add a detail or ask for a change…'} attachments={attachmentControls}/>;
+ const defaultModel=engines?.find(item=>item.engine===engine)?.defaultModel;
+ const modelChoices=engines?.find(item=>item.engine===engine)?.models||[];
+ const plannerControls=!isBuilt&&<div className="mb-2 flex flex-wrap items-end gap-3 px-1 text-secondary">
+  {engines?.some(item=>item.connected)?<>
+   <label className="flex flex-col gap-1">Engine
+    <select aria-label="Planning engine" className="rounded-lg border border-ink-700 bg-ink-950 px-2 py-1" disabled={busy||isPending} value={engine||''}
+     onChange={e=>{setEngine(e.target.value as CreationEngine);setModel('');}}>
+     {engines.map(item=><option key={item.engine} value={item.engine} disabled={!item.connected}>{engineName[item.engine]}</option>)}
+    </select>
+   </label>
+   <label className="flex flex-col gap-1">Model
+    <input aria-label="Planning model" list={modelChoices.length?modelListId:undefined} className="rounded-lg border border-ink-700 bg-ink-950 px-2 py-1" disabled={busy||isPending} maxLength={64}
+     value={model} onChange={e=>setModel(e.target.value)} placeholder={defaultModel?`Default (${defaultModel})`:'Use my default model'}/>
+    {modelChoices.length>0&&<datalist id={modelListId}>{modelChoices.map(choice=><option key={choice} value={choice}/>)}</datalist>}
+   </label>
+  </>:engines!==null&&<p className="text-ink-400">Open this draft in Tukido Desktop with Claude or Codex connected. <button type="button" className="underline" onClick={()=>void loadPlanner()}>Check connection</button></p>}
+  {pendingTurn?.planner&&!busy&&<button type="button" className="underline" onClick={()=>void send({resume:pendingTurn})}>Resume this reply</button>}
+ </div>;
+ const chatComposer=<>{plannerControls}<ChatComposer micIcon inlineAttachments attachmentPreview={attachmentPreview} attachedMessage={documents.length>0||files.length>0} maxLength={Infinity} voiceScope={draftId||'creation-start'} standalone={starting} details={starting?draftDetails:undefined} value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId||!engine} textareaRef={composer} placeholder={starting?'Describe the job, paste the steps, or attach a playbook…':'Add a detail or ask for a change…'} attachments={attachmentControls}/></>;
  return <section className={starting?"mx-auto max-w-3xl space-y-4":"grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]"}>
   <aside className={starting?"min-w-0":"min-w-0 lg:sticky lg:top-6"}>{starting?chatComposer:<ChatFrame contentSized scrollKey={data?.turns.at(-1)?.turnId+':'+data?.turns.at(-1)?.status} title="Chat with AI" subtitle="Build your agent" details={draftDetails} composer={<>{buildCue}{chatComposer}</>}>
    {data&&!data.withdrawn&&data.totalTurns>data.turns.length&&<p className="text-secondary text-ink-500">Showing recent exchanges. Earlier messages are saved in this draft.</p>}
    <ol aria-label="Agent creation conversation" className="space-y-6">{data?.turns.map(t=><li key={t.turnId} className="space-y-3">
     <ChatMessage role="user"><>{t.mode==='playbook'&&t.message.length>600?<details><summary>View full message</summary><p className="whitespace-pre-wrap">{t.message}</p></details>:<p className="text-reading whitespace-pre-wrap">{t.message}</p>}</></ChatMessage>{t.reply&&<ChatMessage role="assistant"><p className="text-reading whitespace-pre-wrap">{t.reply}</p></ChatMessage>}
     {t.status==='pending'&&<p className="text-reading text-ink-400">Your message is saved. <button type="button" className="underline" disabled={busy} onClick={()=>load(draftId)}>Check for the reply</button></p>}
-    {t.status==='failed'&&<p role="status" className="text-reading text-state-needs">Your message is saved. The reply couldn’t be prepared. {t===data.turns.at(-1)&&!isBuilt&&<button type="button" className="underline" disabled={busy||isPending} onClick={()=>void send({retry:t})}>Retry message</button>}</p>}
+    {t.status==='failed'&&<p role="status" className="text-reading text-state-needs">Your message is saved. {t.reason==='creation_model_unavailable'?'Your connected account couldn’t use that model. Choose another model and retry.':'The reply couldn’t be prepared.'} {t===data.turns.at(-1)&&!isBuilt&&<button type="button" className="underline" disabled={busy||isPending} onClick={()=>void send({retry:t})}>Retry message</button>}</p>}
     {t.brief&&t.replyId!==selectedId&&<button type="button" className="text-ui text-ink-400 underline" disabled={busy||isBuilt} onClick={()=>choose(t)}>Use this saved draft</button>}
    </li>)}</ol>
    {selected?.questions?.[0]&&!isBuilt&&<ChatChoices question={selected.questions[0]} choices={creationQuestionChoices(selected.answerOptions)} disabled={busy||isPending} onChoose={value=>{if(value)void send({choice:value});else composer.current?.focus();}}/>}
@@ -260,7 +305,11 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
      <ol className="list-decimal space-y-2 pl-5">{selected.brief.plan.steps.map((step,i)=><li key={i}>{step}</li>)}</ol>
      {selected.brief.plan.runInputs && (['start','after_review'] as const).map(stage=>{
        const inputs=selected.brief!.plan!.runInputs!.filter(field=>field.collection===stage);
-       return inputs.length>0 && <div key={stage}><h4>{stage==='start'?'Enter each run':'After reviewing the first result'}</h4><ul>{inputs.map(f=><li key={f.key}>{f.label}</li>)}</ul></div>;
+       const approvals=stage==='after_review'?selected.brief!.plan!.reviewPoints||[]:[];
+       return (inputs.length>0||approvals.length>0) && <div key={stage}><h4 className="font-medium">{stage==='start'?'Before the run':'During the run'}</h4><ul className="list-disc pl-5">
+        {inputs.map(f=><li key={f.key}>{f.label}{f.required===false&&!/\boptional\b/i.test(f.label)?' (optional)':''}{stage==='after_review'&&selected.brief!.plan!.reviewAfterStep?` (after step ${selected.brief!.plan!.reviewAfterStep})`:''}</li>)}
+        {approvals.map(point=><li key={point.afterStep}>{point.question} (after step {point.afterStep})</li>)}
+       </ul></div>;
      })}
      <h4>Checks before delivery</h4><ul className="list-disc pl-5">{selected.brief.plan.checks.map((check,i)=><li key={i}>{check}</li>)}</ul>
     </section>}

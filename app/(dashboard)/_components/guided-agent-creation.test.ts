@@ -8,24 +8,36 @@ const turn=(n:number,patch:any={})=>({turnId:id(n),message:'Create a presenter v
 async function type(r:Rendered,s:string){const e=r.document.querySelector('textarea')!;await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLTextAreaElement.prototype,'value')!.set!.call(e,s);e.dispatchEvent(new r.window.Event('input',{bubbles:true}));});}
 async function setup(t:any,initial:any[]=[],bridge?:Record<string,unknown>){
  let turns=initial;const calls:any[]=[];let draftId='';
- const r=await render('./guided-agent-creation.tsx',{ownerId:OWNER},{bridge,webCrypto:globalThis.crypto,fetch:(async(url:string,init:any={})=>{
+ const view=()=>({ok:true,contractVersion:'agent-creation-brief.v1',draftId,turns,totalTurns:turns.length,buildRequestId:null});
+ const fakePlanner={
+  creationPlannerOptions:async()=>({ok:true,defaultEngine:'codex',engines:[
+   {engine:'codex',connected:true,defaultModel:'gpt-6.2-sol'},{engine:'claude',connected:true,defaultModel:null}]}),
+  prepareCreationTurn:async(input:any)=>{
+   const b=input.turn;
+   calls.push({url:'desktop:creation-planner',init:{method:'POST',body:JSON.stringify(b)},planner:input});
+   draftId=b.draftId;
+   const prepared=turn(turns.length+2,{turnId:b.turnId,message:b.message,baseReplyId:b.baseReplyId,model:input.engine+':'+(input.model||'default')});
+   turns=[...turns.filter(item=>item.turnId!==b.turnId),prepared];
+   return view();
+  },
+ };
+ const r=await render('./guided-agent-creation.tsx',{ownerId:OWNER},{bridge:{...fakePlanner,...bridge},webCrypto:globalThis.crypto,fetch:(async(url:string,init:any={})=>{
   calls.push({url,init});
   if(url==='/api/agents/plan-preview')return {ok:true,json:async()=>({ok:true,decisionMode:'direct',autoToolPreferences:['ffmpeg'],disclosures:[]})};
   if(url==='/api/agents/create')return {ok:true,json:async()=>({ok:true,request:{id:id(99)}})};
-  if(init.method==='POST'){const b=JSON.parse(init.body);draftId=b.draftId;turns=[...turns,turn(turns.length+2,{turnId:b.turnId,message:b.message,baseReplyId:b.baseReplyId})];}
-  else draftId=new URL(url,'https://test.invalid').searchParams.get('draftId')!;
-  return {ok:true,json:async()=>({ok:true,contractVersion:'agent-creation-brief.v1',draftId,turns,totalTurns:turns.length,buildRequestId:null})};
+  draftId=new URL(url,'https://test.invalid').searchParams.get('draftId')!;
+  return {ok:true,json:async()=>view()};
  }) as typeof fetch});t.after(()=>r.cleanup());return {r,calls};
 }
 test('creation opens with one blank chat, restores saved cards by GET and starts nothing',async t=>{
- const {r,calls}=await setup(t,[turn(2)]);assert.equal(r.document.querySelectorAll('textarea').length,1);assert.equal(r.document.querySelectorAll('input:not([type=hidden]):not([hidden])').length,0);
+ const {r,calls}=await setup(t,[turn(2)]);assert.equal(r.document.querySelectorAll('textarea').length,1);assert.equal(r.document.querySelectorAll('input[aria-label="Planning model"]').length,1);
  assert.match(r.text(),/One raw video/);assert.match(r.text(),/Playable MP4/);assert.match(r.text(),/have not been admitted as learnings/);
  assert.equal(calls.length,1);assert.equal(calls[0].init.method,undefined);
  await r.click(r.getByText('Refresh saved draft'));assert.equal(calls.length,2);assert.equal(calls.some(c=>c.init.method==='POST'),false);
 });
 test('Send preserves words and exact selected base; edits and Undo never build or call another provider',async t=>{
  const {r,calls}=await setup(t,[turn(2)]);await type(r,'  Keep the task, but prefer FFmpeg.  ');await r.click(r.getByText('Send'));
- const posts=calls.filter(c=>c.url==='/api/agents/creation-draft'&&c.init.method==='POST');assert.equal(posts.length,1);
+ const posts=calls.filter(c=>c.url==='desktop:creation-planner');assert.equal(posts.length,1);
  const b=JSON.parse(posts[0].init.body);assert.equal(b.message,'  Keep the task, but prefer FFmpeg.  ');assert.equal(b.baseReplyId,id(102));assert.equal(b.consent,true);
  await r.click(r.getByText('Undo last change'));assert.match(r.text(),/Previous saved draft restored/);assert.equal(calls.filter(c=>c.init.method==='POST').length,1);
  assert.equal(calls.some(c=>c.url==='/api/agents/create'),false);
@@ -46,7 +58,7 @@ test('a pending durable reply prevents duplicate Send and Build, but can still b
 test('Undo from a new branch selects its actual base, not the abandoned preceding list item',async t=>{
  const {r,calls}=await setup(t,[turn(2),turn(3,{baseReplyId:id(102),message:'Abandoned branch'}),turn(4,{baseReplyId:id(102),message:'Current branch'})]);
  await r.click(r.getByText('Undo last change'));await type(r,'Revise the restored draft.');await r.click(r.getByText('Send'));
- const post=calls.find(c=>c.url==='/api/agents/creation-draft'&&c.init.method==='POST');assert.equal(JSON.parse(post.init.body).baseReplyId,id(102));
+ const post=calls.find(c=>c.url==='desktop:creation-planner');assert.equal(JSON.parse(post.init.body).baseReplyId,id(102));
 });
 
 
@@ -115,7 +127,7 @@ test('a folder and a playbook use the same attachment menu and send only shareab
  for(let tries=0;tries<10&&!calls.some(call=>call.init.method==='POST');tries++){
   await r.act(()=>new Promise(resolve=>setTimeout(resolve,15)));
  }
- const post=calls.find(c=>c.url==='/api/agents/creation-draft'&&c.init.method==='POST');
+ const post=calls.find(c=>c.url==='desktop:creation-planner');
  assert.ok(post,r.text());
  const {message}=JSON.parse(post.init.body);
  assert.match(message,/Use the attached playbook\./);
@@ -146,4 +158,32 @@ test('the chat cue never claims readiness without a prepared draft, while a repl
  assert.match(cue(older.r)!.textContent||'',/Your plan is ready/);
  await older.r.click(older.r.getByText('Undo last change'));
  assert.match(cue(older.r)!.textContent||'',/This builds the earlier saved draft you selected\./);
+});
+
+
+test('connected default, model overrides and input timing reach the existing builder',async t=>{
+ const old=turn(2);
+ old.brief.plan={steps:['Pitch five ideas','Draft the script','Draw the character sheet','Render the final MP4'],
+  sources:[],checks:['Playable vertical MP4'],reviewAfterStep:1,
+  reviewPoints:[{afterStep:2,question:'Approve the script and titles?'},{afterStep:3,question:'Approve the design sheet?'}],
+  runInputs:[{key:'target_length',label:'Video length (seconds)',kind:'seconds',collection:'start'},
+   {key:'selected_pitch',label:'Choose one pitch',kind:'text',collection:'after_review'}]};
+ const {r,calls}=await setup(t,[old]);
+ assert.match(r.text(),/Before the run.*Video length/);
+ assert.match(r.text(),/During the run.*Choose one pitch.*Approve the script and titles/);
+ assert.match(r.text(),/Playable MP4/);
+ const engine=r.document.querySelector<HTMLSelectElement>('[aria-label="Planning engine"]')!;
+ const model=r.document.querySelector<HTMLInputElement>('[aria-label="Planning model"]')!;
+ assert.equal(engine.value,'codex');
+ assert.equal(model.placeholder,'Default (gpt-6.2-sol)');
+ await r.act(()=>{
+  Object.getOwnPropertyDescriptor(r.window.HTMLInputElement.prototype,'value')!.set!.call(model,'gpt-6.2-astra');
+  model.dispatchEvent(new r.window.Event('input',{bubbles:true}));
+ });
+ await type(r,'Also draft the full script for the chosen pitch');
+ await r.click(r.getByText('Send'));
+ const request=calls.find(call=>call.url==='desktop:creation-planner');
+ assert.equal(request.planner.model,'gpt-6.2-astra');
+ assert.equal(request.planner.engine,'codex');
+ assert.equal(calls.some(call=>call.url==='/api/agents/creation-draft'&&call.init.method==='POST'),false);
 });
