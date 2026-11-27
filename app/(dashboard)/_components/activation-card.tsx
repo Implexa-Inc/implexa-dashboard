@@ -158,7 +158,7 @@ function ConnectionRow({ item, onChanged, onBrowserVerified, confirmed, onConfir
     finally { setWaiving(false); }
   }
   if (item.registeredRead) return <li className="text-secondary text-ink-400">
-    Use <a className="underline" href="#agent-access-tools">Tools</a> to verify the report on {domain}.
+    Report access for {domain} is checked during each run.
   </li>;
   return (
     <li>

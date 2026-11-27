@@ -55,8 +55,6 @@ function bridge(): Bridge | null {
 
 type BrowserSession = NonNullable<AgentRequirementsPayload['services'][number]['browserSession']>;
 
-// Report links use ordinary browser navigation. Setup verifies only the
-// owner-bound Tukido browser session through the existing Desktop bridge.
 function reportLink(session: BrowserSession): string | null {
   const href = session.readRoute?.url;
   if (!href) return null;
@@ -67,50 +65,46 @@ function reportLink(session: BrowserSession): string | null {
   } catch { return null; }
 }
 
-function BrowserSessionAccess({ session, toolKey, target, managed = false, onVerified }: { session: BrowserSession; toolKey: string; target?: AgentSetupTarget | null; managed?: boolean; onVerified: () => void | Promise<void> }) {
+function BrowserSessionAccess({ session, target, managed = false, onVerified }: { session: BrowserSession; target?: AgentSetupTarget | null; managed?: boolean; onVerified: () => void | Promise<void> }) {
   const bridge = useDesktopBridge();
   const [opened, setOpened] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const [reportVerified, setReportVerified] = useState(false);
-  const registered = !!session.readRoute;
-  const href = reportLink(session);
-  const canVerifyReport = !!bridge?.registeredBrowserReadSetup;
 
-  if (!registered && session.status === 'reachable' && (managed || !usesProviderBrowserSession(session.domain))) {
+  if (session.readRoute) {
+    const href = reportLink(session);
+    return href
+      ? <a href={href} target="_blank" rel="noopener noreferrer" className="btn-outline text-ui px-2.5 py-1">Open report</a>
+      : <p role="status" className="text-secondary text-state-needs">Report link unavailable. Open the report directly in your browser.</p>;
+  }
+
+  if (session.status === 'reachable' && (managed || !usesProviderBrowserSession(session.domain))) {
     return (
       <span className="text-secondary text-state-ok whitespace-nowrap">
         {managed ? '✓ Browser access ready' : `✓ signed in${session.identity ? ` as ${session.identity}` : ''}`}
       </span>
     );
   }
-  if (!registered && !managed) return <ProviderBrowserSignIn key={session.domain} domain={session.domain} onVerified={onVerified} />;
+  if (!managed) return <ProviderBrowserSignIn key={session.domain} domain={session.domain} onVerified={onVerified} />;
 
   const openSignIn = async () => {
     if (!target || !bridge?.connectAgentTool) { setNote('Open the updated Tukido app to connect this tool.'); return; }
-    setBusy(true); setNote(null); setReportVerified(false);
+    setBusy(true); setNote(null);
     try {
-      const out = await bridge.connectAgentTool(target, session.domain, registered ? toolKey : undefined);
+      const out = await bridge.connectAgentTool(target, session.domain);
       if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.'
         : 'Could not open this tool. Check setup and try again.'); return; }
       setOpened(true);
-      setNote(registered ? 'Sign in to the report in the Tukido browser, then select Verify report.' : 'Sign in, then select Verify in Tukido. You can leave the browser open.');
+      setNote('Sign in, then select Verify in Tukido. You can leave the browser open.');
     } catch { setNote('Could not open the sign-in page.'); }
     finally { setBusy(false); }
   };
   const verify = async () => {
     if (!target || !bridge?.checkAgentToolConnections) { setNote('Check this tool from the updated Tukido app.'); return; }
-    setBusy(true); setNote(null); setReportVerified(false);
+    setBusy(true); setNote(null);
     try {
-      const out = registered ? await bridge.checkAgentToolConnections(target, session.domain, toolKey)
-        : await bridge.checkAgentToolConnections(target);
+      const out = await bridge.checkAgentToolConnections(target);
       if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.' : 'Connection not confirmed. Check the Tukido dialog.'); return; }
-      if (registered) {
-        setReportVerified(out.reportVerified === true);
-        setNote(out.reportVerified === true ? 'Report access verified in the Tukido browser.'
-          : 'Tukido could not read the report. Sign in and open it in the Tukido browser, then try again.');
-        return;
-      }
       await onVerified();
       setNote('Connection check finished.');
     } catch { setNote('Could not verify the account. Try again.'); }
@@ -118,22 +112,14 @@ function BrowserSessionAccess({ session, toolKey, target, managed = false, onVer
   };
 
   return (
-    <div className={registered ? "min-w-0 text-right" : "flex-none text-right"}>
+    <div className="flex-none text-right">
       <div className="flex flex-wrap items-center justify-end gap-1.5">
-        {href && (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="btn-outline text-ui px-2.5 py-1">Open report</a>
-        )}
-        {(!registered || canVerifyReport) && (
-          <>
-            <button type="button" onClick={openSignIn} disabled={busy} className="btn-outline text-ui px-2.5 py-1">
-              {registered ? 'Open Tukido browser' : opened ? 'Reopen sign-in' : 'Use signed-in account'}
-            </button>
-            <button type="button" onClick={verify} disabled={busy} className="btn-outline text-ui px-2.5 py-1">{registered ? 'Verify report' : 'Verify'}</button>
-          </>
-        )}
+        <button type="button" onClick={openSignIn} disabled={busy} className="btn-outline text-ui px-2.5 py-1">
+          {opened ? 'Reopen sign-in' : 'Use signed-in account'}
+        </button>
+        <button type="button" onClick={verify} disabled={busy} className="btn-outline text-ui px-2.5 py-1">Verify</button>
       </div>
-      {registered && !canVerifyReport && <p className="text-secondary text-ink-500 mt-1">Verify from Setup in the Tukido app.</p>}
-      {note && <p role="status" className={`text-secondary mt-1 max-w-56 leading-snug ${reportVerified ? 'text-state-ok' : 'text-ink-500'}`}>{note}</p>}
+      {note && <p role="status" className="text-secondary mt-1 max-w-56 leading-snug text-ink-500">{note}</p>}
     </div>
   );
 }
@@ -202,13 +188,14 @@ export function ActivationRequirements({ req, slug, target, onBrowserVerified }:
 
   const outstanding = services.filter((s) => !satisfied(s));
   const ready = services.filter(satisfied);
-  const requiredOutstanding = outstanding.filter((s) => s.required !== false);
+  const reportsCheckedDuringRun = services.some(s => !!s.browserSession?.readRoute);
+  const requiredOutstanding = outstanding.filter(s => s.required !== false && !s.browserSession?.readRoute);
 
   return (
     <div className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
       <div className="text-secondary font-semibold uppercase tracking-wide text-ink-500 mb-3">Tools</div>
 
-      {requiredOutstanding.length === 0 && (
+      {requiredOutstanding.length === 0 && !reportsCheckedDuringRun && (
         <p className="text-reading text-state-ok mb-3">{outstanding.length ? 'Required service connections are ready. Unconnected optional tools will be skipped.' : 'Everything’s set up for this agent.'}</p>
       )}
       <ul className="space-y-3">
@@ -230,7 +217,7 @@ export function ActivationRequirements({ req, slug, target, onBrowserVerified }:
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-secondary text-ink-100">{s.name}</span>
-                    <span className="text-secondary text-ink-500">{s.required === false ? 'Optional' : 'Required'}</span>
+                    <span className="text-secondary text-ink-500">{s.required === false ? 'Optional' : s.browserSession?.readRoute ? 'Required to run' : 'Required'}</span>
                     {/* Cost is only news if they still have to go get it. */}
                     {!isReady && !needsGrantOnly && !browserOnly && !unknownAccess && s.keysReadable !== false && (
                       <span className="text-secondary px-1.5 py-0.5 rounded bg-amber-500/10 text-state-needs uppercase tracking-wide">
@@ -240,7 +227,7 @@ export function ActivationRequirements({ req, slug, target, onBrowserVerified }:
                   </div>
                   {browserOnly ? (
                     <p className="text-secondary text-ink-500 mt-0.5">
-                      {s.browserSession?.readRoute ? 'Open in your default browser. Verification uses the Tukido browser.' : 'Uses your signed-in browser.'}
+                      {s.browserSession?.readRoute ? 'Stay signed in to this report in the browser you use with Tukido. Access is checked during each run.' : 'Uses your signed-in browser.'}
                     </p>
                   ) : unknownAccess ? (
                     <p className="text-secondary text-ink-500 mt-0.5">
@@ -262,7 +249,7 @@ export function ActivationRequirements({ req, slug, target, onBrowserVerified }:
                   {!isReady && s.required === false && <p className="text-secondary text-ink-500 mt-0.5">If unavailable at run time, this optional tool is skipped. The agent will use its fallback.</p>}
                 </div>
                 <div className="flex-none flex items-center gap-1.5">
-                  {s.browserSession && <BrowserSessionAccess key={`${target?.versionId}:${s.key}`} session={s.browserSession} toolKey={s.key} target={target} managed={structured && s.required === false} onVerified={refreshTools} />}
+                  {s.browserSession && <BrowserSessionAccess key={`${target?.versionId}:${s.key}`} session={s.browserSession} target={target} managed={structured && s.required === false} onVerified={refreshTools} />}
                   {s.provider && !browserOnly && !unknownAccess && !keyReady && <InlineAddKeyButton provider={s.provider} slug={slug} />}
                   {keyReady && <span className="text-secondary text-state-ok whitespace-nowrap">✓ key allowed</span>}
                   {/* Suppress "Get it" once a key exists — that was the original
