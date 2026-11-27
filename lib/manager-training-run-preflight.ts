@@ -129,7 +129,7 @@ export function trainingSuccessorAdoptionPreview(
 
 /** The active-version projection, never a historical session's coverage. */
 export function trainingContinuityStatus(preview: unknown, requirements: ManagerTrainingRequirements | null,
-  targetVersionId: string | null): { state: 'carried' | 'available'; count: number } | { state: 'review'; reason: string } | { state: 'unknown' } {
+  targetVersionId: string | null): { state: 'carried' | 'available'; count: number } | { state: 'review'; reason: string } | { state: 'no_reference_carry' } | { state: 'unknown' } {
   if (!targetVersionId || !isManagerTrainingRequirements(requirements, targetVersionId)) return { state: 'unknown' };
   const checked = trainingSuccessorAdoptionPreview(preview, targetVersionId, requirements);
   if (!checked) return { state: 'unknown' };
@@ -141,6 +141,10 @@ export function trainingContinuityStatus(preview: unknown, requirements: Manager
   }
   if (checked.readiness === 'adoption_available' && checked.newlyAdoptableRecordCount > 0 && checked.eligibleRouteCount > 0) {
     return { state: 'available', count: checked.newlyAdoptableRecordCount };
+  }
+  if (checked.readiness === 'already_adopted' && checked.eligibleRecordCount === 0) {
+    // The exact preview validator accepts zero only with verified not-applicable requirements.
+    return { state: 'no_reference_carry' };
   }
   if (checked.readiness === 'already_adopted' && checked.eligibleRecordCount > 0
     && checked.alreadyAdoptedRecordCount === checked.eligibleRecordCount
