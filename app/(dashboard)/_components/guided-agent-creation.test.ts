@@ -123,3 +123,27 @@ test('a folder and a playbook use the same attachment menu and send only shareab
  assert.match(message,/names only.*Footage/);
  assert.doesNotMatch(message,/\/example\/private/);
 });
+
+const cue=(r:Rendered)=>r.document.querySelector('section[aria-label="Chat with AI"] [data-testid="chat-build-cue"]');
+test('the chat itself says the plan is ready and builds the same selected draft as the cards',async t=>{
+ const {r,calls}=await setup(t,[turn(2)]);const box=cue(r)!;assert.ok(box,'the build cue sits inside the chat');
+ assert.match(box.textContent||'',/Your plan is ready\./);assert.match(box.textContent||'',/Review the plan, or keep chatting/);
+ const button=box.querySelector('button')!;assert.equal(button.textContent,'Build this agent');
+ assert.equal([...r.document.querySelectorAll('button')].filter(b=>b.textContent==='Build this agent').length,2,'the button under the cards stays');
+ await r.click(button);await r.act(async()=>{await new Promise(resolve=>setImmediate(resolve));});
+ const creates=calls.filter(c=>c.url==='/api/agents/create');assert.equal(creates.length,1);
+ assert.deepEqual(JSON.parse(creates[0].init.body).creationDraftBinding,{draftId:new URL(calls[0].url,'https://test.invalid').searchParams.get('draftId'),replyId:id(102),replyDigest:H});
+ assert.equal(cue(r),null,'the cue leaves once the build is queued');
+});
+test('the chat cue never claims readiness without a prepared draft, while a reply is pending, or for an older selection',async t=>{
+ const none=await setup(t,[turn(2,{brief:null,questions:['Which goal?'],answerOptions:['A','B'],buildIntent:null,trainingNotes:[],tools:[],toolPreferences:[]})]);
+ assert.equal(cue(none.r),null);
+ const open=await setup(t,[turn(2,{questions:['Which pitch should be scripted?'],answerOptions:['Pitch 1','Pitch 2']})]);
+ assert.match(cue(open.r)!.textContent||'',/You can build now, or answer first\..*uses the plan as it stands/);assert.doesNotMatch(cue(open.r)!.textContent||'',/plan is ready/);
+ const pending=await setup(t,[turn(2),turn(3,{status:'pending',replyId:null,replyDigest:null,reply:null,brief:null,model:null,trainingNotes:[],questions:[],buildIntent:null,tools:[],toolPreferences:[]})]);
+ assert.match(cue(pending.r)!.textContent||'',/Preparing your reply/);assert.equal(cue(pending.r)!.querySelector('button')!.disabled,true);
+ const older=await setup(t,[turn(2),turn(3,{baseReplyId:id(102),message:'Make it shorter'})]);
+ assert.match(cue(older.r)!.textContent||'',/Your plan is ready/);
+ await older.r.click(older.r.getByText('Undo last change'));
+ assert.match(cue(older.r)!.textContent||'',/This builds the earlier saved draft you selected\./);
+});
