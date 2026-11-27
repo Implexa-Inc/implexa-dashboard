@@ -2921,6 +2921,29 @@ test('missing or malformed carry-forward proof is unknown rather than lost or ca
   }
 });
 
+test('a verified zero-reference successor can enter private test setup without copying earlier lessons', async () => {
+  const zero = {contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
+    eligibleRecordCount:0,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0,readiness:'already_adopted',reason:null};
+  for (const successorAdoption of [zero, {...zero,sourceWorkflowVersionId:RECORD}]) {
+    const {rendered:r,calls}=await renderedWith({currentVersion:VERSION_B,state:'accepted',
+      activeRequirements:requirements(VERSION_B,{readiness:'not_applicable',requiredPairs:[],fulfilledPairs:[],missingPairs:[]}),
+      sessionRequirements:requirements(VERSION_A),successorAdoption});
+    try {
+      assert.ok(r.getByText('Set up a private test'));
+      const start=r.getByText('Start successor training session') as HTMLButtonElement;
+      assert.equal(start.disabled,true);
+      await r.click(r.getByText(/Start a new training session for the updated agent/).closest('label')!.querySelector('input')!);
+      await r.click(start);
+      const create=calls.filter(call=>call.operation==='create');
+      assert.equal(create.length,1);
+      assert.equal(create[0].args.parentSessionId,SESSION);
+      assert.ok(calls.some(call=>call.operation==='scope'&&call.args.sessionId===NEW_SESSION));
+      assert.equal(calls.some(call=>['accept','annotate','adopt'].includes(call.operation)),false);
+      assert.equal(r.document.querySelector('[aria-label="Apply and test training"]')?.hasAttribute('hidden'),false);
+    } finally {r.cleanup();}
+  }
+});
+
 
 test('a delayed historical coverage response cannot erase current adoption proof',async()=>{
  const proof={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
