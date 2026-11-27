@@ -21,9 +21,11 @@ export function localInputRecoveryMessage(error?: string) {
 export async function verifyContinuationSource(
   runId: string,
   onPhase?: (phase: 'checking' | 'reconnecting') => void,
+  { required = false } = {},
 ): Promise<RecoveryResult> {
   const bridge = localInputBridge();
-  if (!bridge?.localInputReauthorizationState) return { ok: true };
+  const unknown = required ? { ok: false, error: 'local_input_reauthorization_unavailable' } : { ok: true };
+  if (!bridge?.localInputReauthorizationState) return unknown;
 
   onPhase?.('checking');
   const state = await Promise.resolve()
@@ -31,7 +33,9 @@ export async function verifyContinuationSource(
     .catch(() => null);
   // Desktop can speak for its own missing source authority. Web and other
   // machines still use the request router to reach the owner Mac.
-  if (!state?.ok || state.applicable !== true || state.required !== true) return { ok: true };
+  if (!state?.ok || state.applicable !== true) return unknown;
+  if (state.required === false || (!required && state.required !== true)) return { ok: true };
+  if (state.required !== true) return unknown;
   if (!bridge.reauthorizeRunInputs) return { ok: false, error: 'local_input_reauthorization_unavailable' };
 
   onPhase?.('reconnecting');

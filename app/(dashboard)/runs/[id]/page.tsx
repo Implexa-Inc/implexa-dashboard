@@ -40,6 +40,7 @@ import StagePreviewReview from '../../_components/stage-preview-review';
 import { parseStagePreviewRead, type StagePreviewRead } from '@/lib/review-preview';
 import { resultRowChoices } from '@/lib/result-row-choices';
 import RunContinueBox, { type FollowUpInput } from '../../_components/run-continue-box';
+import CheckpointSavedEdit from '../../_components/checkpoint-saved-edit';
 import RunActionItems, { isRetryableApprovalAction, type RunActionItem } from '../../_components/run-action-items';
 import FinishRunButton from '../../_components/finish-run-button';
 import GrantPermissionsButton from '../../_components/grant-permissions-button';
@@ -361,11 +362,11 @@ export default async function RunDetailPage({
   // mechanism (no run_requests row at all, e.g. a manual/legacy insert) — the
   // banner component itself renders nothing when the fields are absent, so a
   // degraded fetch here is silently safe, never a broken page.
-  let engineRouting: { original_preference?: string | null; selected_executor?: string | null; selection_reason?: string | null; learning_context?: { rules?: Array<{ id: string; version: number; versionDigest: string; ruleClass: string; instruction: string }> } | null } | null = null;
+  let engineRouting: { original_preference?: string | null; selected_executor?: string | null; selection_reason?: string | null; failure_reason?: string | null; learning_context?: { rules?: Array<{ id: string; version: number; versionDigest: string; ruleClass: string; instruction: string }> } | null } | null = null;
   let learningSourceAvailable = true;
   try {
     const { data, error } = await supabase.from('run_requests')
-      .select('original_preference, selected_executor, selection_reason, learning_context').eq('run_id', r.id).maybeSingle();
+      .select('original_preference, selected_executor, selection_reason, failure_reason, learning_context').eq('run_id', r.id).maybeSingle();
     if (error) {
       learningSourceAvailable = false;
       // Preserve the pre-0190 routing disclosure while making the learning
@@ -1365,6 +1366,8 @@ export default async function RunDetailPage({
           <h2 className="text-reading font-semibold text-state-needs">The original run was interrupted</h2>
           <p className="mt-1 text-reading text-ink-300">{recoveryWarning}</p>
         </section>}
+        {engineRouting?.failure_reason && ['launch_attempt_open_failed', 'checkpoint_resume_executor_mismatch'].includes(engineRouting.failure_reason)
+          && <CheckpointSavedEdit runId={r.id} />}
         {finishedView}
         {!showRecoveredResult&&<>
         <FinishedRunDetails collapsed={showFinishedReview}>
