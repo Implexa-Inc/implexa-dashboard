@@ -116,6 +116,8 @@ export function mapActivationChecklist(b: Record<string, unknown> | null | undef
   return {
     slug: String(b.slug ?? slug),
     setupContext: parseAgentSetupContext(b.setupContext),
+    ...(typeof b.commandApprovalAccountId === 'string' && /^[a-f0-9-]{36}$/.test(b.commandApprovalAccountId)
+      ? { commandApprovalAccountId: b.commandApprovalAccountId } : {}),
     name: String(b.name ?? slug),
     summary: (b.summary as string) ?? null,
     state: (b.state as ActivationState) ?? 'created',

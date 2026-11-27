@@ -50,3 +50,12 @@ test('active-agent grant changes use the dedicated per-agent endpoint', () => {
   assert.match(src, /body: \{ granted: on \}/);
   assert.match(src, /Revoked for this agent/);
 });
+
+test('shared command approval shows Auto and is excluded from saved agent opt-ins', () => {
+  assert.match(src, /it\.group === 'shell' && it\.granted === true && it\.grantScope === 'account_until_revoked'/);
+  assert.match(src, /TIER_PRESENTATION\[inherited \? 0 : it\.tier\]/);
+  assert.match(src, /i\.granted && i\.grantScope !== 'account_until_revoked'/);
+  assert.match(src, /Allow commands for my agents/);
+  assert.match(src, /await saveAgentCommandApproval\(accountId, true, session\.access_token\)/);
+  assert.match(src, /const accountId = checklist\.commandApprovalAccountId/);
+});
