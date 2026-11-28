@@ -19,8 +19,7 @@
 
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
-import { createClient } from '@/lib/supabase/server';
-import { readUserProfile } from '@/lib/profile-read';
+import { dashboardAccount } from '@/lib/dashboard-account';
 import { computeSetupStatus } from '@/lib/setup-status';
 import Sidebar, { MobileTopBar, ShellNavigationProvider } from './_components/sidebar';
 import BuildingAgents from './_components/building-agents';
@@ -37,20 +36,18 @@ import { MAIN_CONTENT_ID } from '@/lib/navigation';
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const { supabase, session, profile } = await dashboardAccount();
   if (!session?.user) redirect('/login');
 
   // Pulling the new activity timestamps in the same query the layout
   // already runs — zero extra round-trips. Drives the setup-status chip
   // in the sidebar (Level 2 of the post-share-install gate work).
-  const profile = await readUserProfile(supabase
-    .from('users').select('id, organization_id, display_name, email, founding_creator_unlocked_at, last_mcp_call_at, last_hook_event_at').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const { data: org } = await supabase
-    .from('organizations').select('plan')
-    .eq('id', profile.organization_id).maybeSingle();
+  const [{ data: org }, marketplaceSamples] = await Promise.all([
+    supabase.from('organizations').select('plan').eq('id', profile.organization_id).maybeSingle(),
+    getMarketplaceSamples(),
+  ]);
 
   const setup = computeSetupStatus(profile.last_mcp_call_at, profile.last_hook_event_at);
 
@@ -104,7 +101,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     setupStatus:       setup.status,
     lastSeenAt:        setup.lastSeenAt,
     isAdmin,
-    marketplacePilot: marketplacePilotEnabled(await getMarketplaceSamples()),
+    marketplacePilot: marketplacePilotEnabled(marketplaceSamples),
   };
 
   return (
