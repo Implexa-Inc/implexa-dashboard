@@ -3,10 +3,10 @@ import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { readUserProfile } from '@/lib/profile-read';
+import { dashboardAccount } from '@/lib/dashboard-account';
 import { loadNeedsYou, type NeedsYou } from '@/lib/needs-you';
 import { loadInboxItems } from '@/lib/inbox';
-import { readMyWorkflows } from '@/lib/workflow-catalog';
+import { readMyWorkflows, type MyWorkflowsRead } from '@/lib/workflow-catalog';
 import { getReviewQueue, reviewQueueWarning, versionSummary, unresolvedIssueLabel } from '@/lib/review';
 import { resolveWorkView, AGENTS_MANAGE_HREF } from '@/lib/navigation';
 import { settleWithin } from '@/lib/landing';
@@ -15,16 +15,16 @@ import PageHeader from '@/components/page-header';
 import WorkFeed,{WorkSource} from './_components/work-feed';
 import OutcomeProductionsList from './_components/outcome-productions-list';
 import InboxList from '../inbox/inbox-list';
+import CoachOwnership from '../_components/coach-ownership';
 
 export const dynamic = 'force-dynamic';
 export default async function WorkPage({searchParams}: {searchParams?:Record<string,string|string[]|undefined>}) {
-  const supabase=createClient();
-  const {data:{session}}=await supabase.auth.getSession();
+  const {session,profile}=await dashboardAccount();
   if(!session?.user) redirect('/login');
-  const profile=await readUserProfile(supabase.from('users').select('id, organization_id').eq('id',session.user.id));
   if(!profile?.organization_id) redirect('/onboarding');
   const view=resolveWorkView(searchParams?.view);
   if(view==='agents') redirect(AGENTS_MANAGE_HREF);
+  const owned = readMyWorkflows(session.access_token);
   return <div className="app-page work-page"><div className="app-content">
     <PageHeader title="Work" actions={<Link href="/workflows" className="btn-primary"><svg className="h-4 w-4" aria-hidden="true"><use href="/brand/tukido-icons.svg#plus"/></svg>Start work</Link>}>
       <p className="app-page-description">What your agents are producing, and what needs you.</p>
@@ -33,8 +33,9 @@ export default async function WorkPage({searchParams}: {searchParams?:Record<str
       delivered={view==='delivered'?<Suspense fallback={<p role="status" className="work-list-notice">Loading delivered work…</p>}><DeliveredView/></Suspense>:null}
       productions={<Suspense fallback={<p role="status" className="work-list-notice">Checking other work…</p>}><OtherWork jwt={session.access_token}/></Suspense>}>
       <Suspense fallback={null}><NeedsSource/></Suspense>
-      <Suspense fallback={null}><ReviewSource jwt={session.access_token}/></Suspense>
+      <Suspense fallback={null}><ReviewSource owned={owned}/></Suspense>
     </WorkFeed>
+    <Suspense fallback={null}><CoachOwnership owned={owned}/></Suspense>
   </div></div>;
 }
 
@@ -43,14 +44,14 @@ async function NeedsSource(){
   const value:NeedsYou=read??{needGrant:[],missed:[],signIns:[],stalled:[],attentionItems:[],homeAttention:[],pendingReviews:0,homeCount:0,total:0,partial:true,truncated:false,unavailableSources:['needs_you_timeout']};
   return <WorkSource data={{kind:'needs',value}}/>;
 }
-async function ReviewSource({jwt}:{jwt:string}){
-  const [read,owned]=await Promise.all([
+async function ReviewSource({owned}:{owned:Promise<MyWorkflowsRead>}){
+  const [read,library]=await Promise.all([
     getReviewQueue(),
-    settleWithin(readMyWorkflows(jwt),10_000,{status:'unavailable' as const,reason:'timeout' as const}),
+    owned,
   ]);
   const queue=read??{items:[],truncated:false,total:null,visibleCount:0,sources:{review_endpoint:'unavailable'},live:false} as const;
   return <WorkSource data={{kind:'review',value:{queue,
-    names:Object.fromEntries(owned.status==='ready'?owned.workflows.map(agent=>[agent.slug,agent.name]):[]),
+    names:Object.fromEntries(library.status==='ready'?library.workflows.map(agent=>[agent.slug,agent.name]):[]),
     warning:reviewQueueWarning(queue),
     reviewDetails:Object.fromEntries(queue.items.map(item=>[item.rootRunId,`${versionSummary(item)} · ${unresolvedIssueLabel(item.unresolvedIssueCount)}`])),
   }}}/>;

@@ -41,70 +41,88 @@ const FOCUS_RING =
   'focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ' +
   'focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900';
 
-const WorkAttentionUpdates=createContext<((value:WorkAttentionBadge|undefined)=>void)|null>(null);
+const WorkAttentionUpdates = createContext<((value: WorkAttentionBadge | undefined) => void) | null>(null);
+const CoachOwnershipUpdates = createContext<((canTrain: boolean) => void) | null>(null);
+const ShellState = createContext<ShellNavigationState | undefined>(undefined);
 
-/** Work owns its current on-page count; both navigation surfaces read that same value. */
-export function WorkAttentionSync({badge}:{badge:WorkAttentionBadge|undefined}){
-  const publish=useContext(WorkAttentionUpdates);
-  useEffect(()=>{publish?.(badge);return()=>publish?.(undefined);},[publish,badge?.count,badge?.complete]);
+/** Work owns the current badge; both navigation surfaces use it. */
+export function WorkAttentionSync({ badge }: { badge: WorkAttentionBadge | undefined }) {
+  const publish = useContext(WorkAttentionUpdates);
+  useEffect(() => { publish?.(badge); return () => publish?.(undefined); }, [publish, badge?.count, badge?.complete]);
   return null;
 }
 
-const ShellState = createContext<ShellNavigationState | undefined>(undefined);
+export function CoachOwnershipSync({ canTrain }: { canTrain: boolean | null }) {
+  const publish = useContext(CoachOwnershipUpdates);
+  useEffect(() => { if (typeof canTrain === 'boolean') publish?.(canTrain); }, [canTrain, publish]);
+  return null;
+}
 
-/** One read for both surfaces after paint, with throttled focus/periodic refresh. */
+/** A shared persistent read for both menus. Pages can supply the data they already own. */
 export function ShellNavigationProvider({ userId, children }: { userId: string; children: ReactNode }) {
   const [state, setState] = useState<ShellNavigationState>();
-  const pageWork=useRef<WorkAttentionBadge>();
-  const publishWork=useCallback((badge:WorkAttentionBadge|undefined)=>{
-    pageWork.current=badge;
-    if(badge)setState(previous=>{const work=badge;return previous?.work?.count===work?.count&&previous?.work?.complete===work?.complete?previous:{canTrain:previous?.canTrain??null,work};});
-  },[]);
+  const path = usePathname() || '';
+  const currentPath = useRef(path);
+  currentPath.current = path;
+  const pageWork = useRef<WorkAttentionBadge>();
+  const publishWork = useCallback((badge: WorkAttentionBadge | undefined) => {
+    pageWork.current = badge;
+    if (badge) setState(previous => previous?.work?.count === badge.count && previous?.work?.complete === badge.complete
+      ? previous : { canTrain: previous?.canTrain ?? null, work: badge });
+  }, []);
+  const publishCoach = useCallback((canTrain: boolean) => {
+    setState(previous => previous?.canTrain === canTrain ? previous : { canTrain, work: previous?.work });
+    try {
+      const key = `tukido.coach-navigation:${userId}`;
+      window.localStorage.setItem(key, String(canTrain));
+      window.localStorage.setItem(`${key}:checked-at`, String(Date.now()));
+    } catch { /* UI hint only. */ }
+  }, [userId]);
+
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
     let inFlight = false;
     let lastRead = 0;
-    let ownershipVerified = false;
-    const roleKey = `tukido.coach-navigation:${userId}`;
-    // Per-account, per-tab UI hint. It carries no permissions or authentication.
     try {
-      const cached=JSON.parse(window.sessionStorage.getItem(`tukido.work-attention:${userId}`)||'null');
-      if(Number.isSafeInteger(cached)&&cached>0)setState(previous=>pageWork.current?previous:{canTrain:previous?.canTrain??null,work:mergeWorkCount(previous?.work,{count:cached,complete:false})});
-    } catch { /* Storage is optional; unreadable is never a zero. */ }
+      const cached = JSON.parse(window.sessionStorage.getItem(`tukido.work-attention:${userId}`) || 'null');
+      if (Number.isSafeInteger(cached) && cached > 0) setState(previous => pageWork.current ? previous : {
+        canTrain: previous?.canTrain ?? null, work: mergeWorkCount(previous?.work, { count: cached, complete: false }),
+      });
+    } catch { /* Storage is optional. */ }
     try {
-      const known = window.localStorage.getItem(roleKey);
-      const checkedAt = Number(window.localStorage.getItem(`${roleKey}:checked-at`));
+      const key = `tukido.coach-navigation:${userId}`;
+      const known = window.localStorage.getItem(key);
+      const checkedAt = Number(window.localStorage.getItem(`${key}:checked-at`));
       if (known === 'true' || (known === 'false' && Date.now() - checkedAt < 30_000)) {
-        setState((previous) => ({ canTrain: known === 'true', work: previous?.work }));
+        setState(previous => typeof previous?.canTrain === 'boolean' ? previous : { canTrain: known === 'true', work: previous?.work });
       }
-    } catch { /* A blocked storage area does not block navigation. */ }
+    } catch { /* Storage is optional. */ }
+    function publishBackgroundBadge(work: WorkAttentionBadge | null) {
+      if (active && currentPath.current !== '/work') {
+        setState(previous => ({ canTrain: previous?.canTrain ?? null,
+          work: pageWork.current ?? mergeWorkCount(previous?.work, work) }));
+      }
+    }
     async function refresh() {
-      if (pageWork.current && ownershipVerified) return; // Work already owns the visible count; avoid duplicate attention reads.
-      if (inFlight || document.visibilityState === 'hidden' || Date.now() - lastRead < 15_000) return;
+      const startedOn = currentPath.current;
+      if (startedOn === '/work' || inFlight || document.visibilityState === 'hidden' || Date.now() - lastRead < 15_000) return;
       lastRead = Date.now();
       inFlight = true;
       try {
-        const res = await fetch('/api/shell-navigation', { cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12_000)]) });
+        const scope = startedOn === '/workflows' ? '?scope=activity' : '';
+        const res = await fetch(`/api/shell-navigation${scope}`, {
+          cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12_000)]),
+        });
         const body = res.ok ? await res.json() : null;
         const work = body?.work;
         const valid = body?.ok === true && [true, false, null].includes(body.canTrain)
           && (work === null || (Number.isSafeInteger(work?.count) && work.count >= 0 && typeof work.complete === 'boolean'));
-        if (active) {
-          if (valid && typeof body.canTrain === 'boolean') {
-            ownershipVerified = true;
-            try {
-              window.localStorage.setItem(roleKey, String(body.canTrain));
-              window.localStorage.setItem(`${roleKey}:checked-at`, String(Date.now()));
-            } catch { /* UI hint only, never authorization */ }
-          }
-          setState((previous) => valid
-            ? { canTrain: body.canTrain ?? previous?.canTrain ?? null, work:pageWork.current??mergeWorkCount(previous?.work,work) }
-            : { canTrain: previous?.canTrain ?? null, work:pageWork.current??mergeWorkCount(previous?.work,null) });
-        }
-      } catch {
-        if (active) setState((previous) => ({ canTrain: previous?.canTrain ?? null, work:pageWork.current??mergeWorkCount(previous?.work,null) }));
-      } finally { inFlight = false; }
+        if (active && valid && typeof body.canTrain === 'boolean'
+          && currentPath.current !== '/work' && currentPath.current !== '/workflows') publishCoach(body.canTrain);
+        publishBackgroundBadge(valid ? work : null);
+      } catch { publishBackgroundBadge(null); }
+      finally { inFlight = false; }
     }
     void refresh();
     const onFocus = () => { void refresh(); };
@@ -118,19 +136,19 @@ export function ShellNavigationProvider({ userId, children }: { userId: string; 
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onFocus);
     };
-  }, [userId]);
-  useEffect(()=>{
-    const value=state?.work;
-    if(!value)return;
+  }, [userId, publishCoach]);
+  useEffect(() => {
+    const value = state?.work;
+    if (!value) return;
     try {
-      const key=`tukido.work-attention:${userId}`;
-      if(value.count>0)window.sessionStorage.setItem(key,JSON.stringify(value.count));
+      const key = `tukido.work-attention:${userId}`;
+      if (value.count > 0) window.sessionStorage.setItem(key, JSON.stringify(value.count));
       else window.sessionStorage.removeItem(key);
-    } catch { /* UI continuity only; never authorization. */ }
-  },[userId,state?.work?.count,state?.work?.complete]);
-  // Navigation remounts do not create another read; the provider belongs to the
-  // persistent layout. Focus/periodic checks refresh decisions with a minimum gap.
-  return <WorkAttentionUpdates.Provider value={publishWork}><ShellState.Provider value={state}>{children}</ShellState.Provider></WorkAttentionUpdates.Provider>;
+    } catch { /* UI continuity only. */ }
+  }, [userId, state?.work?.count, state?.work?.complete]);
+  return <WorkAttentionUpdates.Provider value={publishWork}><CoachOwnershipUpdates.Provider value={publishCoach}>
+    <ShellState.Provider value={state}>{children}</ShellState.Provider>
+  </CoachOwnershipUpdates.Provider></WorkAttentionUpdates.Provider>;
 }
 
 function useShellNav(user: UserCtx) {

@@ -1,5 +1,5 @@
 import {createClient} from '@/lib/supabase/server';
-import {readMyWorkflows,listDismissedWorkflows,listFavoriteSlugs} from '@/lib/workflow-catalog';
+import {type MyWorkflowsRead,listDismissedWorkflows,listFavoriteSlugs} from '@/lib/workflow-catalog';
 import {getMyAgents} from '@/lib/agents-home';
 import {buildRoster} from '@/lib/agents-roster';
 import {categorizeAgent} from '@/lib/agent-category';
@@ -8,10 +8,10 @@ import RetryButton from './retry-button';
 import {CollectionReadError} from './collection-state';
 
 /** One request-local roster promise supplies both the count and the list. */
-export async function loadInstalledRoster(jwt:string){
+export async function loadInstalledRoster(jwt:string, owned:Promise<MyWorkflowsRead>){
  const supabase=createClient();
  const [feed,library,dismissed,favorites,paused]=await Promise.all([
-  getMyAgents({getToken:async()=>jwt}),readMyWorkflows(jwt),listDismissedWorkflows(),listFavoriteSlugs(),
+  getMyAgents({getToken:async()=>jwt}),owned,listDismissedWorkflows(),listFavoriteSlugs(),
   supabase.from('scheduled_skills').select('skill_slug,status,trigger_type').eq('status','paused').eq('trigger_type','cron').abortSignal(AbortSignal.timeout(8000)),
  ]);
  const roster=buildRoster({feed,mine:library.status==='ready'?library.workflows:[],paused:paused.data??[],categorize:categorizeAgent});

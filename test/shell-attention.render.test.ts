@@ -62,7 +62,7 @@ test('both real shell surfaces retain attention on visiting Work, refresh after 
     React.createElement(Sidebar, { user }), React.createElement(MobileTopBar, { user })) });
   const badges = () => Array.from(document.querySelectorAll('[aria-label="3 need you"]'));
   try {
-    __setPathname('/workflows');
+    __setPathname('/settings');
     await React.act(async () => { root.render(render()); });
     assert.equal(calls, 1, 'one background read feeds both surfaces');
     assert.equal(badges().length, 2);
@@ -78,6 +78,10 @@ test('both real shell surfaces retain attention on visiting Work, refresh after 
 
     response = { ok: true, canTrain: false, work: { count: 0, complete: true } };
     now += 15_001;
+    await React.act(async () => { window.dispatchEvent(new dom.window.Event('focus')); });
+    assert.equal(calls, 1, 'Work never issues the shell read, even after its throttle period');
+    __setPathname('/settings');
+    await React.act(async () => { root.render(render()); });
     await React.act(async () => { window.dispatchEvent(new dom.window.Event('focus')); });
     assert.equal(document.querySelectorAll('.app-nav-count').length, 0);
     assert.equal(document.querySelectorAll('a[href="/training"]').length, 0);
@@ -141,16 +145,18 @@ test('a weaker shell background read cannot reduce a previously known lower boun
 
 test('Work publishes one count to both menu surfaces and a slower shell response cannot replace it',async()=>{
  const {JSDOM}=await import('jsdom');const React=await import('react');const {createRoot}=await import('react-dom/client');
- const {default:Sidebar,MobileTopBar,ShellNavigationProvider,WorkAttentionSync}=await import('../app/(dashboard)/_components/sidebar');
+ const {default:Sidebar,MobileTopBar,ShellNavigationProvider,WorkAttentionSync,CoachOwnershipSync}=await import('../app/(dashboard)/_components/sidebar');
  const {__setPathname}=await import('./support/stubs/next-navigation.ts');
  const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost/work',pretendToBeVisual:true});
  const before={window:globalThis.window,document:globalThis.document,fetch:globalThis.fetch};const realNow=Date.now;let now=realNow();Date.now=()=>now;
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
  let calls=0;let finish:((response:Response)=>void)|undefined;globalThis.fetch=(()=>{calls++;return new Promise<Response>(resolve=>{finish=resolve;});}) as typeof fetch;
  const root=createRoot(document.getElementById('root')!);const user={displayName:'Review account',email:'review@example.com',plan:'free',isFoundingCreator:false};
- const render=(count:number|null,complete=false)=>React.createElement(ShellNavigationProvider,{userId:'review-account',children:React.createElement(React.Fragment,null,React.createElement(Sidebar,{user}),React.createElement(MobileTopBar,{user}),count===null?null:React.createElement(WorkAttentionSync,{badge:{count,complete}}))});
+ const render=(count:number|null,complete=false,canTrain:boolean|null=null)=>React.createElement(ShellNavigationProvider,{userId:'review-account',children:React.createElement(React.Fragment,null,React.createElement(Sidebar,{user}),React.createElement(MobileTopBar,{user}),count===null?null:React.createElement(WorkAttentionSync,{badge:{count,complete}}),React.createElement(CoachOwnershipSync,{canTrain}))});
  try{
-  __setPathname('/work');await React.act(async()=>root.render(render(20)));
+  __setPathname('/settings');await React.act(async()=>root.render(render(null)));
+  __setPathname('/work');await React.act(async()=>root.render(render(20,false,true)));
+  assert.equal(document.querySelectorAll('a[href="/training"]').length,2,'Work supplies Coach ownership directly');
   assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2);
   await React.act(async()=>finish?.(Response.json({ok:true,canTrain:true,work:{count:2,complete:false}})));
   assert.equal(document.querySelectorAll('[aria-label="At least 20 need you"]').length,2,'the independent shell read cannot overwrite the current page count');
@@ -160,7 +166,7 @@ test('Work publishes one count to both menu surfaces and a slower shell response
   assert.equal(calls,1,'Work already supplies attention; verified ownership does not need another whole attention read');
   await React.act(async()=>finish?.(Response.json({ok:false})));
   assert.equal(document.querySelectorAll('[aria-label="At least 15 need you"]').length,2,'an unavailable background route does not contradict visible Work rows');
-  __setPathname('/workflows');await React.act(async()=>root.render(render(null)));
+  __setPathname('/settings');await React.act(async()=>root.render(render(null)));
   assert.equal(document.querySelectorAll('[aria-label="At least 15 need you"]').length,2,'leaving Work retains the last page count instead of jumping to the older shell read');
   now+=15_001;await React.act(async()=>window.dispatchEvent(new dom.window.Event('focus')));assert.equal(calls,2);
   await React.act(async()=>finish?.(Response.json({ok:true,canTrain:true,work:{count:2,complete:false}})));
@@ -170,7 +176,9 @@ test('Work publishes one count to both menu surfaces and a slower shell response
   assert.equal(document.querySelectorAll('.app-nav-count').length,0,'a subsequent independent confirmed read can update the retained count');
   window.sessionStorage.setItem('tukido.work-attention:review-account','20');
   await React.act(async()=>root.render(null));
-  await React.act(async()=>root.render(render(0,false)));
+  __setPathname('/work');const previousCalls=calls;
+  await React.act(async()=>root.render(render(0,false,false)));
+  assert.equal(calls,previousCalls,'a cold Work page issues no sidebar read');
   assert.equal(document.querySelectorAll('[aria-label="Needs-you status unavailable"]').length,2,'a cached UI hint cannot override a fresh partial zero from the page');
   assert.equal(window.sessionStorage.getItem('tukido.work-attention:review-account'),null);
  }finally{await React.act(async()=>root.unmount());dom.window.close();Object.assign(globalThis,before);Date.now=realNow;}
